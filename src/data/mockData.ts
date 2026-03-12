@@ -28,6 +28,7 @@ export const mockLeads: Lead[] = [
     score: 'warm',
     status: 'contacted',
     createdAt: '2026-03-11T15:45:00',
+    companyName: '',
     notes: 'Premier email envoyé le 11/03',
     aiSummary: 'Curieuse mais pas encore de projet défini. Besoin de découvrir ses besoins.',
     salesAngle: 'Poser des questions ouvertes pour identifier le besoin réel.',
