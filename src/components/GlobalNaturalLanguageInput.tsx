@@ -208,6 +208,7 @@ export function GlobalNaturalLanguageInput() {
           </Popover>
         </div>
 
+        <AudioVisualizer isListening={isListening} className="mb-3" />
         <div className="flex gap-2">
           {micSupported && (
             <button
