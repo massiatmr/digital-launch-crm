@@ -129,6 +129,13 @@ Réponds de manière claire et concise.`;
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
 
+    // For pipeline questions, return raw text
+    if (type === "pipeline_question") {
+      return new Response(JSON.stringify({ answer: content.trim() }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Parse AI response - strip markdown code blocks if present
     let cleanContent = content.trim();
     if (cleanContent.startsWith("```")) {
