@@ -91,6 +91,7 @@ export function GlobalNaturalLanguageInput() {
 
   const analyze = useAnalyzeNote();
   const apply = useApplyProposal();
+  const createLead = useCreateLead();
 
   const handleVoiceResult = useCallback((text: string) => {
     setNote(prev => prev ? prev + ' ' + text : text);
