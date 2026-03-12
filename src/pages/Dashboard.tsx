@@ -9,6 +9,7 @@ import { fr } from 'date-fns/locale';
 export default function Dashboard() {
   const { data: leads = [], isLoading } = useLeads();
   const { data: reminders = [] } = useReminders();
+  const toggleReminder = useToggleReminder();
 
   const hotLeads = leads.filter(l => l.score === 'hot');
   const warmLeads = leads.filter(l => l.score === 'warm');
