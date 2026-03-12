@@ -2,7 +2,7 @@ import { useLeads, useUpdateLead, type DbLead } from '@/hooks/useLeadData';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadDetailContent } from '@/components/LeadDetailContent';
 import { useState, useRef } from 'react';
-import { Loader2, GripVertical, User, ArrowRight } from 'lucide-react';
+import { Loader2, GripVertical, User, ArrowRight, Search } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
 import { format } from 'date-fns';
