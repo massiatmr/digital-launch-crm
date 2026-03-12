@@ -49,6 +49,7 @@ export type Database = {
       leads: {
         Row: {
           ai_summary: string | null
+          company_name: string | null
           created_at: string
           email: string | null
           id: string
@@ -66,6 +67,7 @@ export type Database = {
         }
         Insert: {
           ai_summary?: string | null
+          company_name?: string | null
           created_at?: string
           email?: string | null
           id?: string
@@ -83,6 +85,7 @@ export type Database = {
         }
         Update: {
           ai_summary?: string | null
+          company_name?: string | null
           created_at?: string
           email?: string | null
           id?: string
@@ -184,6 +187,7 @@ export type Database = {
         | "proposal"
         | "won"
         | "lost"
+        | "ghost"
       message_type: "whatsapp" | "email" | "sms"
     }
     CompositeTypes: {
@@ -314,7 +318,15 @@ export const Constants = {
     Enums: {
       lead_score: ["hot", "warm", "cold"],
       lead_source: ["facebook", "website", "google_sheets", "manual", "other"],
-      lead_status: ["new", "contacted", "qualified", "proposal", "won", "lost"],
+      lead_status: [
+        "new",
+        "contacted",
+        "qualified",
+        "proposal",
+        "won",
+        "lost",
+        "ghost",
+      ],
       message_type: ["whatsapp", "email", "sms"],
     },
   },
