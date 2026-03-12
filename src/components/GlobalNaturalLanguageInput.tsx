@@ -222,7 +222,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
     proposal.notes_append && `Note ajoutée : "${proposal.notes_append}"`,
   ].filter(Boolean) as string[] : [];
 
-  const isPending = analyze.isPending || askingAi;
+  const isPending = analyze.isPending || askingAi || creatingLead;
 
   return (
     <>
