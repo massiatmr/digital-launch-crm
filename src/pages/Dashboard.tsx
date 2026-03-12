@@ -50,7 +50,7 @@ export default function Dashboard() {
         ))}
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
+      <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 rounded-xl border border-border bg-card">
           <div className="flex items-center justify-between border-b border-border px-5 py-4">
             <h2 className="font-heading text-lg">Leads récents</h2>
