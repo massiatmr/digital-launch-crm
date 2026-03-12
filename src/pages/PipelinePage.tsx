@@ -180,8 +180,16 @@ export default function PipelinePage() {
   const updateLead = useUpdateLead();
   const [dragOverStage, setDragOverStage] = useState<PipelineStage | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  const [scoreFilter, setScoreFilter] = useState<'all' | 'hot' | 'warm' | 'cold'>('all');
+  const [search, setSearch] = useState('');
   const draggedLead = useRef<DbLead | null>(null);
   const isMobile = useIsMobile();
+
+  const filteredLeads = leads.filter(l => {
+    if (scoreFilter !== 'all' && l.score !== scoreFilter) return false;
+    if (search && !l.name.toLowerCase().includes(search.toLowerCase()) && !(l.company_name || '').toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
 
   const handleDragStart = (_e: React.DragEvent, lead: DbLead) => {
     draggedLead.current = lead;
@@ -211,7 +219,7 @@ export default function PipelinePage() {
   };
 
   const leadsByStage = STAGES.reduce((acc, stage) => {
-    acc[stage.key] = leads.filter(l => l.status === stage.key);
+    acc[stage.key] = filteredLeads.filter(l => l.status === stage.key);
     return acc;
   }, {} as Record<PipelineStage, DbLead[]>);
 
@@ -228,8 +236,36 @@ export default function PipelinePage() {
       <div>
         <h1 className="font-heading text-2xl sm:text-3xl">Pipeline</h1>
         <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
-          {leads.length} leads {!isMobile && '· Glissez-déposez pour changer l\'étape'}
+          {filteredLeads.length} leads {!isMobile && '· Glissez-déposez pour changer l\'étape'}
         </p>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Rechercher..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full rounded-lg border border-border bg-card py-2 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+        </div>
+        {(['all', 'hot', 'warm', 'cold'] as const).map(f => (
+          <button
+            key={f}
+            onClick={() => setScoreFilter(f)}
+            className={cn(
+              'rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
+              scoreFilter === f
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-border bg-card text-muted-foreground hover:text-foreground'
+            )}
+          >
+            {f === 'all' ? 'Tous' : f === 'hot' ? '🔥' : f === 'warm' ? '🌤' : '❄️'}
+          </button>
+        ))}
       </div>
 
       <div className="flex flex-1 gap-2 sm:gap-3 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
