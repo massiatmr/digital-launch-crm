@@ -38,7 +38,7 @@ export default function Dashboard() {
         <p className="mt-1 text-sm text-muted-foreground">Vue d'ensemble de votre pipeline</p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {stats.map(({ label, value, icon: Icon, color }) => (
           <div key={label} className="rounded-xl border border-border bg-card p-5">
             <div className="flex items-center justify-between">
