@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Send, Sparkles, Mic, MicOff, Check, X, RotateCcw } from 'lucide-react';
+import { AudioVisualizer } from '@/components/AudioVisualizer';
 import { toast } from 'sonner';
 import { useAnalyzeNote, useApplyProposal, AiProposal, DbLead } from '@/hooks/useLeadData';
 import {
