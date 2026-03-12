@@ -351,8 +351,8 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
               placeholder={
                 isListening
                   ? 'Parlez maintenant...'
-                  : mode === 'update'
-                    ? 'Ex : "hésite sur le prix, rappeler dans 3 jours"'
+                  : mode === 'action'
+                    ? (selectedLead ? 'Ex : "hésite sur le prix, rappeler dans 3 jours"' : 'Ex : "nouveau lead Jean Dupont, 0612345678, vient de Facebook"')
                     : 'Ex : "combien de leads à rappeler ?" "taux de closing ?"'
               }
               className="flex-1 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
@@ -360,7 +360,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
             />
             <button
               type="submit"
-              disabled={isPending || !note.trim() || (mode === 'update' && !selectedLead)}
+              disabled={isPending || !note.trim()}
               className="flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
               {isPending ? (
