@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Users, Kanban, MessageSquare, Phone, Bell, Plus, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { LayoutDashboard, Users, Kanban, MessageSquare, Phone, Bell, PanelLeftClose, PanelLeft } from 'lucide-react';
 import logo from '@/assets/logo.webp';
 import { useSidebarState } from './AppLayout';
 
@@ -58,21 +58,6 @@ export function AppSidebar() {
           );
         })}
       </nav>
-
-      {/* Add Lead Button */}
-      <div className="p-2 border-t border-border">
-        <NavLink
-          to="/leads/new"
-          title={collapsed ? 'Ajouter un lead' : undefined}
-          className={cn(
-            'flex items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90',
-            collapsed && 'px-0'
-          )}
-        >
-          <Plus className="h-4 w-4 shrink-0" />
-          {!collapsed && 'Ajouter un lead'}
-        </NavLink>
-      </div>
     </aside>
   );
 }
