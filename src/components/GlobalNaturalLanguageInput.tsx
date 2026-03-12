@@ -136,18 +136,9 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
           },
         });
         if (error) throw error;
-        // For pipeline_question, the response is the raw AI text, not JSON
-        if (typeof data === 'string') {
-          setAiAnswer(data);
-        } else if (data?.choices?.[0]?.message?.content) {
-          setAiAnswer(data.choices[0].message.content);
-        } else if (data?.error) {
-          throw new Error(data.error);
-        } else {
-          // The edge function returns parsed content directly
-          setAiAnswer(JSON.stringify(data));
-        }
-      } catch {
+        if (data?.error) throw new Error(data.error);
+        setAiAnswer(data?.answer || 'Pas de réponse.');
+      } catch (err: any) {
         toast.error("Erreur lors de la requête IA");
       } finally {
         setAskingAi(false);
