@@ -2,6 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { LayoutDashboard, Users, Kanban, MessageSquare, Phone, Bell, PanelLeftClose, PanelLeft } from 'lucide-react';
 import logo from '@/assets/logo.webp';
+import logoIcon from '@/assets/logo-icon.webp';
 import { useSidebarState } from './AppLayout';
 
 const links = [
