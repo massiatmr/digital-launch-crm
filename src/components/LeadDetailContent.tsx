@@ -159,7 +159,6 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
           </div>
         )}
 
-        <NaturalLanguageInput leadId={lead.id} lead={lead} />
       </div>
     </ScrollArea>
   );
