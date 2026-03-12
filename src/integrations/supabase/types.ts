@@ -14,7 +14,159 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      generated_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          lead_id: string
+          type: Database["public"]["Enums"]["message_type"]
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          lead_id: string
+          type?: Database["public"]["Enums"]["message_type"]
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          lead_id?: string
+          type?: Database["public"]["Enums"]["message_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generated_messages_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          ai_summary: string | null
+          created_at: string
+          email: string | null
+          id: string
+          message: string | null
+          name: string
+          next_action: string | null
+          next_action_date: string | null
+          notes: string | null
+          phone: string | null
+          sales_angle: string | null
+          score: Database["public"]["Enums"]["lead_score"]
+          source: Database["public"]["Enums"]["lead_source"]
+          status: Database["public"]["Enums"]["lead_status"]
+          updated_at: string
+        }
+        Insert: {
+          ai_summary?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          message?: string | null
+          name: string
+          next_action?: string | null
+          next_action_date?: string | null
+          notes?: string | null
+          phone?: string | null
+          sales_angle?: string | null
+          score?: Database["public"]["Enums"]["lead_score"]
+          source?: Database["public"]["Enums"]["lead_source"]
+          status?: Database["public"]["Enums"]["lead_status"]
+          updated_at?: string
+        }
+        Update: {
+          ai_summary?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          message?: string | null
+          name?: string
+          next_action?: string | null
+          next_action_date?: string | null
+          notes?: string | null
+          phone?: string | null
+          sales_angle?: string | null
+          score?: Database["public"]["Enums"]["lead_score"]
+          source?: Database["public"]["Enums"]["lead_source"]
+          status?: Database["public"]["Enums"]["lead_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      reminders: {
+        Row: {
+          action: string
+          created_at: string
+          done: boolean
+          due_date: string
+          id: string
+          lead_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          done?: boolean
+          due_date: string
+          id?: string
+          lead_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          done?: boolean
+          due_date?: string
+          id?: string
+          lead_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reminders_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_scripts: {
+        Row: {
+          created_at: string
+          id: string
+          lead_id: string
+          objections: Json | null
+          script: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lead_id: string
+          objections?: Json | null
+          script: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lead_id?: string
+          objections?: Json | null
+          script?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_scripts_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +175,16 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      lead_score: "hot" | "warm" | "cold"
+      lead_source: "facebook" | "website" | "google_sheets" | "manual" | "other"
+      lead_status:
+        | "new"
+        | "contacted"
+        | "qualified"
+        | "proposal"
+        | "won"
+        | "lost"
+      message_type: "whatsapp" | "email" | "sms"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +311,11 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      lead_score: ["hot", "warm", "cold"],
+      lead_source: ["facebook", "website", "google_sheets", "manual", "other"],
+      lead_status: ["new", "contacted", "qualified", "proposal", "won", "lost"],
+      message_type: ["whatsapp", "email", "sms"],
+    },
   },
 } as const
