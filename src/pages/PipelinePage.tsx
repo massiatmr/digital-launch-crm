@@ -85,7 +85,19 @@ function PipelineCard({
       {(lead.email || lead.phone) && (
         <div className="mt-2 flex items-center gap-1.5 text-[10px] text-muted-foreground">
           <User className="h-3 w-3 shrink-0" />
-          <span className="truncate">{lead.phone || lead.email}</span>
+          {lead.phone ? (
+            <a
+              href={toWhatsAppUrl(lead.phone)}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="truncate text-primary hover:underline"
+            >
+              {formatPhoneDisplay(lead.phone)}
+            </a>
+          ) : (
+            <span className="truncate">{lead.email}</span>
+          )}
         </div>
       )}
 

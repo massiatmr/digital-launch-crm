@@ -43,7 +43,18 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             {lead.email && <span className="flex items-center gap-1"><Mail className="h-3.5 w-3.5" />{lead.email}</span>}
-            {lead.phone && <span className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" />{lead.phone}</span>}
+            {lead.phone && (
+              <a
+                href={toWhatsAppUrl(lead.phone)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-primary hover:underline"
+              >
+                <Phone className="h-3.5 w-3.5" />
+                {formatPhoneDisplay(lead.phone)}
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
             <span className="capitalize">{lead.source.replace('_', ' ')}</span>
             <span>{format(new Date(lead.created_at), "dd MMM yyyy à HH:mm", { locale: fr })}</span>
           </div>
