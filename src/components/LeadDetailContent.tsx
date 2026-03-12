@@ -48,6 +48,9 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
           </div>
         </div>
 
+        {/* Voice/Text Update - First */}
+        <NaturalLanguageInput leadId={lead.id} lead={lead} />
+
         {lead.message && (
           <div className="rounded-lg bg-muted/50 p-4">
             <p className="text-sm italic text-muted-foreground">"{lead.message}"</p>
@@ -156,7 +159,6 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
           </div>
         )}
 
-        <NaturalLanguageInput leadId={lead.id} lead={lead} />
       </div>
     </ScrollArea>
   );

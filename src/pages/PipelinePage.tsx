@@ -1,6 +1,7 @@
 import { useLeads, useUpdateLead, type DbLead } from '@/hooks/useLeadData';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadDetailContent } from '@/components/LeadDetailContent';
+import { GlobalNaturalLanguageInput } from '@/components/GlobalNaturalLanguageInput';
 import { useState, useRef } from 'react';
 import { Loader2, GripVertical, User, ArrowRight } from 'lucide-react';
 import { format } from 'date-fns';
@@ -138,7 +139,7 @@ function PipelineColumn({
         </span>
       </div>
 
-      <div className="flex-1 space-y-2 overflow-y-auto p-2" style={{ maxHeight: 'calc(100vh - 220px)' }}>
+      <div className="flex-1 space-y-2 overflow-y-auto p-2" style={{ maxHeight: 'calc(100vh - 280px)' }}>
         {leads.length === 0 ? (
           <div className="flex items-center justify-center rounded-lg border border-dashed border-border py-8 text-xs text-muted-foreground">
             Aucun lead
@@ -201,7 +202,10 @@ export default function PipelinePage() {
   }
 
   return (
-    <div className="flex h-full flex-col gap-5">
+    <div className="flex h-full flex-col gap-4">
+      {/* Global voice/text update */}
+      <GlobalNaturalLanguageInput />
+
       <div>
         <h1 className="font-heading text-3xl">Pipeline</h1>
         <p className="mt-1 text-sm text-muted-foreground">
