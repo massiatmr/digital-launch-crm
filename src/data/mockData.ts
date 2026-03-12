@@ -62,6 +62,7 @@ export const mockLeads: Lead[] = [
     score: 'cold',
     status: 'new',
     createdAt: '2026-03-09T18:20:00',
+    companyName: 'InfoPlus',
     notes: '',
     aiSummary: 'Pas de besoin immédiat. Lead à nurture avec du contenu.',
     salesAngle: 'Envoyer une séquence email éducative pour créer le besoin.',
