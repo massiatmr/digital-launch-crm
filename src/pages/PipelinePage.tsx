@@ -163,6 +163,7 @@ export default function PipelinePage() {
   const [dragOverStage, setDragOverStage] = useState<PipelineStage | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const draggedLead = useRef<DbLead | null>(null);
+  const isMobile = useIsMobile();
 
   const handleDragStart = (_e: React.DragEvent, lead: DbLead) => {
     draggedLead.current = lead;
