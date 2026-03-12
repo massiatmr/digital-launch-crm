@@ -34,23 +34,23 @@ export default function Dashboard() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="font-heading text-3xl font-normal tracking-tight">Dashboard</h1>
+        <h1 className="font-heading text-2xl sm:text-3xl font-normal tracking-tight">Dashboard</h1>
         <p className="mt-1 text-sm text-muted-foreground">Vue d'ensemble de votre pipeline</p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {stats.map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="rounded-xl border border-border bg-card p-5">
+          <div key={label} className="rounded-xl border border-border bg-card p-4 sm:p-5">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">{label}</span>
               <Icon className={`h-4 w-4 ${color}`} />
             </div>
-            <p className={`mt-2 text-3xl font-heading ${color}`}>{value}</p>
+            <p className={`mt-2 text-2xl sm:text-3xl font-heading ${color}`}>{value}</p>
           </div>
         ))}
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
+      <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 rounded-xl border border-border bg-card">
           <div className="flex items-center justify-between border-b border-border px-5 py-4">
             <h2 className="font-heading text-lg">Leads récents</h2>

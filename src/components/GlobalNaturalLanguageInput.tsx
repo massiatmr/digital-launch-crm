@@ -76,7 +76,7 @@ function useSpeechRecognition(onResult: (text: string) => void) {
 
 type Mode = 'action' | 'ask';
 
-export function GlobalNaturalLanguageInput() {
+export function GlobalNaturalLanguageInput({ onDone }: { onDone?: () => void }) {
   const { data: leads = [] } = useLeads();
   const [mode, setMode] = useState<Mode>('action');
   const [selectedLead, setSelectedLead] = useState<DbLead | null>(null);
@@ -150,7 +150,6 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
 
     // Action mode
     if (!selectedLead) {
-      // No lead selected → create a new lead via AI
       setCreatingLead(true);
       try {
         const { data, error } = await supabase.functions.invoke('ai-lead-analysis', {
@@ -159,7 +158,6 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
         if (error) throw error;
         if (data?.error) throw new Error(data.error);
 
-        // Insert the lead
         await createLead.mutateAsync({
           name: data.name || 'Lead inconnu',
           email: data.email || '',
@@ -169,6 +167,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
         });
         toast.success(`Lead "${data.name}" créé avec succès !`);
         setNote('');
+        onDone?.();
       } catch (err: any) {
         toast.error("Erreur lors de la création du lead");
       } finally {
@@ -204,6 +203,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
       setNote('');
       setProposal(null);
       setShowDialog(false);
+      onDone?.();
     } catch {
       toast.error("Erreur lors de l'exécution");
     }
@@ -226,7 +226,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
 
   return (
     <>
-      <div className="max-w-2xl">
+      <div className="w-full">
         {/* Mode toggle */}
         <div className="flex items-center gap-1 mb-2">
           <button
@@ -251,83 +251,76 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="rounded-xl border border-border bg-card p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <Sparkles className="h-3.5 w-3.5 text-primary" />
-            <h3 className="text-xs font-medium text-muted-foreground">
-              {mode === 'action' ? (selectedLead ? `Mise à jour de ${selectedLead.name}` : 'Ajouter ou mettre à jour un lead') : 'Demandez à l\'IA sur votre pipeline'}
-            </h3>
-          </div>
-
+        <form onSubmit={handleSubmit} className="space-y-2">
           {/* Lead selector - only in action mode */}
           {mode === 'action' && (
-            <div className="mb-2">
-              <div className="flex items-center gap-2">
-                <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <button
-                      type="button"
-                      className={cn(
-                        "flex flex-1 items-center gap-2 rounded-lg border px-3 py-1.5 text-xs transition-colors",
-                        selectedLead
-                          ? "border-primary/30 bg-primary/5 text-foreground"
-                          : "border-border bg-muted/30 text-muted-foreground"
-                      )}
-                    >
-                      <Search className="h-3 w-3 shrink-0" />
-                      {selectedLead ? selectedLead.name : 'Sélectionner un lead (ou laisser vide pour créer)'}
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[280px] p-2" align="start">
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={e => setSearchQuery(e.target.value)}
-                      placeholder="Rechercher..."
-                      className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs mb-2 focus:outline-none focus:ring-1 focus:ring-ring"
-                      autoFocus
-                    />
-                    <div className="max-h-48 overflow-y-auto space-y-0.5">
-                      {filteredLeads.length === 0 ? (
-                        <p className="text-xs text-muted-foreground p-2 text-center">Aucun lead trouvé</p>
-                      ) : (
-                        filteredLeads.map(lead => (
-                          <button
-                            key={lead.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedLead(lead);
-                              setPopoverOpen(false);
-                              setSearchQuery('');
-                            }}
-                            className={cn(
-                              "flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-xs transition-colors hover:bg-accent",
-                              selectedLead?.id === lead.id && "bg-primary/10 text-primary"
-                            )}
-                          >
-                            <span className="truncate">{lead.name}</span>
-                            <span className="ml-auto text-[10px] text-muted-foreground capitalize">{lead.status}</span>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </PopoverContent>
-                </Popover>
-                {selectedLead && (
+            <div className="flex items-center gap-2">
+              <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                <PopoverTrigger asChild>
                   <button
                     type="button"
-                    onClick={() => setSelectedLead(null)}
-                    className="rounded-lg border border-border px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-                    title="Désélectionner pour créer un nouveau lead"
+                    className={cn(
+                      "flex flex-1 items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors",
+                      selectedLead
+                        ? "border-primary/30 bg-primary/5 text-foreground"
+                        : "border-border bg-muted/30 text-muted-foreground"
+                    )}
                   >
-                    <X className="h-3 w-3" />
+                    <Search className="h-3 w-3 shrink-0" />
+                    <span className="truncate">
+                      {selectedLead ? selectedLead.name : 'Sélectionner un lead (ou laisser vide pour créer)'}
+                    </span>
                   </button>
-                )}
-              </div>
+                </PopoverTrigger>
+                <PopoverContent className="w-[280px] p-2" align="start">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="Rechercher..."
+                    className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs mb-2 focus:outline-none focus:ring-1 focus:ring-ring"
+                    autoFocus
+                  />
+                  <div className="max-h-48 overflow-y-auto space-y-0.5">
+                    {filteredLeads.length === 0 ? (
+                      <p className="text-xs text-muted-foreground p-2 text-center">Aucun lead trouvé</p>
+                    ) : (
+                      filteredLeads.map(lead => (
+                        <button
+                          key={lead.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedLead(lead);
+                            setPopoverOpen(false);
+                            setSearchQuery('');
+                          }}
+                          className={cn(
+                            "flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-xs transition-colors hover:bg-accent",
+                            selectedLead?.id === lead.id && "bg-primary/10 text-primary"
+                          )}
+                        >
+                          <span className="truncate">{lead.name}</span>
+                          <span className="ml-auto text-[10px] text-muted-foreground capitalize">{lead.status}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+              {selectedLead && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedLead(null)}
+                  className="rounded-lg border border-border px-2 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                  title="Désélectionner pour créer un nouveau lead"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
             </div>
           )}
 
-          <AudioVisualizer isListening={isListening} className="mb-2" />
+          <AudioVisualizer isListening={isListening} className="mb-1" />
           <div className="flex gap-2">
             {micSupported && (
               <button
@@ -341,7 +334,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
                 )}
                 title={isListening ? 'Arrêter' : 'Dicter'}
               >
-                {isListening ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
               </button>
             )}
             <input
@@ -352,21 +345,21 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
                 isListening
                   ? 'Parlez maintenant...'
                   : mode === 'action'
-                    ? (selectedLead ? 'Ex : "hésite sur le prix, rappeler dans 3 jours"' : 'Ex : "nouveau lead Jean Dupont, 0612345678, vient de Facebook"')
-                    : 'Ex : "combien de leads à rappeler ?" "taux de closing ?"'
+                    ? (selectedLead ? 'Ex : "hésite sur le prix, rappeler dans 3 jours"' : 'Ex : "nouveau lead Jean Dupont, 0612345678"')
+                    : 'Ex : "combien de leads à rappeler ?"'
               }
-              className="flex-1 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              className="flex-1 min-w-0 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               disabled={isPending}
             />
             <button
               type="submit"
               disabled={isPending || !note.trim()}
-              className="flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
               {isPending ? (
-                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
               ) : (
-                <Send className="h-3.5 w-3.5" />
+                <Send className="h-4 w-4" />
               )}
             </button>
           </div>
@@ -374,15 +367,15 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
 
         {/* AI answer for pipeline questions */}
         {aiAnswer && (
-          <div className="mt-2 rounded-xl border border-primary/20 bg-primary/5 p-3">
+          <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 p-3">
             <div className="flex items-start gap-2">
               <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
-              <div className="text-xs text-foreground whitespace-pre-line leading-relaxed">{aiAnswer}</div>
+              <div className="text-sm text-foreground whitespace-pre-line leading-relaxed">{aiAnswer}</div>
             </div>
             <button
               type="button"
               onClick={() => setAiAnswer(null)}
-              className="mt-2 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+              className="mt-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               Fermer
             </button>

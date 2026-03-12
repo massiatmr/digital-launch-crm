@@ -1,9 +1,9 @@
 import { useLeads, useUpdateLead, type DbLead } from '@/hooks/useLeadData';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadDetailContent } from '@/components/LeadDetailContent';
-import { GlobalNaturalLanguageInput } from '@/components/GlobalNaturalLanguageInput';
 import { useState, useRef } from 'react';
 import { Loader2, GripVertical, User, ArrowRight } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -119,8 +119,9 @@ function PipelineColumn({
   return (
     <div
       className={cn(
-        'flex min-w-[240px] flex-1 flex-col rounded-xl border transition-colors',
-        isDragOver ? 'border-primary/50 bg-primary/5' : 'border-border bg-background'
+        'flex flex-col rounded-xl border transition-colors',
+        isDragOver ? 'border-primary/50 bg-primary/5' : 'border-border bg-background',
+        'min-w-[200px] sm:min-w-[220px] flex-1'
       )}
       onDragOver={(e) => onDragOver(e, stage.key)}
       onDragLeave={onDragLeave}
@@ -160,6 +161,7 @@ export default function PipelinePage() {
   const [dragOverStage, setDragOverStage] = useState<PipelineStage | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const draggedLead = useRef<DbLead | null>(null);
+  const isMobile = useIsMobile();
 
   const handleDragStart = (_e: React.DragEvent, lead: DbLead) => {
     draggedLead.current = lead;
@@ -203,17 +205,14 @@ export default function PipelinePage() {
 
   return (
     <div className="flex h-full flex-col gap-4">
-      {/* Global voice/text update */}
-      <GlobalNaturalLanguageInput />
-
       <div>
-        <h1 className="font-heading text-3xl">Pipeline</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {leads.length} leads · Glissez-déposez pour changer l'étape
+        <h1 className="font-heading text-2xl sm:text-3xl">Pipeline</h1>
+        <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
+          {leads.length} leads {!isMobile && '· Glissez-déposez pour changer l\'étape'}
         </p>
       </div>
 
-      <div className="flex flex-1 gap-3 overflow-x-auto pb-4">
+      <div className="flex flex-1 gap-2 sm:gap-3 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
         {STAGES.map(stage => (
           <PipelineColumn
             key={stage.key}
