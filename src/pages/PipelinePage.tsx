@@ -207,17 +207,14 @@ export default function PipelinePage() {
 
   return (
     <div className="flex h-full flex-col gap-4">
-      {/* Global voice/text update */}
-      <GlobalNaturalLanguageInput />
-
       <div>
-        <h1 className="font-heading text-3xl">Pipeline</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {leads.length} leads · Glissez-déposez pour changer l'étape
+        <h1 className="font-heading text-2xl sm:text-3xl">Pipeline</h1>
+        <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
+          {leads.length} leads {!isMobile && '· Glissez-déposez pour changer l\'étape'}
         </p>
       </div>
 
-      <div className="flex flex-1 gap-3 overflow-x-auto pb-4">
+      <div className="flex flex-1 gap-2 sm:gap-3 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
         {STAGES.map(stage => (
           <PipelineColumn
             key={stage.key}
