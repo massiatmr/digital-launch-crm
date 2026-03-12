@@ -69,6 +69,9 @@ function PipelineCard({
           <span className="text-sm font-medium text-foreground line-clamp-1">
             {lead.name}
           </span>
+          {lead.company_name && (
+            <span className="text-[10px] text-muted-foreground line-clamp-1">{lead.company_name}</span>
+          )}
           {lead.message && (
             <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{lead.message}</p>
           )}

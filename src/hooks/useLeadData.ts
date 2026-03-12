@@ -92,7 +92,8 @@ export function useCreateLead() {
           email: lead.email, 
           phone: lead.phone, 
           message: lead.message, 
-          source: lead.source as any 
+          source: lead.source as any,
+          company_name: lead.company_name || '',
         })
         .select()
         .single();

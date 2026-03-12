@@ -12,6 +12,7 @@ export interface Lead {
   score: LeadScore;
   status: LeadStatus;
   createdAt: string;
+  companyName: string;
   notes: string;
   aiSummary: string;
   salesAngle: string;

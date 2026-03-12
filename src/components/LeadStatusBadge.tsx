@@ -8,6 +8,7 @@ const statusConfig: Record<LeadStatus, { label: string; className: string }> = {
   proposal: { label: 'Proposition', className: 'bg-purple-500/15 text-purple-400' },
   won: { label: 'Gagné', className: 'bg-lead-hot/15 text-lead-hot' },
   lost: { label: 'Perdu', className: 'bg-destructive/15 text-destructive' },
+  ghost: { label: 'À Relancer', className: 'bg-lead-warm/15 text-lead-warm' },
 };
 
 export function LeadStatusBadge({ status, className }: { status: LeadStatus; className?: string }) {
