@@ -78,7 +78,7 @@ type Mode = 'action' | 'ask';
 
 export function GlobalNaturalLanguageInput() {
   const { data: leads = [] } = useLeads();
-  const [mode, setMode] = useState<Mode>('update');
+  const [mode, setMode] = useState<Mode>('action');
   const [selectedLead, setSelectedLead] = useState<DbLead | null>(null);
   const [note, setNote] = useState('');
   const [proposal, setProposal] = useState<AiProposal | null>(null);
