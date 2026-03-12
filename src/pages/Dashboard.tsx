@@ -45,7 +45,7 @@ export default function Dashboard() {
               <span className="text-sm text-muted-foreground">{label}</span>
               <Icon className={`h-4 w-4 ${color}`} />
             </div>
-            <p className={`mt-2 text-3xl font-heading ${color}`}>{value}</p>
+            <p className={`mt-2 text-2xl sm:text-3xl font-heading ${color}`}>{value}</p>
           </div>
         ))}
       </div>
