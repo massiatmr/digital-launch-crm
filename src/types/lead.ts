@@ -1,5 +1,5 @@
 export type LeadScore = 'hot' | 'warm' | 'cold';
-export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'proposal' | 'won' | 'lost';
+export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'proposal' | 'won' | 'lost' | 'ghost';
 export type LeadSource = 'facebook' | 'website' | 'google_sheets' | 'manual' | 'other';
 
 export interface Lead {
@@ -12,6 +12,7 @@ export interface Lead {
   score: LeadScore;
   status: LeadStatus;
   createdAt: string;
+  companyName: string;
   notes: string;
   aiSummary: string;
   salesAngle: string;

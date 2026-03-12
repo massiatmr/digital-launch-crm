@@ -38,6 +38,7 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
         <div>
           <div className="flex items-center gap-3 flex-wrap">
             <h2 className="font-heading text-xl">{lead.name}</h2>
+            {lead.company_name && <span className="text-sm text-muted-foreground">· {lead.company_name}</span>}
             <LeadScoreBadge score={lead.score} />
             <LeadStatusBadge status={lead.status} />
           </div>

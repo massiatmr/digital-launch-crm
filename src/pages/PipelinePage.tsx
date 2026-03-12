@@ -23,6 +23,7 @@ const STAGES: { key: PipelineStage; label: string; color: string; icon: string }
   { key: 'contacted', label: 'Contacté', color: 'bg-lead-warm/20 border-lead-warm/40 text-lead-warm', icon: '📞' },
   { key: 'qualified', label: 'Qualifié', color: 'bg-primary/20 border-primary/40 text-primary', icon: '✅' },
   { key: 'proposal', label: 'Proposition', color: 'bg-[hsl(280,60%,55%)]/20 border-[hsl(280,60%,55%)]/40 text-[hsl(280,60%,65%)]', icon: '📋' },
+  { key: 'ghost', label: 'À Relancer', color: 'bg-lead-warm/20 border-lead-warm/40 text-lead-warm', icon: '👻' },
   { key: 'won', label: 'Gagné', color: 'bg-primary/20 border-primary/40 text-primary', icon: '🏆' },
   { key: 'lost', label: 'Perdu', color: 'bg-destructive/20 border-destructive/40 text-destructive', icon: '❌' },
 ];
@@ -68,6 +69,9 @@ function PipelineCard({
           <span className="text-sm font-medium text-foreground line-clamp-1">
             {lead.name}
           </span>
+          {lead.company_name && (
+            <span className="text-[10px] text-muted-foreground line-clamp-1">{lead.company_name}</span>
+          )}
           {lead.message && (
             <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{lead.message}</p>
           )}

@@ -17,6 +17,7 @@ export default function AddLeadPage() {
   const createLead = useCreateLead();
   const [form, setForm] = useState({
     name: '',
+    company_name: '',
     email: '',
     phone: '',
     message: '',
@@ -53,15 +54,27 @@ export default function AddLeadPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="rounded-xl border border-border bg-card p-6 space-y-5">
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">Nom complet *</label>
-          <input
-            type="text"
-            value={form.name}
-            onChange={e => update('name', e.target.value)}
-            placeholder="Ex : Karim Benali"
-            className="w-full rounded-lg border border-border bg-muted/30 px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Nom complet *</label>
+            <input
+              type="text"
+              value={form.name}
+              onChange={e => update('name', e.target.value)}
+              placeholder="Ex : Karim Benali"
+              className="w-full rounded-lg border border-border bg-muted/30 px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Entreprise</label>
+            <input
+              type="text"
+              value={form.company_name}
+              onChange={e => update('company_name', e.target.value)}
+              placeholder="Ex : Digital Launch"
+              className="w-full rounded-lg border border-border bg-muted/30 px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

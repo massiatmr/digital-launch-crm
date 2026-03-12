@@ -10,7 +10,8 @@ export type DbLead = {
   message: string | null;
   source: 'facebook' | 'website' | 'google_sheets' | 'manual' | 'other';
   score: 'hot' | 'warm' | 'cold';
-  status: 'new' | 'contacted' | 'qualified' | 'proposal' | 'won' | 'lost';
+  status: 'new' | 'contacted' | 'qualified' | 'proposal' | 'won' | 'lost' | 'ghost';
+  company_name: string | null;
   notes: string | null;
   ai_summary: string | null;
   sales_angle: string | null;
@@ -82,7 +83,7 @@ export function useLead(id: string | undefined) {
 export function useCreateLead() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (lead: { name: string; email: string; phone: string; message: string; source: string }) => {
+    mutationFn: async (lead: { name: string; email: string; phone: string; message: string; source: string; company_name?: string }) => {
       // First insert the lead
       const { data, error } = await supabase
         .from('leads')
@@ -91,7 +92,8 @@ export function useCreateLead() {
           email: lead.email, 
           phone: lead.phone, 
           message: lead.message, 
-          source: lead.source as any 
+          source: lead.source as any,
+          company_name: lead.company_name || '',
         })
         .select()
         .single();
