@@ -1,11 +1,10 @@
-import { useLeads } from '@/hooks/useLeadData';
+import { useLeads, useReminders, useToggleReminder } from '@/hooks/useLeadData';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadStatusBadge } from '@/components/LeadStatusBadge';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Users, Flame, Clock, AlertTriangle, Loader2 } from 'lucide-react';
+import { ArrowRight, Users, Flame, Clock, AlertTriangle, Loader2, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useReminders } from '@/hooks/useLeadData';
 
 export default function Dashboard() {
   const { data: leads = [], isLoading } = useLeads();
