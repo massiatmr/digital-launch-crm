@@ -52,12 +52,15 @@ function PipelineCard({
     pointerStart.current = null;
   };
 
+  const isMobileDevice = useIsMobile();
+
   return (
     <div
-      draggable
+      draggable={!isMobileDevice}
       onDragStart={(e) => onDragStart(e, lead)}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
+      onClick={() => { if (isMobileDevice) onClick(lead); }}
       className="group relative rounded-lg border border-border bg-card p-3 cursor-pointer active:cursor-grabbing transition-all hover:border-primary/30 hover:shadow-[0_0_15px_hsl(var(--primary)/0.08)]"
     >
       <div className="flex items-start justify-between gap-2">
