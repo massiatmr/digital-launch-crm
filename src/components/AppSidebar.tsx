@@ -27,7 +27,11 @@ export function AppSidebar() {
     >
       {/* Logo + Toggle */}
       <div className={cn('flex items-center border-b border-border px-3 py-4', collapsed ? 'justify-center' : 'justify-between')}>
-        {!collapsed && <img src={logo} alt="Logo" className="h-10 w-auto" />}
+        {!collapsed ? (
+          <img src={logo} alt="Logo" className="h-10 w-auto" />
+        ) : (
+          <img src={logoIcon} alt="Logo" className="h-8 w-8" />
+        )}
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="p-1.5 rounded-md text-sidebar-foreground hover:bg-sidebar-accent transition-colors"

@@ -121,7 +121,7 @@ function PipelineColumn({
       className={cn(
         'flex flex-col rounded-xl border transition-colors',
         isDragOver ? 'border-primary/50 bg-primary/5' : 'border-border bg-background',
-        'min-w-[200px] sm:min-w-[220px] flex-1'
+        'min-w-[160px] sm:min-w-[220px] flex-1'
       )}
       onDragOver={(e) => onDragOver(e, stage.key)}
       onDragLeave={onDragLeave}
