@@ -67,18 +67,28 @@ Interprète cette note et réponds avec ce JSON:
   "notes_append": "note formatée à ajouter",
   "updates_summary": ["liste des changements effectués"]
 }`;
+    } else if (type === "create_lead") {
+      systemPrompt = `Tu es un assistant CRM intelligent. L'utilisateur veut ajouter un nouveau lead via une note en langage naturel. Extrais les informations du lead.
+
+Réponds UNIQUEMENT avec un JSON valide (pas de markdown, pas de backticks).`;
+
+      userPrompt = `L'utilisateur veut créer un lead avec cette description : "${lead.new_note}"
+
+Extrais les informations et réponds avec ce JSON exact :
+{
+  "name": "nom du lead (obligatoire, invente un placeholder si absent)",
+  "email": "email ou null",
+  "phone": "téléphone ou null",
+  "message": "contexte/message ou null",
+  "source": "facebook" ou "website" ou "google_sheets" ou "manual" ou "other",
+  "score": "hot" ou "warm" ou "cold",
+  "status": "new",
+  "next_action": "prochaine action suggérée ou null",
+  "next_action_date": "date ISO si mentionnée ou null",
+  "notes": "notes extraites de la description",
+  "ai_summary": "résumé court du lead"
+}`;
     } else if (type === "pipeline_question") {
-      systemPrompt = `Tu es un assistant CRM expert. L'utilisateur te pose une question sur sa pipeline de vente. Tu as accès aux données résumées de sa pipeline.
-
-Réponds de manière concise, utile et actionnable en français. Utilise des chiffres précis. Formate ta réponse en texte lisible (pas de JSON).`;
-
-      userPrompt = `Données pipeline :
-${lead?.pipeline_summary || ''}
-
-Question de l'utilisateur : "${lead?.new_note || ''}"
-
-Réponds de manière claire et concise.`;
-
       systemPrompt = `Tu es un assistant CRM expert. L'utilisateur te pose une question sur sa pipeline de vente. Tu as accès aux données résumées de sa pipeline.
 
 Réponds de manière concise, utile et actionnable en français. Utilise des chiffres précis. Formate ta réponse en texte lisible (pas de JSON).`;

@@ -1,8 +1,8 @@
 import { useState, useCallback, useMemo } from 'react';
-import { Send, Sparkles, Mic, MicOff, Check, X, RotateCcw, Search, MessageSquare, RefreshCw } from 'lucide-react';
+import { Send, Sparkles, Mic, MicOff, Check, X, RotateCcw, Search, MessageSquare, Zap, UserPlus } from 'lucide-react';
 import { AudioVisualizer } from '@/components/AudioVisualizer';
 import { toast } from 'sonner';
-import { useLeads, useAnalyzeNote, useApplyProposal, AiProposal, DbLead } from '@/hooks/useLeadData';
+import { useLeads, useAnalyzeNote, useApplyProposal, useCreateLead, AiProposal, DbLead } from '@/hooks/useLeadData';
 import { supabase } from '@/integrations/supabase/client';
 import {
   Dialog,
@@ -74,11 +74,11 @@ function useSpeechRecognition(onResult: (text: string) => void) {
   return { isListening, toggle, isSupported };
 }
 
-type Mode = 'update' | 'ask';
+type Mode = 'action' | 'ask';
 
 export function GlobalNaturalLanguageInput() {
   const { data: leads = [] } = useLeads();
-  const [mode, setMode] = useState<Mode>('update');
+  const [mode, setMode] = useState<Mode>('action');
   const [selectedLead, setSelectedLead] = useState<DbLead | null>(null);
   const [note, setNote] = useState('');
   const [proposal, setProposal] = useState<AiProposal | null>(null);
@@ -87,9 +87,11 @@ export function GlobalNaturalLanguageInput() {
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [aiAnswer, setAiAnswer] = useState<string | null>(null);
   const [askingAi, setAskingAi] = useState(false);
+  const [creatingLead, setCreatingLead] = useState(false);
 
   const analyze = useAnalyzeNote();
   const apply = useApplyProposal();
+  const createLead = useCreateLead();
 
   const handleVoiceResult = useCallback((text: string) => {
     setNote(prev => prev ? prev + ' ' + text : text);
@@ -146,11 +148,36 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
       return;
     }
 
-    // Update mode
+    // Action mode
     if (!selectedLead) {
-      toast.error("Sélectionnez un lead d'abord");
+      // No lead selected → create a new lead via AI
+      setCreatingLead(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('ai-lead-analysis', {
+          body: { type: 'create_lead', lead: { new_note: note } },
+        });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+
+        // Insert the lead
+        await createLead.mutateAsync({
+          name: data.name || 'Lead inconnu',
+          email: data.email || '',
+          phone: data.phone || '',
+          message: data.message || '',
+          source: data.source || 'manual',
+        });
+        toast.success(`Lead "${data.name}" créé avec succès !`);
+        setNote('');
+      } catch (err: any) {
+        toast.error("Erreur lors de la création du lead");
+      } finally {
+        setCreatingLead(false);
+      }
       return;
     }
+
+    // Lead selected → update
     try {
       const result = await analyze.mutateAsync({ lead: selectedLead, note });
       setProposal(result);
@@ -195,7 +222,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
     proposal.notes_append && `Note ajoutée : "${proposal.notes_append}"`,
   ].filter(Boolean) as string[] : [];
 
-  const isPending = analyze.isPending || askingAi;
+  const isPending = analyze.isPending || askingAi || creatingLead;
 
   return (
     <>
@@ -204,13 +231,13 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
         <div className="flex items-center gap-1 mb-2">
           <button
             type="button"
-            onClick={() => { setMode('update'); setAiAnswer(null); }}
+            onClick={() => { setMode('action'); setAiAnswer(null); }}
             className={cn(
               "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
-              mode === 'update' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
+              mode === 'action' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
             )}
           >
-            <RefreshCw className="h-3 w-3" /> Mise à jour
+            <Zap className="h-3 w-3" /> Action IA
           </button>
           <button
             type="button"
@@ -228,63 +255,75 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
           <div className="flex items-center gap-2 mb-2">
             <Sparkles className="h-3.5 w-3.5 text-primary" />
             <h3 className="text-xs font-medium text-muted-foreground">
-              {mode === 'update' ? 'Mise à jour rapide' : 'Demandez à l\'IA sur votre pipeline'}
+              {mode === 'action' ? (selectedLead ? `Mise à jour de ${selectedLead.name}` : 'Ajouter ou mettre à jour un lead') : 'Demandez à l\'IA sur votre pipeline'}
             </h3>
           </div>
 
-          {/* Lead selector - only in update mode */}
-          {mode === 'update' && (
+          {/* Lead selector - only in action mode */}
+          {mode === 'action' && (
             <div className="mb-2">
-              <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-                <PopoverTrigger asChild>
+              <div className="flex items-center gap-2">
+                <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className={cn(
+                        "flex flex-1 items-center gap-2 rounded-lg border px-3 py-1.5 text-xs transition-colors",
+                        selectedLead
+                          ? "border-primary/30 bg-primary/5 text-foreground"
+                          : "border-border bg-muted/30 text-muted-foreground"
+                      )}
+                    >
+                      <Search className="h-3 w-3 shrink-0" />
+                      {selectedLead ? selectedLead.name : 'Sélectionner un lead (ou laisser vide pour créer)'}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[280px] p-2" align="start">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      placeholder="Rechercher..."
+                      className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs mb-2 focus:outline-none focus:ring-1 focus:ring-ring"
+                      autoFocus
+                    />
+                    <div className="max-h-48 overflow-y-auto space-y-0.5">
+                      {filteredLeads.length === 0 ? (
+                        <p className="text-xs text-muted-foreground p-2 text-center">Aucun lead trouvé</p>
+                      ) : (
+                        filteredLeads.map(lead => (
+                          <button
+                            key={lead.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedLead(lead);
+                              setPopoverOpen(false);
+                              setSearchQuery('');
+                            }}
+                            className={cn(
+                              "flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-xs transition-colors hover:bg-accent",
+                              selectedLead?.id === lead.id && "bg-primary/10 text-primary"
+                            )}
+                          >
+                            <span className="truncate">{lead.name}</span>
+                            <span className="ml-auto text-[10px] text-muted-foreground capitalize">{lead.status}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                {selectedLead && (
                   <button
                     type="button"
-                    className={cn(
-                      "flex w-full items-center gap-2 rounded-lg border px-3 py-1.5 text-xs transition-colors",
-                      selectedLead
-                        ? "border-primary/30 bg-primary/5 text-foreground"
-                        : "border-border bg-muted/30 text-muted-foreground"
-                    )}
+                    onClick={() => setSelectedLead(null)}
+                    className="rounded-lg border border-border px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                    title="Désélectionner pour créer un nouveau lead"
                   >
-                    <Search className="h-3 w-3 shrink-0" />
-                    {selectedLead ? selectedLead.name : 'Sélectionner un lead...'}
+                    <X className="h-3 w-3" />
                   </button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[280px] p-2" align="start">
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="Rechercher..."
-                    className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs mb-2 focus:outline-none focus:ring-1 focus:ring-ring"
-                    autoFocus
-                  />
-                  <div className="max-h-48 overflow-y-auto space-y-0.5">
-                    {filteredLeads.length === 0 ? (
-                      <p className="text-xs text-muted-foreground p-2 text-center">Aucun lead trouvé</p>
-                    ) : (
-                      filteredLeads.map(lead => (
-                        <button
-                          key={lead.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedLead(lead);
-                            setPopoverOpen(false);
-                            setSearchQuery('');
-                          }}
-                          className={cn(
-                            "flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-xs transition-colors hover:bg-accent",
-                            selectedLead?.id === lead.id && "bg-primary/10 text-primary"
-                          )}
-                        >
-                          <span className="truncate">{lead.name}</span>
-                          <span className="ml-auto text-[10px] text-muted-foreground capitalize">{lead.status}</span>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </PopoverContent>
-              </Popover>
+                )}
+              </div>
             </div>
           )}
 
@@ -312,8 +351,8 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
               placeholder={
                 isListening
                   ? 'Parlez maintenant...'
-                  : mode === 'update'
-                    ? 'Ex : "hésite sur le prix, rappeler dans 3 jours"'
+                  : mode === 'action'
+                    ? (selectedLead ? 'Ex : "hésite sur le prix, rappeler dans 3 jours"' : 'Ex : "nouveau lead Jean Dupont, 0612345678, vient de Facebook"')
                     : 'Ex : "combien de leads à rappeler ?" "taux de closing ?"'
               }
               className="flex-1 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
@@ -321,7 +360,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
             />
             <button
               type="submit"
-              disabled={isPending || !note.trim() || (mode === 'update' && !selectedLead)}
+              disabled={isPending || !note.trim()}
               className="flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
               {isPending ? (
