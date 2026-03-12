@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Send, Sparkles, Mic, MicOff, Check, X, RotateCcw } from 'lucide-react';
+import { AudioVisualizer } from '@/components/AudioVisualizer';
 import { toast } from 'sonner';
 import { useAnalyzeNote, useApplyProposal, AiProposal, DbLead } from '@/hooks/useLeadData';
 import {
@@ -147,6 +148,7 @@ export function NaturalLanguageInput({ leadId, lead }: NaturalLanguageInputProps
         <p className="text-xs text-muted-foreground mb-3">
           Dictez ou écrivez une note, l'IA proposera les actions à valider.
         </p>
+        <AudioVisualizer isListening={isListening} className="mb-3" />
         <div className="flex gap-2">
           {micSupported && (
             <button
