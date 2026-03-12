@@ -276,10 +276,18 @@ export function useToggleReminder() {
 
 // ========== NATURAL LANGUAGE UPDATE ==========
 
-export function useNaturalLanguageUpdate() {
-  const queryClient = useQueryClient();
+export type AiProposal = {
+  status?: string;
+  score?: string;
+  next_action?: string;
+  next_action_date?: string;
+  notes_append?: string;
+  updates_summary?: string[];
+};
+
+export function useAnalyzeNote() {
   return useMutation({
-    mutationFn: async ({ lead, note }: { lead: DbLead; note: string }) => {
+    mutationFn: async ({ lead, note }: { lead: DbLead; note: string }): Promise<AiProposal> => {
       const { data, error } = await supabase.functions.invoke('ai-lead-analysis', {
         body: {
           type: 'natural_language_update',
@@ -295,30 +303,53 @@ export function useNaturalLanguageUpdate() {
 
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
+      return data as AiProposal;
+    },
+  });
+}
 
-      // Apply updates
+export function useApplyProposal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ lead, proposal }: { lead: DbLead; proposal: AiProposal }) => {
       const updates: any = {};
-      if (data.status) updates.status = data.status;
-      if (data.score) updates.score = data.score;
-      if (data.next_action) updates.next_action = data.next_action;
-      if (data.notes_append) {
-        updates.notes = (lead.notes || '') + '\n' + data.notes_append;
+      if (proposal.status) updates.status = proposal.status;
+      if (proposal.score) updates.score = proposal.score;
+      if (proposal.next_action) updates.next_action = proposal.next_action;
+      if (proposal.notes_append) {
+        updates.notes = (lead.notes || '') + '\n' + proposal.notes_append;
       }
 
       if (Object.keys(updates).length > 0) {
         await supabase.from('leads').update(updates).eq('id', lead.id);
       }
 
-      // Create reminder if next action
-      if (data.next_action && data.next_action_date) {
+      if (proposal.next_action && proposal.next_action_date) {
         await supabase.from('reminders').insert({
           lead_id: lead.id,
-          action: data.next_action,
-          due_date: data.next_action_date,
+          action: proposal.next_action,
+          due_date: proposal.next_action_date,
         });
       }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['reminders'] });
+    },
+  });
+}
 
-      return data;
+// Legacy hook kept for backward compatibility
+export function useNaturalLanguageUpdate() {
+  const analyze = useAnalyzeNote();
+  const apply = useApplyProposal();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ lead, note }: { lead: DbLead; note: string }) => {
+      const proposal = await analyze.mutateAsync({ lead, note });
+      await apply.mutateAsync({ lead, proposal });
+      return proposal;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
