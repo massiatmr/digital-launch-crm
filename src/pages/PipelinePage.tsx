@@ -1,12 +1,18 @@
 import { useLeads, useUpdateLead, type DbLead } from '@/hooks/useLeadData';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
-import { Link } from 'react-router-dom';
+import { LeadDetailContent } from '@/components/LeadDetailContent';
 import { useState, useRef } from 'react';
-import { Loader2, GripVertical, User, DollarSign, ArrowRight } from 'lucide-react';
+import { Loader2, GripVertical, User, ArrowRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 
 type PipelineStage = DbLead['status'];
 
@@ -19,22 +25,44 @@ const STAGES: { key: PipelineStage; label: string; color: string; icon: string }
   { key: 'lost', label: 'Perdu', color: 'bg-destructive/20 border-destructive/40 text-destructive', icon: '❌' },
 ];
 
-function PipelineCard({ lead, onDragStart }: { lead: DbLead; onDragStart: (e: React.DragEvent, lead: DbLead) => void }) {
+function PipelineCard({
+  lead,
+  onDragStart,
+  onClick,
+}: {
+  lead: DbLead;
+  onDragStart: (e: React.DragEvent, lead: DbLead) => void;
+  onClick: (lead: DbLead) => void;
+}) {
+  const pointerStart = useRef<{ x: number; y: number } | null>(null);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    pointerStart.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!pointerStart.current) return;
+    const dx = Math.abs(e.clientX - pointerStart.current.x);
+    const dy = Math.abs(e.clientY - pointerStart.current.y);
+    if (dx < 5 && dy < 5) {
+      onClick(lead);
+    }
+    pointerStart.current = null;
+  };
+
   return (
     <div
       draggable
       onDragStart={(e) => onDragStart(e, lead)}
-      className="group relative rounded-lg border border-border bg-card p-3 cursor-grab active:cursor-grabbing transition-all hover:border-primary/30 hover:shadow-[0_0_15px_hsl(var(--primary)/0.08)]"
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      className="group relative rounded-lg border border-border bg-card p-3 cursor-pointer active:cursor-grabbing transition-all hover:border-primary/30 hover:shadow-[0_0_15px_hsl(var(--primary)/0.08)]"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <Link
-            to={`/leads/${lead.id}`}
-            className="text-sm font-medium text-foreground hover:text-primary transition-colors line-clamp-1"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <span className="text-sm font-medium text-foreground line-clamp-1">
             {lead.name}
-          </Link>
+          </span>
           {lead.message && (
             <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{lead.message}</p>
           )}
@@ -74,6 +102,7 @@ function PipelineColumn({
   dragOverStage,
   onDragOver,
   onDragLeave,
+  onCardClick,
 }: {
   stage: typeof STAGES[number];
   leads: DbLead[];
@@ -82,6 +111,7 @@ function PipelineColumn({
   dragOverStage: PipelineStage | null;
   onDragOver: (e: React.DragEvent, stage: PipelineStage) => void;
   onDragLeave: () => void;
+  onCardClick: (lead: DbLead) => void;
 }) {
   const isDragOver = dragOverStage === stage.key;
 
@@ -89,15 +119,12 @@ function PipelineColumn({
     <div
       className={cn(
         'flex min-w-[240px] flex-1 flex-col rounded-xl border transition-colors',
-        isDragOver
-          ? 'border-primary/50 bg-primary/5'
-          : 'border-border bg-background'
+        isDragOver ? 'border-primary/50 bg-primary/5' : 'border-border bg-background'
       )}
       onDragOver={(e) => onDragOver(e, stage.key)}
       onDragLeave={onDragLeave}
       onDrop={(e) => onDrop(e, stage.key)}
     >
-      {/* Column header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="text-base">{stage.icon}</span>
@@ -111,7 +138,6 @@ function PipelineColumn({
         </span>
       </div>
 
-      {/* Cards */}
       <div className="flex-1 space-y-2 overflow-y-auto p-2" style={{ maxHeight: 'calc(100vh - 220px)' }}>
         {leads.length === 0 ? (
           <div className="flex items-center justify-center rounded-lg border border-dashed border-border py-8 text-xs text-muted-foreground">
@@ -119,7 +145,7 @@ function PipelineColumn({
           </div>
         ) : (
           leads.map(lead => (
-            <PipelineCard key={lead.id} lead={lead} onDragStart={onDragStart} />
+            <PipelineCard key={lead.id} lead={lead} onDragStart={onDragStart} onClick={onCardClick} />
           ))
         )}
       </div>
@@ -131,6 +157,7 @@ export default function PipelinePage() {
   const { data: leads = [], isLoading } = useLeads();
   const updateLead = useUpdateLead();
   const [dragOverStage, setDragOverStage] = useState<PipelineStage | null>(null);
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const draggedLead = useRef<DbLead | null>(null);
 
   const handleDragStart = (_e: React.DragEvent, lead: DbLead) => {
@@ -142,17 +169,13 @@ export default function PipelinePage() {
     setDragOverStage(stage);
   };
 
-  const handleDragLeave = () => {
-    setDragOverStage(null);
-  };
+  const handleDragLeave = () => setDragOverStage(null);
 
   const handleDrop = (e: React.DragEvent, newStatus: PipelineStage) => {
     e.preventDefault();
     setDragOverStage(null);
-
     const lead = draggedLead.current;
     if (!lead || lead.status === newStatus) return;
-
     const stageLabel = STAGES.find(s => s.key === newStatus)?.label || newStatus;
     updateLead.mutate(
       { id: lead.id, status: newStatus },
@@ -197,9 +220,19 @@ export default function PipelinePage() {
             dragOverStage={dragOverStage}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
+            onCardClick={(lead) => setSelectedLeadId(lead.id)}
           />
         ))}
       </div>
+
+      <Sheet open={!!selectedLeadId} onOpenChange={(open) => !open && setSelectedLeadId(null)}>
+        <SheetContent side="right" className="sm:max-w-2xl w-full p-6">
+          <SheetHeader>
+            <SheetTitle className="sr-only">Détails du lead</SheetTitle>
+          </SheetHeader>
+          {selectedLeadId && <LeadDetailContent leadId={selectedLeadId} />}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
