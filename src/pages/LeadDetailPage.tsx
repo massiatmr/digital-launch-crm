@@ -1,5 +1,6 @@
 import { useParams, Link } from 'react-router-dom';
 import { mockLeads, mockMessages, mockScripts } from '@/data/mockData';
+import { NaturalLanguageInput } from '@/components/NaturalLanguageInput';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadStatusBadge } from '@/components/LeadStatusBadge';
 import { ArrowLeft, Copy, Mail, MessageCircle, Phone, Smartphone } from 'lucide-react';
