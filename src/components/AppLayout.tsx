@@ -1,13 +1,21 @@
 import { Outlet } from 'react-router-dom';
 import { AppSidebar } from './AppSidebar';
+import { createContext, useContext, useState } from 'react';
+
+const SidebarContext = createContext({ collapsed: false, setCollapsed: (_: boolean) => {} });
+export const useSidebarState = () => useContext(SidebarContext);
 
 export function AppLayout() {
+  const [collapsed, setCollapsed] = useState(false);
+
   return (
-    <div className="flex min-h-screen">
-      <AppSidebar />
-      <main className="flex-1 ml-16 p-6 lg:p-8 transition-all duration-300 has-[~aside[class*=w-60]]:ml-60">
-        <Outlet />
-      </main>
-    </div>
+    <SidebarContext.Provider value={{ collapsed, setCollapsed }}>
+      <div className="flex min-h-screen">
+        <AppSidebar />
+        <main className={`flex-1 p-6 lg:p-8 transition-all duration-300 ${collapsed ? 'ml-16' : 'ml-60'}`}>
+          <Outlet />
+        </main>
+      </div>
+    </SidebarContext.Provider>
   );
 }

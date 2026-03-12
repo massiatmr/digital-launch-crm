@@ -2,7 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { LayoutDashboard, Users, Kanban, MessageSquare, Phone, Bell, Plus, PanelLeftClose, PanelLeft } from 'lucide-react';
 import logo from '@/assets/logo.webp';
-import { useState } from 'react';
+import { useSidebarState } from './AppLayout';
 
 const links = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -15,7 +15,7 @@ const links = [
 
 export function AppSidebar() {
   const location = useLocation();
-  const [collapsed, setCollapsed] = useState(false);
+  const { collapsed, setCollapsed } = useSidebarState();
 
   return (
     <aside
@@ -25,15 +25,8 @@ export function AppSidebar() {
       )}
     >
       {/* Logo + Toggle */}
-      <div className="flex items-center justify-between px-3 py-4 border-b border-border">
-        <img
-          src={logo}
-          alt="Logo"
-          className={cn(
-            'transition-all duration-300',
-            collapsed ? 'h-8 w-auto' : 'h-10 w-auto'
-          )}
-        />
+      <div className={cn('flex items-center border-b border-border px-3 py-4', collapsed ? 'justify-center' : 'justify-between')}>
+        {!collapsed && <img src={logo} alt="Logo" className="h-10 w-auto" />}
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="p-1.5 rounded-md text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
@@ -83,5 +76,3 @@ export function AppSidebar() {
     </aside>
   );
 }
-
-
