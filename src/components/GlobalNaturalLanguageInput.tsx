@@ -74,7 +74,7 @@ function useSpeechRecognition(onResult: (text: string) => void) {
   return { isListening, toggle, isSupported };
 }
 
-type Mode = 'update' | 'ask';
+type Mode = 'action' | 'ask';
 
 export function GlobalNaturalLanguageInput() {
   const { data: leads = [] } = useLeads();
