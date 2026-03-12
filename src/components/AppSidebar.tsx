@@ -1,9 +1,10 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Users, Kanban, MessageSquare, Phone, Bell, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { LayoutDashboard, Users, Kanban, MessageSquare, Phone, Bell, PanelLeftClose, PanelLeft, Upload, LogOut } from 'lucide-react';
 import logo from '@/assets/logo.webp';
 import logoIcon from '@/assets/logo-icon.webp';
 import { useSidebarState } from './AppLayout';
+import { useAuth } from '@/hooks/useAuth';
 
 const links = [
   { to: '/', icon: Kanban, label: 'Pipeline' },
@@ -12,11 +13,13 @@ const links = [
   { to: '/messages', icon: MessageSquare, label: 'Messages' },
   { to: '/scripts', icon: Phone, label: 'Scripts' },
   { to: '/reminders', icon: Bell, label: 'Rappels' },
+  { to: '/import', icon: Upload, label: 'Import CSV' },
 ];
 
 export function AppSidebar() {
   const location = useLocation();
   const { collapsed, setCollapsed } = useSidebarState();
+  const { signOut } = useAuth();
 
   return (
     <aside
@@ -25,7 +28,6 @@ export function AppSidebar() {
         collapsed ? 'w-16' : 'w-60'
       )}
     >
-      {/* Logo */}
       <div className={cn('flex items-center border-b border-border px-3 py-4', collapsed ? 'justify-center' : 'px-4')}>
         {!collapsed ? (
           <img src={logo} alt="Logo" className="h-10 w-auto" />
@@ -34,7 +36,6 @@ export function AppSidebar() {
         )}
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 space-y-1 px-2 py-4">
         {links.map(({ to, icon: Icon, label }) => {
           const active = location.pathname === to || (to !== '/' && location.pathname.startsWith(to));
@@ -58,8 +59,18 @@ export function AppSidebar() {
         })}
       </nav>
 
-      {/* Toggle button at bottom */}
-      <div className="border-t border-border p-2">
+      <div className="border-t border-border p-2 space-y-1">
+        <button
+          onClick={() => signOut()}
+          title={collapsed ? 'Déconnexion' : undefined}
+          className={cn(
+            'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors',
+            collapsed && 'justify-center px-0'
+          )}
+        >
+          <LogOut className="h-4 w-4" />
+          {!collapsed && 'Déconnexion'}
+        </button>
         <button
           onClick={() => setCollapsed(!collapsed)}
           className={cn(

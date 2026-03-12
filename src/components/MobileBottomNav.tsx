@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Kanban, Bell, MoreHorizontal } from 'lucide-react';
+import { LayoutDashboard, Users, Kanban, Bell, MoreHorizontal, Upload, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import {
@@ -9,6 +9,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { MessageSquare, Phone } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 const mainLinks = [
   { to: '/', icon: Kanban, label: 'Pipeline' },
@@ -20,11 +21,13 @@ const mainLinks = [
 const moreLinks = [
   { to: '/messages', icon: MessageSquare, label: 'Messages' },
   { to: '/scripts', icon: Phone, label: 'Scripts' },
+  { to: '/import', icon: Upload, label: 'Import CSV' },
 ];
 
 export function MobileBottomNav() {
   const location = useLocation();
   const [showMore, setShowMore] = useState(false);
+  const { signOut } = useAuth();
 
   return (
     <>
@@ -75,6 +78,13 @@ export function MobileBottomNav() {
                 {label}
               </NavLink>
             ))}
+            <button
+              onClick={() => { setShowMore(false); signOut(); }}
+              className="flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
+            >
+              <LogOut className="h-5 w-5" />
+              Déconnexion
+            </button>
           </div>
         </SheetContent>
       </Sheet>
