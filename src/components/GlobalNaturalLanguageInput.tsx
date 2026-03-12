@@ -1,8 +1,8 @@
 import { useState, useCallback, useMemo } from 'react';
-import { Send, Sparkles, Mic, MicOff, Check, X, RotateCcw, Search, MessageSquare, RefreshCw } from 'lucide-react';
+import { Send, Sparkles, Mic, MicOff, Check, X, RotateCcw, Search, MessageSquare, Zap, UserPlus } from 'lucide-react';
 import { AudioVisualizer } from '@/components/AudioVisualizer';
 import { toast } from 'sonner';
-import { useLeads, useAnalyzeNote, useApplyProposal, AiProposal, DbLead } from '@/hooks/useLeadData';
+import { useLeads, useAnalyzeNote, useApplyProposal, useCreateLead, AiProposal, DbLead } from '@/hooks/useLeadData';
 import { supabase } from '@/integrations/supabase/client';
 import {
   Dialog,
