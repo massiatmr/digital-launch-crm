@@ -17,6 +17,7 @@ export default function AddLeadPage() {
   const createLead = useCreateLead();
   const [form, setForm] = useState({
     name: '',
+    company_name: '',
     email: '',
     phone: '',
     message: '',
