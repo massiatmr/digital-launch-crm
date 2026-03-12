@@ -74,23 +74,23 @@ export default function LeadsPage() {
               <Link
                 key={lead.id}
                 to={`/leads/${lead.id}`}
-                className="flex items-center justify-between px-5 py-4 hover:bg-accent/50 transition-colors"
+                className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 hover:bg-accent/50 transition-colors"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{lead.name}</span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-sm">{lead.name}</span>
                     <LeadScoreBadge score={lead.score} />
                     <LeadStatusBadge status={lead.status} />
                   </div>
-                  <p className="mt-1 truncate text-sm text-muted-foreground">{lead.message}</p>
-                  <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                  <p className="mt-1 truncate text-xs sm:text-sm text-muted-foreground">{lead.message}</p>
+                  <div className="mt-1 hidden sm:flex items-center gap-3 text-xs text-muted-foreground">
                     <span>{lead.email}</span>
                     <span>{lead.phone}</span>
                     <span className="capitalize">{lead.source.replace('_', ' ')}</span>
                   </div>
                 </div>
                 <span className="ml-4 shrink-0 text-xs text-muted-foreground">
-                  {format(new Date(lead.created_at), 'dd MMM yyyy', { locale: fr })}
+                  {format(new Date(lead.created_at), 'dd MMM', { locale: fr })}
                 </span>
               </Link>
             ))
