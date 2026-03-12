@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Search, Loader2 } from 'lucide-react';
+import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
 
 type ScoreFilter = 'hot' | 'warm' | 'cold' | 'all';
 
@@ -85,7 +86,17 @@ export default function LeadsPage() {
                   <p className="mt-1 truncate text-xs sm:text-sm text-muted-foreground">{lead.message}</p>
                   <div className="mt-1 hidden sm:flex items-center gap-3 text-xs text-muted-foreground">
                     <span>{lead.email}</span>
-                    <span>{lead.phone}</span>
+                    {lead.phone && (
+                      <a
+                        href={toWhatsAppUrl(lead.phone)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-primary hover:underline"
+                      >
+                        {formatPhoneDisplay(lead.phone)}
+                      </a>
+                    )}
                     <span className="capitalize">{lead.source.replace('_', ' ')}</span>
                   </div>
                 </div>

@@ -4,6 +4,7 @@ import { LeadDetailContent } from '@/components/LeadDetailContent';
 import { useState, useRef } from 'react';
 import { Loader2, GripVertical, User, ArrowRight } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -51,12 +52,15 @@ function PipelineCard({
     pointerStart.current = null;
   };
 
+  const isMobileDevice = useIsMobile();
+
   return (
     <div
-      draggable
+      draggable={!isMobileDevice}
       onDragStart={(e) => onDragStart(e, lead)}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
+      onClick={() => { if (isMobileDevice) onClick(lead); }}
       className="group relative rounded-lg border border-border bg-card p-3 cursor-pointer active:cursor-grabbing transition-all hover:border-primary/30 hover:shadow-[0_0_15px_hsl(var(--primary)/0.08)]"
     >
       <div className="flex items-start justify-between gap-2">
@@ -81,7 +85,19 @@ function PipelineCard({
       {(lead.email || lead.phone) && (
         <div className="mt-2 flex items-center gap-1.5 text-[10px] text-muted-foreground">
           <User className="h-3 w-3 shrink-0" />
-          <span className="truncate">{lead.phone || lead.email}</span>
+          {lead.phone ? (
+            <a
+              href={toWhatsAppUrl(lead.phone)}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="truncate text-primary hover:underline"
+            >
+              {formatPhoneDisplay(lead.phone)}
+            </a>
+          ) : (
+            <span className="truncate">{lead.email}</span>
+          )}
         </div>
       )}
 
