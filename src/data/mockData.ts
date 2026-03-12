@@ -45,6 +45,7 @@ export const mockLeads: Lead[] = [
     score: 'hot',
     status: 'qualified',
     createdAt: '2026-03-10T09:00:00',
+    companyName: 'TechVision',
     notes: 'Appel fait, très intéressé. Doit valider avec son associé.',
     aiSummary: 'Projet concret de refonte. Décision partagée avec associé. Timeline : 1 mois.',
     salesAngle: 'Insister sur la timeline serrée et proposer un meeting avec les deux décideurs.',
