@@ -10,6 +10,7 @@ import AddLeadPage from "@/pages/AddLeadPage";
 import MessagesPage from "@/pages/MessagesPage";
 import ScriptsPage from "@/pages/ScriptsPage";
 import RemindersPage from "@/pages/RemindersPage";
+import PipelinePage from "@/pages/PipelinePage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,6 +26,7 @@ const App = () => (
             <Route path="/leads" element={<LeadsPage />} />
             <Route path="/leads/new" element={<AddLeadPage />} />
             <Route path="/leads/:id" element={<LeadDetailPage />} />
+            <Route path="/pipeline" element={<PipelinePage />} />
             <Route path="/messages" element={<MessagesPage />} />
             <Route path="/scripts" element={<ScriptsPage />} />
             <Route path="/reminders" element={<RemindersPage />} />

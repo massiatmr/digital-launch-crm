@@ -1,11 +1,12 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Users, MessageSquare, Phone, Bell, Plus } from 'lucide-react';
+import { LayoutDashboard, Users, Kanban, MessageSquare, Phone, Bell, Plus } from 'lucide-react';
 import logo from '@/assets/logo.webp';
 
 const links = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/leads', icon: Users, label: 'Leads' },
+  { to: '/pipeline', icon: Kanban, label: 'Pipeline' },
   { to: '/messages', icon: MessageSquare, label: 'Messages' },
   { to: '/scripts', icon: Phone, label: 'Scripts' },
   { to: '/reminders', icon: Bell, label: 'Rappels' },
