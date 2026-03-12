@@ -147,11 +147,36 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
       return;
     }
 
-    // Update mode
+    // Action mode
     if (!selectedLead) {
-      toast.error("Sélectionnez un lead d'abord");
+      // No lead selected → create a new lead via AI
+      setCreatingLead(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('ai-lead-analysis', {
+          body: { type: 'create_lead', lead: { new_note: note } },
+        });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+
+        // Insert the lead
+        await createLead.mutateAsync({
+          name: data.name || 'Lead inconnu',
+          email: data.email || '',
+          phone: data.phone || '',
+          message: data.message || '',
+          source: data.source || 'manual',
+        });
+        toast.success(`Lead "${data.name}" créé avec succès !`);
+        setNote('');
+      } catch (err: any) {
+        toast.error("Erreur lors de la création du lead");
+      } finally {
+        setCreatingLead(false);
+      }
       return;
     }
+
+    // Lead selected → update
     try {
       const result = await analyze.mutateAsync({ lead: selectedLead, note });
       setProposal(result);
