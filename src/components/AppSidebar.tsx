@@ -25,19 +25,13 @@ export function AppSidebar() {
         collapsed ? 'w-16' : 'w-60'
       )}
     >
-      {/* Logo + Toggle */}
-      <div className={cn('flex items-center border-b border-border px-3 py-4', collapsed ? 'justify-center' : 'justify-between')}>
+      {/* Logo */}
+      <div className={cn('flex items-center border-b border-border px-3 py-4', collapsed ? 'justify-center' : 'px-4')}>
         {!collapsed ? (
           <img src={logo} alt="Logo" className="h-10 w-auto" />
         ) : (
           <img src={logoIcon} alt="Logo" className="h-8 w-8" />
         )}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="p-1.5 rounded-md text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
-        >
-          {collapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-        </button>
       </div>
 
       {/* Nav */}
@@ -63,6 +57,20 @@ export function AppSidebar() {
           );
         })}
       </nav>
+
+      {/* Toggle button at bottom */}
+      <div className="border-t border-border p-2">
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className={cn(
+            'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent transition-colors',
+            collapsed && 'justify-center px-0'
+          )}
+        >
+          {collapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          {!collapsed && 'Réduire'}
+        </button>
+      </div>
     </aside>
   );
 }
