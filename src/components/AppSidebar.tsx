@@ -5,9 +5,9 @@ import logo from '@/assets/logo.webp';
 import { useSidebarState } from './AppLayout';
 
 const links = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/', icon: Kanban, label: 'Pipeline' },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/leads', icon: Users, label: 'Leads' },
-  { to: '/pipeline', icon: Kanban, label: 'Pipeline' },
   { to: '/messages', icon: MessageSquare, label: 'Messages' },
   { to: '/scripts', icon: Phone, label: 'Scripts' },
   { to: '/reminders', icon: Bell, label: 'Rappels' },
