@@ -83,7 +83,7 @@ export function useLead(id: string | undefined) {
 export function useCreateLead() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (lead: { name: string; email: string; phone: string; message: string; source: string }) => {
+    mutationFn: async (lead: { name: string; email: string; phone: string; message: string; source: string; company_name?: string }) => {
       // First insert the lead
       const { data, error } = await supabase
         .from('leads')
