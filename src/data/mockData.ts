@@ -79,6 +79,7 @@ export const mockLeads: Lead[] = [
     score: 'hot',
     status: 'new',
     createdAt: '2026-03-12T08:15:00',
+    companyName: 'EventPro',
     notes: '',
     aiSummary: "Urgence forte, timeline très courte. Fort potentiel de conversion immédiate.",
     salesAngle: "Jouer sur l'urgence et proposer une offre fast-track.",
