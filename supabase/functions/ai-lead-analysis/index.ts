@@ -67,6 +67,19 @@ Interprète cette note et réponds avec ce JSON:
   "notes_append": "note formatée à ajouter",
   "updates_summary": ["liste des changements effectués"]
 }`;
+    } else if (type === "pipeline_question") {
+      const { question, pipeline_summary } = await req.json().catch(() => ({ question: lead?.new_note, pipeline_summary: lead?.pipeline_summary }));
+
+      systemPrompt = `Tu es un assistant CRM expert. L'utilisateur te pose une question sur sa pipeline de vente. Tu as accès aux données résumées de sa pipeline.
+
+Réponds de manière concise, utile et actionnable en français. Utilise des chiffres précis. Formate ta réponse en texte lisible (pas de JSON).`;
+
+      userPrompt = `Données pipeline :
+${lead?.pipeline_summary || ''}
+
+Question de l'utilisateur : "${lead?.new_note || ''}"
+
+Réponds de manière claire et concise.`;
     } else {
       throw new Error("Unknown type: " + type);
     }
