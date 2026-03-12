@@ -99,14 +99,22 @@ export default function Dashboard() {
               <div className="px-5 py-8 text-center text-sm text-muted-foreground">Aucun rappel en attente</div>
             ) : (
               upcomingReminders.map(r => (
-                <div key={r.id} className="px-5 py-3.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{r.leads?.name || 'Lead'}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {format(new Date(r.due_date), "dd MMM HH:mm", { locale: fr })}
-                    </span>
+                <div key={r.id} className="flex items-center gap-3 px-5 py-3.5">
+                  <button
+                    onClick={() => toggleReminder.mutate({ id: r.id, done: true })}
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border hover:border-primary hover:bg-primary/10 transition-colors"
+                  >
+                    <Check className="h-3 w-3 text-transparent" />
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{r.leads?.name || 'Lead'}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {format(new Date(r.due_date), "dd MMM HH:mm", { locale: fr })}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{r.action}</p>
                   </div>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{r.action}</p>
                 </div>
               ))
             )}
