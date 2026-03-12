@@ -278,41 +278,52 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
                       {selectedLead ? selectedLead.name : 'Sélectionner un lead (ou laisser vide pour créer)'}
                     </button>
                   </PopoverTrigger>
-                <PopoverContent className="w-[280px] p-2" align="start">
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="Rechercher..."
-                    className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs mb-2 focus:outline-none focus:ring-1 focus:ring-ring"
-                    autoFocus
-                  />
-                  <div className="max-h-48 overflow-y-auto space-y-0.5">
-                    {filteredLeads.length === 0 ? (
-                      <p className="text-xs text-muted-foreground p-2 text-center">Aucun lead trouvé</p>
-                    ) : (
-                      filteredLeads.map(lead => (
-                        <button
-                          key={lead.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedLead(lead);
-                            setPopoverOpen(false);
-                            setSearchQuery('');
-                          }}
-                          className={cn(
-                            "flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-xs transition-colors hover:bg-accent",
-                            selectedLead?.id === lead.id && "bg-primary/10 text-primary"
-                          )}
-                        >
-                          <span className="truncate">{lead.name}</span>
-                          <span className="ml-auto text-[10px] text-muted-foreground capitalize">{lead.status}</span>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </PopoverContent>
-              </Popover>
+                  <PopoverContent className="w-[280px] p-2" align="start">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      placeholder="Rechercher..."
+                      className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs mb-2 focus:outline-none focus:ring-1 focus:ring-ring"
+                      autoFocus
+                    />
+                    <div className="max-h-48 overflow-y-auto space-y-0.5">
+                      {filteredLeads.length === 0 ? (
+                        <p className="text-xs text-muted-foreground p-2 text-center">Aucun lead trouvé</p>
+                      ) : (
+                        filteredLeads.map(lead => (
+                          <button
+                            key={lead.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedLead(lead);
+                              setPopoverOpen(false);
+                              setSearchQuery('');
+                            }}
+                            className={cn(
+                              "flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-xs transition-colors hover:bg-accent",
+                              selectedLead?.id === lead.id && "bg-primary/10 text-primary"
+                            )}
+                          >
+                            <span className="truncate">{lead.name}</span>
+                            <span className="ml-auto text-[10px] text-muted-foreground capitalize">{lead.status}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                {selectedLead && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedLead(null)}
+                    className="rounded-lg border border-border px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                    title="Désélectionner pour créer un nouveau lead"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
