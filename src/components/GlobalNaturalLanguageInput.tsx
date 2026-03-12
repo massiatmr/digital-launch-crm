@@ -278,14 +278,6 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
                       {selectedLead ? selectedLead.name : 'Sélectionner un lead (ou laisser vide pour créer)'}
                     </button>
                   </PopoverTrigger>
-                        ? "border-primary/30 bg-primary/5 text-foreground"
-                        : "border-border bg-muted/30 text-muted-foreground"
-                    )}
-                  >
-                    <Search className="h-3 w-3 shrink-0" />
-                    {selectedLead ? selectedLead.name : 'Sélectionner un lead...'}
-                  </button>
-                </PopoverTrigger>
                 <PopoverContent className="w-[280px] p-2" align="start">
                   <input
                     type="text"
