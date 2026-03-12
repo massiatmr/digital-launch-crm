@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { ArrowLeft, Plus, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { LeadSource } from '@/types/lead';
+import { useCreateLead } from '@/hooks/useLeadData';
 
-const sources: { value: LeadSource; label: string }[] = [
+const sources = [
   { value: 'facebook', label: 'Facebook Lead Ads' },
   { value: 'website', label: 'Site web' },
   { value: 'google_sheets', label: 'Google Sheets' },
@@ -14,25 +14,31 @@ const sources: { value: LeadSource; label: string }[] = [
 
 export default function AddLeadPage() {
   const navigate = useNavigate();
+  const createLead = useCreateLead();
   const [form, setForm] = useState({
     name: '',
     email: '',
     phone: '',
     message: '',
-    source: 'manual' as LeadSource,
+    source: 'manual',
   });
 
   const update = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) {
       toast.error('Le nom est requis');
       return;
     }
-    // Mock: in real app this would save to DB
-    toast.success(`Lead "${form.name}" ajouté avec succès !`);
-    navigate('/leads');
+
+    try {
+      await createLead.mutateAsync(form);
+      toast.success(`Lead "${form.name}" ajouté ! L'IA analyse le lead...`);
+      navigate('/leads');
+    } catch (err) {
+      toast.error("Erreur lors de l'ajout du lead");
+    }
   };
 
   return (
@@ -43,11 +49,10 @@ export default function AddLeadPage() {
 
       <div>
         <h1 className="font-heading text-3xl">Ajouter un lead</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Ajoutez manuellement un nouveau lead à votre pipeline</p>
+        <p className="mt-1 text-sm text-muted-foreground">L'IA analysera automatiquement le lead et générera messages et scripts</p>
       </div>
 
       <form onSubmit={handleSubmit} className="rounded-xl border border-border bg-card p-6 space-y-5">
-        {/* Name */}
         <div className="space-y-1.5">
           <label className="text-sm font-medium">Nom complet *</label>
           <input
@@ -59,7 +64,6 @@ export default function AddLeadPage() {
           />
         </div>
 
-        {/* Email & Phone */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Email</label>
@@ -83,7 +87,6 @@ export default function AddLeadPage() {
           </div>
         </div>
 
-        {/* Source */}
         <div className="space-y-1.5">
           <label className="text-sm font-medium">Source</label>
           <select
@@ -97,7 +100,6 @@ export default function AddLeadPage() {
           </select>
         </div>
 
-        {/* Message */}
         <div className="space-y-1.5">
           <label className="text-sm font-medium">Message / Besoin</label>
           <textarea
@@ -109,7 +111,6 @@ export default function AddLeadPage() {
           />
         </div>
 
-        {/* Submit */}
         <div className="flex justify-end gap-3 pt-2">
           <Link
             to="/leads"
@@ -119,10 +120,15 @@ export default function AddLeadPage() {
           </Link>
           <button
             type="submit"
-            className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+            disabled={createLead.isPending}
+            className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
-            <Plus className="h-4 w-4" />
-            Ajouter le lead
+            {createLead.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4" />
+            )}
+            {createLead.isPending ? 'Analyse IA en cours...' : 'Ajouter le lead'}
           </button>
         </div>
       </form>

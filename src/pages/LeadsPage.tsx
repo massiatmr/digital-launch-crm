@@ -1,31 +1,40 @@
-import { mockLeads } from '@/data/mockData';
+import { useLeads } from '@/hooks/useLeadData';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadStatusBadge } from '@/components/LeadStatusBadge';
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Search } from 'lucide-react';
-import { LeadScore } from '@/types/lead';
+import { Search, Loader2 } from 'lucide-react';
+
+type ScoreFilter = 'hot' | 'warm' | 'cold' | 'all';
 
 export default function LeadsPage() {
-  const [filter, setFilter] = useState<LeadScore | 'all'>('all');
+  const { data: leads = [], isLoading } = useLeads();
+  const [filter, setFilter] = useState<ScoreFilter>('all');
   const [search, setSearch] = useState('');
 
-  const filtered = mockLeads.filter(l => {
+  const filtered = leads.filter(l => {
     if (filter !== 'all' && l.score !== filter) return false;
     if (search && !l.name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="font-heading text-3xl">Leads</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{mockLeads.length} leads au total</p>
+        <p className="mt-1 text-sm text-muted-foreground">{leads.length} leads au total</p>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -52,35 +61,39 @@ export default function LeadsPage() {
         ))}
       </div>
 
-      {/* List */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="divide-y divide-border">
-          {filtered.map(lead => (
-            <Link
-              key={lead.id}
-              to={`/leads/${lead.id}`}
-              className="flex items-center justify-between px-5 py-4 hover:bg-accent/50 transition-colors"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{lead.name}</span>
-                  <LeadScoreBadge score={lead.score} />
-                  <LeadStatusBadge status={lead.status} />
+          {filtered.length === 0 ? (
+            <div className="px-5 py-12 text-center text-sm text-muted-foreground">
+              {leads.length === 0 ? (
+                <>Aucun lead. <Link to="/leads/new" className="text-primary hover:underline">Ajoutez votre premier lead</Link></>
+              ) : 'Aucun lead trouvé'}
+            </div>
+          ) : (
+            filtered.map(lead => (
+              <Link
+                key={lead.id}
+                to={`/leads/${lead.id}`}
+                className="flex items-center justify-between px-5 py-4 hover:bg-accent/50 transition-colors"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{lead.name}</span>
+                    <LeadScoreBadge score={lead.score} />
+                    <LeadStatusBadge status={lead.status} />
+                  </div>
+                  <p className="mt-1 truncate text-sm text-muted-foreground">{lead.message}</p>
+                  <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                    <span>{lead.email}</span>
+                    <span>{lead.phone}</span>
+                    <span className="capitalize">{lead.source.replace('_', ' ')}</span>
+                  </div>
                 </div>
-                <p className="mt-1 truncate text-sm text-muted-foreground">{lead.message}</p>
-                <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-                  <span>{lead.email}</span>
-                  <span>{lead.phone}</span>
-                  <span className="capitalize">{lead.source.replace('_', ' ')}</span>
-                </div>
-              </div>
-              <span className="ml-4 shrink-0 text-xs text-muted-foreground">
-                {format(new Date(lead.createdAt), 'dd MMM yyyy', { locale: fr })}
-              </span>
-            </Link>
-          ))}
-          {filtered.length === 0 && (
-            <div className="px-5 py-12 text-center text-sm text-muted-foreground">Aucun lead trouvé</div>
+                <span className="ml-4 shrink-0 text-xs text-muted-foreground">
+                  {format(new Date(lead.created_at), 'dd MMM yyyy', { locale: fr })}
+                </span>
+              </Link>
+            ))
           )}
         </div>
       </div>

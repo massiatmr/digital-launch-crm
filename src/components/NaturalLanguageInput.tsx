@@ -1,43 +1,30 @@
 import { useState } from 'react';
 import { Send, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
+import { useNaturalLanguageUpdate, DbLead } from '@/hooks/useLeadData';
 
 interface NaturalLanguageInputProps {
   leadId: string;
-  onUpdate?: (note: string) => void;
+  lead: DbLead;
 }
 
-export function NaturalLanguageInput({ leadId, onUpdate }: NaturalLanguageInputProps) {
+export function NaturalLanguageInput({ leadId, lead }: NaturalLanguageInputProps) {
   const [note, setNote] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
+  const nlUpdate = useNaturalLanguageUpdate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!note.trim()) return;
 
-    setIsProcessing(true);
+    try {
+      const result = await nlUpdate.mutateAsync({ lead, note });
 
-    // Mock AI processing
-    setTimeout(() => {
-      setIsProcessing(false);
-
-      // Simulated AI interpretation
-      const lower = note.toLowerCase();
-      const updates: string[] = [];
-
-      if (lower.includes('appel') || lower.includes('appelé')) updates.push('Statut → Contacté');
-      if (lower.includes('intéressé')) updates.push('Score → Chaud');
-      if (lower.includes('pas intéressé') || lower.includes('refus')) updates.push('Score → Froid');
-      if (lower.includes('rappel') || lower.includes('relancer')) updates.push('Rappel planifié');
-      if (lower.includes('proposition') || lower.includes('devis')) updates.push('Statut → Proposition');
-      if (lower.includes('gagné') || lower.includes('signé')) updates.push('Statut → Gagné 🎉');
-
-      if (updates.length > 0) {
+      if (result?.updates_summary?.length > 0) {
         toast.success(
           <div>
             <p className="font-medium">CRM mis à jour par l'IA :</p>
             <ul className="mt-1 text-sm">
-              {updates.map((u, i) => (
+              {result.updates_summary.map((u: string, i: number) => (
                 <li key={i}>• {u}</li>
               ))}
             </ul>
@@ -46,10 +33,10 @@ export function NaturalLanguageInput({ leadId, onUpdate }: NaturalLanguageInputP
       } else {
         toast.success('Note ajoutée au lead');
       }
-
-      onUpdate?.(note);
       setNote('');
-    }, 1200);
+    } catch (err) {
+      toast.error("Erreur lors de la mise à jour");
+    }
   };
 
   return (
@@ -68,14 +55,14 @@ export function NaturalLanguageInput({ leadId, onUpdate }: NaturalLanguageInputP
           onChange={e => setNote(e.target.value)}
           placeholder='Ex : "Appel fait, intéressé mais doit en parler avec associé"'
           className="flex-1 rounded-lg border border-border bg-muted/30 px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          disabled={isProcessing}
+          disabled={nlUpdate.isPending}
         />
         <button
           type="submit"
-          disabled={isProcessing || !note.trim()}
+          disabled={nlUpdate.isPending || !note.trim()}
           className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
         >
-          {isProcessing ? (
+          {nlUpdate.isPending ? (
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
           ) : (
             <Send className="h-4 w-4" />
