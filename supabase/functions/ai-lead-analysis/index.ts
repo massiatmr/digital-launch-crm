@@ -67,6 +67,28 @@ Interprète cette note et réponds avec ce JSON:
   "notes_append": "note formatée à ajouter",
   "updates_summary": ["liste des changements effectués"]
 }`;
+    } else if (type === "pipeline_question") {
+      systemPrompt = `Tu es un assistant CRM expert. L'utilisateur te pose une question sur sa pipeline de vente. Tu as accès aux données résumées de sa pipeline.
+
+Réponds de manière concise, utile et actionnable en français. Utilise des chiffres précis. Formate ta réponse en texte lisible (pas de JSON).`;
+
+      userPrompt = `Données pipeline :
+${lead?.pipeline_summary || ''}
+
+Question de l'utilisateur : "${lead?.new_note || ''}"
+
+Réponds de manière claire et concise.`;
+
+      systemPrompt = `Tu es un assistant CRM expert. L'utilisateur te pose une question sur sa pipeline de vente. Tu as accès aux données résumées de sa pipeline.
+
+Réponds de manière concise, utile et actionnable en français. Utilise des chiffres précis. Formate ta réponse en texte lisible (pas de JSON).`;
+
+      userPrompt = `Données pipeline :
+${lead?.pipeline_summary || ''}
+
+Question de l'utilisateur : "${lead?.new_note || ''}"
+
+Réponds de manière claire et concise.`;
     } else {
       throw new Error("Unknown type: " + type);
     }
@@ -106,6 +128,13 @@ Interprète cette note et réponds avec ce JSON:
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
+
+    // For pipeline questions, return raw text
+    if (type === "pipeline_question") {
+      return new Response(JSON.stringify({ answer: content.trim() }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Parse AI response - strip markdown code blocks if present
     let cleanContent = content.trim();
