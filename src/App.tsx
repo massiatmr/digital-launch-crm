@@ -10,6 +10,7 @@ import AddLeadPage from "@/pages/AddLeadPage";
 import MessagesPage from "@/pages/MessagesPage";
 import ScriptsPage from "@/pages/ScriptsPage";
 import RemindersPage from "@/pages/RemindersPage";
+import PipelinePage from "@/pages/PipelinePage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
