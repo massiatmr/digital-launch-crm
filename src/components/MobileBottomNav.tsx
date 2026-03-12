@@ -27,6 +27,7 @@ const moreLinks = [
 export function MobileBottomNav() {
   const location = useLocation();
   const [showMore, setShowMore] = useState(false);
+  const { signOut } = useAuth();
 
   return (
     <>
