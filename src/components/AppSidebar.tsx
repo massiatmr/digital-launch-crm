@@ -6,6 +6,7 @@ import logo from '@/assets/logo.webp';
 const links = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/leads', icon: Users, label: 'Leads' },
+  { to: '/pipeline', icon: Kanban, label: 'Pipeline' },
   { to: '/messages', icon: MessageSquare, label: 'Messages' },
   { to: '/scripts', icon: Phone, label: 'Scripts' },
   { to: '/reminders', icon: Bell, label: 'Rappels' },
