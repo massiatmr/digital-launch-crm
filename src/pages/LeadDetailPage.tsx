@@ -1,18 +1,26 @@
 import { useParams, Link } from 'react-router-dom';
-import { mockLeads, mockMessages, mockScripts } from '@/data/mockData';
-import { NaturalLanguageInput } from '@/components/NaturalLanguageInput';
+import { useLead, useLeadMessages, useLeadScripts } from '@/hooks/useLeadData';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadStatusBadge } from '@/components/LeadStatusBadge';
-import { ArrowLeft, Copy, Mail, MessageCircle, Phone, Smartphone } from 'lucide-react';
+import { NaturalLanguageInput } from '@/components/NaturalLanguageInput';
+import { ArrowLeft, Copy, Mail, MessageCircle, Phone, Smartphone, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
 
 export default function LeadDetailPage() {
   const { id } = useParams();
-  const lead = mockLeads.find(l => l.id === id);
-  const messages = mockMessages.filter(m => m.leadId === id);
-  const scripts = mockScripts.filter(s => s.leadId === id);
+  const { data: lead, isLoading } = useLead(id);
+  const { data: messages = [] } = useLeadMessages(id);
+  const { data: scripts = [] } = useLeadScripts(id);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (!lead) {
     return (
@@ -34,7 +42,6 @@ export default function LeadDetailPage() {
         <ArrowLeft className="h-4 w-4" /> Retour
       </Link>
 
-      {/* Header */}
       <div className="rounded-xl border border-border bg-card p-6">
         <div className="flex items-start justify-between">
           <div>
@@ -44,49 +51,61 @@ export default function LeadDetailPage() {
               <LeadStatusBadge status={lead.status} />
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1"><Mail className="h-3.5 w-3.5" />{lead.email}</span>
-              <span className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" />{lead.phone}</span>
+              {lead.email && <span className="flex items-center gap-1"><Mail className="h-3.5 w-3.5" />{lead.email}</span>}
+              {lead.phone && <span className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" />{lead.phone}</span>}
               <span className="capitalize">{lead.source.replace('_', ' ')}</span>
-              <span>{format(new Date(lead.createdAt), "dd MMM yyyy à HH:mm", { locale: fr })}</span>
+              <span>{format(new Date(lead.created_at), "dd MMM yyyy à HH:mm", { locale: fr })}</span>
             </div>
           </div>
         </div>
-        <div className="mt-4 rounded-lg bg-muted/50 p-4">
-          <p className="text-sm italic text-muted-foreground">"{lead.message}"</p>
-        </div>
+        {lead.message && (
+          <div className="mt-4 rounded-lg bg-muted/50 p-4">
+            <p className="text-sm italic text-muted-foreground">"{lead.message}"</p>
+          </div>
+        )}
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* AI Analysis */}
         <div className="rounded-xl border border-border bg-card p-6 space-y-4">
           <h2 className="font-heading text-lg flex items-center gap-2">
             <span className="inline-block h-2 w-2 rounded-full bg-primary animate-pulse-soft" />
             Analyse IA
           </h2>
-          <div>
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Résumé</h3>
-            <p className="mt-1 text-sm">{lead.aiSummary}</p>
-          </div>
-          <div>
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Angle de vente</h3>
-            <p className="mt-1 text-sm">{lead.salesAngle}</p>
-          </div>
-          <div>
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Prochaine action</h3>
-            <p className="mt-1 text-sm">{lead.nextAction}</p>
-            <p className="text-xs text-muted-foreground">
-              {format(new Date(lead.nextActionDate), "dd MMM yyyy à HH:mm", { locale: fr })}
-            </p>
-          </div>
+          {lead.ai_summary ? (
+            <>
+              <div>
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Résumé</h3>
+                <p className="mt-1 text-sm">{lead.ai_summary}</p>
+              </div>
+              {lead.sales_angle && (
+                <div>
+                  <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Angle de vente</h3>
+                  <p className="mt-1 text-sm">{lead.sales_angle}</p>
+                </div>
+              )}
+              {lead.next_action && (
+                <div>
+                  <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Prochaine action</h3>
+                  <p className="mt-1 text-sm">{lead.next_action}</p>
+                  {lead.next_action_date && (
+                    <p className="text-xs text-muted-foreground">
+                      {format(new Date(lead.next_action_date), "dd MMM yyyy à HH:mm", { locale: fr })}
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">Analyse IA en cours ou non disponible...</p>
+          )}
           {lead.notes && (
             <div>
               <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Notes</h3>
-              <p className="mt-1 text-sm">{lead.notes}</p>
+              <p className="mt-1 text-sm whitespace-pre-line">{lead.notes}</p>
             </div>
           )}
         </div>
 
-        {/* Messages */}
         <div className="space-y-4">
           <div className="rounded-xl border border-border bg-card p-6">
             <h2 className="font-heading text-lg flex items-center gap-2 mb-4">
@@ -118,7 +137,6 @@ export default function LeadDetailPage() {
             )}
           </div>
 
-          {/* Scripts */}
           {scripts.length > 0 && (
             <div className="rounded-xl border border-border bg-card p-6">
               <h2 className="font-heading text-lg flex items-center gap-2 mb-4">
@@ -130,14 +148,14 @@ export default function LeadDetailPage() {
                   <div className="rounded-lg border border-border bg-muted/30 p-4">
                     <p className="text-sm whitespace-pre-line">{s.script}</p>
                   </div>
-                  {s.objections.length > 0 && (
+                  {s.objections?.length > 0 && (
                     <div>
                       <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Objections & Réponses</h3>
                       <div className="space-y-2">
-                        {s.objections.map((o, i) => (
+                        {s.objections.map((o: any, i: number) => (
                           <div key={i} className="rounded-lg border border-border bg-muted/30 p-3">
                             <p className="text-xs font-medium text-lead-warm">❓ {o.objection}</p>
-                            <p className="mt-1 text-sm text-foreground">→ {o.response}</p>
+                            <p className="mt-1 text-sm">→ {o.response}</p>
                           </div>
                         ))}
                       </div>
@@ -150,8 +168,7 @@ export default function LeadDetailPage() {
         </div>
       </div>
 
-      {/* Natural Language Update */}
-      <NaturalLanguageInput leadId={lead.id} />
+      <NaturalLanguageInput leadId={lead.id} lead={lead} />
     </div>
   );
 }
