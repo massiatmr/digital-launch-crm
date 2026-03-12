@@ -87,6 +87,7 @@ export function GlobalNaturalLanguageInput() {
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [aiAnswer, setAiAnswer] = useState<string | null>(null);
   const [askingAi, setAskingAi] = useState(false);
+  const [creatingLead, setCreatingLead] = useState(false);
 
   const analyze = useAnalyzeNote();
   const apply = useApplyProposal();
