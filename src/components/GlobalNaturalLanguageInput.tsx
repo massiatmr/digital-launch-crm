@@ -231,13 +231,13 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
         <div className="flex items-center gap-1 mb-2">
           <button
             type="button"
-            onClick={() => { setMode('update'); setAiAnswer(null); }}
+            onClick={() => { setMode('action'); setAiAnswer(null); }}
             className={cn(
               "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
-              mode === 'update' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
+              mode === 'action' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
             )}
           >
-            <RefreshCw className="h-3 w-3" /> Mise à jour
+            <Zap className="h-3 w-3" /> Action IA
           </button>
           <button
             type="button"
@@ -255,20 +255,29 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
           <div className="flex items-center gap-2 mb-2">
             <Sparkles className="h-3.5 w-3.5 text-primary" />
             <h3 className="text-xs font-medium text-muted-foreground">
-              {mode === 'update' ? 'Mise à jour rapide' : 'Demandez à l\'IA sur votre pipeline'}
+              {mode === 'action' ? (selectedLead ? `Mise à jour de ${selectedLead.name}` : 'Ajouter ou mettre à jour un lead') : 'Demandez à l\'IA sur votre pipeline'}
             </h3>
           </div>
 
-          {/* Lead selector - only in update mode */}
-          {mode === 'update' && (
+          {/* Lead selector - only in action mode */}
+          {mode === 'action' && (
             <div className="mb-2">
-              <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-                <PopoverTrigger asChild>
-                  <button
-                    type="button"
-                    className={cn(
-                      "flex w-full items-center gap-2 rounded-lg border px-3 py-1.5 text-xs transition-colors",
-                      selectedLead
+              <div className="flex items-center gap-2">
+                <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className={cn(
+                        "flex flex-1 items-center gap-2 rounded-lg border px-3 py-1.5 text-xs transition-colors",
+                        selectedLead
+                          ? "border-primary/30 bg-primary/5 text-foreground"
+                          : "border-border bg-muted/30 text-muted-foreground"
+                      )}
+                    >
+                      <Search className="h-3 w-3 shrink-0" />
+                      {selectedLead ? selectedLead.name : 'Sélectionner un lead (ou laisser vide pour créer)'}
+                    </button>
+                  </PopoverTrigger>
                         ? "border-primary/30 bg-primary/5 text-foreground"
                         : "border-border bg-muted/30 text-muted-foreground"
                     )}
