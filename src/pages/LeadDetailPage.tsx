@@ -149,6 +149,9 @@ export default function LeadDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Natural Language Update */}
+      <NaturalLanguageInput leadId={lead.id} />
     </div>
   );
 }
