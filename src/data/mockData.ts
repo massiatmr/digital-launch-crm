@@ -11,6 +11,7 @@ export const mockLeads: Lead[] = [
     score: 'hot',
     status: 'new',
     createdAt: '2026-03-12T10:30:00',
+    companyName: '',
     notes: '',
     aiSummary: 'Lead très motivé, budget confirmé, projet e-commerce clair. Prêt à avancer rapidement.',
     salesAngle: "Mettre en avant l'accompagnement clé-en-main et le ROI rapide.",
