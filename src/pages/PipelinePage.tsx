@@ -119,7 +119,10 @@ function PipelineColumn({
   return (
     <div
       className={cn(
-        'flex min-w-[240px] flex-1 flex-col rounded-xl border transition-colors',
+        'flex flex-col rounded-xl border transition-colors',
+        isDragOver ? 'border-primary/50 bg-primary/5' : 'border-border bg-background',
+        'min-w-[200px] sm:min-w-[220px] flex-1'
+      )}
         isDragOver ? 'border-primary/50 bg-primary/5' : 'border-border bg-background'
       )}
       onDragOver={(e) => onDragOver(e, stage.key)}
