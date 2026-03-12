@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Kanban, Bell, MoreHorizontal } from 'lucide-react';
+import { LayoutDashboard, Users, Kanban, Bell, MoreHorizontal, Upload, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import {
@@ -9,6 +9,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { MessageSquare, Phone } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 const mainLinks = [
   { to: '/', icon: Kanban, label: 'Pipeline' },
@@ -20,6 +21,7 @@ const mainLinks = [
 const moreLinks = [
   { to: '/messages', icon: MessageSquare, label: 'Messages' },
   { to: '/scripts', icon: Phone, label: 'Scripts' },
+  { to: '/import', icon: Upload, label: 'Import CSV' },
 ];
 
 export function MobileBottomNav() {
