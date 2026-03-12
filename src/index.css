@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Questrial&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&family=Questrial&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -24,8 +24,8 @@
     --muted: 220 14% 14%;
     --muted-foreground: 215 15% 55%;
 
-    --accent: 220 16% 18%;
-    --accent-foreground: 210 20% 92%;
+    --accent: 205 70% 50%;
+    --accent-foreground: 210 20% 98%;
 
     --destructive: 0 72% 55%;
     --destructive-foreground: 210 40% 98%;
@@ -50,7 +50,7 @@
     --sidebar-ring: 152 60% 48%;
 
     --font-heading: 'Questrial', sans-serif;
-    --font-body: 'Inter', sans-serif;
+    --font-body: 'Montserrat', sans-serif;
   }
 }
 

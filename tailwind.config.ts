@@ -15,7 +15,7 @@ export default {
     extend: {
       fontFamily: {
         heading: ['Questrial', 'sans-serif'],
-        body: ['Inter', 'sans-serif'],
+        body: ['Montserrat', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
