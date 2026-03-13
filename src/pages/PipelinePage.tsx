@@ -160,7 +160,7 @@ function PipelineColumn({
         </span>
       </div>
 
-      <div className="flex-1 space-y-2 overflow-y-auto p-2" style={{ maxHeight: 'calc(100vh - 280px)' }}>
+      <div className="flex-1 space-y-2 overflow-y-auto custom-scrollbar p-2" style={{ maxHeight: 'calc(100vh - 280px)' }}>
         {leads.length === 0 ? (
           <div className="flex items-center justify-center rounded-lg border border-dashed border-border py-8 text-xs text-muted-foreground">
             Aucun lead
@@ -268,7 +268,7 @@ export default function PipelinePage() {
         ))}
       </div>
 
-      <div className="flex flex-1 gap-2 sm:gap-3 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div className="flex flex-1 gap-2 sm:gap-3 overflow-x-auto custom-scrollbar pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
         {STAGES.map(stage => (
           <PipelineColumn
             key={stage.key}
