@@ -14,8 +14,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        heading: ['Inter', 'sans-serif'],
-        body: ['Inter', 'sans-serif'],
+        heading: ['Rethink Sans', 'sans-serif'],
+        body: ['Rethink Sans', 'sans-serif'],
         mono: ['Geist Mono', 'monospace'],
       },
       colors: {

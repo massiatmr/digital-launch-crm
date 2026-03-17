@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Rethink+Sans:wght@400;500;600;700;800&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600;700&display=swap');
 
 @tailwind base;
@@ -55,8 +55,8 @@
     --glass-border: 0 0% 100%;
     --glass-shine: 220 80% 56%;
 
-    --font-heading: 'Inter', sans-serif;
-    --font-body: 'Inter', sans-serif;
+    --font-heading: 'Rethink Sans', sans-serif;
+    --font-body: 'Rethink Sans', sans-serif;
     --font-mono: 'Geist Mono', monospace;
   }
 }
