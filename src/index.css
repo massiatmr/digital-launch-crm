@@ -106,7 +106,7 @@
   }
 
   .gradient-primary {
-    background: linear-gradient(135deg, hsl(220 80% 56%), hsl(250 70% 60%));
+    background: linear-gradient(135deg, hsl(var(--gradient-start)), hsl(var(--gradient-end)));
   }
 
   .gradient-text {
