@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Kanban, Bell, MoreHorizontal, Upload, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, Kanban, Bell, MoreHorizontal, Upload, LogOut, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import {
