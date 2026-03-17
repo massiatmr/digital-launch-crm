@@ -36,6 +36,7 @@ const App = () => (
               <Route path="/messages" element={<MessagesPage />} />
               <Route path="/scripts" element={<ScriptsPage />} />
               <Route path="/reminders" element={<RemindersPage />} />
+              <Route path="/sequences" element={<SequencesPage />} />
               <Route path="/import" element={<ImportPage />} />
             </Route>
           </Route>
