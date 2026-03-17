@@ -15,7 +15,7 @@ const container = {
 };
 const item = {
   hidden: { opacity: 0, y: 16, filter: 'blur(4px)' },
-  show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.4, ease: 'easeOut' } },
+  show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.4, ease: [0.25, 0.1, 0.25, 1] as const } },
 };
 
 export default function Dashboard() {
