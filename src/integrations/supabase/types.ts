@@ -20,6 +20,7 @@ export type Database = {
           created_at: string
           id: string
           lead_id: string
+          owner_id: string
           type: Database["public"]["Enums"]["message_type"]
         }
         Insert: {
@@ -27,6 +28,7 @@ export type Database = {
           created_at?: string
           id?: string
           lead_id: string
+          owner_id?: string
           type?: Database["public"]["Enums"]["message_type"]
         }
         Update: {
@@ -34,6 +36,7 @@ export type Database = {
           created_at?: string
           id?: string
           lead_id?: string
+          owner_id?: string
           type?: Database["public"]["Enums"]["message_type"]
         }
         Relationships: [
@@ -58,6 +61,7 @@ export type Database = {
           next_action: string | null
           next_action_date: string | null
           notes: string | null
+          owner_id: string
           phone: string | null
           sales_angle: string | null
           score: Database["public"]["Enums"]["lead_score"]
@@ -76,6 +80,7 @@ export type Database = {
           next_action?: string | null
           next_action_date?: string | null
           notes?: string | null
+          owner_id?: string
           phone?: string | null
           sales_angle?: string | null
           score?: Database["public"]["Enums"]["lead_score"]
@@ -94,6 +99,7 @@ export type Database = {
           next_action?: string | null
           next_action_date?: string | null
           notes?: string | null
+          owner_id?: string
           phone?: string | null
           sales_angle?: string | null
           score?: Database["public"]["Enums"]["lead_score"]
@@ -111,6 +117,7 @@ export type Database = {
           due_date: string
           id: string
           lead_id: string
+          owner_id: string
         }
         Insert: {
           action: string
@@ -119,6 +126,7 @@ export type Database = {
           due_date: string
           id?: string
           lead_id: string
+          owner_id?: string
         }
         Update: {
           action?: string
@@ -127,6 +135,7 @@ export type Database = {
           due_date?: string
           id?: string
           lead_id?: string
+          owner_id?: string
         }
         Relationships: [
           {
@@ -144,6 +153,7 @@ export type Database = {
           id: string
           lead_id: string
           objections: Json | null
+          owner_id: string
           script: string
         }
         Insert: {
@@ -151,6 +161,7 @@ export type Database = {
           id?: string
           lead_id: string
           objections?: Json | null
+          owner_id?: string
           script: string
         }
         Update: {
@@ -158,6 +169,7 @@ export type Database = {
           id?: string
           lead_id?: string
           objections?: Json | null
+          owner_id?: string
           script?: string
         }
         Relationships: [
