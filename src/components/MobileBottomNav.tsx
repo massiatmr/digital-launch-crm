@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Kanban, Bell, MoreHorizontal, Upload, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, Kanban, Bell, MoreHorizontal, Upload, LogOut, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import {
@@ -21,6 +21,7 @@ const mainLinks = [
 const moreLinks = [
   { to: '/messages', icon: MessageSquare, label: 'Messages' },
   { to: '/scripts', icon: Phone, label: 'Scripts' },
+  { to: '/sequences', icon: Zap, label: 'Séquences' },
   { to: '/import', icon: Upload, label: 'Import CSV' },
 ];
 
