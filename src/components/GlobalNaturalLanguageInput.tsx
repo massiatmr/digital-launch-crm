@@ -1,9 +1,10 @@
-import { useState, useCallback, useMemo } from 'react';
-import { Send, Sparkles, Mic, MicOff, Check, X, RotateCcw, Search, MessageSquare, Zap, UserPlus } from 'lucide-react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { Send, Sparkles, Mic, MicOff, Check, X, RotateCcw, Search, MessageSquare, Zap, UserPlus, Copy, Trash2 } from 'lucide-react';
 import { AudioVisualizer } from '@/components/AudioVisualizer';
 import { toast } from 'sonner';
 import { useLeads, useAnalyzeNote, useApplyProposal, useCreateLead, AiProposal, DbLead } from '@/hooks/useLeadData';
 import { supabase } from '@/integrations/supabase/client';
+import ReactMarkdown from 'react-markdown';
 import {
   Dialog,
   DialogContent,
@@ -21,55 +22,91 @@ import {
 import { cn } from '@/lib/utils';
 
 const STATUS_LABELS: Record<string, string> = {
-  new: 'Nouveau',
-  contacted: 'Contacté',
-  qualified: 'Qualifié',
-  proposal: 'Proposition',
-  won: 'Gagné',
-  lost: 'Perdu',
+  new: 'Nouveau', contacted: 'Contacté', qualified: 'Qualifié',
+  proposal: 'Proposition', won: 'Gagné', lost: 'Perdu',
 };
 
 const SCORE_LABELS: Record<string, string> = {
-  hot: '🔥 Chaud',
-  warm: '🟡 Tiède',
-  cold: '❄️ Froid',
+  hot: '🔥 Chaud', warm: '🟡 Tiède', cold: '❄️ Froid',
 };
 
-function useSpeechRecognition(onResult: (text: string) => void) {
+const QUICK_SUGGESTIONS = [
+  'Résumé du pipeline',
+  'Leads à rappeler',
+  'Leads chauds sans action',
+  'Taux de conversion',
+];
+
+type ChatMessage = { role: 'user' | 'assistant'; content: string };
+
+function useSpeechRecognition(onResult: (text: string) => void, onInterim?: (text: string) => void) {
   const [isListening, setIsListening] = useState(false);
-  const recognitionRef = { current: null as any };
+  const recognitionRef = useRef<any>(null);
+  const wantListening = useRef(false);
 
   const isSupported = typeof window !== 'undefined' &&
     ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
 
-  const toggle = useCallback(() => {
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-      return;
-    }
+  const stop = useCallback(() => {
+    wantListening.current = false;
+    recognitionRef.current?.stop();
+    setIsListening(false);
+  }, []);
 
+  const start = useCallback(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
     const recognition = new SpeechRecognition();
     recognition.lang = 'fr-FR';
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.continuous = true;
+    recognition.interimResults = true;
 
     recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      onResult(transcript);
-      setIsListening(false);
+      let interimTranscript = '';
+      let finalTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript;
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+      if (finalTranscript) onResult(finalTranscript);
+      if (interimTranscript) onInterim?.(interimTranscript);
     };
 
-    recognition.onerror = () => setIsListening(false);
-    recognition.onend = () => setIsListening(false);
+    recognition.onerror = (e: any) => {
+      if (e.error !== 'no-speech') {
+        wantListening.current = false;
+        setIsListening(false);
+      }
+    };
+
+    recognition.onend = () => {
+      // Auto-restart if we still want to be listening
+      if (wantListening.current) {
+        try { recognition.start(); } catch {}
+      } else {
+        setIsListening(false);
+      }
+    };
 
     recognitionRef.current = recognition;
+    wantListening.current = true;
     recognition.start();
     setIsListening(true);
-  }, [isListening, onResult]);
+  }, [onResult, onInterim]);
+
+  const toggle = useCallback(() => {
+    if (isListening) stop();
+    else start();
+  }, [isListening, start, stop]);
+
+  useEffect(() => {
+    return () => { wantListening.current = false; recognitionRef.current?.stop(); };
+  }, []);
 
   return { isListening, toggle, isSupported };
 }
@@ -81,13 +118,16 @@ export function GlobalNaturalLanguageInput({ onDone }: { onDone?: () => void }) 
   const [mode, setMode] = useState<Mode>('action');
   const [selectedLead, setSelectedLead] = useState<DbLead | null>(null);
   const [note, setNote] = useState('');
+  const [interimText, setInterimText] = useState('');
   const [proposal, setProposal] = useState<AiProposal | null>(null);
   const [showDialog, setShowDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [popoverOpen, setPopoverOpen] = useState(false);
-  const [aiAnswer, setAiAnswer] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [askingAi, setAskingAi] = useState(false);
   const [creatingLead, setCreatingLead] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const analyze = useAnalyzeNote();
   const apply = useApplyProposal();
@@ -95,9 +135,14 @@ export function GlobalNaturalLanguageInput({ onDone }: { onDone?: () => void }) 
 
   const handleVoiceResult = useCallback((text: string) => {
     setNote(prev => prev ? prev + ' ' + text : text);
+    setInterimText('');
   }, []);
 
-  const { isListening, toggle: toggleMic, isSupported: micSupported } = useSpeechRecognition(handleVoiceResult);
+  const handleInterim = useCallback((text: string) => {
+    setInterimText(text);
+  }, []);
+
+  const { isListening, toggle: toggleMic, isSupported: micSupported } = useSpeechRecognition(handleVoiceResult, handleInterim);
 
   const filteredLeads = leads.filter(l =>
     l.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -123,13 +168,37 @@ Leads tièdes:\n${warmLeads.join('\n') || 'Aucun'}
 Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
   }, [leads]);
 
+  // Auto-scroll chat
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Auto-resize textarea
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNote(e.target.value);
+    const ta = e.target;
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e as any);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!note.trim()) return;
 
     if (mode === 'ask') {
+      const userMsg: ChatMessage = { role: 'user', content: note.trim() };
+      setMessages(prev => [...prev, userMsg]);
+      setNote('');
+      if (textareaRef.current) { textareaRef.current.style.height = 'auto'; }
       setAskingAi(true);
-      setAiAnswer(null);
+
       try {
         const { data, error } = await supabase.functions.invoke('ai-lead-analysis', {
           body: {
@@ -139,9 +208,11 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
         });
         if (error) throw error;
         if (data?.error) throw new Error(data.error);
-        setAiAnswer(data?.answer || 'Pas de réponse.');
-      } catch (err: any) {
+        const answer = data?.answer || 'Pas de réponse.';
+        setMessages(prev => [...prev, { role: 'assistant', content: answer }]);
+      } catch {
         toast.error("Erreur lors de la requête IA");
+        setMessages(prev => [...prev, { role: 'assistant', content: "Désolé, une erreur s'est produite." }]);
       } finally {
         setAskingAi(false);
       }
@@ -168,7 +239,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
         toast.success(`Lead "${data.name}" créé avec succès !`);
         setNote('');
         onDone?.();
-      } catch (err: any) {
+      } catch {
         toast.error("Erreur lors de la création du lead");
       } finally {
         setCreatingLead(false);
@@ -176,7 +247,6 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
       return;
     }
 
-    // Lead selected → update
     try {
       const result = await analyze.mutateAsync({ lead: selectedLead, note });
       setProposal(result);
@@ -209,10 +279,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
     }
   };
 
-  const handleCorrect = () => {
-    setShowDialog(false);
-    setProposal(null);
-  };
+  const handleCorrect = () => { setShowDialog(false); setProposal(null); };
 
   const proposalItems = proposal ? [
     proposal.status && `Statut → ${STATUS_LABELS[proposal.status] || proposal.status}`,
@@ -224,32 +291,112 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
 
   const isPending = analyze.isPending || askingAi || creatingLead;
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success('Copié !');
+  };
+
   return (
     <>
       <div className="w-full">
         {/* Mode toggle */}
-        <div className="flex items-center gap-1 mb-2">
+        <div className="flex items-center gap-1 mb-3">
           <button
             type="button"
-            onClick={() => { setMode('action'); setAiAnswer(null); }}
+            onClick={() => { setMode('action'); }}
             className={cn(
-              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
-              mode === 'action' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
+              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200",
+              mode === 'action' ? 'gradient-primary text-white shadow-sm' : 'bg-muted text-muted-foreground hover:text-foreground'
             )}
           >
             <Zap className="h-3 w-3" /> Action IA
           </button>
           <button
             type="button"
-            onClick={() => { setMode('ask'); setAiAnswer(null); }}
+            onClick={() => { setMode('ask'); }}
             className={cn(
-              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
-              mode === 'ask' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
+              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200",
+              mode === 'ask' ? 'gradient-primary text-white shadow-sm' : 'bg-muted text-muted-foreground hover:text-foreground'
             )}
           >
             <MessageSquare className="h-3 w-3" /> Question IA
           </button>
+          {mode === 'ask' && messages.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setMessages([])}
+              className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Trash2 className="h-3 w-3" /> Effacer
+            </button>
+          )}
         </div>
+
+        {/* Chat messages */}
+        {mode === 'ask' && messages.length > 0 && (
+          <div className="mb-3 max-h-96 overflow-y-auto custom-scrollbar space-y-3 rounded-xl border border-border/50 bg-muted/20 p-3">
+            {messages.map((msg, i) => (
+              <div key={i} className={cn('flex gap-2', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
+                {msg.role === 'assistant' && (
+                  <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full gradient-primary">
+                    <Sparkles className="h-3 w-3 text-white" />
+                  </div>
+                )}
+                <div className={cn(
+                  'max-w-[85%] rounded-xl px-3 py-2 text-sm',
+                  msg.role === 'user'
+                    ? 'bg-primary/15 text-foreground'
+                    : 'bg-muted/50 text-foreground'
+                )}>
+                  {msg.role === 'assistant' ? (
+                    <div className="prose prose-sm prose-invert max-w-none [&>p]:mb-1.5 [&>ul]:mb-1.5 [&>ol]:mb-1.5">
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    <span>{msg.content}</span>
+                  )}
+                  {msg.role === 'assistant' && (
+                    <button
+                      onClick={() => copyToClipboard(msg.content)}
+                      className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <Copy className="h-3 w-3" /> Copier
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+            {askingAi && (
+              <div className="flex items-center gap-2">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full gradient-primary">
+                  <Sparkles className="h-3 w-3 text-white" />
+                </div>
+                <div className="flex items-center gap-1 px-3 py-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+        )}
+
+        {/* Quick suggestions */}
+        {mode === 'ask' && messages.length === 0 && !askingAi && (
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {QUICK_SUGGESTIONS.map(s => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setNote(s)}
+                className="rounded-lg border border-border/50 bg-muted/30 px-2.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/5 transition-all duration-200"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-2">
           {/* Lead selector - only in action mode */}
@@ -260,10 +407,10 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
                   <button
                     type="button"
                     className={cn(
-                      "flex flex-1 items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors",
+                      "flex flex-1 items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-all duration-200",
                       selectedLead
                         ? "border-primary/30 bg-primary/5 text-foreground"
-                        : "border-border bg-muted/30 text-muted-foreground"
+                        : "border-border/50 bg-muted/30 text-muted-foreground"
                     )}
                   >
                     <Search className="h-3 w-3 shrink-0" />
@@ -278,10 +425,10 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     placeholder="Rechercher..."
-                    className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs mb-2 focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="w-full rounded-md border border-border/50 bg-background px-3 py-1.5 text-xs mb-2 focus:outline-none focus:ring-1 focus:ring-ring"
                     autoFocus
                   />
-                  <div className="max-h-48 overflow-y-auto space-y-0.5">
+                  <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-0.5">
                     {filteredLeads.length === 0 ? (
                       <p className="text-xs text-muted-foreground p-2 text-center">Aucun lead trouvé</p>
                     ) : (
@@ -289,11 +436,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
                         <button
                           key={lead.id}
                           type="button"
-                          onClick={() => {
-                            setSelectedLead(lead);
-                            setPopoverOpen(false);
-                            setSearchQuery('');
-                          }}
+                          onClick={() => { setSelectedLead(lead); setPopoverOpen(false); setSearchQuery(''); }}
                           className={cn(
                             "flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-xs transition-colors hover:bg-accent",
                             selectedLead?.id === lead.id && "bg-primary/10 text-primary"
@@ -311,8 +454,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
                 <button
                   type="button"
                   onClick={() => setSelectedLead(null)}
-                  className="rounded-lg border border-border px-2 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-                  title="Désélectionner pour créer un nouveau lead"
+                  className="rounded-lg border border-border/50 px-2 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -321,26 +463,28 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
           )}
 
           <AudioVisualizer isListening={isListening} className="mb-1" />
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-end">
             {micSupported && (
               <button
                 type="button"
                 onClick={toggleMic}
                 className={cn(
-                  "flex items-center justify-center rounded-lg border px-2.5 py-2 transition-colors",
+                  "flex items-center justify-center rounded-lg border px-2.5 py-2.5 transition-all duration-200",
                   isListening
-                    ? 'border-destructive bg-destructive/10 text-destructive animate-pulse'
-                    : 'border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                    ? 'border-destructive/50 bg-destructive/10 text-destructive animate-glow'
+                    : 'border-border/50 bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/50'
                 )}
                 title={isListening ? 'Arrêter' : 'Dicter'}
               >
                 {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
               </button>
             )}
-            <input
-              type="text"
-              value={note}
-              onChange={e => setNote(e.target.value)}
+            <textarea
+              ref={textareaRef}
+              value={isListening && interimText ? note + (note ? ' ' : '') + interimText : note}
+              onChange={handleTextareaChange}
+              onKeyDown={handleKeyDown}
+              rows={1}
               placeholder={
                 isListening
                   ? 'Parlez maintenant...'
@@ -348,39 +492,23 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
                     ? (selectedLead ? 'Ex : "hésite sur le prix, rappeler dans 3 jours"' : 'Ex : "nouveau lead Jean Dupont, 0612345678"')
                     : 'Ex : "combien de leads à rappeler ?"'
               }
-              className="flex-1 min-w-0 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              className="flex-1 min-w-0 rounded-lg border border-border/50 bg-muted/30 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none transition-all"
+              style={{ maxHeight: '120px' }}
               disabled={isPending}
             />
             <button
               type="submit"
               disabled={isPending || !note.trim()}
-              className="flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1 rounded-lg gradient-primary px-3 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-all disabled:opacity-50"
             >
               {isPending ? (
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
               ) : (
                 <Send className="h-4 w-4" />
               )}
             </button>
           </div>
         </form>
-
-        {/* AI answer for pipeline questions */}
-        {aiAnswer && (
-          <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 p-3">
-            <div className="flex items-start gap-2">
-              <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
-              <div className="text-sm text-foreground whitespace-pre-line leading-relaxed">{aiAnswer}</div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setAiAnswer(null)}
-              className="mt-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Fermer
-            </button>
-          </div>
-        )}
       </div>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>

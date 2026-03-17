@@ -1,6 +1,7 @@
 import { useLeads, useUpdateLead, type DbLead } from '@/hooks/useLeadData';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadDetailContent } from '@/components/LeadDetailContent';
+import { QuickActionsMenu } from '@/components/QuickActionsMenu';
 import { useState, useRef } from 'react';
 import { Loader2, GripVertical, User, ArrowRight, Search } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -9,6 +10,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sheet,
   SheetContent,
@@ -18,15 +20,21 @@ import {
 
 type PipelineStage = DbLead['status'];
 
-const STAGES: { key: PipelineStage; label: string; color: string; icon: string }[] = [
-  { key: 'new', label: 'Nouveau', color: 'bg-lead-cold/20 border-lead-cold/40 text-lead-cold', icon: '🆕' },
-  { key: 'contacted', label: 'Contacté', color: 'bg-lead-warm/20 border-lead-warm/40 text-lead-warm', icon: '📞' },
-  { key: 'qualified', label: 'Qualifié', color: 'bg-primary/20 border-primary/40 text-primary', icon: '✅' },
-  { key: 'proposal', label: 'Proposition', color: 'bg-[hsl(280,60%,55%)]/20 border-[hsl(280,60%,55%)]/40 text-[hsl(280,60%,65%)]', icon: '📋' },
-  { key: 'won', label: 'Gagné', color: 'bg-primary/20 border-primary/40 text-primary', icon: '🏆' },
-  { key: 'lost', label: 'Perdu', color: 'bg-destructive/20 border-destructive/40 text-destructive', icon: '❌' },
-  { key: 'ghost', label: 'À Relancer', color: 'bg-lead-warm/20 border-lead-warm/40 text-lead-warm', icon: '👻' },
+const STAGES: { key: PipelineStage; label: string; gradient: string; dotColor: string }[] = [
+  { key: 'new', label: 'Nouveau', gradient: 'from-blue-500/20 to-blue-600/5', dotColor: 'bg-blue-400' },
+  { key: 'contacted', label: 'Contacté', gradient: 'from-amber-500/20 to-amber-600/5', dotColor: 'bg-amber-400' },
+  { key: 'qualified', label: 'Qualifié', gradient: 'from-emerald-500/20 to-emerald-600/5', dotColor: 'bg-emerald-400' },
+  { key: 'proposal', label: 'Proposition', gradient: 'from-purple-500/20 to-purple-600/5', dotColor: 'bg-purple-400' },
+  { key: 'won', label: 'Gagné', gradient: 'from-emerald-500/20 to-emerald-600/5', dotColor: 'bg-emerald-400' },
+  { key: 'lost', label: 'Perdu', gradient: 'from-red-500/20 to-red-600/5', dotColor: 'bg-red-400' },
+  { key: 'ghost', label: 'À Relancer', gradient: 'from-amber-500/20 to-amber-600/5', dotColor: 'bg-amber-400' },
 ];
+
+const scoreBarColors: Record<string, string> = {
+  hot: 'bg-lead-hot',
+  warm: 'bg-lead-warm',
+  cold: 'bg-lead-cold',
+};
 
 function PipelineCard({
   lead,
@@ -38,6 +46,7 @@ function PipelineCard({
   onClick: (lead: DbLead) => void;
 }) {
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
+  const isMobileDevice = useIsMobile();
 
   const handlePointerDown = (e: React.PointerEvent) => {
     pointerStart.current = { x: e.clientX, y: e.clientY };
@@ -47,71 +56,78 @@ function PipelineCard({
     if (!pointerStart.current) return;
     const dx = Math.abs(e.clientX - pointerStart.current.x);
     const dy = Math.abs(e.clientY - pointerStart.current.y);
-    if (dx < 5 && dy < 5) {
-      onClick(lead);
-    }
+    if (dx < 5 && dy < 5) onClick(lead);
     pointerStart.current = null;
   };
 
-  const isMobileDevice = useIsMobile();
-
   return (
-    <div
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.2 }}
       draggable={!isMobileDevice}
-      onDragStart={(e) => onDragStart(e, lead)}
+      onDragStart={(e) => onDragStart(e as any, lead)}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onClick={() => { if (isMobileDevice) onClick(lead); }}
-      className="group relative rounded-lg border border-border bg-card p-3 cursor-pointer active:cursor-grabbing transition-all hover:border-primary/30 hover:shadow-[0_0_15px_hsl(var(--primary)/0.08)]"
+      className="group relative glass-card-hover cursor-pointer overflow-hidden"
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <span className="text-sm font-medium text-foreground line-clamp-1">
-            {lead.name}
+      {/* Score color bar */}
+      <div className={cn('absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl', scoreBarColors[lead.score])} />
+
+      <div className="p-3 pl-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <span className="text-sm font-medium text-foreground line-clamp-1">{lead.name}</span>
+            {lead.company_name && (
+              <span className="text-[10px] text-muted-foreground line-clamp-1">{lead.company_name}</span>
+            )}
+            {lead.message && (
+              <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{lead.message}</p>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <QuickActionsMenu lead={lead} />
+            <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/30 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block" />
+          </div>
+        </div>
+
+        <div className="mt-2.5 flex items-center justify-between gap-2">
+          <LeadScoreBadge score={lead.score} className="text-[10px] px-1.5 py-0" />
+          <span className="text-[10px] text-muted-foreground font-mono">
+            {format(new Date(lead.created_at), 'dd MMM', { locale: fr })}
           </span>
-          {lead.company_name && (
-            <span className="text-[10px] text-muted-foreground line-clamp-1">{lead.company_name}</span>
-          )}
-          {lead.message && (
-            <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{lead.message}</p>
-          )}
         </div>
-        <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity" />
+
+        {(lead.email || lead.phone) && (
+          <div className="mt-2 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            <User className="h-3 w-3 shrink-0" />
+            {lead.phone ? (
+              <a
+                href={toWhatsAppUrl(lead.phone)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="truncate text-primary hover:underline"
+              >
+                {formatPhoneDisplay(lead.phone)}
+              </a>
+            ) : (
+              <span className="truncate">{lead.email}</span>
+            )}
+          </div>
+        )}
+
+        {lead.next_action && (
+          <div className="mt-2 flex items-center gap-1.5 rounded-md bg-primary/5 border border-primary/10 px-2 py-1 text-[10px] text-muted-foreground">
+            <ArrowRight className="h-3 w-3 shrink-0 text-primary" />
+            <span className="truncate">{lead.next_action}</span>
+          </div>
+        )}
       </div>
-
-      <div className="mt-2.5 flex items-center justify-between gap-2">
-        <LeadScoreBadge score={lead.score} className="text-[10px] px-1.5 py-0" />
-        <span className="text-[10px] text-muted-foreground">
-          {format(new Date(lead.created_at), 'dd MMM', { locale: fr })}
-        </span>
-      </div>
-
-      {(lead.email || lead.phone) && (
-        <div className="mt-2 flex items-center gap-1.5 text-[10px] text-muted-foreground">
-          <User className="h-3 w-3 shrink-0" />
-          {lead.phone ? (
-            <a
-              href={toWhatsAppUrl(lead.phone)}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="truncate text-primary hover:underline"
-            >
-              {formatPhoneDisplay(lead.phone)}
-            </a>
-          ) : (
-            <span className="truncate">{lead.email}</span>
-          )}
-        </div>
-      )}
-
-      {lead.next_action && (
-        <div className="mt-2 flex items-center gap-1.5 rounded-md bg-accent/50 px-2 py-1 text-[10px] text-muted-foreground">
-          <ArrowRight className="h-3 w-3 shrink-0 text-primary" />
-          <span className="truncate">{lead.next_action}</span>
-        </div>
-      )}
-    </div>
+    </motion.div>
   );
 }
 
@@ -139,37 +155,37 @@ function PipelineColumn({
   return (
     <div
       className={cn(
-        'flex flex-col rounded-xl border transition-colors',
-        isDragOver ? 'border-primary/50 bg-primary/5' : 'border-border bg-background',
+        'flex flex-col rounded-xl border transition-all duration-200',
+        isDragOver ? 'border-primary/40 bg-primary/5 scale-[1.01]' : 'border-border/50 bg-background/50',
         'min-w-[160px] sm:min-w-[220px] flex-1'
       )}
       onDragOver={(e) => onDragOver(e, stage.key)}
       onDragLeave={onDragLeave}
       onDrop={(e) => onDrop(e, stage.key)}
     >
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+      {/* Gradient header */}
+      <div className={cn('flex items-center justify-between rounded-t-xl border-b border-border/50 px-4 py-3 bg-gradient-to-r', stage.gradient)}>
         <div className="flex items-center gap-2">
-          <span className="text-base">{stage.icon}</span>
-          <h3 className="text-sm font-medium text-foreground">{stage.label}</h3>
+          <span className={cn('h-2 w-2 rounded-full', stage.dotColor)} />
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground">{stage.label}</h3>
         </div>
-        <span className={cn(
-          'inline-flex h-5 min-w-[20px] items-center justify-center rounded-full border px-1.5 text-[10px] font-semibold',
-          stage.color
-        )}>
+        <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-background/50 px-1.5 text-[10px] font-mono font-semibold text-foreground">
           {leads.length}
         </span>
       </div>
 
       <div className="flex-1 space-y-2 overflow-y-auto custom-scrollbar p-2" style={{ maxHeight: 'calc(100vh - 280px)' }}>
-        {leads.length === 0 ? (
-          <div className="flex items-center justify-center rounded-lg border border-dashed border-border py-8 text-xs text-muted-foreground">
-            Aucun lead
-          </div>
-        ) : (
-          leads.map(lead => (
-            <PipelineCard key={lead.id} lead={lead} onDragStart={onDragStart} onClick={onCardClick} />
-          ))
-        )}
+        <AnimatePresence mode="popLayout">
+          {leads.length === 0 ? (
+            <div className="flex items-center justify-center rounded-lg border border-dashed border-border/50 py-8 text-xs text-muted-foreground">
+              Aucun lead
+            </div>
+          ) : (
+            leads.map(lead => (
+              <PipelineCard key={lead.id} lead={lead} onDragStart={onDragStart} onClick={onCardClick} />
+            ))
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
@@ -191,15 +207,8 @@ export default function PipelinePage() {
     return true;
   });
 
-  const handleDragStart = (_e: React.DragEvent, lead: DbLead) => {
-    draggedLead.current = lead;
-  };
-
-  const handleDragOver = (e: React.DragEvent, stage: PipelineStage) => {
-    e.preventDefault();
-    setDragOverStage(stage);
-  };
-
+  const handleDragStart = (_e: React.DragEvent, lead: DbLead) => { draggedLead.current = lead; };
+  const handleDragOver = (e: React.DragEvent, stage: PipelineStage) => { e.preventDefault(); setDragOverStage(stage); };
   const handleDragLeave = () => setDragOverStage(null);
 
   const handleDrop = (e: React.DragEvent, newStatus: PipelineStage) => {
@@ -211,7 +220,7 @@ export default function PipelinePage() {
     updateLead.mutate(
       { id: lead.id, status: newStatus },
       {
-        onSuccess: () => toast.success(`${lead.name} déplacé vers "${stageLabel}"`),
+        onSuccess: () => toast.success(`${lead.name} → "${stageLabel}"`),
         onError: () => toast.error('Erreur lors du déplacement'),
       }
     );
@@ -226,7 +235,10 @@ export default function PipelinePage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <span className="text-sm text-muted-foreground">Chargement...</span>
+        </div>
       </div>
     );
   }
@@ -234,7 +246,7 @@ export default function PipelinePage() {
   return (
     <div className="flex h-full flex-col gap-4">
       <div>
-        <h1 className="font-heading text-2xl sm:text-3xl">Pipeline</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Pipeline</h1>
         <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
           {filteredLeads.length} leads {!isMobile && '· Glissez-déposez pour changer l\'étape'}
         </p>
@@ -249,7 +261,7 @@ export default function PipelinePage() {
             placeholder="Rechercher..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-border bg-card py-2 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            className="w-full rounded-lg border border-border/50 bg-card/80 backdrop-blur-sm py-2 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-all"
           />
         </div>
         {(['all', 'hot', 'warm', 'cold'] as const).map(f => (
@@ -257,10 +269,10 @@ export default function PipelinePage() {
             key={f}
             onClick={() => setScoreFilter(f)}
             className={cn(
-              'rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
+              'rounded-lg border px-3 py-2 text-xs font-medium transition-all duration-200',
               scoreFilter === f
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'border-border bg-card text-muted-foreground hover:text-foreground'
+                ? 'border-primary/30 bg-primary/10 text-primary shadow-[0_0_12px_hsl(var(--primary)/0.15)]'
+                : 'border-border/50 bg-card/80 text-muted-foreground hover:text-foreground hover:border-border'
             )}
           >
             {f === 'all' ? 'Tous' : f === 'hot' ? '🔥' : f === 'warm' ? '🌤' : '❄️'}
