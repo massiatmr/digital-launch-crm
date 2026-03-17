@@ -12,6 +12,7 @@ import MessagesPage from "@/pages/MessagesPage";
 import ScriptsPage from "@/pages/ScriptsPage";
 import RemindersPage from "@/pages/RemindersPage";
 import PipelinePage from "@/pages/PipelinePage";
+import SequencesPage from "@/pages/SequencesPage";
 import ImportPage from "@/pages/ImportPage";
 import AuthPage from "@/pages/AuthPage";
 import NotFound from "@/pages/NotFound";
