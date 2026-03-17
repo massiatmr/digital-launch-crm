@@ -207,9 +207,19 @@ Génère le plan de réchauffement en 3 étapes.`;
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
 
-    // For pipeline questions, return raw text
+    // For text-based responses, return raw text
     if (type === "pipeline_question") {
       return new Response(JSON.stringify({ answer: content.trim() }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (type === "call_prep") {
+      return new Response(JSON.stringify({ prep: content.trim() }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (type === "warm_up") {
+      return new Response(JSON.stringify({ plan: content.trim() }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
