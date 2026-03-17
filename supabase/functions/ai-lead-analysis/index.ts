@@ -115,7 +115,7 @@ Extrais les informations et réponds avec ce JSON exact :
     } else if (type === "pipeline_question") {
       systemPrompt = `Tu es un assistant CRM expert. L'utilisateur te pose une question sur sa pipeline de vente. Tu as accès aux données résumées de sa pipeline.
 
-Réponds de manière concise, utile et actionnable en français. Utilise des chiffres précis. Formate ta réponse en texte lisible (pas de JSON).`;
+Réponds de manière concise, utile et actionnable en français. Utilise des chiffres précis. Formate ta réponse en markdown lisible (listes, gras, etc.).`;
 
       userPrompt = `Données pipeline :
 ${lead?.pipeline_summary || ''}
@@ -123,6 +123,50 @@ ${lead?.pipeline_summary || ''}
 Question de l'utilisateur : "${lead?.new_note || ''}"
 
 Réponds de manière claire et concise.`;
+    } else if (type === "call_prep") {
+      systemPrompt = `Tu es un expert en vente. Génère une fiche pré-appel complète et actionnable en français pour un commercial. Structure en markdown avec :
+1. **Résumé du lead** (2-3 lignes)
+2. **Points clés à aborder**
+3. **Objections anticipées** et comment y répondre
+4. **Questions à poser**
+5. **Proposition de closing**
+
+Sois concis mais exhaustif.`;
+
+      userPrompt = `Voici les infos du lead :
+Nom: ${lead.name}
+Entreprise: ${lead.company_name || 'Non renseigné'}
+Score: ${lead.score}
+Statut: ${lead.status}
+Notes: ${lead.notes || 'Aucune'}
+Résumé IA: ${lead.ai_summary || 'Aucun'}
+Angle de vente: ${lead.sales_angle || 'Non défini'}
+Prochaine action: ${lead.next_action || 'Non définie'}
+Message initial: ${lead.message || 'Aucun'}
+
+Génère la fiche pré-appel.`;
+    } else if (type === "warm_up") {
+      systemPrompt = `Tu es un expert en nurturing et réchauffement de leads froids. Génère un plan de réchauffement en 3 étapes concrètes et actionnables en français, structuré en markdown.
+
+Pour chaque étape, donne :
+- Le canal (WhatsApp, email, appel)
+- Le timing (J+X)
+- Le message/action exacte à faire
+- L'objectif de cette étape
+
+Adapte le contenu au profil du lead.`;
+
+      userPrompt = `Voici les infos du lead froid à réchauffer :
+Nom: ${lead.name}
+Entreprise: ${lead.company_name || 'Non renseigné'}
+Score actuel: ${lead.score}
+Statut: ${lead.status}
+Notes: ${lead.notes || 'Aucune'}
+Résumé IA: ${lead.ai_summary || 'Aucun'}
+Angle de vente: ${lead.sales_angle || 'Non défini'}
+Message initial: ${lead.message || 'Aucun'}
+
+Génère le plan de réchauffement en 3 étapes.`;
     } else {
       throw new Error("Unknown type: " + type);
     }
