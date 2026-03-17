@@ -14,8 +14,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        heading: ['Rethink Sans', 'sans-serif'],
-        body: ['Rethink Sans', 'sans-serif'],
+        heading: ['Plus Jakarta Sans', 'sans-serif'],
+        body: ['Plus Jakarta Sans', 'sans-serif'],
         mono: ['Geist Mono', 'monospace'],
       },
       colors: {
