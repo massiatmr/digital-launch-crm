@@ -7,57 +7,57 @@
 
 @layer base {
   :root {
-    --background: 0 0% 10%;
-    --foreground: 220 25% 93%;
+    --background: 240 20% 4%;
+    --foreground: 210 40% 96%;
 
-    --card: 0 0% 12%;
-    --card-foreground: 220 25% 93%;
+    --card: 240 18% 7%;
+    --card-foreground: 210 40% 96%;
 
-    --popover: 0 0% 13%;
-    --popover-foreground: 220 25% 93%;
+    --popover: 240 18% 9%;
+    --popover-foreground: 210 40% 96%;
 
-    --primary: 216 59% 47%;
+    --primary: 263 70% 55%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 15% 16%;
-    --secondary-foreground: 220 20% 80%;
+    --secondary: 240 14% 12%;
+    --secondary-foreground: 210 20% 82%;
 
-    --muted: 220 10% 15%;
-    --muted-foreground: 220 10% 50%;
+    --muted: 240 12% 10%;
+    --muted-foreground: 240 8% 46%;
 
-    --accent: 220 40% 78%;
-    --accent-foreground: 0 0% 10%;
+    --accent: 187 80% 42%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 72% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 10% 16%;
-    --input: 220 10% 16%;
-    --ring: 216 59% 47%;
+    --border: 240 12% 12%;
+    --input: 240 12% 12%;
+    --ring: 263 70% 55%;
 
     --radius: 0.75rem;
 
     --lead-hot: 0 72% 55%;
     --lead-warm: 35 92% 55%;
-    --lead-cold: 216 59% 47%;
+    --lead-cold: 187 80% 42%;
 
-    --sidebar-background: 0 0% 8%;
-    --sidebar-foreground: 220 15% 55%;
-    --sidebar-primary: 216 59% 47%;
+    --sidebar-background: 240 20% 3%;
+    --sidebar-foreground: 240 10% 50%;
+    --sidebar-primary: 263 70% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 12% 13%;
-    --sidebar-accent-foreground: 220 25% 90%;
-    --sidebar-border: 220 10% 14%;
-    --sidebar-ring: 216 59% 47%;
+    --sidebar-accent: 240 14% 9%;
+    --sidebar-accent-foreground: 210 40% 93%;
+    --sidebar-border: 240 12% 10%;
+    --sidebar-ring: 263 70% 55%;
 
     /* Glass tokens */
-    --glass: 0 0% 12%;
-    --glass-border: 220 40% 78%;
-    --glass-shine: 216 59% 47%;
+    --glass: 240 18% 7%;
+    --glass-border: 0 0% 100%;
+    --glass-shine: 263 70% 55%;
 
     /* Gradient tokens */
-    --gradient-start: 216 59% 47%;
-    --gradient-end: 220 40% 78%;
+    --gradient-start: 263 70% 55%;
+    --gradient-end: 187 80% 42%;
 
     --font-heading: 'Plus Jakarta Sans', sans-serif;
     --font-body: 'Plus Jakarta Sans', sans-serif;
