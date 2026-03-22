@@ -112,6 +112,9 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
           )}
         </div>
 
+        {/* Activity Timeline */}
+        <LeadActivityTimeline leadId={lead.id} />
+
         {/* Messages */}
         <div className="rounded-xl border border-border bg-card p-5">
           <h3 className="font-heading text-base flex items-center gap-2 mb-4">
