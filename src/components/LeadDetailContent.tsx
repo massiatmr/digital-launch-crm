@@ -2,6 +2,7 @@ import { useLead, useLeadMessages, useLeadScripts } from '@/hooks/useLeadData';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadStatusBadge } from '@/components/LeadStatusBadge';
 import { NaturalLanguageInput } from '@/components/NaturalLanguageInput';
+import { LeadActivityTimeline } from '@/components/LeadActivityTimeline';
 import { Copy, Mail, MessageCircle, Phone, Smartphone, Loader2, ExternalLink } from 'lucide-react';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
 import { format } from 'date-fns';
@@ -110,6 +111,9 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
             </div>
           )}
         </div>
+
+        {/* Activity Timeline */}
+        <LeadActivityTimeline leadId={lead.id} />
 
         {/* Messages */}
         <div className="rounded-xl border border-border bg-card p-5">

@@ -17,8 +17,18 @@ export type DbLead = {
   sales_angle: string | null;
   next_action: string | null;
   next_action_date: string | null;
+  last_contacted_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type DbActivity = {
+  id: string;
+  lead_id: string;
+  activity_type: 'call' | 'whatsapp' | 'email' | 'note' | 'relance' | 'meeting';
+  description: string;
+  lead_response: string | null;
+  created_at: string;
 };
 
 export type DbMessage = {
@@ -337,6 +347,46 @@ export function useApplyProposal() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['reminders'] });
+    },
+  });
+}
+
+// ========== LEAD ACTIVITIES ==========
+
+export function useLeadActivities(leadId: string | undefined) {
+  return useQuery({
+    queryKey: ['activities', leadId],
+    queryFn: async () => {
+      if (!leadId) return [];
+      const { data, error } = await supabase
+        .from('lead_activities')
+        .select('*')
+        .eq('lead_id', leadId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as DbActivity[];
+    },
+    enabled: !!leadId,
+  });
+}
+
+export function useAddActivity() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ leadId, activityType, description, leadResponse }: { leadId: string; activityType: DbActivity['activity_type']; description: string; leadResponse?: string }) => {
+      const { error } = await supabase
+        .from('lead_activities')
+        .insert({
+          lead_id: leadId,
+          activity_type: activityType,
+          description,
+          lead_response: leadResponse || null,
+        } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activities'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
     },
   });
 }

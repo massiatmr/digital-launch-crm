@@ -3,9 +3,9 @@ import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadStatusBadge } from '@/components/LeadStatusBadge';
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Search, Loader2 } from 'lucide-react';
+import { Search, Loader2, Clock } from 'lucide-react';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
 
 type ScoreFilter = 'hot' | 'warm' | 'cold' | 'all';
@@ -101,8 +101,16 @@ export default function LeadsPage() {
                     <span className="capitalize">{lead.source.replace('_', ' ')}</span>
                   </div>
                 </div>
-                <span className="ml-4 shrink-0 text-xs text-muted-foreground">
-                  {format(new Date(lead.created_at), 'dd MMM', { locale: fr })}
+                <span className="ml-4 shrink-0 flex flex-col items-end gap-0.5">
+                  {lead.last_contacted_at && (
+                    <span className="flex items-center gap-1 text-[10px] text-accent">
+                      <Clock className="h-3 w-3" />
+                      {formatDistanceToNow(new Date(lead.last_contacted_at), { addSuffix: true, locale: fr })}
+                    </span>
+                  )}
+                  <span className="text-xs text-muted-foreground">
+                    {format(new Date(lead.created_at), 'dd MMM', { locale: fr })}
+                  </span>
                 </span>
               </Link>
             ))

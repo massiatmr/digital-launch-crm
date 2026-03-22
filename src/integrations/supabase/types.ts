@@ -49,6 +49,44 @@ export type Database = {
           },
         ]
       }
+      lead_activities: {
+        Row: {
+          activity_type: Database["public"]["Enums"]["activity_type"]
+          created_at: string
+          description: string
+          id: string
+          lead_id: string
+          lead_response: string | null
+          owner_id: string
+        }
+        Insert: {
+          activity_type?: Database["public"]["Enums"]["activity_type"]
+          created_at?: string
+          description: string
+          id?: string
+          lead_id: string
+          lead_response?: string | null
+          owner_id?: string
+        }
+        Update: {
+          activity_type?: Database["public"]["Enums"]["activity_type"]
+          created_at?: string
+          description?: string
+          id?: string
+          lead_id?: string
+          lead_response?: string | null
+          owner_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_activities_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           ai_summary: string | null
@@ -56,6 +94,7 @@ export type Database = {
           created_at: string
           email: string | null
           id: string
+          last_contacted_at: string | null
           message: string | null
           name: string
           next_action: string | null
@@ -75,6 +114,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          last_contacted_at?: string | null
           message?: string | null
           name: string
           next_action?: string | null
@@ -94,6 +134,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          last_contacted_at?: string | null
           message?: string | null
           name?: string
           next_action?: string | null
@@ -190,6 +231,13 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
+      activity_type:
+        | "call"
+        | "whatsapp"
+        | "email"
+        | "note"
+        | "relance"
+        | "meeting"
       lead_score: "hot" | "warm" | "cold"
       lead_source: "facebook" | "website" | "google_sheets" | "manual" | "other"
       lead_status:
@@ -328,6 +376,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      activity_type: [
+        "call",
+        "whatsapp",
+        "email",
+        "note",
+        "relance",
+        "meeting",
+      ],
       lead_score: ["hot", "warm", "cold"],
       lead_source: ["facebook", "website", "google_sheets", "manual", "other"],
       lead_status: [
