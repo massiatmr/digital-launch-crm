@@ -3,9 +3,9 @@ import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadStatusBadge } from '@/components/LeadStatusBadge';
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Search, Loader2 } from 'lucide-react';
+import { Search, Loader2, Clock } from 'lucide-react';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
 
 type ScoreFilter = 'hot' | 'warm' | 'cold' | 'all';
