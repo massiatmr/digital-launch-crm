@@ -17,8 +17,18 @@ export type DbLead = {
   sales_angle: string | null;
   next_action: string | null;
   next_action_date: string | null;
+  last_contacted_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type DbActivity = {
+  id: string;
+  lead_id: string;
+  activity_type: 'call' | 'whatsapp' | 'email' | 'note' | 'relance' | 'meeting';
+  description: string;
+  lead_response: string | null;
+  created_at: string;
 };
 
 export type DbMessage = {
