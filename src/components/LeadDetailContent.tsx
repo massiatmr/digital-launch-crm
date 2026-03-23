@@ -1,16 +1,21 @@
+import { useState } from 'react';
 import { useLead, useLeadMessages, useLeadScripts } from '@/hooks/useLeadData';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadStatusBadge } from '@/components/LeadStatusBadge';
 import { NaturalLanguageInput } from '@/components/NaturalLanguageInput';
 import { LeadActivityTimeline } from '@/components/LeadActivityTimeline';
-import { Copy, Mail, MessageCircle, Phone, Smartphone, Loader2, ExternalLink } from 'lucide-react';
+import { LeadEditForm } from '@/components/LeadEditForm';
+import { Copy, Mail, MessageCircle, Phone, Smartphone, Loader2, ExternalLink, Pencil } from 'lucide-react';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
+import { AnimatePresence } from 'framer-motion';
 
 export function LeadDetailContent({ leadId }: { leadId: string }) {
+  const [editing, setEditing] = useState(false);
   const { data: lead, isLoading } = useLead(leadId);
   const { data: messages = [] } = useLeadMessages(leadId);
   const { data: scripts = [] } = useLeadScripts(leadId);
@@ -42,6 +47,9 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
             {lead.company_name && <span className="text-sm text-muted-foreground">· {lead.company_name}</span>}
             <LeadScoreBadge score={lead.score} />
             <LeadStatusBadge status={lead.status} />
+            <Button variant="ghost" size="icon" className="ml-auto" onClick={() => setEditing(true)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             {lead.email && <span className="flex items-center gap-1"><Mail className="h-3.5 w-3.5" />{lead.email}</span>}
@@ -61,6 +69,11 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
             <span>{format(new Date(lead.created_at), "dd MMM yyyy à HH:mm", { locale: fr })}</span>
           </div>
         </div>
+
+        {/* Edit Form */}
+        <AnimatePresence>
+          {editing && <LeadEditForm lead={lead} onClose={() => setEditing(false)} />}
+        </AnimatePresence>
 
         {/* Voice/Text Update - First */}
         <NaturalLanguageInput leadId={lead.id} lead={lead} />
