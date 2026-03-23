@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { AnimatePresence } from 'framer-motion';
 
 export function LeadDetailContent({ leadId }: { leadId: string }) {
+  const [editing, setEditing] = useState(false);
   const { data: lead, isLoading } = useLead(leadId);
   const { data: messages = [] } = useLeadMessages(leadId);
   const { data: scripts = [] } = useLeadScripts(leadId);
