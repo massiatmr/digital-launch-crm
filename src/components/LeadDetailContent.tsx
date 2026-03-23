@@ -47,6 +47,9 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
             {lead.company_name && <span className="text-sm text-muted-foreground">· {lead.company_name}</span>}
             <LeadScoreBadge score={lead.score} />
             <LeadStatusBadge status={lead.status} />
+            <Button variant="ghost" size="icon" className="ml-auto" onClick={() => setEditing(true)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             {lead.email && <span className="flex items-center gap-1"><Mail className="h-3.5 w-3.5" />{lead.email}</span>}
