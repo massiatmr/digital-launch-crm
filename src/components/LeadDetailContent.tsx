@@ -70,6 +70,11 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
           </div>
         </div>
 
+        {/* Edit Form */}
+        <AnimatePresence>
+          {editing && <LeadEditForm lead={lead} onClose={() => setEditing(false)} />}
+        </AnimatePresence>
+
         {/* Voice/Text Update - First */}
         <NaturalLanguageInput leadId={lead.id} lead={lead} />
 
