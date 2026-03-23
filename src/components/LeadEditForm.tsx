@@ -1,0 +1,151 @@
+import { useState } from 'react';
+import { DbLead, useUpdateLead } from '@/hooks/useLeadData';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { toast } from 'sonner';
+import { Loader2, Save, X } from 'lucide-react';
+import { motion } from 'framer-motion';
+
+const sources = [
+  { value: 'facebook', label: 'Facebook' },
+  { value: 'website', label: 'Site web' },
+  { value: 'google_sheets', label: 'Google Sheets' },
+  { value: 'manual', label: 'Manuel' },
+  { value: 'other', label: 'Autre' },
+];
+
+const scores = [
+  { value: 'hot', label: '🔥 Chaud' },
+  { value: 'warm', label: '🟠 Tiède' },
+  { value: 'cold', label: '🔵 Froid' },
+];
+
+const statuses = [
+  { value: 'new', label: 'Nouveau' },
+  { value: 'contacted', label: 'Contacté' },
+  { value: 'qualified', label: 'Qualifié' },
+  { value: 'proposal', label: 'Proposition' },
+  { value: 'won', label: 'Gagné' },
+  { value: 'lost', label: 'Perdu' },
+  { value: 'ghost', label: 'Ghost' },
+];
+
+interface LeadEditFormProps {
+  lead: DbLead;
+  onClose: () => void;
+}
+
+export function LeadEditForm({ lead, onClose }: LeadEditFormProps) {
+  const updateLead = useUpdateLead();
+  const [form, setForm] = useState({
+    name: lead.name,
+    email: lead.email || '',
+    phone: lead.phone || '',
+    company_name: lead.company_name || '',
+    source: lead.source,
+    score: lead.score,
+    status: lead.status,
+    notes: lead.notes || '',
+    next_action: lead.next_action || '',
+  });
+
+  const update = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) {
+      toast.error('Le nom est obligatoire');
+      return;
+    }
+    try {
+      await updateLead.mutateAsync({ id: lead.id, ...form });
+      toast.success('Lead mis à jour !');
+      onClose();
+    } catch {
+      toast.error('Erreur lors de la mise à jour');
+    }
+  };
+
+  return (
+    <motion.form
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      onSubmit={handleSubmit}
+      className="rounded-xl border border-border bg-card p-5 space-y-4"
+    >
+      <div className="flex items-center justify-between">
+        <h3 className="font-heading text-base">Modifier le lead</h3>
+        <Button type="button" variant="ghost" size="icon" onClick={onClose}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-name">Nom *</Label>
+          <Input id="edit-name" value={form.name} onChange={e => update('name', e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-company">Entreprise</Label>
+          <Input id="edit-company" value={form.company_name} onChange={e => update('company_name', e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-email">Email</Label>
+          <Input id="edit-email" type="email" value={form.email} onChange={e => update('email', e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-phone">Téléphone</Label>
+          <Input id="edit-phone" type="tel" value={form.phone} onChange={e => update('phone', e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Source</Label>
+          <Select value={form.source} onValueChange={v => update('source', v)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {sources.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label>Score</Label>
+          <Select value={form.score} onValueChange={v => update('score', v)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {scores.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label>Statut</Label>
+          <Select value={form.status} onValueChange={v => update('status', v)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {statuses.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-action">Prochaine action</Label>
+          <Input id="edit-action" value={form.next_action} onChange={e => update('next_action', e.target.value)} />
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="edit-notes">Notes</Label>
+        <Textarea id="edit-notes" value={form.notes} onChange={e => update('notes', e.target.value)} rows={3} />
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
+        <Button type="submit" disabled={updateLead.isPending}>
+          {updateLead.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+          Enregistrer
+        </Button>
+      </div>
+    </motion.form>
+  );
+}
