@@ -36,7 +36,60 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const { type, lead } = await req.json();
+    const contentType = req.headers.get("content-type") || "";
+    let type: string | null = null;
+    let lead: any = null;
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await req.formData();
+      type = String(formData.get("type") || "");
+
+      if (type === "transcribe_audio") {
+        const audioFile = formData.get("file");
+
+        if (!(audioFile instanceof File)) {
+          return new Response(JSON.stringify({ error: "Audio file is required" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const transcriptionForm = new FormData();
+        transcriptionForm.append("file", audioFile, audioFile.name || "voice-note.webm");
+        transcriptionForm.append("model", "openai/whisper-1");
+        transcriptionForm.append("language", "fr");
+
+        const transcriptionResponse = await fetch("https://ai.gateway.lovable.dev/v1/audio/transcriptions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          },
+          body: transcriptionForm,
+        });
+
+        if (!transcriptionResponse.ok) {
+          const errorText = await transcriptionResponse.text();
+          console.error("Transcription gateway error:", transcriptionResponse.status, errorText);
+
+          return new Response(JSON.stringify({ error: "Transcription failed" }), {
+            status: transcriptionResponse.status,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const transcriptionData = await transcriptionResponse.json();
+        return new Response(JSON.stringify({ text: transcriptionData.text ?? "" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const rawLead = formData.get("lead");
+      lead = rawLead ? JSON.parse(String(rawLead)) : null;
+    } else {
+      const body = await req.json();
+      type = body?.type;
+      lead = body?.lead;
+    }
 
     let systemPrompt = "";
     let userPrompt = "";
