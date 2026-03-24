@@ -530,7 +530,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
                   variant="outline"
                   size="sm"
                   onClick={handleToggleVoice}
-                  className="rounded-full border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                  className="rounded-full border-destructive/30 text-destructive hover:bg-destructive/10"
                 >
                   <MicOff className="h-4 w-4 mr-1.5" /> Arrêter
                 </Button>
