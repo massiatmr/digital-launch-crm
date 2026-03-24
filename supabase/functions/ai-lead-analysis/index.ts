@@ -237,7 +237,7 @@ Génère le plan de réchauffement en 3 étapes.`;
     });
   } catch (e) {
     console.error("ai-lead-analysis error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
+    return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
