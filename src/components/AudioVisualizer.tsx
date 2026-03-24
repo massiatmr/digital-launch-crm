@@ -269,8 +269,8 @@ export function AudioVisualizer({ isListening, className, variant = 'inline' }: 
         </div>
         <div className="flex items-center gap-2">
           <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-75" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-destructive" />
           </span>
           <span className="text-xs font-medium text-primary/80 animate-pulse">Écoute en cours...</span>
         </div>
