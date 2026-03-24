@@ -54,17 +54,32 @@ serve(async (req) => {
           });
         }
 
-        const transcriptionForm = new FormData();
-        transcriptionForm.append("file", audioFile, audioFile.name || "voice-note.webm");
-        transcriptionForm.append("model", "openai/whisper-1");
-        transcriptionForm.append("language", "fr");
+        // Convert audio to base64 for Gemini multimodal transcription
+        const audioBytes = await audioFile.arrayBuffer();
+        const base64Audio = btoa(String.fromCharCode(...new Uint8Array(audioBytes)));
+        const mimeType = audioFile.type || "audio/webm";
 
-        const transcriptionResponse = await fetch("https://ai.gateway.lovable.dev/v1/audio/transcriptions", {
+        const transcriptionResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
           },
-          body: transcriptionForm,
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: "Transcris exactement ce qui est dit dans cet audio en français. Réponds UNIQUEMENT avec la transcription, sans rien ajouter." },
+                  {
+                    type: "input_audio",
+                    input_audio: { data: base64Audio, format: mimeType.includes("wav") ? "wav" : "mp3" },
+                  },
+                ],
+              },
+            ],
+          }),
         });
 
         if (!transcriptionResponse.ok) {
