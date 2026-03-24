@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { Send, Sparkles, Mic, MicOff, Check, X, RotateCcw, Search, MessageSquare, Zap, UserPlus, Copy, Trash2 } from 'lucide-react';
+import { Send, Sparkles, Mic, MicOff, Check, X, RotateCcw, Search, MessageSquare, Zap, UserPlus, Copy, Trash2, Loader2 } from 'lucide-react';
 import { AudioVisualizer } from '@/components/AudioVisualizer';
 import { toast } from 'sonner';
 import { useLeads, useAnalyzeNote, useApplyProposal, useCreateLead, AiProposal, DbLead } from '@/hooks/useLeadData';
@@ -79,7 +79,11 @@ function useSpeechRecognition(
   onInterim?: (text: string) => void
 ) {
   const [isListening, setIsListening] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const recognitionRef = useRef<any>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
   const wantListening = useRef(false);
   const onResultRef = useRef(onResult);
   const onInterimRef = useRef(onInterim);
@@ -88,16 +92,65 @@ function useSpeechRecognition(
   useEffect(() => { onResultRef.current = onResult; }, [onResult]);
   useEffect(() => { onInterimRef.current = onInterim; }, [onInterim]);
 
-  const isSupported = typeof window !== 'undefined' &&
+  const speechSupported = typeof window !== 'undefined' &&
     ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
+  const recorderSupported = typeof window !== 'undefined' &&
+    !!navigator.mediaDevices?.getUserMedia &&
+    typeof MediaRecorder !== 'undefined';
+  const isSupported = speechSupported || recorderSupported;
+
+  const clearRecorder = useCallback(() => {
+    recorderRef.current = null;
+    chunksRef.current = [];
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+  }, []);
+
+  const transcribeRecording = useCallback(async (blob: Blob) => {
+    if (!blob.size) return;
+
+    setIsTranscribing(true);
+
+    try {
+      const extension = blob.type.includes('ogg') ? 'ogg' : blob.type.includes('mp4') ? 'mp4' : 'webm';
+      const file = new File([blob], `voice-note.${extension}`, { type: blob.type || 'audio/webm' });
+      const formData = new FormData();
+      formData.append('type', 'transcribe_audio');
+      formData.append('file', file);
+
+      const { data, error } = await supabase.functions.invoke('ai-lead-analysis', {
+        body: formData,
+      });
+
+      if (error) throw error;
+      const transcript = typeof data?.text === 'string' ? data.text.trim() : '';
+
+      if (!transcript) {
+        toast.error('Transcription vide, réessaie en parlant un peu plus fort.');
+        return;
+      }
+
+      onResultRef.current(transcript);
+      onInterimRef.current?.('');
+    } catch {
+      toast.error('Impossible de transcrire l’audio pour le moment.');
+    } finally {
+      setIsTranscribing(false);
+    }
+  }, []);
 
   const stop = useCallback(() => {
     wantListening.current = false;
     recognitionRef.current?.stop();
+    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+      recorderRef.current.stop();
+    }
     setIsListening(false);
   }, []);
 
-  const start = useCallback(() => {
+  const startSpeechRecognition = useCallback(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
@@ -142,16 +195,72 @@ function useSpeechRecognition(
     setIsListening(true);
   }, []);
 
+  const startRecorder = useCallback(async () => {
+    if (!recorderSupported) return;
+
+    try {
+      onInterimRef.current?.('');
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/mp4')
+          ? 'audio/mp4'
+          : MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
+            ? 'audio/ogg;codecs=opus'
+            : '';
+
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      streamRef.current = stream;
+      recorderRef.current = recorder;
+      chunksRef.current = [];
+      wantListening.current = true;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        const blobType = recorder.mimeType || mimeType || 'audio/webm';
+        const audioBlob = new Blob(chunksRef.current, { type: blobType });
+        clearRecorder();
+        await transcribeRecording(audioBlob);
+      };
+
+      recorder.onerror = () => {
+        clearRecorder();
+        setIsListening(false);
+        toast.error('Impossible d’utiliser le micro.');
+      };
+
+      recorder.start();
+      setIsListening(true);
+    } catch {
+      clearRecorder();
+      setIsListening(false);
+      toast.error('Accès micro refusé ou indisponible.');
+    }
+  }, [clearRecorder, recorderSupported, transcribeRecording]);
+
   const toggle = useCallback(() => {
     if (isListening) stop();
-    else start();
-  }, [isListening, start, stop]);
+    else if (speechSupported) startSpeechRecognition();
+    else void startRecorder();
+  }, [isListening, speechSupported, startSpeechRecognition, startRecorder, stop]);
 
   useEffect(() => {
-    return () => { wantListening.current = false; recognitionRef.current?.stop(); };
-  }, []);
+    return () => {
+      wantListening.current = false;
+      recognitionRef.current?.stop();
+      if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+        recorderRef.current.stop();
+      }
+      clearRecorder();
+    };
+  }, [clearRecorder]);
 
-  return { isListening, toggle, isSupported, stop };
+  return { isListening, isTranscribing, toggle, isSupported, stop };
 }
 
 type Mode = 'action' | 'ask';
@@ -200,7 +309,7 @@ export function GlobalNaturalLanguageInput({ onDone }: { onDone?: () => void }) 
     setInterimText(text);
   }, []);
 
-  const { isListening, toggle: toggleMic, isSupported: micSupported, stop: stopMic } = useSpeechRecognition(handleVoiceResult, handleInterim);
+  const { isListening, isTranscribing, toggle: toggleMic, isSupported: micSupported, stop: stopMic } = useSpeechRecognition(handleVoiceResult, handleInterim);
 
   const filteredLeads = leads.filter(l =>
     l.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -352,7 +461,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
     proposal.notes_append && `Note ajoutée : "${proposal.notes_append}"`,
   ].filter(Boolean) as string[] : [];
 
-  const isPending = analyze.isPending || askingAi || creatingLead;
+  const isPending = analyze.isPending || askingAi || creatingLead || isTranscribing;
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -630,7 +739,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
               onClick={handleToggleVoice}
               whileHover={micSupported ? { scale: 1.04 } : undefined}
               whileTap={micSupported ? { scale: 0.97 } : undefined}
-              disabled={!micSupported}
+              disabled={!micSupported || isTranscribing}
               aria-label={micSupported ? (isListening ? 'Arrêter le mode vocal' : 'Activer le mode vocal') : 'Mode vocal indisponible'}
               className={cn(
                 'inline-flex h-11 shrink-0 items-center gap-2 rounded-xl border px-3 text-sm font-medium transition-all duration-300',
@@ -640,9 +749,9 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
                     ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 hover:border-primary/50 hover:shadow-[0_0_12px_hsl(var(--primary)/0.15)]'
                     : 'border-border/60 bg-muted/40 text-muted-foreground opacity-100'
               )}
-              title={micSupported ? (isListening ? 'Arrêter' : 'Mode vocal') : 'Mode vocal indisponible sur ce navigateur'}
+              title={micSupported ? (isListening ? 'Arrêter' : isTranscribing ? 'Transcription en cours' : 'Mode vocal') : 'Mode vocal indisponible sur ce navigateur'}
             >
-              {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              {isTranscribing ? <Loader2 className="h-4 w-4 animate-spin" /> : isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
               <span className="hidden sm:inline">Vocal</span>
             </motion.button>
             <textarea
@@ -654,6 +763,8 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
               placeholder={
                 isListening
                   ? 'Parlez, je transcris en direct...'
+                  : isTranscribing
+                    ? 'Transcription en cours...'
                   : mode === 'action'
                     ? (selectedLead ? 'Ex : "hésite sur le prix, rappeler dans 3 jours"' : 'Ex : "nouveau lead Jean Dupont, 0612345678"')
                     : 'Ex : "combien de leads à rappeler ?"'
