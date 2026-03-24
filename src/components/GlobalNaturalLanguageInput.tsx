@@ -622,19 +622,21 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
           {!voiceMode && (
             <div className="flex gap-2 items-end">
               {micSupported && (
-                <button
+                <motion.button
                   type="button"
                   onClick={handleToggleVoice}
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.92 }}
                   className={cn(
-                    "flex items-center justify-center rounded-xl border px-3 py-2.5 transition-all duration-300",
+                    "flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm font-medium transition-all duration-300",
                     isListening
                       ? 'border-destructive/50 bg-destructive/10 text-destructive shadow-[0_0_15px_hsl(var(--destructive)/0.2)]'
-                      : 'border-border/50 bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/50 hover:border-primary/30'
+                      : 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 hover:border-primary/50 hover:shadow-[0_0_12px_hsl(var(--primary)/0.15)]'
                   )}
                   title={isListening ? 'Arrêter' : 'Mode vocal'}
                 >
                   {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                </button>
+                </motion.button>
               )}
               <textarea
                 ref={textareaRef}
