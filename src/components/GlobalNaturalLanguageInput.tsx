@@ -628,7 +628,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
                   className={cn(
                     "flex items-center justify-center rounded-xl border px-3 py-2.5 transition-all duration-300",
                     isListening
-                      ? 'border-red-500/50 bg-red-500/10 text-red-400 shadow-[0_0_15px_hsla(0,70%,50%,0.2)]'
+                      ? 'border-destructive/50 bg-destructive/10 text-destructive shadow-[0_0_15px_hsl(var(--destructive)/0.2)]'
                       : 'border-border/50 bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/50 hover:border-primary/30'
                   )}
                   title={isListening ? 'Arrêter' : 'Mode vocal'}
