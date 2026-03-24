@@ -364,7 +364,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
       stopMic();
       setVoiceMode(false);
     } else {
-      setVoiceMode(true);
+      setVoiceMode(false);
       toggleMic();
     }
   };
@@ -551,7 +551,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
 
         <form onSubmit={handleSubmit} className="space-y-2">
           {/* Lead selector - only in action mode */}
-          {mode === 'action' && !voiceMode && (
+          {mode === 'action' && (
             <div className="flex items-center gap-2">
               <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
                 <PopoverTrigger asChild>
@@ -614,60 +614,58 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
           )}
 
           {/* Inline visualizer when not in full voice mode */}
-          {!voiceMode && isListening && (
+          {isListening && (
             <AudioVisualizer isListening={isListening} variant="inline" className="mb-1" />
           )}
 
           {/* Input row */}
-          {!voiceMode && (
-            <div className="flex gap-2 items-end">
-              {micSupported && (
-                <motion.button
-                  type="button"
-                  onClick={handleToggleVoice}
-                  whileHover={{ scale: 1.08 }}
-                  whileTap={{ scale: 0.92 }}
-                  className={cn(
-                    "flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm font-medium transition-all duration-300",
-                    isListening
-                      ? 'border-destructive/50 bg-destructive/10 text-destructive shadow-[0_0_15px_hsl(var(--destructive)/0.2)]'
-                      : 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 hover:border-primary/50 hover:shadow-[0_0_12px_hsl(var(--primary)/0.15)]'
-                  )}
-                  title={isListening ? 'Arrêter' : 'Mode vocal'}
-                >
-                  {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                </motion.button>
-              )}
-              <textarea
-                ref={textareaRef}
-                value={displayText}
-                onChange={handleTextareaChange}
-                onKeyDown={handleKeyDown}
-                rows={1}
-                placeholder={
+          <div className="flex gap-2 items-end">
+            {micSupported && (
+              <motion.button
+                type="button"
+                onClick={handleToggleVoice}
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.92 }}
+                className={cn(
+                  "flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm font-medium transition-all duration-300",
                   isListening
-                    ? 'Parlez, je transcris en direct...'
-                    : mode === 'action'
-                      ? (selectedLead ? 'Ex : "hésite sur le prix, rappeler dans 3 jours"' : 'Ex : "nouveau lead Jean Dupont, 0612345678"')
-                      : 'Ex : "combien de leads à rappeler ?"'
-                }
-                className="flex-1 min-w-0 rounded-xl border border-border/50 bg-muted/30 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none transition-all"
-                style={{ maxHeight: '120px' }}
-                disabled={isPending}
-              />
-              <button
-                type="submit"
-                disabled={isPending || !note.trim()}
-                className="flex items-center gap-1 rounded-xl gradient-primary px-3 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-all disabled:opacity-50"
-              >
-                {isPending ? (
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                ) : (
-                  <Send className="h-4 w-4" />
+                    ? 'border-destructive/50 bg-destructive/10 text-destructive shadow-[0_0_15px_hsl(var(--destructive)/0.2)]'
+                    : 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 hover:border-primary/50 hover:shadow-[0_0_12px_hsl(var(--primary)/0.15)]'
                 )}
-              </button>
-            </div>
-          )}
+                title={isListening ? 'Arrêter' : 'Mode vocal'}
+              >
+                {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              </motion.button>
+            )}
+            <textarea
+              ref={textareaRef}
+              value={displayText}
+              onChange={handleTextareaChange}
+              onKeyDown={handleKeyDown}
+              rows={1}
+              placeholder={
+                isListening
+                  ? 'Parlez, je transcris en direct...'
+                  : mode === 'action'
+                    ? (selectedLead ? 'Ex : "hésite sur le prix, rappeler dans 3 jours"' : 'Ex : "nouveau lead Jean Dupont, 0612345678"')
+                    : 'Ex : "combien de leads à rappeler ?"'
+              }
+              className="flex-1 min-w-0 rounded-xl border border-border/50 bg-muted/30 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none transition-all"
+              style={{ maxHeight: '120px' }}
+              disabled={isPending}
+            />
+            <button
+              type="submit"
+              disabled={isPending || !note.trim()}
+              className="flex items-center gap-1 rounded-xl gradient-primary px-3 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-all disabled:opacity-50"
+            >
+              {isPending ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </button>
+          </div>
         </form>
       </div>
 
