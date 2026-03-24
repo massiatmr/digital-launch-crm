@@ -20,6 +20,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const STATUS_LABELS: Record<string, string> = {
   new: 'Nouveau', contacted: 'Contacté', qualified: 'Qualifié',
@@ -39,10 +40,53 @@ const QUICK_SUGGESTIONS = [
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
-function useSpeechRecognition(onResult: (text: string) => void, onInterim?: (text: string) => void) {
+// --- Fuzzy matching helper ---
+function normalizeStr(s: string) {
+  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+}
+
+function fuzzyMatchLead(text: string, leads: DbLead[]): DbLead | null {
+  const normalized = normalizeStr(text);
+  // Try exact name match first
+  for (const lead of leads) {
+    const leadName = normalizeStr(lead.name);
+    if (normalized.includes(leadName) && leadName.length >= 3) {
+      return lead;
+    }
+  }
+  // Try first name match (first word of name)
+  for (const lead of leads) {
+    const firstName = normalizeStr(lead.name).split(/\s+/)[0];
+    if (firstName.length >= 3 && normalized.includes(firstName)) {
+      return lead;
+    }
+  }
+  // Try company name
+  for (const lead of leads) {
+    if (lead.company_name) {
+      const company = normalizeStr(lead.company_name);
+      if (company.length >= 3 && normalized.includes(company)) {
+        return lead;
+      }
+    }
+  }
+  return null;
+}
+
+// --- Speech Recognition Hook ---
+function useSpeechRecognition(
+  onResult: (text: string) => void,
+  onInterim?: (text: string) => void
+) {
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
   const wantListening = useRef(false);
+  const onResultRef = useRef(onResult);
+  const onInterimRef = useRef(onInterim);
+
+  // Keep refs fresh without recreating recognition
+  useEffect(() => { onResultRef.current = onResult; }, [onResult]);
+  useEffect(() => { onInterimRef.current = onInterim; }, [onInterim]);
 
   const isSupported = typeof window !== 'undefined' &&
     ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
@@ -73,19 +117,18 @@ function useSpeechRecognition(onResult: (text: string) => void, onInterim?: (tex
           interimTranscript += transcript;
         }
       }
-      if (finalTranscript) onResult(finalTranscript);
-      if (interimTranscript) onInterim?.(interimTranscript);
+      if (finalTranscript) onResultRef.current(finalTranscript);
+      if (interimTranscript) onInterimRef.current?.(interimTranscript);
     };
 
     recognition.onerror = (e: any) => {
-      if (e.error !== 'no-speech') {
+      if (e.error !== 'no-speech' && e.error !== 'aborted') {
         wantListening.current = false;
         setIsListening(false);
       }
     };
 
     recognition.onend = () => {
-      // Auto-restart if we still want to be listening
       if (wantListening.current) {
         try { recognition.start(); } catch {}
       } else {
@@ -97,7 +140,7 @@ function useSpeechRecognition(onResult: (text: string) => void, onInterim?: (tex
     wantListening.current = true;
     recognition.start();
     setIsListening(true);
-  }, [onResult, onInterim]);
+  }, []);
 
   const toggle = useCallback(() => {
     if (isListening) stop();
@@ -108,7 +151,7 @@ function useSpeechRecognition(onResult: (text: string) => void, onInterim?: (tex
     return () => { wantListening.current = false; recognitionRef.current?.stop(); };
   }, []);
 
-  return { isListening, toggle, isSupported };
+  return { isListening, toggle, isSupported, stop };
 }
 
 type Mode = 'action' | 'ask';
@@ -126,6 +169,8 @@ export function GlobalNaturalLanguageInput({ onDone }: { onDone?: () => void }) 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [askingAi, setAskingAi] = useState(false);
   const [creatingLead, setCreatingLead] = useState(false);
+  const [voiceMode, setVoiceMode] = useState(false);
+  const [detectedLeadName, setDetectedLeadName] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -133,16 +178,29 @@ export function GlobalNaturalLanguageInput({ onDone }: { onDone?: () => void }) 
   const apply = useApplyProposal();
   const createLead = useCreateLead();
 
+  // --- Voice result with smart lead detection ---
   const handleVoiceResult = useCallback((text: string) => {
     setNote(prev => prev ? prev + ' ' + text : text);
     setInterimText('');
-  }, []);
+
+    // Try to auto-detect lead from voice
+    if (mode === 'action' && !selectedLead) {
+      const fullText = note + ' ' + text;
+      const matched = fuzzyMatchLead(fullText, leads);
+      if (matched) {
+        setSelectedLead(matched);
+        setDetectedLeadName(matched.name);
+        // Clear detection badge after 4s
+        setTimeout(() => setDetectedLeadName(null), 4000);
+      }
+    }
+  }, [leads, mode, selectedLead, note]);
 
   const handleInterim = useCallback((text: string) => {
     setInterimText(text);
   }, []);
 
-  const { isListening, toggle: toggleMic, isSupported: micSupported } = useSpeechRecognition(handleVoiceResult, handleInterim);
+  const { isListening, toggle: toggleMic, isSupported: micSupported, stop: stopMic } = useSpeechRecognition(handleVoiceResult, handleInterim);
 
   const filteredLeads = leads.filter(l =>
     l.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -168,12 +226,10 @@ Leads tièdes:\n${warmLeads.join('\n') || 'Aucun'}
 Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
   }, [leads]);
 
-  // Auto-scroll chat
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Auto-resize textarea
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNote(e.target.value);
     const ta = e.target;
@@ -192,10 +248,15 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
     e.preventDefault();
     if (!note.trim()) return;
 
+    // Stop mic on submit
+    if (isListening) stopMic();
+    setVoiceMode(false);
+
     if (mode === 'ask') {
       const userMsg: ChatMessage = { role: 'user', content: note.trim() };
       setMessages(prev => [...prev, userMsg]);
       setNote('');
+      setInterimText('');
       if (textareaRef.current) { textareaRef.current.style.height = 'auto'; }
       setAskingAi(true);
 
@@ -238,6 +299,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
         });
         toast.success(`Lead "${data.name}" créé avec succès !`);
         setNote('');
+        setInterimText('');
         onDone?.();
       } catch {
         toast.error("Erreur lors de la création du lead");
@@ -271,6 +333,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
         </div>
       );
       setNote('');
+      setInterimText('');
       setProposal(null);
       setShowDialog(false);
       onDone?.();
@@ -295,6 +358,20 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
     navigator.clipboard.writeText(text);
     toast.success('Copié !');
   };
+
+  const handleToggleVoice = () => {
+    if (isListening) {
+      stopMic();
+      setVoiceMode(false);
+    } else {
+      setVoiceMode(true);
+      toggleMic();
+    }
+  };
+
+  const displayText = isListening && interimText
+    ? note + (note ? ' ' : '') + interimText
+    : note;
 
   return (
     <>
@@ -336,7 +413,13 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
         {mode === 'ask' && messages.length > 0 && (
           <div className="mb-3 max-h-96 overflow-y-auto custom-scrollbar space-y-3 rounded-xl border border-border/50 bg-muted/20 p-3">
             {messages.map((msg, i) => (
-              <div key={i} className={cn('flex gap-2', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+                className={cn('flex gap-2', msg.role === 'user' ? 'justify-end' : 'justify-start')}
+              >
                 {msg.role === 'assistant' && (
                   <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full gradient-primary">
                     <Sparkles className="h-3 w-3 text-white" />
@@ -364,7 +447,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
                     </button>
                   )}
                 </div>
-              </div>
+              </motion.div>
             ))}
             {askingAi && (
               <div className="flex items-center gap-2">
@@ -398,9 +481,77 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
           </div>
         )}
 
+        {/* Voice mode - full visual experience */}
+        <AnimatePresence>
+          {voiceMode && isListening && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.3 }}
+              className="mb-4 rounded-2xl border border-primary/20 bg-gradient-to-b from-primary/5 to-transparent p-6"
+            >
+              <AudioVisualizer isListening={isListening} variant="orbital" />
+
+              {/* Detected lead badge */}
+              <AnimatePresence>
+                {detectedLeadName && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="mt-3 flex items-center justify-center gap-2"
+                  >
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 border border-primary/30 px-3 py-1 text-xs font-medium text-primary">
+                      <UserPlus className="h-3 w-3" />
+                      Lead détecté : {detectedLeadName}
+                    </span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Live transcript */}
+              <div className="mt-4 min-h-[40px] rounded-xl bg-muted/30 border border-border/30 px-4 py-3">
+                {displayText ? (
+                  <p className="text-sm text-foreground">
+                    {note}
+                    {interimText && (
+                      <span className="text-muted-foreground/70 italic"> {interimText}</span>
+                    )}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground/50 italic">Parlez, je vous écoute...</p>
+                )}
+              </div>
+
+              {/* Stop button */}
+              <div className="mt-4 flex justify-center gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleToggleVoice}
+                  className="rounded-full border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                >
+                  <MicOff className="h-4 w-4 mr-1.5" /> Arrêter
+                </Button>
+                {note.trim() && (
+                  <Button
+                    size="sm"
+                    onClick={(e) => handleSubmit(e as any)}
+                    className="rounded-full gradient-primary text-white"
+                    disabled={isPending}
+                  >
+                    <Send className="h-4 w-4 mr-1.5" /> Envoyer
+                  </Button>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <form onSubmit={handleSubmit} className="space-y-2">
           {/* Lead selector - only in action mode */}
-          {mode === 'action' && (
+          {mode === 'action' && !voiceMode && (
             <div className="flex items-center gap-2">
               <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
                 <PopoverTrigger asChild>
@@ -415,7 +566,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
                   >
                     <Search className="h-3 w-3 shrink-0" />
                     <span className="truncate">
-                      {selectedLead ? selectedLead.name : 'Sélectionner un lead (ou laisser vide pour créer)'}
+                      {selectedLead ? selectedLead.name : 'Sélectionner un lead (ou parlez son nom)'}
                     </span>
                   </button>
                 </PopoverTrigger>
@@ -462,52 +613,59 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
             </div>
           )}
 
-          <AudioVisualizer isListening={isListening} className="mb-1" />
-          <div className="flex gap-2 items-end">
-            {micSupported && (
-              <button
-                type="button"
-                onClick={toggleMic}
-                className={cn(
-                  "flex items-center justify-center rounded-lg border px-2.5 py-2.5 transition-all duration-200",
-                  isListening
-                    ? 'border-destructive/50 bg-destructive/10 text-destructive animate-glow'
-                    : 'border-border/50 bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                )}
-                title={isListening ? 'Arrêter' : 'Dicter'}
-              >
-                {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-              </button>
-            )}
-            <textarea
-              ref={textareaRef}
-              value={isListening && interimText ? note + (note ? ' ' : '') + interimText : note}
-              onChange={handleTextareaChange}
-              onKeyDown={handleKeyDown}
-              rows={1}
-              placeholder={
-                isListening
-                  ? 'Parlez maintenant...'
-                  : mode === 'action'
-                    ? (selectedLead ? 'Ex : "hésite sur le prix, rappeler dans 3 jours"' : 'Ex : "nouveau lead Jean Dupont, 0612345678"')
-                    : 'Ex : "combien de leads à rappeler ?"'
-              }
-              className="flex-1 min-w-0 rounded-lg border border-border/50 bg-muted/30 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none transition-all"
-              style={{ maxHeight: '120px' }}
-              disabled={isPending}
-            />
-            <button
-              type="submit"
-              disabled={isPending || !note.trim()}
-              className="flex items-center gap-1 rounded-lg gradient-primary px-3 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-all disabled:opacity-50"
-            >
-              {isPending ? (
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-              ) : (
-                <Send className="h-4 w-4" />
+          {/* Inline visualizer when not in full voice mode */}
+          {!voiceMode && isListening && (
+            <AudioVisualizer isListening={isListening} variant="inline" className="mb-1" />
+          )}
+
+          {/* Input row */}
+          {!voiceMode && (
+            <div className="flex gap-2 items-end">
+              {micSupported && (
+                <button
+                  type="button"
+                  onClick={handleToggleVoice}
+                  className={cn(
+                    "flex items-center justify-center rounded-xl border px-3 py-2.5 transition-all duration-300",
+                    isListening
+                      ? 'border-red-500/50 bg-red-500/10 text-red-400 shadow-[0_0_15px_hsla(0,70%,50%,0.2)]'
+                      : 'border-border/50 bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/50 hover:border-primary/30'
+                  )}
+                  title={isListening ? 'Arrêter' : 'Mode vocal'}
+                >
+                  {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                </button>
               )}
-            </button>
-          </div>
+              <textarea
+                ref={textareaRef}
+                value={displayText}
+                onChange={handleTextareaChange}
+                onKeyDown={handleKeyDown}
+                rows={1}
+                placeholder={
+                  isListening
+                    ? 'Parlez, je transcris en direct...'
+                    : mode === 'action'
+                      ? (selectedLead ? 'Ex : "hésite sur le prix, rappeler dans 3 jours"' : 'Ex : "nouveau lead Jean Dupont, 0612345678"')
+                      : 'Ex : "combien de leads à rappeler ?"'
+                }
+                className="flex-1 min-w-0 rounded-xl border border-border/50 bg-muted/30 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none transition-all"
+                style={{ maxHeight: '120px' }}
+                disabled={isPending}
+              />
+              <button
+                type="submit"
+                disabled={isPending || !note.trim()}
+                className="flex items-center gap-1 rounded-xl gradient-primary px-3 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-all disabled:opacity-50"
+              >
+                {isPending ? (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+          )}
         </form>
       </div>
 
