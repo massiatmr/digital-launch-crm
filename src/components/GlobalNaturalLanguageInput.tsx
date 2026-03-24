@@ -360,6 +360,11 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
   };
 
   const handleToggleVoice = () => {
+    if (!micSupported) {
+      toast.error('Le mode vocal n’est pas pris en charge par ce navigateur.');
+      return;
+    }
+
     if (isListening) {
       stopMic();
       setVoiceMode(false);
@@ -620,23 +625,26 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
 
           {/* Input row */}
           <div className="flex gap-2 items-end">
-            {micSupported && (
-              <motion.button
-                type="button"
-                onClick={handleToggleVoice}
-                whileHover={{ scale: 1.08 }}
-                whileTap={{ scale: 0.92 }}
-                className={cn(
-                  "flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm font-medium transition-all duration-300",
-                  isListening
-                    ? 'border-destructive/50 bg-destructive/10 text-destructive shadow-[0_0_15px_hsl(var(--destructive)/0.2)]'
-                    : 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 hover:border-primary/50 hover:shadow-[0_0_12px_hsl(var(--primary)/0.15)]'
-                )}
-                title={isListening ? 'Arrêter' : 'Mode vocal'}
-              >
-                {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-              </motion.button>
-            )}
+            <motion.button
+              type="button"
+              onClick={handleToggleVoice}
+              whileHover={micSupported ? { scale: 1.04 } : undefined}
+              whileTap={micSupported ? { scale: 0.97 } : undefined}
+              disabled={!micSupported}
+              aria-label={micSupported ? (isListening ? 'Arrêter le mode vocal' : 'Activer le mode vocal') : 'Mode vocal indisponible'}
+              className={cn(
+                'inline-flex h-11 shrink-0 items-center gap-2 rounded-xl border px-3 text-sm font-medium transition-all duration-300',
+                isListening
+                  ? 'border-destructive/50 bg-destructive/10 text-destructive shadow-[0_0_15px_hsl(var(--destructive)/0.2)]'
+                  : micSupported
+                    ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 hover:border-primary/50 hover:shadow-[0_0_12px_hsl(var(--primary)/0.15)]'
+                    : 'border-border/60 bg-muted/40 text-muted-foreground opacity-100'
+              )}
+              title={micSupported ? (isListening ? 'Arrêter' : 'Mode vocal') : 'Mode vocal indisponible sur ce navigateur'}
+            >
+              {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              <span className="hidden sm:inline">Vocal</span>
+            </motion.button>
             <textarea
               ref={textareaRef}
               value={displayText}
