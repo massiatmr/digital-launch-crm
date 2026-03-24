@@ -93,7 +93,8 @@ serve(async (req) => {
         }
 
         const transcriptionData = await transcriptionResponse.json();
-        return new Response(JSON.stringify({ text: transcriptionData.text ?? "" }), {
+        const transcribedText = transcriptionData.choices?.[0]?.message?.content?.trim() ?? "";
+        return new Response(JSON.stringify({ text: transcribedText }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
