@@ -13,10 +13,8 @@ const links = [
   { to: '/offers', icon: Package, label: 'Offres' },
   { to: '/bookings', icon: CalendarCheck, label: 'Rendez-vous' },
   { to: '/leads', icon: Users, label: 'Leads' },
-  { to: '/messages', icon: MessageSquare, label: 'Messages' },
   { to: '/scripts', icon: Phone, label: 'Scripts' },
   { to: '/sequences', icon: Zap, label: 'Séquences' },
-  { to: '/import', icon: Upload, label: 'Import CSV' },
 ];
 
 export function AppSidebar() {
