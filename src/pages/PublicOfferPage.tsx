@@ -157,10 +157,31 @@ export default function PublicOfferPage() {
         {submitted ? (
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
             <Card>
-              <CardContent className="pt-8 pb-8 text-center">
-                <CalendarCheck className="h-12 w-12 text-green-400 mx-auto mb-4" />
+              <CardContent className="pt-8 pb-8 text-center space-y-5">
+                <CalendarCheck className="h-12 w-12 text-green-400 mx-auto" />
                 <h3 className="text-xl font-bold text-foreground">Rendez-vous réservé !</h3>
-                <p className="text-sm text-muted-foreground mt-2">Nous vous contacterons pour confirmer votre créneau.</p>
+                <p className="text-sm text-muted-foreground">Nous vous contacterons pour confirmer votre créneau.</p>
+                <div className="pt-2 space-y-2">
+                  <p className="text-sm font-medium text-foreground">Ajouter à votre agenda</p>
+                  <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(generateGoogleCalendarUrl(form.name, form.booking_date, form.time_slot, offer.name), '_blank')}
+                    >
+                      <Calendar className="h-4 w-4 mr-2" />
+                      Google Calendar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => downloadIcs(form.name, form.booking_date, form.time_slot, offer.name)}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Apple / Outlook (.ics)
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </motion.div>
