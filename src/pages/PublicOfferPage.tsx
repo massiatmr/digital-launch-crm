@@ -5,11 +5,50 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { CalendarCheck, Check, Loader2, ArrowRight } from 'lucide-react';
+import { CalendarCheck, Check, Loader2, ArrowRight, Calendar, Apple, Download } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { z } from 'zod';
+
+function generateGoogleCalendarUrl(name: string, date: string, time: string, offerName: string) {
+  const startDate = new Date(`${date}T${time}:00`);
+  const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // 1h
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: `RDV — ${offerName}`,
+    dates: `${fmt(startDate)}/${fmt(endDate)}`,
+    details: `Rendez-vous réservé pour : ${offerName}\nNom : ${name}`,
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+function generateIcsContent(name: string, date: string, time: string, offerName: string) {
+  const startDate = new Date(`${date}T${time}:00`);
+  const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  return `BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+DTSTART:${fmt(startDate)}
+DTEND:${fmt(endDate)}
+SUMMARY:RDV — ${offerName}
+DESCRIPTION:Rendez-vous réservé pour ${offerName}\\nNom : ${name}
+END:VEVENT
+END:VCALENDAR`;
+}
+
+function downloadIcs(name: string, date: string, time: string, offerName: string) {
+  const ics = generateIcsContent(name, date, time, offerName);
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'rendez-vous.ics';
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 const bookingSchema = z.object({
   name: z.string().trim().min(1, 'Nom requis').max(100),
