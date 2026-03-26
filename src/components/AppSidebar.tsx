@@ -7,12 +7,12 @@ import { useSidebarState } from './AppLayout';
 import { useAuth } from '@/hooks/useAuth';
 
 const links = [
-  { to: '/', icon: Kanban, label: 'Pipeline' },
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/', icon: Kanban, label: 'Pipeline' },
+  { to: '/reminders', icon: Bell, label: 'Tâches' },
   { to: '/leads', icon: Users, label: 'Leads' },
   { to: '/messages', icon: MessageSquare, label: 'Messages' },
   { to: '/scripts', icon: Phone, label: 'Scripts' },
-  { to: '/reminders', icon: Bell, label: 'Rappels' },
   { to: '/sequences', icon: Zap, label: 'Séquences' },
   { to: '/import', icon: Upload, label: 'Import CSV' },
 ];
