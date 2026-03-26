@@ -32,6 +32,7 @@ const App = () => (
         <Routes>
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/offers/:slug/page" element={<PublicOfferPage />} />
+          <Route path="/unsubscribe" element={<UnsubscribePage />} />
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route path="/" element={<PipelinePage />} />
