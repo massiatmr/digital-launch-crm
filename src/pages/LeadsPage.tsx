@@ -1,22 +1,33 @@
 import { useLeads } from '@/hooks/useLeadData';
+import { useOffers } from '@/hooks/useOfferData';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadStatusBadge } from '@/components/LeadStatusBadge';
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Search, Loader2, Clock } from 'lucide-react';
+import { Search, Loader2, Clock, Package } from 'lucide-react';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 type ScoreFilter = 'hot' | 'warm' | 'cold' | 'all';
 
 export default function LeadsPage() {
   const { data: leads = [], isLoading } = useLeads();
+  const { data: offers = [] } = useOffers();
   const [filter, setFilter] = useState<ScoreFilter>('all');
+  const [offerFilter, setOfferFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
 
   const filtered = leads.filter(l => {
     if (filter !== 'all' && l.score !== filter) return false;
+    if (offerFilter !== 'all' && l.offer_id !== offerFilter) return false;
     if (search && !l.name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
@@ -47,6 +58,20 @@ export default function LeadsPage() {
             className="w-full rounded-lg border border-border bg-card py-2 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
+        {offers.length > 0 && (
+          <Select value={offerFilter} onValueChange={setOfferFilter}>
+            <SelectTrigger className="w-[160px] h-9 text-xs">
+              <Package className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+              <SelectValue placeholder="Toutes les offres" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes les offres</SelectItem>
+              {offers.map(o => (
+                <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         {(['all', 'hot', 'warm', 'cold'] as const).map(f => (
           <button
             key={f}

@@ -1,11 +1,11 @@
 import { useParams } from 'react-router-dom';
-import { useOfferBySlug, useOfferPage, useCreateBooking } from '@/hooks/useOfferData';
+import { useOfferBySlug, useOfferPage } from '@/hooks/useOfferData';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { CalendarCheck, Check, Loader2, Star, ArrowRight } from 'lucide-react';
+import { CalendarCheck, Check, Loader2, ArrowRight } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
@@ -25,9 +25,9 @@ export default function PublicOfferPage() {
   const { slug } = useParams<{ slug: string }>();
   const { data: offer, isLoading, error } = useOfferBySlug(slug);
   const { data: offerPage } = useOfferPage(offer?.id);
-  const createBooking = useCreateBooking();
   const [form, setForm] = useState({ name: '', email: '', phone: '', booking_date: '', time_slot: '' });
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,11 +41,22 @@ export default function PublicOfferPage() {
       return;
     }
     if (!offer) return;
+    setSubmitting(true);
     try {
-      await createBooking.mutateAsync({ ...form, offer_id: offer.id });
+      const { data, error: fnError } = await supabase.functions.invoke('handle-booking', {
+        body: {
+          ...form,
+          offer_id: offer.id,
+          owner_id: offer.owner_id,
+        },
+      });
+      if (fnError) throw fnError;
+      if (data?.error) throw new Error(data.error);
       setSubmitted(true);
     } catch {
       toast.error('Erreur lors de la réservation');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -151,8 +162,8 @@ export default function PublicOfferPage() {
                     </div>
                     {errors.time_slot && <p className="text-xs text-destructive mt-1">{errors.time_slot}</p>}
                   </div>
-                  <Button type="submit" className="w-full" size="lg" disabled={createBooking.isPending}>
-                    {createBooking.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  <Button type="submit" className="w-full" size="lg" disabled={submitting}>
+                    {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                     Confirmer le rendez-vous
                   </Button>
                 </form>

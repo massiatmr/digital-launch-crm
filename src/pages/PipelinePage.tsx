@@ -1,9 +1,10 @@
 import { useLeads, useUpdateLead, type DbLead } from '@/hooks/useLeadData';
+import { useOffers } from '@/hooks/useOfferData';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadDetailContent } from '@/components/LeadDetailContent';
 import { QuickActionsMenu } from '@/components/QuickActionsMenu';
 import { useState, useRef } from 'react';
-import { Loader2, GripVertical, User, ArrowRight, Search } from 'lucide-react';
+import { Loader2, GripVertical, User, ArrowRight, Search, Package } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
 import { format } from 'date-fns';
@@ -17,6 +18,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 type PipelineStage = DbLead['status'];
 
@@ -204,16 +212,19 @@ function PipelineColumn({
 
 export default function PipelinePage() {
   const { data: leads = [], isLoading } = useLeads();
+  const { data: offers = [] } = useOffers();
   const updateLead = useUpdateLead();
   const [dragOverStage, setDragOverStage] = useState<PipelineStage | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [scoreFilter, setScoreFilter] = useState<'all' | 'hot' | 'warm' | 'cold'>('all');
+  const [offerFilter, setOfferFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
   const draggedLead = useRef<DbLead | null>(null);
   const isMobile = useIsMobile();
 
   const filteredLeads = leads.filter(l => {
     if (scoreFilter !== 'all' && l.score !== scoreFilter) return false;
+    if (offerFilter !== 'all' && l.offer_id !== offerFilter) return false;
     if (search && !l.name.toLowerCase().includes(search.toLowerCase()) && !(l.company_name || '').toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
@@ -275,6 +286,20 @@ export default function PipelinePage() {
             className="w-full rounded-lg border border-border/50 bg-card/80 backdrop-blur-sm py-2 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-all"
           />
         </div>
+        {offers.length > 0 && (
+          <Select value={offerFilter} onValueChange={setOfferFilter}>
+            <SelectTrigger className="w-[160px] h-9 text-xs border-border/50 bg-card/80">
+              <Package className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+              <SelectValue placeholder="Toutes les offres" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes les offres</SelectItem>
+              {offers.map(o => (
+                <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         {(['all', 'hot', 'warm', 'cold'] as const).map(f => (
           <button
             key={f}
