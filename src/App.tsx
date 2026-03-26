@@ -19,6 +19,7 @@ import OfferDetailPage from "@/pages/OfferDetailPage";
 import BookingsPage from "@/pages/BookingsPage";
 import PublicOfferPage from "@/pages/PublicOfferPage";
 import AuthPage from "@/pages/AuthPage";
+import UnsubscribePage from "@/pages/UnsubscribePage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
