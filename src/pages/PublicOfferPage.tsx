@@ -162,8 +162,8 @@ export default function PublicOfferPage() {
                     </div>
                     {errors.time_slot && <p className="text-xs text-destructive mt-1">{errors.time_slot}</p>}
                   </div>
-                  <Button type="submit" className="w-full" size="lg" disabled={createBooking.isPending}>
-                    {createBooking.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  <Button type="submit" className="w-full" size="lg" disabled={submitting}>
+                    {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                     Confirmer le rendez-vous
                   </Button>
                 </form>
