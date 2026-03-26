@@ -31,6 +31,39 @@ export default function BookingsPage() {
   const { data: offers } = useOffers();
   const updateBooking = useUpdateBooking();
   const [offerFilter, setOfferFilter] = useState<string>('all');
+  const [searchParams] = useSearchParams();
+  const [googleConnected, setGoogleConnected] = useState(false);
+  const [checkingGoogle, setCheckingGoogle] = useState(true);
+
+  useEffect(() => {
+    if (searchParams.get('google') === 'connected') {
+      toast.success('Google Calendar connecté avec succès !');
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    async function checkGoogleConnection() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setCheckingGoogle(false); return; }
+      const { data } = await supabase
+        .from('google_tokens')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      setGoogleConnected(!!data);
+      setCheckingGoogle(false);
+    }
+    checkGoogleConnection();
+  }, [searchParams]);
+
+  const handleConnectGoogle = async () => {
+    const { data, error } = await supabase.functions.invoke('google-auth');
+    if (error) {
+      toast.error('Erreur lors de la connexion Google');
+      return;
+    }
+    window.location.href = data.url;
+  };
 
   const filtered = bookings?.filter(b => offerFilter === 'all' || b.offer_id === offerFilter) || [];
   const upcoming = filtered.filter(b => b.status !== 'cancelled' && b.status !== 'completed' && isAfter(parseISO(b.booking_date), new Date()) || isToday(parseISO(b.booking_date)));
