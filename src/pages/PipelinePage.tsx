@@ -1,9 +1,10 @@
 import { useLeads, useUpdateLead, type DbLead } from '@/hooks/useLeadData';
+import { useOffers } from '@/hooks/useOfferData';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadDetailContent } from '@/components/LeadDetailContent';
 import { QuickActionsMenu } from '@/components/QuickActionsMenu';
 import { useState, useRef } from 'react';
-import { Loader2, GripVertical, User, ArrowRight, Search } from 'lucide-react';
+import { Loader2, GripVertical, User, ArrowRight, Search, Package } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
 import { format } from 'date-fns';
@@ -17,6 +18,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 type PipelineStage = DbLead['status'];
 
