@@ -5,11 +5,50 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { CalendarCheck, Check, Loader2, ArrowRight } from 'lucide-react';
+import { CalendarCheck, Check, Loader2, ArrowRight, Calendar, Apple, Download } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { z } from 'zod';
+
+function generateGoogleCalendarUrl(name: string, date: string, time: string, offerName: string) {
+  const startDate = new Date(`${date}T${time}:00`);
+  const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // 1h
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: `RDV — ${offerName}`,
+    dates: `${fmt(startDate)}/${fmt(endDate)}`,
+    details: `Rendez-vous réservé pour : ${offerName}\nNom : ${name}`,
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+function generateIcsContent(name: string, date: string, time: string, offerName: string) {
+  const startDate = new Date(`${date}T${time}:00`);
+  const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  return `BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+DTSTART:${fmt(startDate)}
+DTEND:${fmt(endDate)}
+SUMMARY:RDV — ${offerName}
+DESCRIPTION:Rendez-vous réservé pour ${offerName}\\nNom : ${name}
+END:VEVENT
+END:VCALENDAR`;
+}
+
+function downloadIcs(name: string, date: string, time: string, offerName: string) {
+  const ics = generateIcsContent(name, date, time, offerName);
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'rendez-vous.ics';
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 const bookingSchema = z.object({
   name: z.string().trim().min(1, 'Nom requis').max(100),
@@ -118,10 +157,31 @@ export default function PublicOfferPage() {
         {submitted ? (
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
             <Card>
-              <CardContent className="pt-8 pb-8 text-center">
-                <CalendarCheck className="h-12 w-12 text-green-400 mx-auto mb-4" />
+              <CardContent className="pt-8 pb-8 text-center space-y-5">
+                <CalendarCheck className="h-12 w-12 text-green-400 mx-auto" />
                 <h3 className="text-xl font-bold text-foreground">Rendez-vous réservé !</h3>
-                <p className="text-sm text-muted-foreground mt-2">Nous vous contacterons pour confirmer votre créneau.</p>
+                <p className="text-sm text-muted-foreground">Nous vous contacterons pour confirmer votre créneau.</p>
+                <div className="pt-2 space-y-2">
+                  <p className="text-sm font-medium text-foreground">Ajouter à votre agenda</p>
+                  <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(generateGoogleCalendarUrl(form.name, form.booking_date, form.time_slot, offer.name), '_blank')}
+                    >
+                      <Calendar className="h-4 w-4 mr-2" />
+                      Google Calendar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => downloadIcs(form.name, form.booking_date, form.time_slot, offer.name)}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Apple / Outlook (.ics)
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </motion.div>
