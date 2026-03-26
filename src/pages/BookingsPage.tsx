@@ -81,6 +81,19 @@ export default function BookingsPage() {
           <p className="text-muted-foreground text-sm mt-1">{upcoming.length} à venir</p>
         </div>
         <div className="flex items-center gap-2">
+          {!checkingGoogle && (
+            googleConnected ? (
+              <Badge className="bg-green-500/10 text-green-400 border-green-500/20 flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3" />
+                Google Calendar
+              </Badge>
+            ) : (
+              <Button variant="outline" size="sm" onClick={handleConnectGoogle}>
+                <CalendarCheck className="h-4 w-4 mr-1" />
+                Connecter Google Calendar
+              </Button>
+            )
+          )}
           <Filter className="h-4 w-4 text-muted-foreground" />
           <Select value={offerFilter} onValueChange={setOfferFilter}>
             <SelectTrigger className="w-48"><SelectValue placeholder="Toutes les offres" /></SelectTrigger>
