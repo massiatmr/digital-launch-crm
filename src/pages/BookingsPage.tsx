@@ -1,13 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useBookings, useUpdateBooking, useOffers } from '@/hooks/useOfferData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarCheck, Clock, Mail, Phone, User, Loader2, Filter } from 'lucide-react';
+import { CalendarCheck, Clock, Mail, Phone, User, Loader2, Filter, Video, CheckCircle2 } from 'lucide-react';
 import { format, parseISO, isAfter, isBefore, isToday } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { motion } from 'framer-motion';
+import { supabase } from '@/integrations/supabase/client';
+import { useSearchParams } from 'react-router-dom';
+import { toast } from 'sonner';
 
 const statusColors: Record<string, string> = {
   pending: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
