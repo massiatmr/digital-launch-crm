@@ -1,22 +1,33 @@
 import { useLeads } from '@/hooks/useLeadData';
+import { useOffers } from '@/hooks/useOfferData';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadStatusBadge } from '@/components/LeadStatusBadge';
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Search, Loader2, Clock } from 'lucide-react';
+import { Search, Loader2, Clock, Package } from 'lucide-react';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 type ScoreFilter = 'hot' | 'warm' | 'cold' | 'all';
 
 export default function LeadsPage() {
   const { data: leads = [], isLoading } = useLeads();
+  const { data: offers = [] } = useOffers();
   const [filter, setFilter] = useState<ScoreFilter>('all');
+  const [offerFilter, setOfferFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
 
   const filtered = leads.filter(l => {
     if (filter !== 'all' && l.score !== filter) return false;
+    if (offerFilter !== 'all' && l.offer_id !== offerFilter) return false;
     if (search && !l.name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
