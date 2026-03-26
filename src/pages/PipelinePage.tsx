@@ -212,16 +212,19 @@ function PipelineColumn({
 
 export default function PipelinePage() {
   const { data: leads = [], isLoading } = useLeads();
+  const { data: offers = [] } = useOffers();
   const updateLead = useUpdateLead();
   const [dragOverStage, setDragOverStage] = useState<PipelineStage | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [scoreFilter, setScoreFilter] = useState<'all' | 'hot' | 'warm' | 'cold'>('all');
+  const [offerFilter, setOfferFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
   const draggedLead = useRef<DbLead | null>(null);
   const isMobile = useIsMobile();
 
   const filteredLeads = leads.filter(l => {
     if (scoreFilter !== 'all' && l.score !== scoreFilter) return false;
+    if (offerFilter !== 'all' && l.offer_id !== offerFilter) return false;
     if (search && !l.name.toLowerCase().includes(search.toLowerCase()) && !(l.company_name || '').toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
