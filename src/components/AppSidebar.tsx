@@ -10,6 +10,8 @@ const links = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/', icon: Kanban, label: 'Pipeline' },
   { to: '/reminders', icon: Bell, label: 'Tâches' },
+  { to: '/offers', icon: Package, label: 'Offres' },
+  { to: '/bookings', icon: CalendarCheck, label: 'Rendez-vous' },
   { to: '/leads', icon: Users, label: 'Leads' },
   { to: '/messages', icon: MessageSquare, label: 'Messages' },
   { to: '/scripts', icon: Phone, label: 'Scripts' },
