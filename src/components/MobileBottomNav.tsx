@@ -12,10 +12,10 @@ import { MessageSquare, Phone } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 const mainLinks = [
-  { to: '/', icon: Kanban, label: 'Pipeline' },
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/', icon: Kanban, label: 'Pipeline' },
+  { to: '/reminders', icon: Bell, label: 'Tâches' },
   { to: '/leads', icon: Users, label: 'Leads' },
-  { to: '/reminders', icon: Bell, label: 'Rappels' },
 ];
 
 const moreLinks = [
