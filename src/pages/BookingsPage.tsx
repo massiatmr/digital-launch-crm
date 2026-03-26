@@ -1,13 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useBookings, useUpdateBooking, useOffers } from '@/hooks/useOfferData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarCheck, Clock, Mail, Phone, User, Loader2, Filter } from 'lucide-react';
+import { CalendarCheck, Clock, Mail, Phone, User, Loader2, Filter, Video, CheckCircle2 } from 'lucide-react';
 import { format, parseISO, isAfter, isBefore, isToday } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { motion } from 'framer-motion';
+import { supabase } from '@/integrations/supabase/client';
+import { useSearchParams } from 'react-router-dom';
+import { toast } from 'sonner';
 
 const statusColors: Record<string, string> = {
   pending: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
@@ -28,6 +31,39 @@ export default function BookingsPage() {
   const { data: offers } = useOffers();
   const updateBooking = useUpdateBooking();
   const [offerFilter, setOfferFilter] = useState<string>('all');
+  const [searchParams] = useSearchParams();
+  const [googleConnected, setGoogleConnected] = useState(false);
+  const [checkingGoogle, setCheckingGoogle] = useState(true);
+
+  useEffect(() => {
+    if (searchParams.get('google') === 'connected') {
+      toast.success('Google Calendar connecté avec succès !');
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    async function checkGoogleConnection() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setCheckingGoogle(false); return; }
+      const { data } = await supabase
+        .from('google_tokens')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      setGoogleConnected(!!data);
+      setCheckingGoogle(false);
+    }
+    checkGoogleConnection();
+  }, [searchParams]);
+
+  const handleConnectGoogle = async () => {
+    const { data, error } = await supabase.functions.invoke('google-auth');
+    if (error) {
+      toast.error('Erreur lors de la connexion Google');
+      return;
+    }
+    window.location.href = data.url;
+  };
 
   const filtered = bookings?.filter(b => offerFilter === 'all' || b.offer_id === offerFilter) || [];
   const upcoming = filtered.filter(b => b.status !== 'cancelled' && b.status !== 'completed' && isAfter(parseISO(b.booking_date), new Date()) || isToday(parseISO(b.booking_date)));
@@ -45,6 +81,19 @@ export default function BookingsPage() {
           <p className="text-muted-foreground text-sm mt-1">{upcoming.length} à venir</p>
         </div>
         <div className="flex items-center gap-2">
+          {!checkingGoogle && (
+            googleConnected ? (
+              <Badge className="bg-green-500/10 text-green-400 border-green-500/20 flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3" />
+                Google Calendar
+              </Badge>
+            ) : (
+              <Button variant="outline" size="sm" onClick={handleConnectGoogle}>
+                <CalendarCheck className="h-4 w-4 mr-1" />
+                Connecter Google Calendar
+              </Button>
+            )
+          )}
           <Filter className="h-4 w-4 text-muted-foreground" />
           <Select value={offerFilter} onValueChange={setOfferFilter}>
             <SelectTrigger className="w-48"><SelectValue placeholder="Toutes les offres" /></SelectTrigger>
@@ -80,6 +129,14 @@ export default function BookingsPage() {
                           {b.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{b.phone}</span>}
                         </div>
                         {b.offers?.name && <Badge variant="outline" className="text-xs">{b.offers.name}</Badge>}
+                        {b.meet_link && (
+                          <a href={b.meet_link} target="_blank" rel="noopener noreferrer">
+                            <Badge className="bg-primary/10 text-primary border-primary/20 flex items-center gap-1 cursor-pointer hover:bg-primary/20">
+                              <Video className="h-3 w-3" />
+                              Google Meet
+                            </Badge>
+                          </a>
+                        )}
                       </div>
                       <div className="flex gap-1">
                         {b.status === 'pending' && (
