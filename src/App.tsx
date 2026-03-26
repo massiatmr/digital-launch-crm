@@ -30,6 +30,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/auth" element={<AuthPage />} />
+          <Route path="/offers/:slug/page" element={<PublicOfferPage />} />
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route path="/" element={<PipelinePage />} />
@@ -37,6 +38,9 @@ const App = () => (
               <Route path="/leads" element={<LeadsPage />} />
               <Route path="/leads/new" element={<AddLeadPage />} />
               <Route path="/leads/:id" element={<LeadDetailPage />} />
+              <Route path="/offers" element={<OffersPage />} />
+              <Route path="/offers/:id" element={<OfferDetailPage />} />
+              <Route path="/bookings" element={<BookingsPage />} />
               <Route path="/messages" element={<MessagesPage />} />
               <Route path="/scripts" element={<ScriptsPage />} />
               <Route path="/reminders" element={<RemindersPage />} />
