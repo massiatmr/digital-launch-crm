@@ -58,6 +58,20 @@ export default function LeadsPage() {
             className="w-full rounded-lg border border-border bg-card py-2 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
+        {offers.length > 0 && (
+          <Select value={offerFilter} onValueChange={setOfferFilter}>
+            <SelectTrigger className="w-[160px] h-9 text-xs">
+              <Package className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+              <SelectValue placeholder="Toutes les offres" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes les offres</SelectItem>
+              {offers.map(o => (
+                <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         {(['all', 'hot', 'warm', 'cold'] as const).map(f => (
           <button
             key={f}
