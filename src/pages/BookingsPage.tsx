@@ -129,6 +129,14 @@ export default function BookingsPage() {
                           {b.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{b.phone}</span>}
                         </div>
                         {b.offers?.name && <Badge variant="outline" className="text-xs">{b.offers.name}</Badge>}
+                        {b.meet_link && (
+                          <a href={b.meet_link} target="_blank" rel="noopener noreferrer">
+                            <Badge className="bg-primary/10 text-primary border-primary/20 flex items-center gap-1 cursor-pointer hover:bg-primary/20">
+                              <Video className="h-3 w-3" />
+                              Google Meet
+                            </Badge>
+                          </a>
+                        )}
                       </div>
                       <div className="flex gap-1">
                         {b.status === 'pending' && (
