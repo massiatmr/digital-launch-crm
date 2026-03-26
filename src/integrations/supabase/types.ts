@@ -14,6 +14,110 @@ export type Database = {
   }
   public: {
     Tables: {
+      booking_emails: {
+        Row: {
+          booking_id: string
+          created_at: string
+          id: string
+          scheduled_at: string
+          sent_at: string | null
+          status: string
+          type: Database["public"]["Enums"]["booking_email_type"]
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          id?: string
+          scheduled_at: string
+          sent_at?: string | null
+          status?: string
+          type: Database["public"]["Enums"]["booking_email_type"]
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          id?: string
+          scheduled_at?: string
+          sent_at?: string | null
+          status?: string
+          type?: Database["public"]["Enums"]["booking_email_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_emails_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bookings: {
+        Row: {
+          booking_date: string
+          created_at: string
+          email: string
+          google_event_id: string | null
+          id: string
+          lead_id: string | null
+          meet_link: string | null
+          name: string
+          notes: string | null
+          offer_id: string
+          owner_id: string
+          phone: string | null
+          status: Database["public"]["Enums"]["booking_status"]
+          time_slot: string
+        }
+        Insert: {
+          booking_date: string
+          created_at?: string
+          email: string
+          google_event_id?: string | null
+          id?: string
+          lead_id?: string | null
+          meet_link?: string | null
+          name: string
+          notes?: string | null
+          offer_id: string
+          owner_id?: string
+          phone?: string | null
+          status?: Database["public"]["Enums"]["booking_status"]
+          time_slot: string
+        }
+        Update: {
+          booking_date?: string
+          created_at?: string
+          email?: string
+          google_event_id?: string | null
+          id?: string
+          lead_id?: string | null
+          meet_link?: string | null
+          name?: string
+          notes?: string | null
+          offer_id?: string
+          owner_id?: string
+          phone?: string | null
+          status?: Database["public"]["Enums"]["booking_status"]
+          time_slot?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "offers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       generated_messages: {
         Row: {
           content: string
@@ -100,6 +204,7 @@ export type Database = {
           next_action: string | null
           next_action_date: string | null
           notes: string | null
+          offer_id: string | null
           owner_id: string
           phone: string | null
           sales_angle: string | null
@@ -120,6 +225,7 @@ export type Database = {
           next_action?: string | null
           next_action_date?: string | null
           notes?: string | null
+          offer_id?: string | null
           owner_id?: string
           phone?: string | null
           sales_angle?: string | null
@@ -140,12 +246,113 @@ export type Database = {
           next_action?: string | null
           next_action_date?: string | null
           notes?: string | null
+          offer_id?: string | null
           owner_id?: string
           phone?: string | null
           sales_angle?: string | null
           score?: Database["public"]["Enums"]["lead_score"]
           source?: Database["public"]["Enums"]["lead_source"]
           status?: Database["public"]["Enums"]["lead_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "offers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      offer_pages: {
+        Row: {
+          body_content: Json | null
+          created_at: string
+          cta_color: string | null
+          cta_text: string | null
+          headline: string | null
+          id: string
+          offer_id: string
+          subheadline: string | null
+          testimonials: Json | null
+          updated_at: string
+        }
+        Insert: {
+          body_content?: Json | null
+          created_at?: string
+          cta_color?: string | null
+          cta_text?: string | null
+          headline?: string | null
+          id?: string
+          offer_id: string
+          subheadline?: string | null
+          testimonials?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          body_content?: Json | null
+          created_at?: string
+          cta_color?: string | null
+          cta_text?: string | null
+          headline?: string | null
+          id?: string
+          offer_id?: string
+          subheadline?: string | null
+          testimonials?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "offer_pages_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "offers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      offers: {
+        Row: {
+          cover_image_url: string | null
+          created_at: string
+          description: string | null
+          features: Json | null
+          id: string
+          is_active: boolean
+          name: string
+          niche: string | null
+          owner_id: string
+          price: string | null
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          cover_image_url?: string | null
+          created_at?: string
+          description?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean
+          name: string
+          niche?: string | null
+          owner_id?: string
+          price?: string | null
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          cover_image_url?: string | null
+          created_at?: string
+          description?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          niche?: string | null
+          owner_id?: string
+          price?: string | null
+          slug?: string
           updated_at?: string
         }
         Relationships: []
@@ -238,6 +445,12 @@ export type Database = {
         | "note"
         | "relance"
         | "meeting"
+      booking_email_type:
+        | "confirmation"
+        | "24h_before"
+        | "12h_before"
+        | "1h_before"
+      booking_status: "pending" | "confirmed" | "cancelled" | "completed"
       lead_score: "hot" | "warm" | "cold"
       lead_source: "facebook" | "website" | "google_sheets" | "manual" | "other"
       lead_status:
@@ -384,6 +597,13 @@ export const Constants = {
         "relance",
         "meeting",
       ],
+      booking_email_type: [
+        "confirmation",
+        "24h_before",
+        "12h_before",
+        "1h_before",
+      ],
+      booking_status: ["pending", "confirmed", "cancelled", "completed"],
       lead_score: ["hot", "warm", "cold"],
       lead_source: ["facebook", "website", "google_sheets", "manual", "other"],
       lead_status: [

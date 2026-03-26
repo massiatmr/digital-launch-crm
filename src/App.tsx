@@ -14,6 +14,10 @@ import RemindersPage from "@/pages/RemindersPage";
 import PipelinePage from "@/pages/PipelinePage";
 import SequencesPage from "@/pages/SequencesPage";
 import ImportPage from "@/pages/ImportPage";
+import OffersPage from "@/pages/OffersPage";
+import OfferDetailPage from "@/pages/OfferDetailPage";
+import BookingsPage from "@/pages/BookingsPage";
+import PublicOfferPage from "@/pages/PublicOfferPage";
 import AuthPage from "@/pages/AuthPage";
 import NotFound from "@/pages/NotFound";
 
@@ -26,6 +30,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/auth" element={<AuthPage />} />
+          <Route path="/offers/:slug/page" element={<PublicOfferPage />} />
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route path="/" element={<PipelinePage />} />
@@ -33,6 +38,9 @@ const App = () => (
               <Route path="/leads" element={<LeadsPage />} />
               <Route path="/leads/new" element={<AddLeadPage />} />
               <Route path="/leads/:id" element={<LeadDetailPage />} />
+              <Route path="/offers" element={<OffersPage />} />
+              <Route path="/offers/:id" element={<OfferDetailPage />} />
+              <Route path="/bookings" element={<BookingsPage />} />
               <Route path="/messages" element={<MessagesPage />} />
               <Route path="/scripts" element={<ScriptsPage />} />
               <Route path="/reminders" element={<RemindersPage />} />
