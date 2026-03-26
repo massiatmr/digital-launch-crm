@@ -14,6 +14,10 @@ import RemindersPage from "@/pages/RemindersPage";
 import PipelinePage from "@/pages/PipelinePage";
 import SequencesPage from "@/pages/SequencesPage";
 import ImportPage from "@/pages/ImportPage";
+import OffersPage from "@/pages/OffersPage";
+import OfferDetailPage from "@/pages/OfferDetailPage";
+import BookingsPage from "@/pages/BookingsPage";
+import PublicOfferPage from "@/pages/PublicOfferPage";
 import AuthPage from "@/pages/AuthPage";
 import NotFound from "@/pages/NotFound";
 
