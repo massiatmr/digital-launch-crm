@@ -283,6 +283,27 @@ Deno.serve(async (req) => {
       description: `RDV réservé le ${booking_date} à ${time_slot}${meetInfo}`,
     });
 
+    // 6. Send booking confirmation email to the prospect
+    try {
+      await supabase.functions.invoke("send-transactional-email", {
+        body: {
+          templateName: "booking-confirmation",
+          recipientEmail: email,
+          idempotencyKey: `booking-confirm-${bookingId}`,
+          templateData: {
+            name,
+            bookingDate: booking_date,
+            timeSlot: time_slot,
+            offerName,
+            meetLink: meetLink || undefined,
+          },
+        },
+      });
+      console.log("Booking confirmation email sent to:", email);
+    } catch (emailErr) {
+      console.error("Failed to send booking confirmation email:", emailErr);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
