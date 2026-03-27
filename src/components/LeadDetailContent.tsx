@@ -21,9 +21,11 @@ import {
 
 export function LeadDetailContent({ leadId }: { leadId: string }) {
   const [editing, setEditing] = useState(false);
+  const navigate = useNavigate();
   const { data: lead, isLoading } = useLead(leadId);
   const { data: messages = [] } = useLeadMessages(leadId);
   const { data: scripts = [] } = useLeadScripts(leadId);
+  const deleteLead = useDeleteLead();
 
   if (isLoading) {
     return (
