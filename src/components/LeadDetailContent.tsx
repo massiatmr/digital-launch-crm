@@ -54,9 +54,43 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
             {lead.company_name && <span className="text-sm text-muted-foreground">· {lead.company_name}</span>}
             <LeadScoreBadge score={lead.score} />
             <LeadStatusBadge status={lead.status} />
-            <Button variant="ghost" size="icon" className="ml-auto" onClick={() => setEditing(true)}>
-              <Pencil className="h-4 w-4" />
-            </Button>
+            <div className="ml-auto flex items-center gap-1">
+              <Button variant="ghost" size="icon" onClick={() => setEditing(true)}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Supprimer ce lead ?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Cette action est irréversible. Toutes les données associées à {lead.name} seront supprimées.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Annuler</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() => {
+                        deleteLead.mutate(lead.id, {
+                          onSuccess: () => {
+                            toast.success('Lead supprimé');
+                            navigate('/leads');
+                          },
+                          onError: () => toast.error('Erreur lors de la suppression'),
+                        });
+                      }}
+                    >
+                      Supprimer
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             {lead.email && <span className="flex items-center gap-1"><Mail className="h-3.5 w-3.5" />{lead.email}</span>}
