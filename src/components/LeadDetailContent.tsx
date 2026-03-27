@@ -6,7 +6,7 @@ import { LeadStatusBadge } from '@/components/LeadStatusBadge';
 import { NaturalLanguageInput } from '@/components/NaturalLanguageInput';
 import { LeadActivityTimeline } from '@/components/LeadActivityTimeline';
 import { LeadEditForm } from '@/components/LeadEditForm';
-import { Copy, Mail, MessageCircle, Phone, Smartphone, Loader2, ExternalLink, Pencil } from 'lucide-react';
+import { Copy, Mail, MessageCircle, Phone, Smartphone, Loader2, ExternalLink, Pencil, Trash2 } from 'lucide-react';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
