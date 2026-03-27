@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { useLead, useLeadMessages, useLeadScripts } from '@/hooks/useLeadData';
+import { useNavigate } from 'react-router-dom';
+import { useLead, useLeadMessages, useLeadScripts, useDeleteLead } from '@/hooks/useLeadData';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadStatusBadge } from '@/components/LeadStatusBadge';
 import { NaturalLanguageInput } from '@/components/NaturalLanguageInput';
 import { LeadActivityTimeline } from '@/components/LeadActivityTimeline';
 import { LeadEditForm } from '@/components/LeadEditForm';
-import { Copy, Mail, MessageCircle, Phone, Smartphone, Loader2, ExternalLink, Pencil } from 'lucide-react';
+import { Copy, Mail, MessageCircle, Phone, Smartphone, Loader2, ExternalLink, Pencil, Trash2 } from 'lucide-react';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -13,12 +14,18 @@ import { toast } from 'sonner';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { AnimatePresence } from 'framer-motion';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 export function LeadDetailContent({ leadId }: { leadId: string }) {
   const [editing, setEditing] = useState(false);
+  const navigate = useNavigate();
   const { data: lead, isLoading } = useLead(leadId);
   const { data: messages = [] } = useLeadMessages(leadId);
   const { data: scripts = [] } = useLeadScripts(leadId);
+  const deleteLead = useDeleteLead();
 
   if (isLoading) {
     return (
@@ -47,9 +54,43 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
             {lead.company_name && <span className="text-sm text-muted-foreground">· {lead.company_name}</span>}
             <LeadScoreBadge score={lead.score} />
             <LeadStatusBadge status={lead.status} />
-            <Button variant="ghost" size="icon" className="ml-auto" onClick={() => setEditing(true)}>
-              <Pencil className="h-4 w-4" />
-            </Button>
+            <div className="ml-auto flex items-center gap-1">
+              <Button variant="ghost" size="icon" onClick={() => setEditing(true)}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Supprimer ce lead ?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Cette action est irréversible. Toutes les données associées à {lead.name} seront supprimées.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Annuler</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() => {
+                        deleteLead.mutate(lead.id, {
+                          onSuccess: () => {
+                            toast.success('Lead supprimé');
+                            navigate('/leads');
+                          },
+                          onError: () => toast.error('Erreur lors de la suppression'),
+                        });
+                      }}
+                    >
+                      Supprimer
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             {lead.email && <span className="flex items-center gap-1"><Mail className="h-3.5 w-3.5" />{lead.email}</span>}
