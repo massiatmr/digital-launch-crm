@@ -1,0 +1,1 @@
+ALTER TABLE public.offer_pages ADD COLUMN IF NOT EXISTS sections jsonb DEFAULT '[]'::jsonb;
