@@ -391,6 +391,7 @@ export type Database = {
           headline: string | null
           id: string
           offer_id: string
+          sections: Json | null
           subheadline: string | null
           testimonials: Json | null
           updated_at: string
@@ -403,6 +404,7 @@ export type Database = {
           headline?: string | null
           id?: string
           offer_id: string
+          sections?: Json | null
           subheadline?: string | null
           testimonials?: Json | null
           updated_at?: string
@@ -415,6 +417,7 @@ export type Database = {
           headline?: string | null
           id?: string
           offer_id?: string
+          sections?: Json | null
           subheadline?: string | null
           testimonials?: Json | null
           updated_at?: string
