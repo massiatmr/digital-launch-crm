@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useLead, useLeadMessages, useLeadScripts } from '@/hooks/useLeadData';
+import { useNavigate } from 'react-router-dom';
+import { useLead, useLeadMessages, useLeadScripts, useDeleteLead } from '@/hooks/useLeadData';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadStatusBadge } from '@/components/LeadStatusBadge';
 import { NaturalLanguageInput } from '@/components/NaturalLanguageInput';
