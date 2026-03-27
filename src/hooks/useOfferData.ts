@@ -26,6 +26,7 @@ export type DbOfferPage = {
   cta_text: string;
   cta_color: string;
   testimonials: any[];
+  sections: any[];
   created_at: string;
   updated_at: string;
 };
