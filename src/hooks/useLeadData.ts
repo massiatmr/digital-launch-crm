@@ -11,6 +11,7 @@ export type DbLead = {
   source: 'facebook' | 'website' | 'google_sheets' | 'manual' | 'other';
   score: 'hot' | 'warm' | 'cold';
   status: 'new' | 'contacted' | 'qualified' | 'proposal' | 'won' | 'lost' | 'ghost';
+  show_status: 'pending' | 'show' | 'noshow';
   company_name: string | null;
   notes: string | null;
   ai_summary: string | null;

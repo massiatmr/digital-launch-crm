@@ -103,7 +103,15 @@ function PipelineCard({
         </div>
 
         <div className="mt-2.5 flex items-center justify-between gap-2">
-          <LeadScoreBadge score={lead.score} className="text-[10px] px-1.5 py-0" />
+          <div className="flex items-center gap-1.5">
+            <LeadScoreBadge score={lead.score} className="text-[10px] px-1.5 py-0" />
+            {lead.show_status === 'show' && (
+              <span className="text-[10px] px-1.5 py-0 rounded-full bg-emerald-500/15 text-emerald-400 font-medium">Show</span>
+            )}
+            {lead.show_status === 'noshow' && (
+              <span className="text-[10px] px-1.5 py-0 rounded-full bg-red-500/15 text-red-400 font-medium">No-show</span>
+            )}
+          </div>
           <div className="flex items-center gap-1.5">
             {lead.last_contacted_at && (
               <span className="text-[10px] text-muted-foreground font-mono">
@@ -176,7 +184,7 @@ function PipelineColumn({
       className={cn(
         'flex flex-col rounded-xl border transition-all duration-200',
         isDragOver ? 'border-primary/40 bg-primary/5 scale-[1.01]' : 'border-border/50 bg-background/50',
-        'min-w-[160px] sm:min-w-[220px] flex-1'
+        'min-w-[140px] sm:min-w-[200px] flex-1'
       )}
       onDragOver={(e) => onDragOver(e, stage.key)}
       onDragLeave={onDragLeave}
@@ -316,7 +324,7 @@ export default function PipelinePage() {
         ))}
       </div>
 
-      <div className="flex flex-1 gap-2 sm:gap-3 overflow-x-auto custom-scrollbar pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div className="flex flex-1 gap-2 sm:gap-3 overflow-x-auto custom-scrollbar pb-4 -mx-4 px-4 sm:mx-0 sm:px-0" style={{ touchAction: 'pan-x' }}>
         {STAGES.map(stage => (
           <PipelineColumn
             key={stage.key}
