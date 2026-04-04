@@ -30,7 +30,8 @@ export default function Dashboard() {
 
   const wonLeads = leads.filter(l => l.status === 'won');
   const lostLeads = leads.filter(l => l.status === 'lost');
-  const closingRate = leads.length > 0 ? Math.round((wonLeads.length / leads.length) * 100) : 0;
+  const proposalLeads = leads.filter(l => l.status === 'proposal' || l.status === 'won' || l.status === 'lost');
+  const closingRate = proposalLeads.length > 0 ? Math.round((wonLeads.length / proposalLeads.length) * 100) : 0;
 
   const statusLabels: Record<string, string> = {
     new: 'Nouveau', contacted: 'Contacté', qualified: 'Qualifié',
