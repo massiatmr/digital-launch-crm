@@ -77,10 +77,10 @@ export default function Dashboard() {
   const wonLeads = leads.filter(l => l.status === 'won');
   const closingRate = proposalLeads.length > 0 ? Math.round((wonLeads.length / proposalLeads.length) * 100) : 0;
 
-  // — KPI 6: Qualification rate
-  const qualifiedPlus = leads.filter(l => ['qualified', 'proposal', 'won', 'lost'].includes(l.status));
-  const qualifiablePool = leads.filter(l => ['contacted', 'qualified', 'proposal', 'won', 'lost'].includes(l.status));
-  const qualificationRate = qualifiablePool.length > 0 ? Math.round((qualifiedPlus.length / qualifiablePool.length) * 100) : 0;
+  // — KPI 6: Qualification rate (intéressés vs perdus)
+  const interestedLeads = leads.filter(l => ['qualified', 'proposal', 'won'].includes(l.status));
+  const interestedAndLost = leads.filter(l => ['qualified', 'proposal', 'won', 'lost'].includes(l.status));
+  const qualificationRate = interestedAndLost.length > 0 ? Math.round((interestedLeads.length / interestedAndLost.length) * 100) : 0;
 
   // — KPI 7: Pipeline value (leads in proposal)
   const pipelineValue = leads.filter(l => l.status === 'proposal').length;
