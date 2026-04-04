@@ -28,7 +28,7 @@ export function AppLayout() {
       <NotificationManager />
       <div className="flex min-h-screen">
         {!isMobile && <AppSidebar />}
-        <main className={`flex-1 transition-all duration-300 ${
+        <main className={`flex-1 transition-all duration-300 overflow-x-hidden ${
           isMobile ? 'p-4 pb-24' : collapsed ? 'ml-16 p-6 lg:p-8' : 'ml-60 p-6 lg:p-8'
         }`}>
           <Outlet />

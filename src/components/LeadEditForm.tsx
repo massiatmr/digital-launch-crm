@@ -139,6 +139,17 @@ export function LeadEditForm({ lead, onClose }: LeadEditFormProps) {
           <Label htmlFor="edit-action">Prochaine action</Label>
           <Input id="edit-action" value={form.next_action} onChange={e => update('next_action', e.target.value)} />
         </div>
+        {['proposal', 'won', 'lost'].includes(form.status) && (
+          <div className="space-y-1.5">
+            <Label>Présence au RDV</Label>
+            <Select value={form.show_status} onValueChange={v => update('show_status', v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {showStatuses.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       <div className="space-y-1.5">

@@ -316,7 +316,7 @@ export default function PipelinePage() {
         ))}
       </div>
 
-      <div className="flex flex-1 gap-2 sm:gap-3 overflow-x-auto custom-scrollbar pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div className="flex flex-1 gap-2 sm:gap-3 overflow-x-auto custom-scrollbar pb-4 -mx-4 px-4 sm:mx-0 sm:px-0" style={{ touchAction: 'pan-x' }}>
         {STAGES.map(stage => (
           <PipelineColumn
             key={stage.key}
