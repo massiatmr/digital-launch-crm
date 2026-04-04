@@ -54,6 +54,7 @@ export function LeadEditForm({ lead, onClose }: LeadEditFormProps) {
     source: lead.source,
     score: lead.score,
     status: lead.status,
+    show_status: lead.show_status || 'pending',
     notes: lead.notes || '',
     next_action: lead.next_action || '',
   });
