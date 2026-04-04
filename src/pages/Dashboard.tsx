@@ -56,10 +56,8 @@ export default function Dashboard() {
   const contactedLeads = leads.filter(l => l.last_contacted_at && l.status !== 'new');
   const avgResponseHours = contactedLeads.length > 0
     ? Math.round(contactedLeads.reduce((sum, l) => sum + differenceInHours(new Date(l.last_contacted_at!), new Date(l.created_at)), 0) / contactedLeads.length)
-    : 0;
-  const avgResponseDisplay = avgResponseHours >= 48
-    ? `${Math.round(avgResponseHours / 24)}j`
-    : `${avgResponseHours}h`;
+    : -1;
+  const hasResponseData = avgResponseHours >= 0;
 
   // — KPI 3: Show-up rate
   const leadsWithShowStatus = leads.filter(l => l.show_status && l.show_status !== 'pending');
@@ -77,10 +75,10 @@ export default function Dashboard() {
   const wonLeads = leads.filter(l => l.status === 'won');
   const closingRate = proposalLeads.length > 0 ? Math.round((wonLeads.length / proposalLeads.length) * 100) : 0;
 
-  // — KPI 6: Qualification rate
-  const qualifiedPlus = leads.filter(l => ['qualified', 'proposal', 'won', 'lost'].includes(l.status));
-  const qualifiablePool = leads.filter(l => ['contacted', 'qualified', 'proposal', 'won', 'lost'].includes(l.status));
-  const qualificationRate = qualifiablePool.length > 0 ? Math.round((qualifiedPlus.length / qualifiablePool.length) * 100) : 0;
+  // — KPI 6: Qualification rate (intéressés vs perdus)
+  const interestedLeads = leads.filter(l => ['qualified', 'proposal', 'won'].includes(l.status));
+  const interestedAndLost = leads.filter(l => ['qualified', 'proposal', 'won', 'lost'].includes(l.status));
+  const qualificationRate = interestedAndLost.length > 0 ? Math.round((interestedLeads.length / interestedAndLost.length) * 100) : 0;
 
   // — KPI 7: Pipeline value (leads in proposal)
   const pipelineValue = leads.filter(l => l.status === 'proposal').length;
@@ -154,10 +152,10 @@ export default function Dashboard() {
         />
         <KpiCard
           label="Temps de réponse"
-          value={avgResponseHours >= 48 ? Math.round(avgResponseHours / 24) : avgResponseHours}
-          suffix={avgResponseHours >= 48 ? 'j' : 'h'}
-          subtitle={avgResponseHours > 24 ? '⚠ Trop lent, visez < 24h' : '✓ Bon tempo'}
-          subtitleColor={avgResponseHours > 24 ? 'text-amber-400' : 'text-emerald-400'}
+          value={hasResponseData ? (avgResponseHours >= 48 ? Math.round(avgResponseHours / 24) : avgResponseHours) : 0}
+          suffix={hasResponseData ? (avgResponseHours >= 48 ? 'j' : 'h') : ''}
+          subtitle={!hasResponseData ? 'Aucun lead contacté' : avgResponseHours > 24 ? '⚠ Trop lent, visez < 24h' : '✓ Bon tempo'}
+          subtitleColor={!hasResponseData ? undefined : avgResponseHours > 24 ? 'text-amber-400' : 'text-emerald-400'}
           icon={Clock}
           gradient="from-amber-500/20 to-amber-600/5"
           iconColor="text-amber-400"
@@ -199,7 +197,7 @@ export default function Dashboard() {
           label="Taux de qualification"
           value={qualificationRate}
           suffix="%"
-          subtitle={`${qualifiedPlus.length} qualifiés / ${qualifiablePool.length}`}
+          subtitle={`${interestedLeads.length} intéressés / ${interestedAndLost.length} total`}
           icon={UserCheck}
           gradient="from-indigo-500/20 to-indigo-600/5"
           iconColor="text-indigo-400"
