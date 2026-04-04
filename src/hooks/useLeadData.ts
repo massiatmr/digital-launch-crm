@@ -301,6 +301,22 @@ export function useToggleReminder() {
   });
 }
 
+export function useUpdateReminder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, action, due_date }: { id: string; action?: string; due_date?: string }) => {
+      const updates: Record<string, unknown> = {};
+      if (action !== undefined) updates.action = action;
+      if (due_date !== undefined) updates.due_date = due_date;
+      const { error } = await supabase.from('reminders').update(updates).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reminders'] });
+    },
+  });
+}
+
 // ========== NATURAL LANGUAGE UPDATE ==========
 
 export type AiProposal = {
