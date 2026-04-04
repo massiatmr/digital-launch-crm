@@ -56,10 +56,8 @@ export default function Dashboard() {
   const contactedLeads = leads.filter(l => l.last_contacted_at && l.status !== 'new');
   const avgResponseHours = contactedLeads.length > 0
     ? Math.round(contactedLeads.reduce((sum, l) => sum + differenceInHours(new Date(l.last_contacted_at!), new Date(l.created_at)), 0) / contactedLeads.length)
-    : 0;
-  const avgResponseDisplay = avgResponseHours >= 48
-    ? `${Math.round(avgResponseHours / 24)}j`
-    : `${avgResponseHours}h`;
+    : -1;
+  const hasResponseData = avgResponseHours >= 0;
 
   // — KPI 3: Show-up rate
   const leadsWithShowStatus = leads.filter(l => l.show_status && l.show_status !== 'pending');
