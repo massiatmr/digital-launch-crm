@@ -33,6 +33,12 @@ const statuses = [
   { value: 'ghost', label: 'Ghost' },
 ];
 
+const showStatuses = [
+  { value: 'pending', label: '⏳ En attente' },
+  { value: 'show', label: '✅ Présent' },
+  { value: 'noshow', label: '❌ Absent' },
+];
+
 interface LeadEditFormProps {
   lead: DbLead;
   onClose: () => void;
