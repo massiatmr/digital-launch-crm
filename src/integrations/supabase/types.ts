@@ -326,6 +326,7 @@ export type Database = {
           phone: string | null
           sales_angle: string | null
           score: Database["public"]["Enums"]["lead_score"]
+          show_status: Database["public"]["Enums"]["show_status"]
           source: Database["public"]["Enums"]["lead_source"]
           status: Database["public"]["Enums"]["lead_status"]
           updated_at: string
@@ -347,6 +348,7 @@ export type Database = {
           phone?: string | null
           sales_angle?: string | null
           score?: Database["public"]["Enums"]["lead_score"]
+          show_status?: Database["public"]["Enums"]["show_status"]
           source?: Database["public"]["Enums"]["lead_source"]
           status?: Database["public"]["Enums"]["lead_status"]
           updated_at?: string
@@ -368,6 +370,7 @@ export type Database = {
           phone?: string | null
           sales_angle?: string | null
           score?: Database["public"]["Enums"]["lead_score"]
+          show_status?: Database["public"]["Enums"]["show_status"]
           source?: Database["public"]["Enums"]["lead_source"]
           status?: Database["public"]["Enums"]["lead_status"]
           updated_at?: string
@@ -630,6 +633,7 @@ export type Database = {
         | "lost"
         | "ghost"
       message_type: "whatsapp" | "email" | "sms"
+      show_status: "pending" | "show" | "noshow"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -784,6 +788,7 @@ export const Constants = {
         "ghost",
       ],
       message_type: ["whatsapp", "email", "sms"],
+      show_status: ["pending", "show", "noshow"],
     },
   },
 } as const
