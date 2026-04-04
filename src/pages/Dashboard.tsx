@@ -152,10 +152,10 @@ export default function Dashboard() {
         />
         <KpiCard
           label="Temps de réponse"
-          value={avgResponseHours >= 48 ? Math.round(avgResponseHours / 24) : avgResponseHours}
-          suffix={avgResponseHours >= 48 ? 'j' : 'h'}
-          subtitle={avgResponseHours > 24 ? '⚠ Trop lent, visez < 24h' : '✓ Bon tempo'}
-          subtitleColor={avgResponseHours > 24 ? 'text-amber-400' : 'text-emerald-400'}
+          value={hasResponseData ? (avgResponseHours >= 48 ? Math.round(avgResponseHours / 24) : avgResponseHours) : 0}
+          suffix={hasResponseData ? (avgResponseHours >= 48 ? 'j' : 'h') : ''}
+          subtitle={!hasResponseData ? 'Aucun lead contacté' : avgResponseHours > 24 ? '⚠ Trop lent, visez < 24h' : '✓ Bon tempo'}
+          subtitleColor={!hasResponseData ? undefined : avgResponseHours > 24 ? 'text-amber-400' : 'text-emerald-400'}
           icon={Clock}
           gradient="from-amber-500/20 to-amber-600/5"
           iconColor="text-amber-400"
