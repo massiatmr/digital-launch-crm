@@ -1,100 +1,65 @@
-# Plan : Landing Pages Pro + Disponibilités Google Calendar en temps réel
 
-## Contexte
 
-Les landing pages publiques actuelles sont minimalistes (hero + features + formulaire basique). L'utilisateur veut :
+# Plan : KPIs avancés, champ Show/No-show, et corrections mobile
 
-1. Des landing pages beaucoup plus riches et professionnelles (style sales page longue)
-2. Un système de réservation avec disponibilités réelles synchronisées depuis Google Calendar
-3. Le contenu `body_content` de `offer_pages` exploité pour des sections riches (pain points, garanties, témoignages, portfolio)
+## 1. Migration DB : ajouter `show_status` aux leads
 
-## Architecture
+Ajouter une colonne `show_status` de type enum (`'pending'`, `'show'`, `'noshow'`) à la table `leads`, avec `'pending'` par défaut. Cela permettra de tracker si le prospect s'est présenté au rendez-vous.
 
-```text
-┌─────────────────────────────────────┐
-│  PublicOfferPage (refonte complète)  │
-│  ├── Navbar sticky                  │
-│  ├── Hero (headline + CTA + badge)  │
-│  ├── Pain Points ("Cela vous        │
-│  │    ressemble ?")                 │
-│  ├── Solution / Proposition         │
-│  ├── Features / Inclus              │
-│  ├── Portfolio / Réalisations       │
-│  ├── Garantie 100%                  │
-│  ├── Témoignages                    │
-│  ├── Formulaire de réservation      │
-│  │    └── Calendrier interactif     │
-│  │        avec dispo Google Cal     │
-│  └── Footer                        │
-└─────────────────────────────────────┘
-
-┌─────────────────────────────────────┐
-│  Edge Function: check-availability  │
-│  ├── Reçoit owner_id + date        │
-│  ├── Lit google_tokens              │
-│  ├── Appelle Google Calendar API    │
-│  │   (freebusy query)              │
-│  ├── Compare avec créneaux définis  │
-│  │   (11:00-15:30 par défaut)      │
-│  └── Retourne créneaux libres       │
-└─────────────────────────────────────┘
+```sql
+CREATE TYPE public.show_status AS ENUM ('pending', 'show', 'noshow');
+ALTER TABLE public.leads ADD COLUMN show_status show_status NOT NULL DEFAULT 'pending';
 ```
 
-## Etapes
+## 2. Mettre à jour le code pour le champ show/noshow
 
-### 1. Edge Function `check-availability`
+- **`DbLead` dans `useLeadData.ts`** : ajouter `show_status: 'pending' | 'show' | 'noshow'`
+- **`LeadEditForm.tsx`** : ajouter un select "Présence au RDV" (Pending / Show / No-show) pour les leads au statut `proposal`, `won`, `lost`
+- **`PipelineCard`** : afficher un petit badge show/noshow quand renseigné
 
-Nouvelle edge function qui :
+## 3. Refonte du Dashboard avec les KPIs demandés
 
-- Prend `owner_id` et `date` en paramètres
-- Récupère le token Google du owner (avec refresh si expiré, réutilisant la logique existante de `handle-booking`)
-- Appelle l'API Google Calendar **FreeBusy** pour la journée demandée
-- Définit les créneaux de base ( de 11:00 à 15:30) rendez vous durée de 1h, en slots de 15 min
-- Filtre les créneaux occupés et retourne uniquement les disponibles
-- Si pas de token Google, retourne tous les créneaux par défaut (fallback)
+Remplacer les 4 stats actuelles par **8 KPIs** organisés en 2 rangées :
 
-### 2. Migration DB : enrichir `offer_pages`
+**Rangée 1 — KPIs demandés :**
+- **Nouveaux leads (30j)** : `leads.filter(created_at > 30 jours)`. Alerte visuelle si < 5 (seuil bas).
+- **Temps moyen New → Contacté** : différence moyenne entre `created_at` et `last_contacted_at` pour les leads passés de `new` à `contacted`. Affiché en heures/jours.
+- **Taux de Show-up** : `leads.show_status === 'show'` / total leads avec `show_status !== 'pending'`. Indicateur critique pour les RDV.
+- **Tâches en attente** : nombre de reminders non terminés (`!done`). Avec sous-texte "X en retard" si `due_date < now`.
 
-Ajouter une colonne `sections JSONB DEFAULT '[]'` à `offer_pages` pour stocker les sections structurées de la landing page (pain points, garantie, portfolio, etc.). Cela permet d'éditer le contenu depuis le back-office sans toucher au code.
+**Rangée 2 — KPIs complémentaires proposés :**
+- **Taux de Closing** (existant) : won / (proposal + won + lost)
+- **Taux de Qualification** : qualified+ / (contacted + qualified + proposal + won + lost). Mesure l'efficacité du screening.
+- **Valeur pipeline** : nombre de leads en `proposal` (deals en cours à closer)
+- **Leads à relancer** : leads `ghost` + leads non contactés depuis > 7 jours. Indicateur d'action immédiate.
 
-### 3. Refonte complète de `PublicOfferPage.tsx`
+Chaque KPI aura une couleur conditionnelle (vert/orange/rouge) selon la performance.
 
-Transformer la page minimaliste en une vraie sales page professionnelle :
+## 4. Corrections mobile
 
-- **Navbar** : logo/nom de l'offre + CTA sticky
-- **Hero** : headline bold, subheadline, badge de confiance (garantie 100%), CTA vers le formulaire
-- **Section "Est-ce que cela vous ressemble ?"** : pain points avec icones (contenu depuis `body_content` ou `sections`)
-- **Section Solution** : proposition de valeur, ce qui vous différencie
-- **Section Features/Inclus** : grille de ce qui est inclus dans l'offre
-- **Section Portfolio** : exemples de réalisations (images depuis `sections`)
-- **Section Garantie** : mise en avant de la garantie remboursement
-- **Section Témoignages** : depuis `testimonials` de `offer_pages`
-- **Formulaire de réservation redesigné** :
-  - Calendrier visuel interactif (composant `Calendar` existant de shadcn)
-  - Quand une date est sélectionnée, appel à `check-availability` pour afficher les créneaux libres en temps réel
-  - Créneaux occupés grisés/désactivés
-  - Design en 2 colonnes : calendrier à gauche, créneaux + infos à droite
-  - Inputs nom/email/téléphone avec meilleur design
-- **Footer** : mentions légales, contact
+Problèmes identifiés dans le code :
 
-Le contenu spécifique (texte déménageur fourni par l'utilisateur) sera stocké dans `body_content`/`sections` de l'offer_page et rendu dynamiquement.
+- **Pipeline** (`PipelinePage.tsx`) : les colonnes ont `min-w-[160px] sm:min-w-[220px]` ce qui force un scroll horizontal large. Le conteneur overflow-x-auto avec `-mx-4 px-4` crée un comportement de zoom/dezoom. Corrections :
+  - Réduire `min-w` sur mobile à `140px`
+  - Ajouter `touch-action: pan-x` pour éviter les conflits de zoom
+  - Ajouter `overflow-x: hidden` sur le body en mobile pour empêcher le scroll horizontal global
 
-### 4. Mise à jour du back-office `OfferDetailPage`
+- **Dashboard** : les graphiques recharts débordent sur petit écran. Le PieChart avec labels textuels dépasse. Corrections :
+  - Masquer les labels du PieChart sur mobile, garder uniquement le tooltip
+  - Réduire la hauteur des charts sur mobile
+  - Empiler les stats 2x2 au lieu de 4 colonnes (déjà fait via `grid-cols-2`)
 
-Ajouter dans l'onglet "Landing Page" la possibilité d'éditer les sections riches :
+- **Layout global** (`AppLayout.tsx`) : ajouter `overflow-x-hidden` sur le `<main>` pour empêcher tout débordement horizontal
 
-- Pain points (liste de textes)
-- Garantie (texte)
-- Portfolio (images + descriptions)
-- Témoignages (nom, texte, note)
+- **index.css** : ajouter une règle globale `html, body { overflow-x: hidden; }` et `touch-action: manipulation` sur les conteneurs principaux pour éviter le double-tap zoom
 
-Cela permettra de personnaliser chaque landing page sans coder.
+## Fichiers modifiés
 
-## Détails techniques
+1. **Migration SQL** : nouvelle colonne `show_status`
+2. **`src/hooks/useLeadData.ts`** : type `DbLead` mis à jour
+3. **`src/components/LeadEditForm.tsx`** : select show/noshow ajouté
+4. **`src/pages/Dashboard.tsx`** : refonte complète des KPIs
+5. **`src/pages/PipelinePage.tsx`** : fixes mobile (min-width, touch-action)
+6. **`src/components/AppLayout.tsx`** : overflow-x-hidden sur main
+7. **`src/index.css`** : règles anti-zoom mobile
 
-- **Google FreeBusy API** : `POST https://www.googleapis.com/calendar/v3/freeBusy` avec `timeMin`/`timeMax` pour la journée, retourne les blocs occupés. On compare avec les slots prédéfinis pour filtrer.
-- **Timezone** : `Europe/Paris` partout (cohérent avec l'existant).
-- **Fallback** : si Google Calendar n'est pas connecté, on affiche tous les créneaux par défaut.
-- **Calendrier** : réutilisation du composant `Calendar` de shadcn (déjà dans le projet). Dates passées désactivées.
-- **Animations** : `framer-motion` pour les sections au scroll (déjà utilisé).
-- Le contenu "déménageur" fourni sera inséré comme contenu par défaut lors de la création ou via l'éditeur du back-office.
