@@ -197,7 +197,7 @@ export default function Dashboard() {
           label="Taux de qualification"
           value={qualificationRate}
           suffix="%"
-          subtitle={`${qualifiedPlus.length} qualifiés / ${qualifiablePool.length}`}
+          subtitle={`${interestedLeads.length} intéressés / ${interestedAndLost.length} total`}
           icon={UserCheck}
           gradient="from-indigo-500/20 to-indigo-600/5"
           iconColor="text-indigo-400"
