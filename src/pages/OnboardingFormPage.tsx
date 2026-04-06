@@ -123,7 +123,6 @@ const ADS_STEPS: FormStep[] = [
     fields: [
       { id: 'activity_type', label: "Type d'activité", type: 'text', hint: "Votre secteur d'activité principal. Ex : déménagement, plomberie, coaching sportif, agence immobilière." },
       { id: 'services', label: 'Services proposés', type: 'textarea', hint: "Listez tous les services que vous proposez, un par ligne. Ex :\n- Déménagement local\n- Garde-meuble\n- Nettoyage après déménagement" },
-      { id: 'avg_price', label: 'Prix moyen de vos services', type: 'text', hint: "Fourchette de prix habituelle de vos prestations. Ex : à partir de 500€, entre 1000€ et 5000€. Si vous avez des formules, indiquez chaque formule avec son prix." },
       { id: 'main_offer', label: 'Offre principale', type: 'textarea', hint: "Le service ou l'offre que vous souhaitez mettre en avant dans vos campagnes publicitaires." },
       { id: 'main_advantage', label: 'Avantage principal', type: 'text', hint: "Ce qui vous différencie de vos concurrents en une phrase. Ex : intervention en 2h, devis gratuit en 24h." },
       { id: 'client_guarantee', label: 'Garantie client', type: 'text', hint: "La garantie ou promesse que vous offrez à vos clients. Ex : satisfait ou remboursé, devis gratuit, garantie décennale." },
