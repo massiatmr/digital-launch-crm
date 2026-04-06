@@ -15,14 +15,11 @@ const mainLinks = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/', icon: Kanban, label: 'Pipeline' },
   { to: '/reminders', icon: Bell, label: 'Tâches' },
-  { to: '/leads', icon: Users, label: 'Leads' },
+  { to: '/offers', icon: Package, label: 'Offres' },
 ];
 
 const moreLinks = [
-  { to: '/offers', icon: Package, label: 'Offres' },
   { to: '/bookings', icon: CalendarCheck, label: 'Rendez-vous' },
-  { to: '/scripts', icon: Phone, label: 'Scripts' },
-  { to: '/sequences', icon: Zap, label: 'Séquences' },
 ];
 
 export function MobileBottomNav() {
