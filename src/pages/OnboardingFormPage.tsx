@@ -510,7 +510,7 @@ export default function OnboardingFormPage() {
           {steps.map((_, i) => (
             <button
               key={i}
-              onClick={() => { autoSave(); setCurrentStep(i); }}
+              onClick={() => { autoSave(); setCurrentStep(i); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
               className={`w-2.5 h-2.5 rounded-full transition-colors ${
                 i === currentStep ? 'bg-primary' : i < currentStep || skippedSteps[i] ? 'bg-primary/40' : 'bg-muted'
               }`}
