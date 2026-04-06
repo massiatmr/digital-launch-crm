@@ -38,11 +38,10 @@ const WEBSITE_STEPS: FormStep[] = [
     description: 'Nous avons besoin de ces informations pour créer votre fiche client et vous contacter facilement.',
     fields: [
       { id: 'company_name', label: "Nom de l'entreprise", type: 'text', hint: "Nom officiel de votre entreprise ou nom commercial utilisé par vos clients." },
-      { id: 'contact_name', label: 'Nom du contact', type: 'text', hint: "Prénom et nom de la personne qui sera notre interlocuteur principal sur ce projet." },
       { id: 'company_email', label: "Email de l'entreprise", type: 'email', hint: "Adresse email professionnelle de l'entreprise (pas votre email personnel). C'est l'adresse qui sera utilisée pour les communications avec vos clients." },
       { id: 'company_phone', label: "Téléphone de l'entreprise", type: 'tel', hint: "Numéro principal de l'entreprise, celui que vos clients utilisent pour vous joindre." },
       { id: 'company_whatsapp', label: "WhatsApp de l'entreprise", type: 'tel', hint: "Numéro WhatsApp professionnel de l'entreprise sur lequel vous souhaitez recevoir les demandes de vos clients et les leads générés." },
-      { id: 'current_website', label: 'Site web actuel', type: 'text', optional: true, placeholder: 'https://monsite.com', hint: "Si vous avez déjà un site web, indiquez l'adresse complète ici (incluant le nom de domaine). Sinon, laissez vide." },
+      { id: 'current_website', label: 'Site web actuel', type: 'text', optional: true, placeholder: 'https://monsite.com', hint: "Si vous avez déjà un site web, indiquez l'adresse complète ici. Sinon, laissez vide." },
     ],
   },
   {
@@ -111,7 +110,6 @@ const ADS_STEPS: FormStep[] = [
     description: 'Nous avons besoin de ces informations pour créer votre fiche client et vous contacter facilement.',
     fields: [
       { id: 'company_name', label: "Nom de l'entreprise", type: 'text', hint: "Nom officiel de votre entreprise ou nom commercial utilisé par vos clients." },
-      { id: 'contact_name', label: 'Nom du contact', type: 'text', hint: "Prénom et nom de la personne qui sera notre interlocuteur principal sur ce projet." },
       { id: 'company_email', label: "Email de l'entreprise", type: 'email', hint: "Adresse email professionnelle de l'entreprise (pas votre email personnel). C'est l'adresse qui sera utilisée pour les communications avec vos clients." },
       { id: 'company_phone', label: "Téléphone de l'entreprise", type: 'tel', hint: "Numéro principal de l'entreprise, celui que vos clients utilisent pour vous joindre." },
       { id: 'company_whatsapp', label: "WhatsApp de l'entreprise", type: 'tel', hint: "Numéro WhatsApp professionnel de l'entreprise sur lequel vous souhaitez recevoir les demandes de vos clients et les leads générés." },
@@ -125,7 +123,6 @@ const ADS_STEPS: FormStep[] = [
     fields: [
       { id: 'activity_type', label: "Type d'activité", type: 'text', hint: "Votre secteur d'activité principal. Ex : déménagement, plomberie, coaching sportif, agence immobilière." },
       { id: 'services', label: 'Services proposés', type: 'textarea', hint: "Listez tous les services que vous proposez, un par ligne. Ex :\n- Déménagement local\n- Garde-meuble\n- Nettoyage après déménagement" },
-      { id: 'avg_price', label: 'Prix moyen de vos services', type: 'text', hint: "Fourchette de prix habituelle de vos prestations. Ex : à partir de 500€, entre 1000€ et 5000€. Si vous avez des formules, indiquez chaque formule avec son prix." },
       { id: 'main_offer', label: 'Offre principale', type: 'textarea', hint: "Le service ou l'offre que vous souhaitez mettre en avant dans vos campagnes publicitaires." },
       { id: 'main_advantage', label: 'Avantage principal', type: 'text', hint: "Ce qui vous différencie de vos concurrents en une phrase. Ex : intervention en 2h, devis gratuit en 24h." },
       { id: 'client_guarantee', label: 'Garantie client', type: 'text', hint: "La garantie ou promesse que vous offrez à vos clients. Ex : satisfait ou remboursé, devis gratuit, garantie décennale." },
@@ -301,11 +298,15 @@ export default function OnboardingFormPage() {
     if (currentStep < steps.length - 1) {
       autoSave();
       setCurrentStep(s => s + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
   const handlePrev = () => {
-    if (currentStep > 0) setCurrentStep(s => s - 1);
+    if (currentStep > 0) {
+      setCurrentStep(s => s - 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handleComplete = async () => {
@@ -509,7 +510,7 @@ export default function OnboardingFormPage() {
           {steps.map((_, i) => (
             <button
               key={i}
-              onClick={() => { autoSave(); setCurrentStep(i); }}
+              onClick={() => { autoSave(); setCurrentStep(i); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
               className={`w-2.5 h-2.5 rounded-full transition-colors ${
                 i === currentStep ? 'bg-primary' : i < currentStep || skippedSteps[i] ? 'bg-primary/40' : 'bg-muted'
               }`}
