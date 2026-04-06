@@ -47,7 +47,7 @@ const WEBSITE_STEPS: FormStep[] = [
   },
   {
     title: 'Objectif du site',
-    description: 'Cela nous permet de comprendre ce que vous attendez de votre site web et de construire quelque chose d'adapté.',
+    description: "Cela nous permet de comprendre ce que vous attendez de votre site web et de construire quelque chose d'adapté.",
     fields: [
       { id: 'site_type', label: 'Type de site', type: 'radio', options: ['Landing page', 'Site vitrine', 'E-commerce', 'Autre'], hint: "Quel format de site correspond le mieux à votre besoin ? Une landing page est une page unique centrée sur une action, un site vitrine présente votre entreprise en plusieurs pages." },
       { id: 'main_goal', label: 'Objectif principal', type: 'radio', options: ['Générer des leads', "Présenter l'entreprise", 'Vendre', 'Prise de rendez-vous'], hint: "Que souhaitez-vous que les visiteurs fassent en arrivant sur votre site ?" },
