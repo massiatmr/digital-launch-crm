@@ -38,11 +38,10 @@ const WEBSITE_STEPS: FormStep[] = [
     description: 'Nous avons besoin de ces informations pour créer votre fiche client et vous contacter facilement.',
     fields: [
       { id: 'company_name', label: "Nom de l'entreprise", type: 'text', hint: "Nom officiel de votre entreprise ou nom commercial utilisé par vos clients." },
-      { id: 'contact_name', label: 'Nom du contact', type: 'text', hint: "Prénom et nom de la personne qui sera notre interlocuteur principal sur ce projet." },
       { id: 'company_email', label: "Email de l'entreprise", type: 'email', hint: "Adresse email professionnelle de l'entreprise (pas votre email personnel). C'est l'adresse qui sera utilisée pour les communications avec vos clients." },
       { id: 'company_phone', label: "Téléphone de l'entreprise", type: 'tel', hint: "Numéro principal de l'entreprise, celui que vos clients utilisent pour vous joindre." },
       { id: 'company_whatsapp', label: "WhatsApp de l'entreprise", type: 'tel', hint: "Numéro WhatsApp professionnel de l'entreprise sur lequel vous souhaitez recevoir les demandes de vos clients et les leads générés." },
-      { id: 'current_website', label: 'Site web actuel', type: 'text', optional: true, placeholder: 'https://monsite.com', hint: "Si vous avez déjà un site web, indiquez l'adresse complète ici (incluant le nom de domaine). Sinon, laissez vide." },
+      { id: 'current_website', label: 'Site web actuel', type: 'text', optional: true, placeholder: 'https://monsite.com', hint: "Si vous avez déjà un site web, indiquez l'adresse complète ici. Sinon, laissez vide." },
     ],
   },
   {
@@ -111,7 +110,6 @@ const ADS_STEPS: FormStep[] = [
     description: 'Nous avons besoin de ces informations pour créer votre fiche client et vous contacter facilement.',
     fields: [
       { id: 'company_name', label: "Nom de l'entreprise", type: 'text', hint: "Nom officiel de votre entreprise ou nom commercial utilisé par vos clients." },
-      { id: 'contact_name', label: 'Nom du contact', type: 'text', hint: "Prénom et nom de la personne qui sera notre interlocuteur principal sur ce projet." },
       { id: 'company_email', label: "Email de l'entreprise", type: 'email', hint: "Adresse email professionnelle de l'entreprise (pas votre email personnel). C'est l'adresse qui sera utilisée pour les communications avec vos clients." },
       { id: 'company_phone', label: "Téléphone de l'entreprise", type: 'tel', hint: "Numéro principal de l'entreprise, celui que vos clients utilisent pour vous joindre." },
       { id: 'company_whatsapp', label: "WhatsApp de l'entreprise", type: 'tel', hint: "Numéro WhatsApp professionnel de l'entreprise sur lequel vous souhaitez recevoir les demandes de vos clients et les leads générés." },
