@@ -301,11 +301,15 @@ export default function OnboardingFormPage() {
     if (currentStep < steps.length - 1) {
       autoSave();
       setCurrentStep(s => s + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
   const handlePrev = () => {
-    if (currentStep > 0) setCurrentStep(s => s - 1);
+    if (currentStep > 0) {
+      setCurrentStep(s => s - 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handleComplete = async () => {

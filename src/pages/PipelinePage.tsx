@@ -264,9 +264,10 @@ export default function PipelinePage() {
               email: lead.email || '',
               phone: lead.phone || '',
               whatsapp: lead.phone || '',
+              website: '',
               offer_id: lead.offer_id || null,
               status: 'signe' as any,
-              notes: lead.notes || '',
+              notes: [lead.notes, lead.message, lead.ai_summary, lead.sales_angle].filter(Boolean).join('\n\n') || '',
             } as any, {
               onSuccess: (data: any) => {
                 toast.success(`Client "${lead.name}" créé automatiquement`, {
