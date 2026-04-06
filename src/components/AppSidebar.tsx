@@ -12,9 +12,6 @@ const links = [
   { to: '/reminders', icon: Bell, label: 'Tâches' },
   { to: '/offers', icon: Package, label: 'Offres' },
   { to: '/bookings', icon: CalendarCheck, label: 'Rendez-vous' },
-  { to: '/leads', icon: Users, label: 'Leads' },
-  { to: '/scripts', icon: Phone, label: 'Scripts' },
-  { to: '/sequences', icon: Zap, label: 'Séquences' },
 ];
 
 export function AppSidebar() {
