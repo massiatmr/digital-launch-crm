@@ -376,10 +376,6 @@ export default function OnboardingFormPage() {
             <p className="text-sm text-muted-foreground mt-2">
               Cela prend environ <strong>5 à 7 minutes</strong>.
             </p>
-            <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
-              Certaines informations peuvent déjà avoir été partagées avec nous.
-              Si c'est le cas, vous pouvez simplement cocher <em>"information déjà partagée"</em> et passer à l'étape suivante.
-            </p>
             <p className="text-sm text-primary mt-2 font-medium">
               Plus les informations sont précises, meilleurs seront les résultats.
             </p>

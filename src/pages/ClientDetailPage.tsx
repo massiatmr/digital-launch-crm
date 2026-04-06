@@ -247,18 +247,65 @@ export default function ClientDetailPage() {
                 );
               })}
               {onboardings?.some(o => o.completed) && (
-                <div className="mt-4 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                <div className="mt-4 space-y-4">
                   <p className="text-sm font-medium text-primary">Réponses reçues</p>
-                  {onboardings.filter(o => o.completed).map(ob => (
-                    <details key={ob.id} className="mt-2">
-                      <summary className="text-sm cursor-pointer text-muted-foreground hover:text-foreground">
-                        {ob.form_type === 'website' ? 'Site Web' : 'Campagnes Pub'} — Voir les réponses
-                      </summary>
-                      <pre className="mt-2 p-3 rounded bg-muted text-xs overflow-auto max-h-60">
-                        {JSON.stringify(ob.responses, null, 2)}
-                      </pre>
-                    </details>
-                  ))}
+                  {onboardings.filter(o => o.completed).map(ob => {
+                    const formType = ob.form_type;
+                    const steps = formType === 'website' ? WEBSITE_FORM_LABELS : ADS_FORM_LABELS;
+                    const responses = ob.responses as Record<string, any>;
+                    return (
+                      <div key={ob.id} className="space-y-3">
+                        <h4 className="text-sm font-semibold border-b border-border pb-1">
+                          {formType === 'website' ? 'Site Web' : 'Campagnes Publicitaires'}
+                        </h4>
+                        {steps.map((step, stepIdx) => {
+                          const stepFields = step.fields.filter(f => {
+                            const key = `step${stepIdx}_${f.id}`;
+                            const val = responses[key];
+                            return val && val !== '' && !(typeof val === 'object' && !val.url);
+                          });
+                          if (stepFields.length === 0) return null;
+                          return (
+                            <Card key={stepIdx} className="p-4">
+                              <h5 className="text-sm font-medium mb-3">{step.title}</h5>
+                              <div className="space-y-2.5">
+                                {stepFields.map(f => {
+                                  const val = responses[`step${stepIdx}_${f.id}`];
+                                  return (
+                                    <div key={f.id} className="text-sm">
+                                      <span className="text-muted-foreground">{f.label} :</span>
+                                      <div className="mt-0.5">
+                                        {typeof val === 'string' ? (
+                                          <p className="whitespace-pre-wrap">{val}</p>
+                                        ) : Array.isArray(val) ? (
+                                          <div className="flex flex-wrap gap-1">
+                                            {val.map((v: string, i: number) => (
+                                              <Badge key={i} variant="secondary" className="text-xs">{v}</Badge>
+                                            ))}
+                                          </div>
+                                        ) : val?.url ? (
+                                          <a href={val.url} target="_blank" rel="noreferrer" className="text-primary underline text-xs">
+                                            {val.name || val.url}
+                                          </a>
+                                        ) : (
+                                          <p>{JSON.stringify(val)}</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </Card>
+                          );
+                        })}
+                        {responses._skippedSteps && Object.entries(responses._skippedSteps).some(([, v]) => v) && (
+                          <p className="text-xs text-muted-foreground italic">
+                            ℹ️ Certains accès techniques ont été marqués comme déjà partagés.
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
