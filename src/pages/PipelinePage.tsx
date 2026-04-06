@@ -1,5 +1,6 @@
 import { useLeads, useUpdateLead, type DbLead } from '@/hooks/useLeadData';
 import { useOffers } from '@/hooks/useOfferData';
+import { useCreateClient } from '@/hooks/useClientData';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadDetailContent } from '@/components/LeadDetailContent';
 import { QuickActionsMenu } from '@/components/QuickActionsMenu';
@@ -12,6 +13,7 @@ import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import {
   Sheet,
   SheetContent,
