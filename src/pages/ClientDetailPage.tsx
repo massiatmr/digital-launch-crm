@@ -1,0 +1,419 @@
+import { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Copy, ExternalLink, Plus, Trash2, Upload, Link as LinkIcon, FileText, Clock } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { toast } from 'sonner';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { supabase } from '@/integrations/supabase/client';
+import {
+  useClient, useUpdateClient, useDeleteClient,
+  useClientOnboarding, useCreateOnboarding,
+  useClientResources, useAddClientResource, useDeleteClientResource,
+  useClientActivities, useAddClientActivity,
+  getStatusLabel, type ClientStatus,
+} from '@/hooks/useClientData';
+import { useOffers } from '@/hooks/useOfferData';
+
+const ALL_STATUSES: ClientStatus[] = ['nouveau', 'signe', 'onboarding_envoye', 'onboarding_complete', 'en_preparation', 'en_cours', 'actif'];
+
+export default function ClientDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { data: client, isLoading } = useClient(id);
+  const { data: offers } = useOffers();
+  const { data: onboardings } = useClientOnboarding(id);
+  const { data: resources } = useClientResources(id);
+  const { data: activities } = useClientActivities(id);
+  const updateClient = useUpdateClient();
+  const deleteClient = useDeleteClient();
+  const createOnboarding = useCreateOnboarding();
+  const addResource = useAddClientResource();
+  const deleteResource = useDeleteClientResource();
+  const addActivity = useAddClientActivity();
+
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<any>({});
+  const [newAccess, setNewAccess] = useState({ service: '', login: '', password: '', url: '' });
+  const [newObjective, setNewObjective] = useState('');
+  const [resourceUrl, setResourceUrl] = useState('');
+  const [resourceName, setResourceName] = useState('');
+
+  if (isLoading) return <div className="text-center py-12 text-muted-foreground">Chargement...</div>;
+  if (!client) return <div className="text-center py-12 text-muted-foreground">Client introuvable</div>;
+
+  const startEdit = () => {
+    setForm({
+      name: client.name,
+      company_name: client.company_name || '',
+      email: client.email || '',
+      phone: client.phone || '',
+      whatsapp: client.whatsapp || '',
+      website: client.website || '',
+      status: client.status,
+      offer_id: client.offer_id || '',
+      notes: client.notes || '',
+    });
+    setEditing(true);
+  };
+
+  const saveEdit = async () => {
+    const oldStatus = client.status;
+    await updateClient.mutateAsync({ id: client.id, ...form });
+    if (form.status !== oldStatus) {
+      addActivity.mutate({ client_id: client.id, action: 'status_change', description: `Statut changé de "${getStatusLabel(oldStatus)}" à "${getStatusLabel(form.status)}"` });
+    }
+    setEditing(false);
+  };
+
+  const handleSendOnboarding = async (formType: 'website' | 'ads') => {
+    const existing = onboardings?.find(o => o.form_type === formType);
+    if (existing) {
+      const url = `${window.location.origin}/onboarding/${formType}?token=${existing.token}`;
+      navigator.clipboard.writeText(url);
+      toast.success('Lien copié !');
+      return;
+    }
+    const result = await createOnboarding.mutateAsync({ client_id: client.id, form_type: formType });
+    const url = `${window.location.origin}/onboarding/${formType}?token=${result.token}`;
+    navigator.clipboard.writeText(url);
+    toast.success('Formulaire créé et lien copié !');
+    if (client.status === 'signe' || client.status === 'nouveau') {
+      updateClient.mutate({ id: client.id, status: 'onboarding_envoye' as any });
+    }
+    addActivity.mutate({ client_id: client.id, action: 'onboarding_sent', description: `Formulaire ${formType === 'website' ? 'Site Web' : 'Campagnes Pub'} envoyé` });
+  };
+
+  const handleAddAccess = () => {
+    if (!newAccess.service) return;
+    const accesses = [...(client.technical_accesses || []), newAccess];
+    updateClient.mutate({ id: client.id, technical_accesses: accesses } as any);
+    setNewAccess({ service: '', login: '', password: '', url: '' });
+  };
+
+  const handleRemoveAccess = (idx: number) => {
+    const accesses = [...(client.technical_accesses || [])];
+    accesses.splice(idx, 1);
+    updateClient.mutate({ id: client.id, technical_accesses: accesses } as any);
+  };
+
+  const handleAddObjective = () => {
+    if (!newObjective) return;
+    const objectives = [...(client.objectives || []), { text: newObjective, done: false }];
+    updateClient.mutate({ id: client.id, objectives } as any);
+    setNewObjective('');
+  };
+
+  const handleToggleObjective = (idx: number) => {
+    const objectives = [...(client.objectives || [])];
+    objectives[idx] = { ...objectives[idx], done: !objectives[idx].done };
+    updateClient.mutate({ id: client.id, objectives } as any);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const path = `${client.id}/${Date.now()}-${file.name}`;
+    const { error } = await supabase.storage.from('client-resources').upload(path, file);
+    if (error) { toast.error('Erreur upload'); return; }
+    const { data: urlData } = supabase.storage.from('client-resources').getPublicUrl(path);
+    addResource.mutate({ client_id: client.id, name: file.name, resource_type: 'file', url: urlData.publicUrl, storage_path: path, category: 'document' });
+  };
+
+  const handleAddLink = () => {
+    if (!resourceUrl || !resourceName) return;
+    addResource.mutate({ client_id: client.id, name: resourceName, resource_type: 'link', url: resourceUrl, category: 'link' });
+    setResourceUrl('');
+    setResourceName('');
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => navigate('/clients')}><ArrowLeft className="h-4 w-4" /></Button>
+        <div className="flex-1">
+          <h1 className="text-xl font-bold">{client.name}</h1>
+          {client.company_name && <p className="text-sm text-muted-foreground">{client.company_name}</p>}
+        </div>
+        <Badge variant="outline" className="text-xs">{getStatusLabel(client.status)}</Badge>
+      </div>
+
+      <Tabs defaultValue="general" className="space-y-4">
+        <TabsList className="flex flex-wrap h-auto gap-1">
+          <TabsTrigger value="general">Général</TabsTrigger>
+          <TabsTrigger value="onboarding">Onboarding</TabsTrigger>
+          <TabsTrigger value="resources">Ressources</TabsTrigger>
+          <TabsTrigger value="accesses">Accès</TabsTrigger>
+          <TabsTrigger value="objectives">Objectifs</TabsTrigger>
+          <TabsTrigger value="documents">Documents</TabsTrigger>
+          <TabsTrigger value="history">Historique</TabsTrigger>
+        </TabsList>
+
+        {/* GENERAL */}
+        <TabsContent value="general">
+          <Card>
+            <CardHeader className="flex-row items-center justify-between">
+              <CardTitle className="text-base">Informations générales</CardTitle>
+              {!editing ? (
+                <Button variant="outline" size="sm" onClick={startEdit}>Modifier</Button>
+              ) : (
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={saveEdit} disabled={updateClient.isPending}>Sauvegarder</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>Annuler</Button>
+                </div>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {editing ? (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div><Label>Nom</Label><Input value={form.name} onChange={e => setForm((p: any) => ({ ...p, name: e.target.value }))} /></div>
+                    <div><Label>Entreprise</Label><Input value={form.company_name} onChange={e => setForm((p: any) => ({ ...p, company_name: e.target.value }))} /></div>
+                    <div><Label>Email</Label><Input value={form.email} onChange={e => setForm((p: any) => ({ ...p, email: e.target.value }))} /></div>
+                    <div><Label>Téléphone</Label><Input value={form.phone} onChange={e => setForm((p: any) => ({ ...p, phone: e.target.value }))} /></div>
+                    <div><Label>WhatsApp</Label><Input value={form.whatsapp} onChange={e => setForm((p: any) => ({ ...p, whatsapp: e.target.value }))} /></div>
+                    <div><Label>Site web</Label><Input value={form.website} onChange={e => setForm((p: any) => ({ ...p, website: e.target.value }))} /></div>
+                  </div>
+                  <div>
+                    <Label>Statut</Label>
+                    <Select value={form.status} onValueChange={v => setForm((p: any) => ({ ...p, status: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{ALL_STATUSES.map(s => <SelectItem key={s} value={s}>{getStatusLabel(s)}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Offre signée</Label>
+                    <Select value={form.offer_id} onValueChange={v => setForm((p: any) => ({ ...p, offer_id: v }))}>
+                      <SelectTrigger><SelectValue placeholder="Sélectionner" /></SelectTrigger>
+                      <SelectContent>{offers?.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm((p: any) => ({ ...p, notes: e.target.value }))} /></div>
+                </>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                  <div><span className="text-muted-foreground">Email:</span> {client.email || '—'}</div>
+                  <div><span className="text-muted-foreground">Téléphone:</span> {client.phone || '—'}</div>
+                  <div><span className="text-muted-foreground">WhatsApp:</span> {client.whatsapp || '—'}</div>
+                  <div><span className="text-muted-foreground">Site web:</span> {client.website || '—'}</div>
+                  <div><span className="text-muted-foreground">Offre:</span> {client.offers?.name || '—'}</div>
+                  <div><span className="text-muted-foreground">Créé le:</span> {format(new Date(client.created_at), 'dd MMM yyyy', { locale: fr })}</div>
+                  {client.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {client.notes}</div>}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ONBOARDING */}
+        <TabsContent value="onboarding">
+          <Card>
+            <CardHeader><CardTitle className="text-base">Formulaires d'onboarding</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              {(['website', 'ads'] as const).map(ft => {
+                const ob = onboardings?.find(o => o.form_type === ft);
+                const label = ft === 'website' ? 'Onboarding Site Web' : 'Onboarding Campagnes Pub';
+                return (
+                  <div key={ft} className="flex items-center justify-between p-3 rounded-lg border border-border">
+                    <div>
+                      <p className="font-medium text-sm">{label}</p>
+                      {ob && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {ob.completed ? '✅ Complété' : '⏳ En attente'} — {format(new Date(ob.updated_at), 'dd/MM/yyyy HH:mm')}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      {ob && (
+                        <Button variant="outline" size="sm" onClick={() => {
+                          navigator.clipboard.writeText(`${window.location.origin}/onboarding/${ft}?token=${ob.token}`);
+                          toast.success('Lien copié !');
+                        }}>
+                          <Copy className="h-3 w-3 mr-1" />Copier le lien
+                        </Button>
+                      )}
+                      <Button size="sm" onClick={() => handleSendOnboarding(ft)}>
+                        {ob ? 'Renvoyer' : 'Créer et copier'}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+              {onboardings?.some(o => o.completed) && (
+                <div className="mt-4 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                  <p className="text-sm font-medium text-primary">Réponses reçues</p>
+                  {onboardings.filter(o => o.completed).map(ob => (
+                    <details key={ob.id} className="mt-2">
+                      <summary className="text-sm cursor-pointer text-muted-foreground hover:text-foreground">
+                        {ob.form_type === 'website' ? 'Site Web' : 'Campagnes Pub'} — Voir les réponses
+                      </summary>
+                      <pre className="mt-2 p-3 rounded bg-muted text-xs overflow-auto max-h-60">
+                        {JSON.stringify(ob.responses, null, 2)}
+                      </pre>
+                    </details>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* RESOURCES */}
+        <TabsContent value="resources">
+          <Card>
+            <CardHeader><CardTitle className="text-base">Ressources</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <label className="cursor-pointer">
+                  <input type="file" className="hidden" onChange={handleFileUpload} />
+                  <Button variant="outline" size="sm" asChild><span><Upload className="h-3 w-3 mr-1" />Upload fichier</span></Button>
+                </label>
+              </div>
+              <div className="flex gap-2 items-end">
+                <div className="flex-1"><Label>Nom</Label><Input value={resourceName} onChange={e => setResourceName(e.target.value)} placeholder="Nom de la ressource" /></div>
+                <div className="flex-1"><Label>Lien</Label><Input value={resourceUrl} onChange={e => setResourceUrl(e.target.value)} placeholder="https://drive.google.com/..." /></div>
+                <Button size="sm" onClick={handleAddLink} disabled={!resourceUrl || !resourceName}><LinkIcon className="h-3 w-3 mr-1" />Ajouter</Button>
+              </div>
+              {resources?.length ? (
+                <div className="space-y-2">
+                  {resources.map(r => (
+                    <div key={r.id} className="flex items-center justify-between p-2 rounded border border-border text-sm">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {r.resource_type === 'file' ? <FileText className="h-4 w-4 text-muted-foreground shrink-0" /> : <LinkIcon className="h-4 w-4 text-muted-foreground shrink-0" />}
+                        <span className="truncate">{r.name}</span>
+                      </div>
+                      <div className="flex gap-1">
+                        {r.url && <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(r.url!, '_blank')}><ExternalLink className="h-3 w-3" /></Button>}
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteResource.mutate({ id: r.id, client_id: client.id })}><Trash2 className="h-3 w-3" /></Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">Aucune ressource</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ACCESSES */}
+        <TabsContent value="accesses">
+          <Card>
+            <CardHeader><CardTitle className="text-base">Accès techniques</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              {(client.technical_accesses || []).map((a: any, i: number) => (
+                <div key={i} className="p-3 rounded-lg border border-border space-y-1">
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-sm">{a.service}</p>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleRemoveAccess(i)}><Trash2 className="h-3 w-3" /></Button>
+                  </div>
+                  {a.url && <p className="text-xs text-muted-foreground">URL: {a.url}</p>}
+                  {a.login && <p className="text-xs text-muted-foreground">Login: {a.login}</p>}
+                  {a.password && <p className="text-xs text-muted-foreground">Mot de passe: {a.password}</p>}
+                </div>
+              ))}
+              <div className="grid grid-cols-2 gap-2">
+                <Input placeholder="Service (ex: Hébergement)" value={newAccess.service} onChange={e => setNewAccess(p => ({ ...p, service: e.target.value }))} />
+                <Input placeholder="URL" value={newAccess.url} onChange={e => setNewAccess(p => ({ ...p, url: e.target.value }))} />
+                <Input placeholder="Login" value={newAccess.login} onChange={e => setNewAccess(p => ({ ...p, login: e.target.value }))} />
+                <Input placeholder="Mot de passe" value={newAccess.password} onChange={e => setNewAccess(p => ({ ...p, password: e.target.value }))} />
+              </div>
+              <Button size="sm" onClick={handleAddAccess} disabled={!newAccess.service}><Plus className="h-3 w-3 mr-1" />Ajouter un accès</Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* OBJECTIVES */}
+        <TabsContent value="objectives">
+          <Card>
+            <CardHeader><CardTitle className="text-base">Objectifs</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              {(client.objectives || []).map((o: any, i: number) => (
+                <div key={i} className="flex items-center gap-3 p-2 rounded border border-border">
+                  <input type="checkbox" checked={o.done} onChange={() => handleToggleObjective(i)} className="accent-primary" />
+                  <span className={`text-sm flex-1 ${o.done ? 'line-through text-muted-foreground' : ''}`}>{o.text}</span>
+                </div>
+              ))}
+              <div className="flex gap-2">
+                <Input placeholder="Nouvel objectif" value={newObjective} onChange={e => setNewObjective(e.target.value)} />
+                <Button size="sm" onClick={handleAddObjective} disabled={!newObjective}><Plus className="h-3 w-3 mr-1" />Ajouter</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* DOCUMENTS */}
+        <TabsContent value="documents">
+          <Card>
+            <CardHeader><CardTitle className="text-base">Documents</CardTitle></CardHeader>
+            <CardContent>
+              <div className="flex gap-2 mb-4">
+                <label className="cursor-pointer">
+                  <input type="file" className="hidden" onChange={handleFileUpload} />
+                  <Button variant="outline" size="sm" asChild><span><Upload className="h-3 w-3 mr-1" />Upload document</span></Button>
+                </label>
+              </div>
+              {resources?.filter(r => r.category === 'document' || r.resource_type === 'file').length ? (
+                <div className="space-y-2">
+                  {resources.filter(r => r.category === 'document' || r.resource_type === 'file').map(r => (
+                    <div key={r.id} className="flex items-center justify-between p-2 rounded border border-border text-sm">
+                      <div className="flex items-center gap-2"><FileText className="h-4 w-4 text-muted-foreground" /><span>{r.name}</span></div>
+                      <div className="flex gap-1">
+                        {r.url && <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(r.url!, '_blank')}><ExternalLink className="h-3 w-3" /></Button>}
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteResource.mutate({ id: r.id, client_id: client.id })}><Trash2 className="h-3 w-3" /></Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">Aucun document</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* HISTORY */}
+        <TabsContent value="history">
+          <Card>
+            <CardHeader><CardTitle className="text-base">Historique</CardTitle></CardHeader>
+            <CardContent>
+              {activities?.length ? (
+                <div className="space-y-3">
+                  {activities.map(a => (
+                    <div key={a.id} className="flex gap-3 text-sm">
+                      <Clock className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                      <div>
+                        <p>{a.description || a.action}</p>
+                        <p className="text-xs text-muted-foreground">{format(new Date(a.created_at), 'dd/MM/yyyy HH:mm', { locale: fr })}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">Aucune activité</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      <div className="flex justify-end">
+        <Button variant="destructive" size="sm" onClick={async () => {
+          if (confirm('Supprimer ce client ?')) {
+            await deleteClient.mutateAsync(client.id);
+            navigate('/clients');
+          }
+        }}>
+          <Trash2 className="h-3 w-3 mr-1" />Supprimer le client
+        </Button>
+      </div>
+    </div>
+  );
+}
