@@ -24,6 +24,30 @@ import { useOffers } from '@/hooks/useOfferData';
 
 const ALL_STATUSES: ClientStatus[] = ['nouveau', 'signe', 'onboarding_envoye', 'onboarding_complete', 'en_preparation', 'en_cours', 'actif'];
 
+type FormLabel = { title: string; fields: { id: string; label: string }[] };
+
+const WEBSITE_FORM_LABELS: FormLabel[] = [
+  { title: 'Informations générales', fields: [{ id: 'company_name', label: "Nom de l'entreprise" }, { id: 'contact_name', label: 'Nom du contact' }, { id: 'company_email', label: "Email de l'entreprise" }, { id: 'company_phone', label: "Téléphone de l'entreprise" }, { id: 'company_whatsapp', label: "WhatsApp de l'entreprise" }, { id: 'current_website', label: 'Site web actuel' }] },
+  { title: 'Objectif du site', fields: [{ id: 'site_type', label: 'Type de site' }, { id: 'main_goal', label: 'Objectif principal' }, { id: 'main_service', label: 'Service principal' }, { id: 'main_offer', label: 'Offre principale' }, { id: 'expected_result', label: 'Résultat attendu' }] },
+  { title: 'Offre et contenu', fields: [{ id: 'services', label: 'Services proposés' }, { id: 'avg_price', label: 'Prix moyen' }, { id: 'main_advantage', label: 'Avantage principal' }, { id: 'why_choose', label: 'Pourquoi vous choisir' }, { id: 'testimonials', label: 'Témoignages' }] },
+  { title: 'Design', fields: [{ id: 'logo', label: 'Logo' }, { id: 'brand_colors', label: 'Couleurs de la marque' }, { id: 'reference_sites', label: 'Sites de référence' }, { id: 'style', label: 'Style souhaité' }] },
+  { title: 'Fonctionnalités', fields: [{ id: 'features', label: 'Fonctionnalités' }] },
+  { title: 'Accès techniques', fields: [{ id: 'hosting_access', label: 'Accès hébergement' }, { id: 'wordpress_access', label: 'Accès CMS / WordPress' }, { id: 'email_access', label: 'Accès email professionnel' }] },
+  { title: 'Ressources', fields: [{ id: 'photos', label: 'Photos' }, { id: 'videos', label: 'Vidéos' }, { id: 'commercial_docs', label: 'Documents commerciaux' }] },
+];
+
+const ADS_FORM_LABELS: FormLabel[] = [
+  { title: 'Informations générales', fields: [{ id: 'company_name', label: "Nom de l'entreprise" }, { id: 'contact_name', label: 'Nom du contact' }, { id: 'company_email', label: "Email" }, { id: 'company_phone', label: "Téléphone" }, { id: 'company_whatsapp', label: "WhatsApp" }, { id: 'website', label: 'Site web' }, { id: 'landing_page', label: 'Landing page' }] },
+  { title: 'Activité', fields: [{ id: 'activity_type', label: "Type d'activité" }, { id: 'services', label: 'Services proposés' }, { id: 'avg_price', label: 'Prix moyen' }, { id: 'main_offer', label: 'Offre principale' }, { id: 'main_advantage', label: 'Avantage principal' }, { id: 'client_guarantee', label: 'Garantie client' }] },
+  { title: 'Offre à promouvoir', fields: [{ id: 'promoted_offer', label: 'Offre à promouvoir' }, { id: 'main_message', label: 'Message principal' }, { id: 'current_promo', label: 'Promotion actuelle' }, { id: 'special_offer', label: 'Offre spéciale' }, { id: 'why_choose', label: 'Pourquoi vous choisir' }] },
+  { title: 'Zone géographique', fields: [{ id: 'main_city', label: 'Ville principale' }, { id: 'served_areas', label: 'Zones desservies' }, { id: 'max_distance', label: 'Distance maximale' }, { id: 'most_profitable_area', label: 'Zone la plus rentable' }] },
+  { title: 'Client cible', fields: [{ id: 'client_type', label: 'Type de clients' }, { id: 'ideal_client', label: 'Client idéal' }, { id: 'min_budget', label: 'Budget minimum client' }, { id: 'request_type', label: 'Type de demande' }, { id: 'avoid_clients', label: 'Clients à éviter' }] },
+  { title: 'Objectifs', fields: [{ id: 'main_objective', label: 'Objectif principal' }, { id: 'monthly_leads', label: 'Leads/mois' }, { id: 'monthly_clients', label: 'Clients/mois' }, { id: 'monthly_budget', label: 'Budget pub/mois' }] },
+  { title: 'Gestion des leads', fields: [{ id: 'who_responds', label: 'Qui répond' }, { id: 'response_time', label: 'Temps de réponse' }, { id: 'main_contact_method', label: 'Contact préféré' }, { id: 'availability', label: 'Disponibilité' }] },
+  { title: 'Contenu marketing', fields: [{ id: 'photos', label: 'Photos' }, { id: 'videos', label: 'Vidéos' }, { id: 'testimonials', label: 'Témoignages' }, { id: 'logo', label: 'Logo' }, { id: 'commercial_docs', label: 'Documents commerciaux' }] },
+  { title: 'Accès techniques', fields: [{ id: 'fb_business_manager', label: 'Business Manager' }, { id: 'fb_page', label: 'Page Facebook' }, { id: 'ad_account', label: 'Compte publicitaire' }, { id: 'pixel', label: 'Pixel Facebook' }, { id: 'site_access', label: 'Accès site web' }, { id: 'google_analytics', label: 'Google Analytics' }, { id: 'google_tag_manager', label: 'Google Tag Manager' }] },
+];
+
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -247,18 +271,65 @@ export default function ClientDetailPage() {
                 );
               })}
               {onboardings?.some(o => o.completed) && (
-                <div className="mt-4 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                <div className="mt-4 space-y-4">
                   <p className="text-sm font-medium text-primary">Réponses reçues</p>
-                  {onboardings.filter(o => o.completed).map(ob => (
-                    <details key={ob.id} className="mt-2">
-                      <summary className="text-sm cursor-pointer text-muted-foreground hover:text-foreground">
-                        {ob.form_type === 'website' ? 'Site Web' : 'Campagnes Pub'} — Voir les réponses
-                      </summary>
-                      <pre className="mt-2 p-3 rounded bg-muted text-xs overflow-auto max-h-60">
-                        {JSON.stringify(ob.responses, null, 2)}
-                      </pre>
-                    </details>
-                  ))}
+                  {onboardings.filter(o => o.completed).map(ob => {
+                    const formType = ob.form_type;
+                    const steps = formType === 'website' ? WEBSITE_FORM_LABELS : ADS_FORM_LABELS;
+                    const responses = ob.responses as Record<string, any>;
+                    return (
+                      <div key={ob.id} className="space-y-3">
+                        <h4 className="text-sm font-semibold border-b border-border pb-1">
+                          {formType === 'website' ? 'Site Web' : 'Campagnes Publicitaires'}
+                        </h4>
+                        {steps.map((step, stepIdx) => {
+                          const stepFields = step.fields.filter(f => {
+                            const key = `step${stepIdx}_${f.id}`;
+                            const val = responses[key];
+                            return val && val !== '' && !(typeof val === 'object' && !val.url);
+                          });
+                          if (stepFields.length === 0) return null;
+                          return (
+                            <Card key={stepIdx} className="p-4">
+                              <h5 className="text-sm font-medium mb-3">{step.title}</h5>
+                              <div className="space-y-2.5">
+                                {stepFields.map(f => {
+                                  const val = responses[`step${stepIdx}_${f.id}`];
+                                  return (
+                                    <div key={f.id} className="text-sm">
+                                      <span className="text-muted-foreground">{f.label} :</span>
+                                      <div className="mt-0.5">
+                                        {typeof val === 'string' ? (
+                                          <p className="whitespace-pre-wrap">{val}</p>
+                                        ) : Array.isArray(val) ? (
+                                          <div className="flex flex-wrap gap-1">
+                                            {val.map((v: string, i: number) => (
+                                              <Badge key={i} variant="secondary" className="text-xs">{v}</Badge>
+                                            ))}
+                                          </div>
+                                        ) : val?.url ? (
+                                          <a href={val.url} target="_blank" rel="noreferrer" className="text-primary underline text-xs">
+                                            {val.name || val.url}
+                                          </a>
+                                        ) : (
+                                          <p>{JSON.stringify(val)}</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </Card>
+                          );
+                        })}
+                        {responses._skippedSteps && Object.entries(responses._skippedSteps).some(([, v]) => v) && (
+                          <p className="text-xs text-muted-foreground italic">
+                            ℹ️ Certains accès techniques ont été marqués comme déjà partagés.
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
