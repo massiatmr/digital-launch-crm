@@ -118,6 +118,188 @@ export type Database = {
           },
         ]
       }
+      client_activities: {
+        Row: {
+          action: string
+          client_id: string
+          created_at: string
+          description: string | null
+          id: string
+          owner_id: string
+        }
+        Insert: {
+          action: string
+          client_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          owner_id?: string
+        }
+        Update: {
+          action?: string
+          client_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          owner_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_activities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_onboarding_responses: {
+        Row: {
+          client_id: string
+          completed: boolean
+          created_at: string
+          form_type: Database["public"]["Enums"]["onboarding_form_type"]
+          id: string
+          responses: Json
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          completed?: boolean
+          created_at?: string
+          form_type: Database["public"]["Enums"]["onboarding_form_type"]
+          id?: string
+          responses?: Json
+          token?: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          completed?: boolean
+          created_at?: string
+          form_type?: Database["public"]["Enums"]["onboarding_form_type"]
+          id?: string
+          responses?: Json
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_onboarding_responses_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_resources: {
+        Row: {
+          category: string | null
+          client_id: string
+          created_at: string
+          id: string
+          name: string
+          owner_id: string
+          resource_type: string
+          storage_path: string | null
+          url: string | null
+        }
+        Insert: {
+          category?: string | null
+          client_id: string
+          created_at?: string
+          id?: string
+          name: string
+          owner_id?: string
+          resource_type?: string
+          storage_path?: string | null
+          url?: string | null
+        }
+        Update: {
+          category?: string | null
+          client_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          owner_id?: string
+          resource_type?: string
+          storage_path?: string | null
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_resources_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clients: {
+        Row: {
+          company_name: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          objectives: Json | null
+          offer_id: string | null
+          owner_id: string
+          phone: string | null
+          status: Database["public"]["Enums"]["client_status"]
+          technical_accesses: Json | null
+          updated_at: string
+          website: string | null
+          whatsapp: string | null
+        }
+        Insert: {
+          company_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          objectives?: Json | null
+          offer_id?: string | null
+          owner_id?: string
+          phone?: string | null
+          status?: Database["public"]["Enums"]["client_status"]
+          technical_accesses?: Json | null
+          updated_at?: string
+          website?: string | null
+          whatsapp?: string | null
+        }
+        Update: {
+          company_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          objectives?: Json | null
+          offer_id?: string | null
+          owner_id?: string
+          phone?: string | null
+          status?: Database["public"]["Enums"]["client_status"]
+          technical_accesses?: Json | null
+          updated_at?: string
+          website?: string | null
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clients_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "offers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_send_log: {
         Row: {
           created_at: string
@@ -622,6 +804,14 @@ export type Database = {
         | "12h_before"
         | "1h_before"
       booking_status: "pending" | "confirmed" | "cancelled" | "completed"
+      client_status:
+        | "nouveau"
+        | "signe"
+        | "onboarding_envoye"
+        | "onboarding_complete"
+        | "en_preparation"
+        | "en_cours"
+        | "actif"
       lead_score: "hot" | "warm" | "cold"
       lead_source: "facebook" | "website" | "google_sheets" | "manual" | "other"
       lead_status:
@@ -633,6 +823,7 @@ export type Database = {
         | "lost"
         | "ghost"
       message_type: "whatsapp" | "email" | "sms"
+      onboarding_form_type: "website" | "ads"
       show_status: "pending" | "show" | "noshow"
     }
     CompositeTypes: {
@@ -776,6 +967,15 @@ export const Constants = {
         "1h_before",
       ],
       booking_status: ["pending", "confirmed", "cancelled", "completed"],
+      client_status: [
+        "nouveau",
+        "signe",
+        "onboarding_envoye",
+        "onboarding_complete",
+        "en_preparation",
+        "en_cours",
+        "actif",
+      ],
       lead_score: ["hot", "warm", "cold"],
       lead_source: ["facebook", "website", "google_sheets", "manual", "other"],
       lead_status: [
@@ -788,6 +988,7 @@ export const Constants = {
         "ghost",
       ],
       message_type: ["whatsapp", "email", "sms"],
+      onboarding_form_type: ["website", "ads"],
       show_status: ["pending", "show", "noshow"],
     },
   },
