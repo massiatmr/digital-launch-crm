@@ -22,10 +22,12 @@ interface FormField {
   options?: string[];
   optional?: boolean;
   placeholder?: string;
+  hint?: string;
 }
 
 interface FormStep {
   title: string;
+  description?: string;
   skipCheckbox?: string;
   fields: FormField[];
 }
@@ -33,71 +35,75 @@ interface FormStep {
 const WEBSITE_STEPS: FormStep[] = [
   {
     title: 'Informations générales',
+    description: 'Nous avons besoin de ces informations pour créer votre fiche client et vous contacter facilement.',
     fields: [
-      { id: 'company_name', label: "Nom de l'entreprise", type: 'text' },
-      { id: 'contact_name', label: 'Nom du contact', type: 'text' },
-      { id: 'email', label: 'Email', type: 'email' },
-      { id: 'phone', label: 'Téléphone', type: 'tel' },
-      { id: 'whatsapp', label: 'WhatsApp', type: 'tel' },
-      { id: 'current_website', label: 'Site web actuel', type: 'text', optional: true, placeholder: 'https://...' },
-      { id: 'domain', label: 'Domaine', type: 'text', optional: true, placeholder: 'monsite.com' },
+      { id: 'company_name', label: "Nom de l'entreprise", type: 'text', hint: "Nom officiel de votre entreprise ou nom commercial utilisé par vos clients." },
+      { id: 'contact_name', label: 'Nom du contact', type: 'text', hint: "Prénom et nom de la personne responsable du projet." },
+      { id: 'company_email', label: "Email de l'entreprise", type: 'email', hint: "Email principal utilisé pour la communication avec les clients et la réception des demandes." },
+      { id: 'company_phone', label: "Numéro de téléphone de l'entreprise", type: 'tel', hint: "Numéro principal de l'entreprise utilisé pour être contacté par les clients." },
+      { id: 'company_whatsapp', label: "WhatsApp de l'entreprise", type: 'tel', hint: "Numéro WhatsApp sur lequel vous souhaitez recevoir les demandes clients et les leads." },
+      { id: 'current_website', label: 'Site web actuel', type: 'text', optional: true, placeholder: 'https://...', hint: "Si vous avez déjà un site web, indiquez l'adresse ici." },
+      { id: 'domain', label: 'Domaine', type: 'text', optional: true, placeholder: 'monsite.com', hint: "Nom de domaine que vous possédez ou souhaitez utiliser pour le nouveau site." },
     ],
   },
   {
     title: 'Objectif du site',
+    description: 'Cela nous permet de comprendre ce que vous attendez de votre site web.',
     fields: [
-      { id: 'site_type', label: 'Type de site', type: 'radio', options: ['Landing page', 'Site vitrine', 'E-commerce', 'Autre'] },
-      { id: 'main_goal', label: 'Objectif principal', type: 'radio', options: ['Générer des leads', "Présenter l'entreprise", 'Vendre', 'Prise de rendez-vous'] },
-      { id: 'main_service', label: 'Service principal', type: 'text' },
-      { id: 'main_offer', label: 'Offre principale à mettre en avant', type: 'textarea' },
-      { id: 'expected_result', label: 'Résultat attendu avec le site', type: 'textarea' },
+      { id: 'site_type', label: 'Type de site', type: 'radio', options: ['Landing page', 'Site vitrine', 'E-commerce', 'Autre'], hint: "Quel type de site correspond le mieux à votre besoin ?" },
+      { id: 'main_goal', label: 'Objectif principal', type: 'radio', options: ['Générer des leads', "Présenter l'entreprise", 'Vendre', 'Prise de rendez-vous'], hint: "Qu'attendez-vous principalement de votre site ?" },
+      { id: 'main_service', label: 'Service principal', type: 'text', hint: "Le service ou l'activité principale que le site doit mettre en avant." },
+      { id: 'main_offer', label: 'Offre principale à mettre en avant', type: 'textarea', hint: "Service ou offre que vous souhaitez mettre en avant sur le site." },
+      { id: 'expected_result', label: 'Résultat attendu avec le site', type: 'textarea', hint: "Décrivez concrètement ce que vous espérez obtenir grâce au site." },
     ],
   },
   {
     title: 'Offre et contenu',
-    skipCheckbox: 'Informations déjà partagées',
+    description: 'Cela nous permet de comprendre votre service et de créer un contenu adapté.',
     fields: [
-      { id: 'services', label: 'Services proposés', type: 'textarea' },
-      { id: 'avg_price', label: 'Prix moyen', type: 'text' },
-      { id: 'main_offer_detail', label: 'Offre principale', type: 'textarea' },
-      { id: 'main_advantage', label: 'Avantage principal', type: 'text' },
-      { id: 'why_choose', label: 'Pourquoi les clients vous choisissent', type: 'textarea' },
-      { id: 'testimonials', label: 'Témoignages', type: 'textarea', optional: true },
+      { id: 'services', label: 'Services proposés', type: 'textarea', hint: "Listez les principaux services que vous proposez à vos clients." },
+      { id: 'avg_price', label: 'Prix moyen', type: 'text', hint: "Fourchette de prix moyenne de vos services. Ex : 500€ - 2000€." },
+      { id: 'main_offer_detail', label: 'Offre principale', type: 'textarea', hint: "Service ou offre que vous souhaitez mettre en avant dans la campagne ou sur le site." },
+      { id: 'main_advantage', label: 'Avantage principal', type: 'text', hint: "Ce qui vous différencie de vos concurrents en une phrase." },
+      { id: 'why_choose', label: 'Pourquoi les clients vous choisissent', type: 'textarea', hint: "Les raisons principales pour lesquelles vos clients font appel à vous." },
+      { id: 'testimonials', label: 'Témoignages', type: 'textarea', optional: true, hint: "Copiez-collez ici des avis ou témoignages de vos clients satisfaits." },
     ],
   },
   {
     title: 'Design',
-    skipCheckbox: 'Logo et design déjà partagés',
+    description: 'Ces éléments nous aident à créer un design qui correspond à votre image de marque.',
     fields: [
-      { id: 'logo', label: 'Logo (upload ou lien)', type: 'file-or-link' },
-      { id: 'brand_colors', label: 'Couleurs de la marque', type: 'text', placeholder: '#000000, #FFFFFF...' },
-      { id: 'reference_sites', label: 'Sites de référence', type: 'textarea', optional: true, placeholder: 'https://...' },
-      { id: 'style', label: 'Style souhaité', type: 'radio', options: ['Moderne', 'Premium', 'Minimaliste', 'Corporate', 'Autre'] },
+      { id: 'logo', label: 'Logo (upload ou lien)', type: 'file-or-link', hint: "Envoyez votre logo en haute qualité (PNG ou SVG de préférence)." },
+      { id: 'brand_colors', label: 'Couleurs de la marque', type: 'text', placeholder: '#000000, #FFFFFF...', hint: "Les couleurs principales de votre marque en code hex ou en nom." },
+      { id: 'reference_sites', label: 'Sites de référence', type: 'textarea', optional: true, placeholder: 'https://...', hint: "Des sites web dont vous aimez le design et qui pourraient servir d'inspiration." },
+      { id: 'style', label: 'Style souhaité', type: 'radio', options: ['Moderne', 'Premium', 'Minimaliste', 'Corporate', 'Autre'], hint: "Le style visuel que vous préférez pour votre site." },
     ],
   },
   {
     title: 'Fonctionnalités',
+    description: 'Sélectionnez les fonctionnalités dont vous avez besoin sur votre site.',
     fields: [
-      { id: 'features', label: 'Fonctionnalités souhaitées', type: 'checkbox-multi', options: ['Formulaire de contact', 'WhatsApp', 'Devis', 'Réservation', 'Paiement', 'Blog', 'Autre'] },
+      { id: 'features', label: 'Fonctionnalités souhaitées', type: 'checkbox-multi', options: ['Formulaire de contact', 'WhatsApp', 'Devis', 'Réservation', 'Paiement', 'Blog', 'Autre'], hint: "Cochez toutes les fonctionnalités que vous souhaitez intégrer." },
     ],
   },
   {
     title: 'Accès techniques',
-    skipCheckbox: 'Accès déjà partagés',
+    description: 'Ces accès permettent de lancer rapidement le projet technique.',
+    skipCheckbox: "J'ai déjà partagé ces accès",
     fields: [
-      { id: 'hosting_access', label: 'Accès hébergement', type: 'textarea' },
-      { id: 'domain_access', label: 'Accès domaine', type: 'textarea' },
-      { id: 'wordpress_access', label: 'Accès WordPress', type: 'textarea', optional: true },
-      { id: 'email_access', label: 'Accès email professionnel', type: 'textarea', optional: true },
+      { id: 'hosting_access', label: 'Accès hébergement', type: 'textarea', hint: "Identifiants de connexion à votre hébergeur (OVH, Ionos, etc.)." },
+      { id: 'domain_access', label: 'Accès domaine', type: 'textarea', hint: "Identifiants pour gérer votre nom de domaine (DNS, registrar)." },
+      { id: 'wordpress_access', label: 'Accès WordPress', type: 'textarea', optional: true, hint: "URL d'admin + identifiants WordPress si vous en avez un." },
+      { id: 'email_access', label: 'Accès email professionnel', type: 'textarea', optional: true, hint: "Identifiants de votre messagerie professionnelle si nécessaire." },
     ],
   },
   {
     title: 'Ressources',
-    skipCheckbox: 'Ressources déjà envoyées',
+    description: 'Partagez les fichiers et médias qui seront utilisés pour votre projet.',
     fields: [
-      { id: 'photos', label: 'Photos disponibles', type: 'file-or-link' },
-      { id: 'videos', label: 'Vidéos disponibles', type: 'file-or-link' },
-      { id: 'commercial_docs', label: 'Documents commerciaux', type: 'file-or-link', optional: true },
+      { id: 'photos', label: 'Photos disponibles', type: 'file-or-link', optional: true, hint: "Photos de vos locaux, équipe, réalisations, produits, etc." },
+      { id: 'videos', label: 'Vidéos disponibles', type: 'file-or-link', optional: true, hint: "Vidéos de présentation, témoignages vidéo, etc." },
+      { id: 'commercial_docs', label: 'Documents commerciaux', type: 'file-or-link', optional: true, hint: "Brochures, plaquettes, catalogues ou tout document utile." },
     ],
   },
 ];
@@ -105,99 +111,106 @@ const WEBSITE_STEPS: FormStep[] = [
 const ADS_STEPS: FormStep[] = [
   {
     title: 'Informations générales',
+    description: 'Nous avons besoin de ces informations pour créer votre fiche client et vous contacter facilement.',
     fields: [
-      { id: 'company_name', label: "Nom de l'entreprise", type: 'text' },
-      { id: 'contact_name', label: 'Nom du contact', type: 'text' },
-      { id: 'email', label: 'Email', type: 'email' },
-      { id: 'phone', label: 'Téléphone', type: 'tel' },
-      { id: 'whatsapp', label: 'WhatsApp', type: 'tel' },
-      { id: 'website', label: 'Site web', type: 'text', optional: true },
-      { id: 'landing_page', label: 'Landing page', type: 'text', optional: true },
+      { id: 'company_name', label: "Nom de l'entreprise", type: 'text', hint: "Nom officiel de votre entreprise ou nom commercial utilisé par vos clients." },
+      { id: 'contact_name', label: 'Nom du contact', type: 'text', hint: "Prénom et nom de la personne responsable du projet." },
+      { id: 'company_email', label: "Email de l'entreprise", type: 'email', hint: "Email principal utilisé pour la communication avec les clients et la réception des demandes." },
+      { id: 'company_phone', label: "Numéro de téléphone de l'entreprise", type: 'tel', hint: "Numéro principal de l'entreprise utilisé pour être contacté par les clients." },
+      { id: 'company_whatsapp', label: "WhatsApp de l'entreprise", type: 'tel', hint: "Numéro WhatsApp sur lequel vous souhaitez recevoir les demandes clients et les leads." },
+      { id: 'website', label: 'Site web', type: 'text', optional: true, hint: "Adresse de votre site web actuel si vous en avez un." },
+      { id: 'landing_page', label: 'Landing page', type: 'text', optional: true, hint: "URL de la page d'atterrissage si vous en avez déjà une." },
     ],
   },
   {
     title: 'Activité',
-    skipCheckbox: 'Informations déjà partagées',
+    description: 'Cela nous permet de comprendre votre entreprise et votre marché.',
     fields: [
-      { id: 'activity_type', label: "Type d'activité", type: 'text' },
-      { id: 'services', label: 'Services proposés', type: 'textarea' },
-      { id: 'avg_price', label: 'Prix moyen', type: 'text' },
-      { id: 'main_offer', label: 'Offre principale', type: 'textarea' },
-      { id: 'main_advantage', label: 'Avantage principal', type: 'text' },
-      { id: 'client_guarantee', label: 'Garantie client', type: 'text' },
+      { id: 'activity_type', label: "Type d'activité", type: 'text', hint: "Votre secteur d'activité. Ex : déménagement, plomberie, coaching, etc." },
+      { id: 'services', label: 'Services proposés', type: 'textarea', hint: "Listez les principaux services que vous proposez à vos clients." },
+      { id: 'avg_price', label: 'Prix moyen', type: 'text', hint: "Fourchette de prix moyenne de vos services. Ex : 500€ - 2000€." },
+      { id: 'main_offer', label: 'Offre principale', type: 'textarea', hint: "Service ou offre que vous souhaitez mettre en avant dans la campagne ou sur le site." },
+      { id: 'main_advantage', label: 'Avantage principal', type: 'text', hint: "Ce qui vous différencie de vos concurrents en une phrase." },
+      { id: 'client_guarantee', label: 'Garantie client', type: 'text', hint: "La garantie ou promesse que vous offrez à vos clients. Ex : satisfaction garantie, devis gratuit, etc." },
     ],
   },
   {
     title: 'Offre à promouvoir',
+    description: 'Cela nous aide à créer des annonces percutantes et adaptées à votre offre.',
     fields: [
-      { id: 'promoted_offer', label: 'Offre principale à promouvoir', type: 'textarea' },
-      { id: 'main_message', label: 'Message principal', type: 'textarea' },
-      { id: 'current_promo', label: 'Promotion actuelle', type: 'text', optional: true },
-      { id: 'special_offer', label: 'Offre spéciale', type: 'text', optional: true },
-      { id: 'why_choose', label: 'Pourquoi un client doit vous choisir', type: 'textarea' },
+      { id: 'promoted_offer', label: 'Offre principale à promouvoir', type: 'textarea', hint: "L'offre spécifique que vous souhaitez mettre en avant dans vos publicités." },
+      { id: 'main_message', label: 'Message principal', type: 'textarea', hint: "Le message clé que vous souhaitez transmettre à vos futurs clients." },
+      { id: 'current_promo', label: 'Promotion actuelle', type: 'text', optional: true, hint: "Si vous avez une promotion en cours, indiquez-la ici." },
+      { id: 'special_offer', label: 'Offre spéciale', type: 'text', optional: true, hint: "Offre limitée ou spéciale que vous souhaitez proposer. Ex : -20% ce mois-ci." },
+      { id: 'why_choose', label: 'Pourquoi un client doit vous choisir', type: 'textarea', hint: "Les arguments principaux qui convaincraient un prospect de vous choisir." },
     ],
   },
   {
     title: 'Zone',
+    description: 'Cela nous permet de cibler les bonnes zones géographiques dans vos campagnes.',
     fields: [
-      { id: 'main_city', label: 'Ville principale', type: 'text' },
-      { id: 'served_areas', label: 'Zones desservies', type: 'textarea' },
-      { id: 'max_distance', label: 'Distance maximale', type: 'text' },
-      { id: 'most_profitable_area', label: 'Zone la plus rentable', type: 'text' },
+      { id: 'main_city', label: 'Ville principale', type: 'text', hint: "La ville où se trouve votre activité principale." },
+      { id: 'served_areas', label: 'Zones desservies', type: 'textarea', hint: "Zone géographique dans laquelle vous souhaitez recevoir des clients." },
+      { id: 'max_distance', label: 'Distance maximale', type: 'text', hint: "Distance maximale que vous êtes prêt à couvrir. Ex : 30 km, toute l'Île-de-France, etc." },
+      { id: 'most_profitable_area', label: 'Zone la plus rentable', type: 'text', hint: "La zone géographique où vous obtenez le plus de clients ou de chiffre d'affaires." },
     ],
   },
   {
     title: 'Client cible',
+    description: 'Cela nous aide à cibler les bonnes personnes avec vos publicités.',
     fields: [
-      { id: 'client_type', label: 'Type de clients', type: 'radio', options: ['Particuliers', 'Entreprises', 'Les deux'] },
-      { id: 'ideal_client', label: 'Type de client idéal', type: 'textarea' },
-      { id: 'min_budget', label: 'Budget minimum', type: 'text' },
-      { id: 'request_type', label: 'Type de demande souhaitée', type: 'text' },
-      { id: 'avoid_clients', label: 'Clients à éviter', type: 'textarea', optional: true },
+      { id: 'client_type', label: 'Type de clients', type: 'radio', options: ['Particuliers', 'Entreprises', 'Les deux'], hint: "Vos clients sont principalement des particuliers, des entreprises, ou les deux ?" },
+      { id: 'ideal_client', label: 'Type de client idéal', type: 'textarea', hint: "Décrivez votre client parfait. Ex : propriétaire, 35-55 ans, budget moyen 5000€." },
+      { id: 'min_budget', label: 'Budget minimum client', type: 'text', hint: "Budget minimum que votre client doit avoir pour travailler avec vous. Ex : déménagement à partir de 300€, site web à partir de 1000€, etc." },
+      { id: 'request_type', label: 'Type de demande souhaitée', type: 'text', hint: "Le type de demande que vous souhaitez recevoir. Ex : devis, appel, rendez-vous." },
+      { id: 'avoid_clients', label: 'Clients à éviter', type: 'textarea', optional: true, hint: "Type de clients ou demandes que vous ne souhaitez pas recevoir." },
     ],
   },
   {
     title: 'Objectifs',
+    description: 'Cela nous aide à définir la stratégie et les résultats attendus.',
     fields: [
-      { id: 'main_objective', label: 'Objectif principal', type: 'radio', options: ['Leads', 'Clients', "Chiffre d'affaires"] },
-      { id: 'monthly_leads', label: 'Leads souhaités par mois', type: 'text' },
-      { id: 'monthly_clients', label: 'Clients souhaités par mois', type: 'text' },
-      { id: 'monthly_budget', label: 'Budget publicité mensuel', type: 'text' },
+      { id: 'main_objective', label: 'Objectif principal', type: 'radio', options: ['Leads', 'Clients', "Chiffre d'affaires"], hint: "Quel est votre objectif prioritaire avec les campagnes publicitaires ?" },
+      { id: 'monthly_leads', label: 'Leads souhaités par mois', type: 'text', hint: "Nombre approximatif de demandes que vous souhaitez recevoir chaque mois." },
+      { id: 'monthly_clients', label: 'Clients souhaités par mois', type: 'text', hint: "Nombre de nouveaux clients que vous souhaitez signer chaque mois." },
+      { id: 'monthly_budget', label: 'Budget publicité mensuel', type: 'text', hint: "Budget mensuel que vous souhaitez investir dans la publicité pour générer des leads." },
     ],
   },
   {
     title: 'Gestion des leads',
+    description: "Cela nous permet d'organiser le suivi des demandes entrantes.",
     fields: [
-      { id: 'who_responds', label: 'Qui répond aux leads', type: 'text' },
-      { id: 'response_time', label: 'Temps de réponse', type: 'text' },
-      { id: 'main_contact_method', label: 'Contact principal', type: 'radio', options: ['Appel', 'WhatsApp', 'Email'] },
-      { id: 'availability', label: 'Disponibilité', type: 'text' },
+      { id: 'who_responds', label: 'Qui répond aux leads', type: 'text', hint: "Qui dans votre équipe sera chargé de répondre aux demandes ?" },
+      { id: 'response_time', label: 'Temps de réponse', type: 'text', hint: "En combien de temps répondez-vous habituellement ? Ex : moins de 30 minutes, dans l'heure, etc." },
+      { id: 'main_contact_method', label: 'Contact principal', type: 'radio', options: ['Appel', 'WhatsApp', 'Email'], hint: "Comment préférez-vous être contacté par les leads ?" },
+      { id: 'availability', label: 'Disponibilité', type: 'text', hint: "Vos horaires de disponibilité pour répondre aux leads. Ex : lun-ven 8h-19h." },
     ],
   },
   {
     title: 'Contenu marketing',
-    skipCheckbox: 'Ressources déjà envoyées',
+    description: 'Partagez les fichiers et médias qui seront utilisés pour vos campagnes.',
     fields: [
-      { id: 'photos', label: 'Photos disponibles', type: 'file-or-link' },
-      { id: 'videos', label: 'Vidéos disponibles', type: 'file-or-link' },
-      { id: 'testimonials', label: 'Témoignages disponibles', type: 'file-or-link' },
-      { id: 'logo', label: 'Logo disponible', type: 'file-or-link' },
-      { id: 'commercial_docs', label: 'Documents commerciaux', type: 'file-or-link', optional: true },
+      { id: 'photos', label: 'Photos disponibles', type: 'file-or-link', optional: true, hint: "Photos de vos locaux, équipe, réalisations, produits, etc." },
+      { id: 'videos', label: 'Vidéos disponibles', type: 'file-or-link', optional: true, hint: "Vidéos de présentation, témoignages vidéo, avant/après, etc." },
+      { id: 'testimonials', label: 'Témoignages disponibles', type: 'file-or-link', optional: true, hint: "Captures d'écran d'avis Google, Facebook, ou témoignages écrits." },
+      { id: 'logo', label: 'Logo disponible', type: 'file-or-link', optional: true, hint: "Votre logo en haute qualité (PNG ou SVG de préférence)." },
+      { id: 'commercial_docs', label: 'Documents commerciaux', type: 'file-or-link', optional: true, hint: "Brochures, plaquettes, catalogues ou tout document utile." },
     ],
   },
   {
     title: 'Accès techniques',
-    skipCheckbox: 'Accès déjà partagés',
+    description: 'Ces accès permettent de lancer rapidement le projet technique.',
+    skipCheckbox: "J'ai déjà partagé ces accès",
     fields: [
-      { id: 'fb_business_manager', label: 'Facebook Business Manager', type: 'textarea' },
-      { id: 'fb_page', label: 'Page Facebook', type: 'text' },
-      { id: 'ad_account', label: 'Compte publicitaire', type: 'text' },
-      { id: 'pixel', label: 'Pixel', type: 'text' },
-      { id: 'site_access', label: 'Accès site web', type: 'textarea', optional: true },
-      { id: 'domain_access', label: 'Accès domaine', type: 'textarea', optional: true },
-      { id: 'landing_access', label: 'Accès landing page', type: 'textarea', optional: true },
-      { id: 'google_analytics', label: 'Google Analytics', type: 'text', optional: true },
-      { id: 'google_tag_manager', label: 'Google Tag Manager', type: 'text', optional: true },
+      { id: 'fb_business_manager', label: 'Facebook Business Manager', type: 'textarea', hint: "Lien ou identifiant de votre Business Manager Facebook." },
+      { id: 'fb_page', label: 'Page Facebook', type: 'text', hint: "Nom ou lien de votre page Facebook professionnelle." },
+      { id: 'ad_account', label: 'Compte publicitaire', type: 'text', hint: "Identifiant de votre compte publicitaire Facebook (act_XXXXXXXXX)." },
+      { id: 'pixel', label: 'Pixel', type: 'text', hint: "Identifiant de votre pixel Facebook si vous en avez un." },
+      { id: 'site_access', label: 'Accès site web', type: 'textarea', optional: true, hint: "Identifiants de connexion à votre site web (admin, CMS, etc.)." },
+      { id: 'domain_access', label: 'Accès domaine', type: 'textarea', optional: true, hint: "Identifiants pour gérer votre nom de domaine (DNS, registrar)." },
+      { id: 'landing_access', label: 'Accès landing page', type: 'textarea', optional: true, hint: "Identifiants de votre landing page builder si applicable." },
+      { id: 'google_analytics', label: 'Google Analytics', type: 'text', optional: true, hint: "Identifiant Google Analytics (UA-XXXXX ou G-XXXXX)." },
+      { id: 'google_tag_manager', label: 'Google Tag Manager', type: 'text', optional: true, hint: "Identifiant Google Tag Manager (GTM-XXXXX)." },
     ],
   },
 ];
@@ -369,7 +382,8 @@ export default function OnboardingFormPage() {
               Cela prend environ <strong>5 à 7 minutes</strong>.
             </p>
             <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
-              Certaines informations peuvent déjà avoir été partagées avec nous. Si c'est le cas, vous pouvez simplement cocher <em>"information déjà partagée"</em> et passer à l'étape suivante.
+              Certaines informations peuvent déjà avoir été partagées avec nous.
+              Si c'est le cas, vous pouvez simplement cocher <em>"information déjà partagée"</em> et passer à l'étape suivante.
             </p>
             <p className="text-sm text-primary mt-2 font-medium">
               Plus les informations sont précises, meilleurs seront les résultats.
@@ -389,8 +403,11 @@ export default function OnboardingFormPage() {
         {/* Step content */}
         <Card className="p-6">
           <h2 className="text-lg font-semibold mb-1">Étape {currentStep + 1} — {step.title}</h2>
+          {step.description && (
+            <p className="text-sm text-muted-foreground mb-4">{step.description}</p>
+          )}
 
-          {/* Skip checkbox */}
+          {/* Skip checkbox - only for technical accesses */}
           {step.skipCheckbox && (
             <label className="flex items-center gap-2 mt-3 mb-4 p-3 rounded-lg border border-dashed border-primary/30 bg-primary/5 cursor-pointer">
               <Checkbox
@@ -410,7 +427,10 @@ export default function OnboardingFormPage() {
                     {field.label}
                     {field.optional && <span className="text-muted-foreground ml-1">(optionnel)</span>}
                   </Label>
-                  <div className="mt-1.5">
+                  {field.hint && (
+                    <p className="text-xs text-muted-foreground mt-0.5 mb-1.5">{field.hint}</p>
+                  )}
+                  <div className="mt-1">
                     {field.type === 'text' || field.type === 'email' || field.type === 'tel' ? (
                       <Input
                         type={field.type}
@@ -471,7 +491,7 @@ export default function OnboardingFormPage() {
 
           {skippedSteps[currentStep] && (
             <p className="text-sm text-muted-foreground mt-4 text-center py-8">
-              ✅ Section validée — les informations ont déjà été partagées.
+              ✅ Section validée — les accès ont déjà été partagés.
             </p>
           )}
         </Card>
