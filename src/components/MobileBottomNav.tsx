@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Kanban, Bell, MoreHorizontal, Upload, LogOut, Zap, Package, CalendarCheck } from 'lucide-react';
+import { LayoutDashboard, Users, Kanban, Bell, MoreHorizontal, Upload, LogOut, Zap, Package, CalendarCheck, UserCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import {
@@ -12,13 +12,14 @@ import { MessageSquare, Phone } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 const mainLinks = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/', icon: Kanban, label: 'Pipeline' },
+  { to: '/clients', icon: UserCheck, label: 'Clients' },
   { to: '/reminders', icon: Bell, label: 'Tâches' },
   { to: '/offers', icon: Package, label: 'Offres' },
 ];
 
 const moreLinks = [
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/bookings', icon: CalendarCheck, label: 'Rendez-vous' },
 ];
 

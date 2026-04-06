@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Users, Kanban, MessageSquare, Phone, Bell, PanelLeftClose, PanelLeft, Upload, LogOut, Zap, Package, CalendarCheck } from 'lucide-react';
+import { LayoutDashboard, Users, Kanban, MessageSquare, Phone, Bell, PanelLeftClose, PanelLeft, Upload, LogOut, Zap, Package, CalendarCheck, UserCheck } from 'lucide-react';
 import logo from '@/assets/logo.webp';
 import logoIcon from '@/assets/logo-icon.webp';
 import { useSidebarState } from './AppLayout';
@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 const links = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/', icon: Kanban, label: 'Pipeline' },
+  { to: '/clients', icon: UserCheck, label: 'Clients' },
   { to: '/reminders', icon: Bell, label: 'Tâches' },
   { to: '/offers', icon: Package, label: 'Offres' },
   { to: '/bookings', icon: CalendarCheck, label: 'Rendez-vous' },
