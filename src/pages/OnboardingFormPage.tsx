@@ -178,7 +178,7 @@ const ADS_STEPS: FormStep[] = [
   },
   {
     title: 'Gestion des leads',
-    description: 'Cela nous permet d'organiser le suivi des demandes entrantes.',
+    description: "Cela nous permet d'organiser le suivi des demandes entrantes.",
     fields: [
       { id: 'who_responds', label: 'Qui répond aux leads', type: 'text', hint: "Qui dans votre équipe sera chargé de répondre aux demandes ?" },
       { id: 'response_time', label: 'Temps de réponse', type: 'text', hint: "En combien de temps répondez-vous habituellement ? Ex : moins de 30 minutes, dans l'heure, etc." },
