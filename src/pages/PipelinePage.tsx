@@ -224,6 +224,8 @@ export default function PipelinePage() {
   const { data: leads = [], isLoading } = useLeads();
   const { data: offers = [] } = useOffers();
   const updateLead = useUpdateLead();
+  const createClient = useCreateClient();
+  const navigate = useNavigate();
   const [dragOverStage, setDragOverStage] = useState<PipelineStage | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [scoreFilter, setScoreFilter] = useState<'all' | 'hot' | 'warm' | 'cold'>('all');
@@ -252,7 +254,28 @@ export default function PipelinePage() {
     updateLead.mutate(
       { id: lead.id, status: newStatus },
       {
-        onSuccess: () => toast.success(`${lead.name} → "${stageLabel}"`),
+        onSuccess: () => {
+          toast.success(`${lead.name} → "${stageLabel}"`);
+          // Auto-create client when lead is won
+          if (newStatus === 'won') {
+            createClient.mutate({
+              name: lead.name,
+              company_name: lead.company_name || '',
+              email: lead.email || '',
+              phone: lead.phone || '',
+              whatsapp: lead.phone || '',
+              offer_id: lead.offer_id || null,
+              status: 'signe' as any,
+              notes: lead.notes || '',
+            } as any, {
+              onSuccess: (data: any) => {
+                toast.success(`Client "${lead.name}" créé automatiquement`, {
+                  action: { label: 'Voir', onClick: () => navigate(`/clients/${data.id}`) },
+                });
+              },
+            });
+          }
+        },
         onError: () => toast.error('Erreur lors du déplacement'),
       }
     );
