@@ -177,10 +177,6 @@ export default function ClientDetailPage() {
           <TabsTrigger value="onboarding">Onboarding</TabsTrigger>
           <TabsTrigger value="invoicing">Facturation</TabsTrigger>
           <TabsTrigger value="contract">Contrat</TabsTrigger>
-          <TabsTrigger value="resources">Ressources</TabsTrigger>
-          <TabsTrigger value="accesses">Accès</TabsTrigger>
-          <TabsTrigger value="objectives">Objectifs</TabsTrigger>
-          <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="history">Historique</TabsTrigger>
         </TabsList>
 
@@ -362,118 +358,6 @@ export default function ClientDetailPage() {
           />
         </TabsContent>
 
-        <TabsContent value="resources">
-          <Card>
-            <CardHeader><CardTitle className="text-base">Ressources</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <label className="cursor-pointer">
-                  <input type="file" className="hidden" onChange={handleFileUpload} />
-                  <Button variant="outline" size="sm" asChild><span><Upload className="h-3 w-3 mr-1" />Upload fichier</span></Button>
-                </label>
-              </div>
-              <div className="flex gap-2 items-end">
-                <div className="flex-1"><Label>Nom</Label><Input value={resourceName} onChange={e => setResourceName(e.target.value)} placeholder="Nom de la ressource" /></div>
-                <div className="flex-1"><Label>Lien</Label><Input value={resourceUrl} onChange={e => setResourceUrl(e.target.value)} placeholder="https://drive.google.com/..." /></div>
-                <Button size="sm" onClick={handleAddLink} disabled={!resourceUrl || !resourceName}><LinkIcon className="h-3 w-3 mr-1" />Ajouter</Button>
-              </div>
-              {resources?.length ? (
-                <div className="space-y-2">
-                  {resources.map(r => (
-                    <div key={r.id} className="flex items-center justify-between p-2 rounded border border-border text-sm">
-                      <div className="flex items-center gap-2 min-w-0">
-                        {r.resource_type === 'file' ? <FileText className="h-4 w-4 text-muted-foreground shrink-0" /> : <LinkIcon className="h-4 w-4 text-muted-foreground shrink-0" />}
-                        <span className="truncate">{r.name}</span>
-                      </div>
-                      <div className="flex gap-1">
-                        {r.url && <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(r.url!, '_blank')}><ExternalLink className="h-3 w-3" /></Button>}
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteResource.mutate({ id: r.id, client_id: client.id })}><Trash2 className="h-3 w-3" /></Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground text-center py-4">Aucune ressource</p>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ACCESSES */}
-        <TabsContent value="accesses">
-          <Card>
-            <CardHeader><CardTitle className="text-base">Accès techniques</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              {(client.technical_accesses || []).map((a: any, i: number) => (
-                <div key={i} className="p-3 rounded-lg border border-border space-y-1">
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium text-sm">{a.service}</p>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleRemoveAccess(i)}><Trash2 className="h-3 w-3" /></Button>
-                  </div>
-                  {a.url && <p className="text-xs text-muted-foreground">URL: {a.url}</p>}
-                  {a.login && <p className="text-xs text-muted-foreground">Login: {a.login}</p>}
-                  {a.password && <p className="text-xs text-muted-foreground">Mot de passe: {a.password}</p>}
-                </div>
-              ))}
-              <div className="grid grid-cols-2 gap-2">
-                <Input placeholder="Service (ex: Hébergement)" value={newAccess.service} onChange={e => setNewAccess(p => ({ ...p, service: e.target.value }))} />
-                <Input placeholder="URL" value={newAccess.url} onChange={e => setNewAccess(p => ({ ...p, url: e.target.value }))} />
-                <Input placeholder="Login" value={newAccess.login} onChange={e => setNewAccess(p => ({ ...p, login: e.target.value }))} />
-                <Input placeholder="Mot de passe" value={newAccess.password} onChange={e => setNewAccess(p => ({ ...p, password: e.target.value }))} />
-              </div>
-              <Button size="sm" onClick={handleAddAccess} disabled={!newAccess.service}><Plus className="h-3 w-3 mr-1" />Ajouter un accès</Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* OBJECTIVES */}
-        <TabsContent value="objectives">
-          <Card>
-            <CardHeader><CardTitle className="text-base">Objectifs</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              {(client.objectives || []).map((o: any, i: number) => (
-                <div key={i} className="flex items-center gap-3 p-2 rounded border border-border">
-                  <input type="checkbox" checked={o.done} onChange={() => handleToggleObjective(i)} className="accent-primary" />
-                  <span className={`text-sm flex-1 ${o.done ? 'line-through text-muted-foreground' : ''}`}>{o.text}</span>
-                </div>
-              ))}
-              <div className="flex gap-2">
-                <Input placeholder="Nouvel objectif" value={newObjective} onChange={e => setNewObjective(e.target.value)} />
-                <Button size="sm" onClick={handleAddObjective} disabled={!newObjective}><Plus className="h-3 w-3 mr-1" />Ajouter</Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* DOCUMENTS */}
-        <TabsContent value="documents">
-          <Card>
-            <CardHeader><CardTitle className="text-base">Documents</CardTitle></CardHeader>
-            <CardContent>
-              <div className="flex gap-2 mb-4">
-                <label className="cursor-pointer">
-                  <input type="file" className="hidden" onChange={handleFileUpload} />
-                  <Button variant="outline" size="sm" asChild><span><Upload className="h-3 w-3 mr-1" />Upload document</span></Button>
-                </label>
-              </div>
-              {resources?.filter(r => r.category === 'document' || r.resource_type === 'file').length ? (
-                <div className="space-y-2">
-                  {resources.filter(r => r.category === 'document' || r.resource_type === 'file').map(r => (
-                    <div key={r.id} className="flex items-center justify-between p-2 rounded border border-border text-sm">
-                      <div className="flex items-center gap-2"><FileText className="h-4 w-4 text-muted-foreground" /><span>{r.name}</span></div>
-                      <div className="flex gap-1">
-                        {r.url && <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(r.url!, '_blank')}><ExternalLink className="h-3 w-3" /></Button>}
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteResource.mutate({ id: r.id, client_id: client.id })}><Trash2 className="h-3 w-3" /></Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground text-center py-4">Aucun document</p>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         {/* HISTORY */}
         <TabsContent value="history">
