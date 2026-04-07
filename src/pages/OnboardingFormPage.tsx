@@ -209,7 +209,34 @@ const ADS_STEPS: FormStep[] = [
   },
 ];
 
-function FileOrLinkField({ id, value, onChange, clientId }: { id: string; value: any; onChange: (v: any) => void; clientId: string }) {
+class OnboardingErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('Onboarding form error:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center p-4">
+          <Card className="p-8 text-center max-w-md space-y-4">
+            <p className="text-lg font-semibold">Une erreur est survenue</p>
+            <p className="text-sm text-muted-foreground">Veuillez rafraîchir la page pour continuer. Vos réponses ont été sauvegardées automatiquement.</p>
+            <Button onClick={() => window.location.reload()}>Rafraîchir la page</Button>
+          </Card>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function OnboardingFormContent() {
   const [mode, setMode] = useState<'link' | 'file'>(value?.mode || 'link');
   const [uploading, setUploading] = useState(false);
 
