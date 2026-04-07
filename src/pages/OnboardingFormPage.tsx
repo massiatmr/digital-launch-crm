@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import logo from '@/assets/logo.webp';
 import { useSearchParams } from 'react-router-dom';
 import { Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
@@ -268,12 +268,15 @@ export default function OnboardingFormPage() {
   const progress = ((currentStep + 1) / steps.length) * 100;
   const clientId = onboarding?.client_id || 'anon';
 
+  const initializedRef = useRef(false);
   useEffect(() => {
+    if (initializedRef.current) return;
     if (onboarding?.responses && Object.keys(onboarding.responses).length > 0) {
       setResponses(onboarding.responses);
       if (onboarding.responses._skippedSteps) {
         setSkippedSteps(onboarding.responses._skippedSteps);
       }
+      initializedRef.current = true;
     }
     if (onboarding?.completed) setCompleted(true);
   }, [onboarding]);
