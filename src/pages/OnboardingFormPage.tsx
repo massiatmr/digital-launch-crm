@@ -574,7 +574,7 @@ export default function OnboardingFormPage() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-5 flex items-center justify-center gap-1.5">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
           Sauvegarde automatique activée
         </p>
       </div>
