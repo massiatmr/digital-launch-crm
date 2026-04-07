@@ -240,6 +240,7 @@ export type Database = {
       }
       clients: {
         Row: {
+          billing_info: Json | null
           company_name: string | null
           created_at: string
           email: string | null
@@ -257,6 +258,7 @@ export type Database = {
           whatsapp: string | null
         }
         Insert: {
+          billing_info?: Json | null
           company_name?: string | null
           created_at?: string
           email?: string | null
@@ -274,6 +276,7 @@ export type Database = {
           whatsapp?: string | null
         }
         Update: {
+          billing_info?: Json | null
           company_name?: string | null
           created_at?: string
           email?: string | null

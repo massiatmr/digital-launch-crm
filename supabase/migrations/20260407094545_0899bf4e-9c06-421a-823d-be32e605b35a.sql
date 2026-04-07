@@ -1,0 +1,1 @@
+ALTER TABLE public.clients ADD COLUMN billing_info jsonb DEFAULT '{}'::jsonb;
