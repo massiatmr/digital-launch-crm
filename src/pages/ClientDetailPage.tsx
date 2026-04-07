@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Copy, ExternalLink, Plus, Trash2, Upload, Link as LinkIcon, FileText, Clock } from 'lucide-react';
+import { ArrowLeft, Copy, ExternalLink, Plus, Trash2, Upload, Link as LinkIcon, FileText, Clock, Receipt, FileSignature } from 'lucide-react';
+import InvoiceGenerator from '@/components/InvoiceGenerator';
+import ContractGenerator from '@/components/ContractGenerator';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -173,6 +175,8 @@ export default function ClientDetailPage() {
         <TabsList className="flex flex-wrap h-auto gap-1">
           <TabsTrigger value="general">Général</TabsTrigger>
           <TabsTrigger value="onboarding">Onboarding</TabsTrigger>
+          <TabsTrigger value="invoicing">Facturation</TabsTrigger>
+          <TabsTrigger value="contract">Contrat</TabsTrigger>
           <TabsTrigger value="resources">Ressources</TabsTrigger>
           <TabsTrigger value="accesses">Accès</TabsTrigger>
           <TabsTrigger value="objectives">Objectifs</TabsTrigger>
@@ -336,7 +340,28 @@ export default function ClientDetailPage() {
           </Card>
         </TabsContent>
 
-        {/* RESOURCES */}
+        {/* FACTURATION */}
+        <TabsContent value="invoicing">
+          <InvoiceGenerator
+            clientName={client.name}
+            clientCompany={client.company_name || ''}
+            clientEmail={client.email || ''}
+            clientPhone={client.phone || ''}
+            offerName={(client as any).offers?.name}
+          />
+        </TabsContent>
+
+        {/* CONTRAT */}
+        <TabsContent value="contract">
+          <ContractGenerator
+            clientName={client.name}
+            clientCompany={client.company_name || ''}
+            clientEmail={client.email || ''}
+            clientPhone={client.phone || ''}
+            offerName={(client as any).offers?.name}
+          />
+        </TabsContent>
+
         <TabsContent value="resources">
           <Card>
             <CardHeader><CardTitle className="text-base">Ressources</CardTitle></CardHeader>
