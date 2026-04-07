@@ -421,7 +421,10 @@ function OnboardingFormContent() {
   const isFieldFilled = (fieldId: string) => {
     const val = getFieldValue(fieldId);
     if (Array.isArray(val)) return val.length > 0;
-    if (typeof val === 'object' && val !== null) return !!val.url;
+    if (typeof val === 'object' && val !== null) {
+      if (Array.isArray(val.files)) return val.files.length > 0;
+      return !!val.url;
+    }
     return !!val && String(val).trim() !== '';
   };
 
