@@ -1,78 +1,112 @@
-# Plan : Génération de Factures et Contrats PDF par Client
+
+
+# Plan : Signature électronique intégrée (Option A)
 
 ## Résumé
 
-Ajouter dans chaque fiche client 2 nouvel onglet **"Facturation"** avec deux sections : génération de **facture** et génération de **contrat**. Chaque document sera généré en PDF côté client avec les données pré-remplies depuis la fiche client, tout en laissant les champs importants éditables. Deux boutons par document : "Télécharger en PDF" et "Envoyer par email".
+Le client génère un contrat depuis la fiche client, clique "Envoyer pour signature", le client reçoit un email avec un lien vers une page publique élégante où il peut lire le contrat et signer via un pad tactile. Le PDF signé est stocké et le statut est mis à jour dans le CRM.
 
-## Ce qui sera customisable
+## Flux utilisateur
 
-### Facture
+```text
+CRM: Contrat prêt → "Envoyer pour signature"
+        ↓
+Email au client avec lien /sign/:token
+        ↓
+Page publique: lecture du contrat → signature au doigt/souris
+        ↓
+Validation: signature + IP + timestamp enregistrés
+        ↓
+PDF signé généré et stocké dans Supabase Storage
+        ↓
+CRM: statut "Signé" visible + PDF téléchargeable
+```
 
-- Numéro de facture (auto-incrémenté, modifiable)
-- Date et date d'échéance
-- **Destinataire** : nom entreprise, représentant, adresse, SIRET (pré-remplis depuis la fiche client)
-- **Lignes de facturation** : description, prix unitaire, quantité (ajout/suppression de lignes)
-- **Modalités de paiement** : sélection du type de service avec termes pré-définis :
-  - **Site Web** : 50% à la commande, 50% à la livraison
-  - **Meta Ads** : premier mois payé d'avance, puis toutes les 4 semaines
-  - **Livrables Personnalisé** : texte libre
+## Étapes d'implémentation
 
-### Contrat
+### 1. Migration base de données
 
-- **Entreprise cliente** : nom, représentant, adresse, email, téléphone (pré-remplis)
-- **Type de prestation** : Site Web ou Meta Ads (change les articles automatiquement)
-- **Montants** : frais de configuration, honoraires de gestion
-- **Budget publicitaire recommandé** (pour Ads)
-- **Date du contrat**
+Table `contract_signatures` :
+- `id` (uuid, PK)
+- `client_id` (uuid, ref clients)
+- `owner_id` (uuid, auth.uid)
+- `token` (text, unique, généré côté serveur)
+- `contract_data` (jsonb — snapshot complet du contrat au moment de l'envoi)
+- `signature_image` (text — base64 du PNG de la signature)
+- `signed_at` (timestamptz)
+- `signer_ip` (text)
+- `signer_user_agent` (text)
+- `status` (text: `pending`, `signed`, `expired`)
+- `signed_pdf_path` (text — chemin dans le storage)
+- `created_at`, `expires_at`
 
-### Info émetteur (hardcodée, non modifiable)
+RLS : owner peut CRUD, anon peut SELECT/UPDATE par token (pour la page publique).
 
-DIGITAL LAUNCH LLC, 75 E 3RD ST, Sheridan, Wyoming 82801, EIN: 98-1872816, IBAN: BE14 9056 0242 6183, SWIFT: TRWIBEB1XXX
+Storage bucket `signed-contracts` (privé) pour stocker les PDFs signés.
 
-## Fichiers à créer/modifier
+### 2. Composant `SignaturePad.tsx`
 
-### 1. `src/components/InvoiceGenerator.tsx` (nouveau)
+Canvas HTML5 tactile/souris avec :
+- Dessin fluide au doigt ou à la souris (support touch events)
+- Bouton "Effacer" pour recommencer
+- Export en base64 PNG
+- Style sombre cohérent avec le thème de l'app pour la page publique (fond clair pour la page publique)
 
-- Formulaire avec les champs éditables de la facture
-- Sélecteur de type de service (Site Web / Ads / Personnalisé) qui pré-remplit les modalités de paiement
-- Tableau de lignes de facturation dynamique
-- Boutons "Télécharger PDF" et "Envoyer par email"
+### 3. Page publique `/sign/:token`
 
-### 2. `src/components/ContractGenerator.tsx` (nouveau)
+Route publique (pas de ProtectedRoute). UX soignée :
+- **Étape 1** : affichage du contrat en lecture seule (articles, montants, parties prenantes) dans un design propre
+- **Étape 2** : zone de signature avec le pad tactile
+- **Étape 3** : confirmation avec récapitulatif + bouton "Confirmer et signer"
+- **Écran de succès** : animation + message "Votre contrat a été signé"
+- **États d'erreur** : token invalide, expiré, déjà signé
 
-- Formulaire avec les champs éditables du contrat
-- Sélecteur du type de prestation (Site Web / Meta Ads) qui adapte les articles
-- Champs montants et budget
-- Boutons "Télécharger PDF" et "Envoyer par email"
+Design : fond blanc, typographie Plus Jakarta Sans, accents violet (primary), responsive mobile-first.
 
-### 3. `src/lib/generateInvoicePDF.ts` (nouveau)
+### 4. Edge Function `validate-signature`
 
-- Utilise **jspdf** pour générer le PDF de facture
-- Reproduit fidèlement le layout du template fourni (logo, tableau, règlement, mentions légales)
+- GET `/validate-signature?token=xxx` : vérifie le token, retourne les données du contrat si valide
+- POST `/validate-signature` : reçoit `{ token, signatureBase64 }`, enregistre la signature + IP + user-agent, génère le PDF signé via une régénération du contrat avec signature intégrée, le stocke dans le bucket, met à jour le statut
 
-### 4. `src/lib/generateContractPDF.ts` (nouveau)
+### 5. Mise à jour de `generateContractPDF.ts`
 
-- Utilise **jspdf** pour générer le PDF de contrat sur 2 pages
-- Articles adaptés selon le type de service
+Ajouter un paramètre optionnel `signatureBase64` + `signedAt` + `signerIP` :
+- Si fourni, ajouter en dernière page : bloc signature avec l'image, date/heure, IP, mention légale "Signé électroniquement le..."
 
-### 5. `src/pages/ClientDetailPage.tsx` (modifié)
+### 6. Mise à jour de `ContractGenerator.tsx`
 
-- Ajout d'un onglet **"Facturation"** dans les Tabs
-- Intègre les composants `InvoiceGenerator` et `ContractGenerator`
-- Passe les données client comme props pour le pré-remplissage
+- Nouveau bouton "Envoyer pour signature" (en plus de Télécharger et Envoyer par email)
+- Au clic : crée une entrée `contract_signatures` avec le snapshot du contrat + token, puis envoie un email avec le lien
+- Affichage du statut de signature sous le bouton (En attente / Signé le...)
+- Bouton "Télécharger le contrat signé" quand signé
 
-### 6. `supabase/functions/send-document-email/index.ts` (nouveau)
+### 7. Email d'invitation à signer
 
-- Edge function pour envoyer le PDF en pièce jointe par email via l'infrastructure email existante
+Utilise l'edge function `send-document-email` existante (sans pièce jointe) ou un simple invoke pour envoyer un email HTML avec un bouton "Signer mon contrat" pointant vers `/sign/:token`.
 
-## Dépendance
+## Fichiers à créer
 
-- Installation du package **jspdf** pour la génération PDF côté client
+| Fichier | Description |
+|---------|-------------|
+| `supabase/migrations/xxx_contract_signatures.sql` | Table + RLS + bucket |
+| `src/components/SignaturePad.tsx` | Composant canvas signature |
+| `src/pages/PublicSignaturePage.tsx` | Page publique de signature |
+| `supabase/functions/validate-signature/index.ts` | Validation + enregistrement |
+
+## Fichiers à modifier
+
+| Fichier | Changement |
+|---------|------------|
+| `src/App.tsx` | Ajouter route `/sign/:token` |
+| `src/lib/generateContractPDF.ts` | Support signature dans le PDF |
+| `src/components/ContractGenerator.tsx` | Bouton envoi pour signature + statut |
+| `src/hooks/useClientData.ts` | Hook pour les signatures |
 
 ## Détails techniques
 
-- Les PDFs sont générés côté client avec jspdf (pas besoin de serveur)
-- Le logo `src/assets/logo.webp` sera converti en base64 et intégré dans les PDFs
-- Les données client (nom, entreprise, email, téléphone) sont pré-remplies depuis `useClient(id)`
-- L'offre associée au client détermine le type de service par défaut
-- L'envoi par email utilisera l'infrastructure email déjà en place dans le projet
+- Le token est un hex aléatoire de 64 caractères généré côté DB
+- Expiration par défaut : 7 jours
+- L'IP du signataire est capturée via les headers de la requête Edge Function
+- Le PDF signé est stocké dans un bucket privé, accessible uniquement par le owner
+- Le snapshot `contract_data` garantit que le contrat signé est immuable (même si on modifie le contrat après envoi)
+
