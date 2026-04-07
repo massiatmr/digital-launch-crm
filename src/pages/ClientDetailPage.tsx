@@ -177,10 +177,6 @@ export default function ClientDetailPage() {
           <TabsTrigger value="onboarding">Onboarding</TabsTrigger>
           <TabsTrigger value="invoicing">Facturation</TabsTrigger>
           <TabsTrigger value="contract">Contrat</TabsTrigger>
-          <TabsTrigger value="resources">Ressources</TabsTrigger>
-          <TabsTrigger value="accesses">Accès</TabsTrigger>
-          <TabsTrigger value="objectives">Objectifs</TabsTrigger>
-          <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="history">Historique</TabsTrigger>
         </TabsList>
 
