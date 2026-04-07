@@ -45,7 +45,7 @@ export function generateInvoicePDF(data: InvoiceData, logoBase64?: string): jsPD
   // Logo
   if (logoBase64) {
     try {
-      doc.addImage(logoBase64, 'PNG', margin, y, 35, 14);
+      doc.addImage(logoBase64, 'PNG', margin, y, 50, 10);
     } catch {
       // fallback: no logo
     }
