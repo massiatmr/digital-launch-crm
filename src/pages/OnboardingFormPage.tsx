@@ -349,13 +349,20 @@ export default function OnboardingFormPage() {
 
   const formTitle = formTypeFromUrl === 'website' ? 'Onboarding Site Web' : 'Onboarding Campagnes Publicitaires';
 
+  const isFieldFilled = (fieldId: string) => {
+    const val = getFieldValue(fieldId);
+    if (Array.isArray(val)) return val.length > 0;
+    if (typeof val === 'object' && val !== null) return !!val.url;
+    return !!val && String(val).trim() !== '';
+  };
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background">
       <div className="max-w-2xl mx-auto px-4 py-8 sm:py-12">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-primary/20 mb-4">
-            <span className="text-xl font-bold text-primary">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary text-primary-foreground shadow-lg mb-4">
+            <span className="text-2xl font-bold">
               {onboarding.clients?.company_name?.charAt(0) || 'C'}
             </span>
           </div>
@@ -367,9 +374,9 @@ export default function OnboardingFormPage() {
 
         {/* Intro text - only on first step */}
         {currentStep === 0 && (
-          <Card className="p-5 mb-8 border-primary/20 bg-primary/5">
-            <p className="text-sm leading-relaxed">
-              <strong>Bienvenue dans le formulaire de préparation du projet.</strong>
+          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 mb-8">
+            <p className="text-sm leading-relaxed font-medium">
+              Bienvenue dans le formulaire de préparation du projet.
             </p>
             <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
               Ce formulaire nous permet de comprendre votre entreprise, votre offre et vos objectifs afin de créer une stratégie efficace.
@@ -378,127 +385,166 @@ export default function OnboardingFormPage() {
               Cela prend environ <strong>5 à 7 minutes</strong>.
             </p>
             <p className="text-sm text-primary mt-2 font-medium">
-              Plus les informations sont précises, meilleurs seront les résultats.
+              ✨ Plus les informations sont précises, meilleurs seront les résultats.
             </p>
-          </Card>
+          </div>
         )}
 
         {/* Progress */}
-        <div className="mb-6">
+        <div className="mb-8">
           <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
-            <span>Étape {currentStep + 1} / {steps.length}</span>
-            <span>{Math.round(progress)}%</span>
+            <span className="font-medium">Étape {currentStep + 1} sur {steps.length}</span>
+            <span className="font-medium">{Math.round(progress)}%</span>
           </div>
-          <Progress value={progress} className="h-2" />
+          <Progress value={progress} className="h-2.5 rounded-full" />
         </div>
 
         {/* Step content */}
-        <Card className="p-6">
-          <h2 className="text-lg font-semibold mb-1">Étape {currentStep + 1} — {step.title}</h2>
+        <div className="rounded-2xl border border-border/60 bg-card shadow-sm p-6 sm:p-8">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-bold shrink-0">
+              {currentStep + 1}
+            </div>
+            <h2 className="text-lg font-semibold">{step.title}</h2>
+          </div>
           {step.description && (
-            <p className="text-sm text-muted-foreground mb-4">{step.description}</p>
+            <p className="text-sm text-muted-foreground mb-6 ml-11">{step.description}</p>
           )}
 
           {/* Skip checkbox - only for technical accesses */}
           {step.skipCheckbox && (
-            <label className="flex items-center gap-2 mt-3 mb-4 p-3 rounded-lg border border-dashed border-primary/30 bg-primary/5 cursor-pointer">
+            <label className="flex items-center gap-3 mt-3 mb-4 p-4 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 cursor-pointer hover:border-primary/50 transition-colors">
               <Checkbox
                 checked={!!skippedSteps[currentStep]}
                 onCheckedChange={() => toggleSkip(currentStep)}
               />
-              <span className="text-sm">{step.skipCheckbox}</span>
+              <span className="text-sm font-medium">{step.skipCheckbox}</span>
             </label>
           )}
 
           {/* Fields */}
           {!skippedSteps[currentStep] && (
-            <div className="space-y-5 mt-4">
-              {step.fields.map(field => (
-                <div key={field.id}>
-                  <Label className="text-sm">
-                    {field.label}
-                    {field.optional && <span className="text-muted-foreground ml-1">(optionnel)</span>}
-                  </Label>
-                  {field.hint && (
-                    <p className="text-xs text-muted-foreground mt-0.5 mb-1.5">{field.hint}</p>
-                  )}
-                  <div className="mt-1">
-                    {field.type === 'text' || field.type === 'email' || field.type === 'tel' ? (
-                      <Input
-                        type={field.type}
-                        placeholder={field.placeholder}
-                        value={getFieldValue(field.id)}
-                        onChange={e => updateField(field.id, e.target.value)}
-                      />
-                    ) : field.type === 'textarea' ? (
-                      <Textarea
-                        placeholder={field.placeholder}
-                        value={getFieldValue(field.id)}
-                        onChange={e => updateField(field.id, e.target.value)}
-                        rows={3}
-                      />
-                    ) : field.type === 'radio' ? (
-                      <RadioGroup value={getFieldValue(field.id)} onValueChange={v => updateField(field.id, v)}>
-                        <div className="grid grid-cols-2 gap-2 mt-1">
-                          {field.options?.map(opt => (
-                            <label key={opt} className="flex items-center gap-2 p-2.5 rounded-lg border border-border cursor-pointer hover:bg-muted/50 transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5">
-                              <RadioGroupItem value={opt} />
-                              <span className="text-sm">{opt}</span>
-                            </label>
-                          ))}
+            <div className="space-y-6 mt-4">
+              {step.fields.map(field => {
+                const filled = isFieldFilled(field.id);
+                return (
+                  <div key={field.id} className={`group rounded-xl border-2 p-4 transition-all duration-200 ${
+                    filled 
+                      ? 'border-primary/30 bg-primary/[0.03]' 
+                      : 'border-transparent bg-muted/30 hover:bg-muted/50'
+                  }`}>
+                    <div className="flex items-start gap-2 mb-1">
+                      <Label className="text-sm font-semibold leading-tight">
+                        {field.label}
+                      </Label>
+                      {field.optional && (
+                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0">optionnel</span>
+                      )}
+                      {filled && (
+                        <div className="ml-auto shrink-0 w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center">
+                          <Check className="h-3 w-3 text-primary" />
                         </div>
-                      </RadioGroup>
-                    ) : field.type === 'checkbox-multi' ? (
-                      <div className="grid grid-cols-2 gap-2 mt-1">
-                        {field.options?.map(opt => {
-                          const vals: string[] = getFieldValue(field.id) || [];
-                          const checked = vals.includes(opt);
-                          return (
-                            <label key={opt} className="flex items-center gap-2 p-2.5 rounded-lg border border-border cursor-pointer hover:bg-muted/50 transition-colors">
-                              <Checkbox
-                                checked={checked}
-                                onCheckedChange={() => {
-                                  const newVals = checked ? vals.filter(v => v !== opt) : [...vals, opt];
-                                  updateField(field.id, newVals);
-                                }}
-                              />
-                              <span className="text-sm">{opt}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    ) : field.type === 'file-or-link' ? (
-                      <FileOrLinkField
-                        id={field.id}
-                        clientId={clientId}
-                        value={getFieldValue(field.id)}
-                        onChange={v => updateField(field.id, v)}
-                      />
-                    ) : null}
+                      )}
+                    </div>
+                    {field.hint && (
+                      <p className="text-xs text-muted-foreground mb-3 leading-relaxed">{field.hint}</p>
+                    )}
+                    <div>
+                      {field.type === 'text' || field.type === 'email' || field.type === 'tel' ? (
+                        <Input
+                          type={field.type}
+                          placeholder={field.placeholder || `Votre ${field.label.toLowerCase()}…`}
+                          value={getFieldValue(field.id)}
+                          onChange={e => updateField(field.id, e.target.value)}
+                          className="border-border/80 bg-background shadow-sm focus-visible:ring-primary/30 focus-visible:border-primary transition-all h-11"
+                        />
+                      ) : field.type === 'textarea' ? (
+                        <Textarea
+                          placeholder={field.placeholder || `Votre ${field.label.toLowerCase()}…`}
+                          value={getFieldValue(field.id)}
+                          onChange={e => updateField(field.id, e.target.value)}
+                          rows={3}
+                          className="border-border/80 bg-background shadow-sm focus-visible:ring-primary/30 focus-visible:border-primary transition-all resize-none"
+                        />
+                      ) : field.type === 'radio' ? (
+                        <RadioGroup value={getFieldValue(field.id)} onValueChange={v => updateField(field.id, v)}>
+                          <div className="grid grid-cols-2 gap-2">
+                            {field.options?.map(opt => {
+                              const isSelected = getFieldValue(field.id) === opt;
+                              return (
+                                <label key={opt} className={`flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                                  isSelected 
+                                    ? 'border-primary bg-primary/10 shadow-sm' 
+                                    : 'border-border/60 bg-background hover:border-border hover:shadow-sm'
+                                }`}>
+                                  <RadioGroupItem value={opt} className="shrink-0" />
+                                  <span className={`text-sm ${isSelected ? 'font-medium' : ''}`}>{opt}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </RadioGroup>
+                      ) : field.type === 'checkbox-multi' ? (
+                        <div className="grid grid-cols-2 gap-2">
+                          {field.options?.map(opt => {
+                            const vals: string[] = getFieldValue(field.id) || [];
+                            const checked = vals.includes(opt);
+                            return (
+                              <label key={opt} className={`flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                                checked 
+                                  ? 'border-primary bg-primary/10 shadow-sm' 
+                                  : 'border-border/60 bg-background hover:border-border hover:shadow-sm'
+                              }`}>
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={() => {
+                                    const newVals = checked ? vals.filter(v => v !== opt) : [...vals, opt];
+                                    updateField(field.id, newVals);
+                                  }}
+                                />
+                                <span className={`text-sm ${checked ? 'font-medium' : ''}`}>{opt}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      ) : field.type === 'file-or-link' ? (
+                        <FileOrLinkField
+                          id={field.id}
+                          clientId={clientId}
+                          value={getFieldValue(field.id)}
+                          onChange={v => updateField(field.id, v)}
+                        />
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
           {skippedSteps[currentStep] && (
-            <p className="text-sm text-muted-foreground mt-4 text-center py-8">
-              ✅ Section validée — les accès ont déjà été partagés.
-            </p>
+            <div className="mt-4 text-center py-10 rounded-xl bg-primary/5 border border-primary/10">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/20 mb-3">
+                <Check className="h-6 w-6 text-primary" />
+              </div>
+              <p className="text-sm text-muted-foreground font-medium">
+                Section validée — les accès ont déjà été partagés.
+              </p>
+            </div>
           )}
-        </Card>
+        </div>
 
         {/* Navigation */}
-        <div className="flex items-center justify-between mt-6">
-          <Button variant="outline" onClick={handlePrev} disabled={currentStep === 0}>
+        <div className="flex items-center justify-between mt-8">
+          <Button variant="outline" onClick={handlePrev} disabled={currentStep === 0} className="rounded-xl h-11 px-5">
             <ChevronLeft className="h-4 w-4 mr-1" />Précédent
           </Button>
           {currentStep < steps.length - 1 ? (
-            <Button onClick={handleNext}>
+            <Button onClick={handleNext} className="rounded-xl h-11 px-6 shadow-md">
               Suivant<ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           ) : (
-            <Button onClick={handleComplete} disabled={saveResponses.isPending}>
+            <Button onClick={handleComplete} disabled={saveResponses.isPending} className="rounded-xl h-11 px-6 shadow-md">
               {saveResponses.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Check className="h-4 w-4 mr-1" />}
               Terminer
             </Button>
@@ -506,20 +552,30 @@ export default function OnboardingFormPage() {
         </div>
 
         {/* Step indicators */}
-        <div className="flex justify-center gap-1.5 mt-6">
-          {steps.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => { autoSave(); setCurrentStep(i); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-              className={`w-2.5 h-2.5 rounded-full transition-colors ${
-                i === currentStep ? 'bg-primary' : i < currentStep || skippedSteps[i] ? 'bg-primary/40' : 'bg-muted'
-              }`}
-            />
-          ))}
+        <div className="flex justify-center gap-2 mt-8">
+          {steps.map((s, i) => {
+            const isActive = i === currentStep;
+            const isDone = i < currentStep || skippedSteps[i];
+            return (
+              <button
+                key={i}
+                onClick={() => { autoSave(); setCurrentStep(i); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                className={`relative transition-all duration-300 rounded-full ${
+                  isActive 
+                    ? 'w-8 h-3 bg-primary shadow-md' 
+                    : isDone 
+                      ? 'w-3 h-3 bg-primary/50' 
+                      : 'w-3 h-3 bg-muted hover:bg-muted-foreground/30'
+                }`}
+                title={s.title}
+              />
+            );
+          })}
         </div>
 
-        <p className="text-center text-xs text-muted-foreground mt-4">
-          💾 Sauvegarde automatique activée
+        <p className="text-center text-xs text-muted-foreground mt-5 flex items-center justify-center gap-1.5">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+          Sauvegarde automatique activée
         </p>
       </div>
     </div>
