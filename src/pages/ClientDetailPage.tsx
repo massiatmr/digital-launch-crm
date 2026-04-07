@@ -175,6 +175,8 @@ export default function ClientDetailPage() {
         <TabsList className="flex flex-wrap h-auto gap-1">
           <TabsTrigger value="general">Général</TabsTrigger>
           <TabsTrigger value="onboarding">Onboarding</TabsTrigger>
+          <TabsTrigger value="invoicing">Facturation</TabsTrigger>
+          <TabsTrigger value="contract">Contrat</TabsTrigger>
           <TabsTrigger value="resources">Ressources</TabsTrigger>
           <TabsTrigger value="accesses">Accès</TabsTrigger>
           <TabsTrigger value="objectives">Objectifs</TabsTrigger>
