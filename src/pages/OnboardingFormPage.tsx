@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, Component, type ReactNode } from 'react';
+import type { ErrorInfo } from 'react';
 import logo from '@/assets/logo.webp';
 import { useSearchParams } from 'react-router-dom';
 import { Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
@@ -208,6 +209,33 @@ const ADS_STEPS: FormStep[] = [
   },
 ];
 
+class OnboardingErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('Onboarding form error:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center p-4">
+          <Card className="p-8 text-center max-w-md space-y-4">
+            <p className="text-lg font-semibold">Une erreur est survenue</p>
+            <p className="text-sm text-muted-foreground">Veuillez rafraîchir la page pour continuer. Vos réponses ont été sauvegardées automatiquement.</p>
+            <Button onClick={() => window.location.reload()}>Rafraîchir la page</Button>
+          </Card>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function FileOrLinkField({ id, value, onChange, clientId }: { id: string; value: any; onChange: (v: any) => void; clientId: string }) {
   const [mode, setMode] = useState<'link' | 'file'>(value?.mode || 'link');
   const [uploading, setUploading] = useState(false);
@@ -250,7 +278,7 @@ function FileOrLinkField({ id, value, onChange, clientId }: { id: string; value:
   );
 }
 
-export default function OnboardingFormPage() {
+function OnboardingFormContent() {
   const [params] = useSearchParams();
   const token = params.get('token');
   const formTypeFromUrl = window.location.pathname.includes('/ads') ? 'ads' : 'website';
@@ -270,24 +298,33 @@ export default function OnboardingFormPage() {
 
   const initializedRef = useRef(false);
   useEffect(() => {
+    if (onboarding?.completed) {
+      setCompleted(true);
+      return;
+    }
     if (initializedRef.current) return;
-    if (onboarding?.responses && Object.keys(onboarding.responses).length > 0) {
-      setResponses(onboarding.responses);
-      if (onboarding.responses._skippedSteps) {
-        setSkippedSteps(onboarding.responses._skippedSteps);
+    if (onboarding?.responses && Object.keys(onboarding.responses as Record<string, any>).length > 0) {
+      setResponses(onboarding.responses as Record<string, any>);
+      const resp = onboarding.responses as Record<string, any>;
+      if (resp._skippedSteps) {
+        setSkippedSteps(resp._skippedSteps);
       }
       initializedRef.current = true;
     }
-    if (onboarding?.completed) setCompleted(true);
   }, [onboarding]);
 
   const autoSave = useCallback(() => {
-    if (!token) return;
-    const allData = { ...responses, _skippedSteps: skippedSteps };
-    saveResponses.mutate({ token, responses: allData });
+    if (!token || saveResponses.isPending) return;
+    try {
+      const allData = { ...responses, _skippedSteps: skippedSteps };
+      saveResponses.mutate({ token, responses: allData });
+    } catch (e) {
+      console.error('Auto-save error:', e);
+    }
   }, [token, responses, skippedSteps, saveResponses]);
 
   useEffect(() => {
+    if (!initializedRef.current) return;
     const timer = setTimeout(autoSave, 2000);
     return () => clearTimeout(timer);
   }, [responses, skippedSteps]);
@@ -579,5 +616,13 @@ export default function OnboardingFormPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function OnboardingFormPage() {
+  return (
+    <OnboardingErrorBoundary>
+      <OnboardingFormContent />
+    </OnboardingErrorBoundary>
   );
 }

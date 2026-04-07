@@ -210,7 +210,6 @@ export function useOnboardingByToken(token: string | null) {
 }
 
 export function useSaveOnboardingResponses() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ token, responses, completed }: { token: string; responses: Record<string, any>; completed?: boolean }) => {
       const update: any = { responses };
@@ -220,9 +219,6 @@ export function useSaveOnboardingResponses() {
         .update(update)
         .eq('token', token);
       if (error) throw error;
-    },
-    onSuccess: (_, v) => {
-      qc.invalidateQueries({ queryKey: ['onboarding-token', v.token] });
     },
   });
 }
