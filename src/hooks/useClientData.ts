@@ -128,6 +128,19 @@ export function useUpdateClient() {
   });
 }
 
+export function useUpdateClientSilent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<DbClient> & { id: string }) => {
+      const { error } = await supabase.from('clients').update(updates as any).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: (_, v) => {
+      qc.invalidateQueries({ queryKey: ['clients', v.id] });
+    },
+  });
+}
+
 export function useDeleteClient() {
   const qc = useQueryClient();
   return useMutation({

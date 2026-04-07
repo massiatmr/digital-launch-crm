@@ -20,6 +20,7 @@ import {
   useClientOnboarding, useCreateOnboarding,
   useClientResources, useAddClientResource, useDeleteClientResource,
   useClientActivities, useAddClientActivity,
+  useUpdateClientSilent,
   getStatusLabel, type ClientStatus,
 } from '@/hooks/useClientData';
 import { useOffers } from '@/hooks/useOfferData';
@@ -76,9 +77,10 @@ export default function ClientDetailPage() {
   if (!client) return <div className="text-center py-12 text-muted-foreground">Client introuvable</div>;
 
   const billingInfo = (client as any).billing_info as BillingInfo | undefined;
+  const updateClientSilent = useUpdateClientSilent();
 
   const handleBillingInfoChange = (info: BillingInfo) => {
-    updateClient.mutate({ id: client.id, billing_info: info } as any);
+    updateClientSilent.mutate({ id: client.id, billing_info: info } as any);
   };
 
   const startEdit = () => {
