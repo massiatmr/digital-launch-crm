@@ -7,7 +7,7 @@ import { Download, Send, Check, Loader2, Building2, FileSignature, DollarSign } 
 import { toast } from 'sonner';
 import { generateContractPDF, type ContractData } from '@/lib/generateContractPDF';
 import { supabase } from '@/integrations/supabase/client';
-import logoUrl from '@/assets/logo.webp';
+import logoUrl from '@/assets/logo-black.png';
 import type { BillingInfo } from './InvoiceGenerator';
 
 interface Props {

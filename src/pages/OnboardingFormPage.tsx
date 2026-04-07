@@ -51,7 +51,7 @@ const WEBSITE_STEPS: FormStep[] = [
     fields: [
       { id: 'site_type', label: 'Type de site', type: 'radio', options: ['Landing page', 'Site vitrine', 'E-commerce', 'Autre'], hint: "Quel format de site correspond le mieux à votre besoin ? Une landing page est une page unique centrée sur une action, un site vitrine présente votre entreprise en plusieurs pages." },
       { id: 'main_goal', label: 'Objectif principal', type: 'radio', options: ['Générer des leads', "Présenter l'entreprise", 'Vendre', 'Prise de rendez-vous'], hint: "Que souhaitez-vous que les visiteurs fassent en arrivant sur votre site ?" },
-      { id: 'main_service', label: 'Service principal', type: 'text', hint: "Le service ou l'activité principale que le site doit mettre en avant. Ex : plomberie, coaching, déménagement." },
+      { id: 'main_service', label: 'Service principal', type: 'textarea', hint: "Le service ou l'activité principale que le site doit mettre en avant. Ex : plomberie, coaching, déménagement." },
       { id: 'main_offer', label: 'Offre principale à mettre en avant', type: 'textarea', hint: "Décrivez l'offre ou le service phare que vous souhaitez promouvoir en priorité sur votre site." },
       { id: 'expected_result', label: 'Résultat attendu avec le site', type: 'textarea', hint: "Qu'espérez-vous obtenir concrètement ? Ex : 10 demandes de devis par semaine, plus de visibilité dans ma ville, etc." },
     ],
@@ -62,7 +62,7 @@ const WEBSITE_STEPS: FormStep[] = [
     fields: [
       { id: 'services', label: 'Services proposés', type: 'textarea', hint: "Listez tous les services que vous proposez, un par ligne. Ex :\n- Déménagement local\n- Déménagement longue distance\n- Garde-meuble" },
       { id: 'avg_price', label: 'Prix moyen de vos services', type: 'text', hint: "Fourchette de prix habituelle de vos prestations. Ex : à partir de 500€, entre 1000€ et 5000€. Si vous avez des formules, indiquez-les avec les prix correspondants." },
-      { id: 'main_advantage', label: 'Avantage principal', type: 'text', hint: "Ce qui vous différencie de vos concurrents en une phrase. Ex : 15 ans d'expérience, devis en 24h, garantie satisfaction." },
+      { id: 'main_advantage', label: 'Avantage principal', type: 'textarea', hint: "Ce qui vous différencie de vos concurrents en une phrase. Ex : 15 ans d'expérience, devis en 24h, garantie satisfaction." },
       { id: 'why_choose', label: 'Pourquoi les clients vous choisissent', type: 'textarea', hint: "Les raisons principales pour lesquelles vos clients font appel à vous plutôt qu'à un concurrent." },
       { id: 'testimonials', label: 'Témoignages clients', type: 'textarea', optional: true, hint: "Copiez-collez ici des avis ou témoignages de clients satisfaits (Google, Facebook, etc.)." },
     ],
@@ -125,8 +125,8 @@ const ADS_STEPS: FormStep[] = [
       { id: 'activity_type', label: "Type d'activité", type: 'text', hint: "Votre secteur d'activité principal. Ex : déménagement, plomberie, coaching sportif, agence immobilière." },
       { id: 'services', label: 'Services proposés', type: 'textarea', hint: "Listez tous les services que vous proposez, un par ligne. Ex :\n- Déménagement local\n- Garde-meuble\n- Nettoyage après déménagement" },
       { id: 'main_offer', label: 'Offre principale', type: 'textarea', hint: "Le service ou l'offre que vous souhaitez mettre en avant dans vos campagnes publicitaires." },
-      { id: 'main_advantage', label: 'Avantage principal', type: 'text', hint: "Ce qui vous différencie de vos concurrents en une phrase. Ex : intervention en 2h, devis gratuit en 24h." },
-      { id: 'client_guarantee', label: 'Garantie client', type: 'text', hint: "La garantie ou promesse que vous offrez à vos clients. Ex : satisfait ou remboursé, devis gratuit, garantie décennale." },
+      { id: 'main_advantage', label: 'Avantage principal', type: 'textarea', hint: "Ce qui vous différencie de vos concurrents en une phrase. Ex : intervention en 2h, devis gratuit en 24h." },
+      { id: 'client_guarantee', label: 'Garantie client', type: 'textarea', hint: "La garantie ou promesse que vous offrez à vos clients. Ex : satisfait ou remboursé, devis gratuit, garantie décennale." },
     ],
   },
   {
@@ -156,8 +156,8 @@ const ADS_STEPS: FormStep[] = [
     fields: [
       { id: 'client_type', label: 'Type de clients', type: 'radio', options: ['Particuliers', 'Entreprises', 'Les deux'], hint: "Vos clients sont principalement des particuliers, des entreprises (B2B), ou les deux ?" },
       { id: 'ideal_client', label: 'Client idéal', type: 'textarea', hint: "Décrivez votre client parfait en détail. Ex : propriétaire, 35-55 ans, qui déménage dans un rayon de 50 km, budget moyen 2000€." },
-      { id: 'min_budget', label: 'Budget minimum de vos clients', type: 'text', hint: "Le budget minimum qu'un client doit avoir pour faire appel à vos services. Ex : déménagement à partir de 300€, site web à partir de 1000€. Si vous avez des formules, indiquez les prix de départ de chacune." },
-      { id: 'request_type', label: 'Type de demande souhaitée', type: 'text', hint: "Le type de prise de contact que vous préférez recevoir. Ex : demande de devis, appel direct, prise de rendez-vous." },
+      { id: 'min_budget', label: 'Budget minimum de vos clients', type: 'textarea', hint: "Le budget minimum qu'un client doit avoir pour faire appel à vos services. Ex : déménagement à partir de 300€, site web à partir de 1000€. Si vous avez des formules, indiquez les prix de départ de chacune." },
+      { id: 'request_type', label: 'Type de demande souhaitée', type: 'textarea', hint: "Le type de prise de contact que vous préférez recevoir. Ex : demande de devis, appel direct, prise de rendez-vous." },
       { id: 'avoid_clients', label: 'Clients à éviter', type: 'textarea', optional: true, hint: "Type de clients ou de demandes que vous ne souhaitez pas recevoir. Ex : petits budgets en dessous de 200€, demandes hors zone." },
     ],
   },

@@ -115,7 +115,7 @@ export function generateContractPDF(data: ContractData, logoBase64?: string): js
   // Logo
   if (logoBase64) {
     try {
-      doc.addImage(logoBase64, 'WEBP', margin, y, 50, 20);
+      doc.addImage(logoBase64, 'PNG', margin, y, 35, 14);
     } catch { /* no logo fallback */ }
   }
 

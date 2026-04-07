@@ -8,7 +8,7 @@ import { Plus, Trash2, Download, Send, Check, Loader2, Building2, FileText, Cred
 import { toast } from 'sonner';
 import { generateInvoicePDF, type InvoiceLine, type InvoiceData } from '@/lib/generateInvoicePDF';
 import { supabase } from '@/integrations/supabase/client';
-import logoUrl from '@/assets/logo.webp';
+import logoUrl from '@/assets/logo-black.png';
 
 export interface BillingInfo {
   clientCompany?: string;
