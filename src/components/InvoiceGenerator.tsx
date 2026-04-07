@@ -64,7 +64,30 @@ type SaveStatus = 'idle' | 'saving' | 'saved';
 export default function InvoiceGenerator({ clientName, clientCompany, clientEmail, clientPhone, offerName, billingInfo, onBillingInfoChange }: Props) {
   const defaultServiceType = offerName?.toLowerCase().includes('ads') || offerName?.toLowerCase().includes('pub') ? 'ads' : 'website';
 
-  const [invoiceNumber, setInvoiceNumber] = useState(billingInfo?.invoiceNumber || 'DL-001');
+  const [invoiceNumber, setInvoiceNumber] = useState(billingInfo?.invoiceNumber || '');
+
+  // Auto-generate next invoice number if not already set
+  useEffect(() => {
+    if (billingInfo?.invoiceNumber) return;
+    const fetchNextNumber = async () => {
+      const { data } = await supabase
+        .from('clients')
+        .select('billing_info')
+        .not('billing_info', 'is', null);
+      
+      let maxNum = 0;
+      (data || []).forEach((c: any) => {
+        const inv = c.billing_info?.invoiceNumber;
+        if (inv) {
+          const match = inv.match(/DL-(\d+)/);
+          if (match) maxNum = Math.max(maxNum, parseInt(match[1], 10));
+        }
+      });
+      const next = `DL-${String(maxNum + 1).padStart(3, '0')}`;
+      setInvoiceNumber(next);
+    };
+    fetchNextNumber();
+  }, [billingInfo?.invoiceNumber]);
   const [date, setDate] = useState(new Date().toLocaleDateString('fr-FR'));
   const [dueDate, setDueDate] = useState(() => {
     const d = new Date();
