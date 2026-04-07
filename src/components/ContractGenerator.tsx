@@ -177,6 +177,58 @@ export default function ContractGenerator({ clientName, clientCompany, clientEma
     }
   };
 
+  const handleSendForSignature = async () => {
+    if (!clientEmail) { toast.error("Pas d'email client renseigné"); return; }
+    setSendingSignature(true);
+    try {
+      const contractSnapshot = {
+        ...buildData(),
+        emitterName: 'DIGITAL LAUNCH LLC',
+        emitterRepresentative: 'Arezki Massinissa Ait Amara',
+      };
+
+      const { data, error } = await supabase
+        .from('contract_signatures')
+        .insert({
+          client_id: clientId,
+          contract_data: contractSnapshot as any,
+        })
+        .select('id, token, status, signed_at, created_at, expires_at')
+        .single();
+
+      if (error) throw error;
+
+      const signUrl = `${window.location.origin}/sign/${data.token}`;
+
+      // Send email with signature link
+      await supabase.functions.invoke('send-document-email', {
+        body: {
+          recipientEmail: clientEmail,
+          recipientName: clientName,
+          subject: `Contrat à signer — ${serviceType === 'ads' ? 'Meta Ads' : 'Site Web'} — Digital Launch`,
+          message: `Bonjour ${clientRepresentant || clientName},\n\nVotre contrat de prestation ${serviceType === 'ads' ? 'Meta Ads' : 'Site Web'} est prêt à être signé.\n\nCliquez sur le lien ci-dessous pour consulter et signer votre contrat :\n${signUrl}\n\nCe lien expire dans 7 jours.\n\nCordialement,\nDigital Launch`,
+        },
+      });
+
+      setSignatureRecord(data as SignatureRecord);
+      toast.success('Lien de signature envoyé par email !');
+    } catch (err: any) {
+      toast.error(`Erreur : ${err.message}`);
+    } finally {
+      setSendingSignature(false);
+    }
+  };
+
+  const getSignatureUrl = () => {
+    if (!signatureRecord?.token) return '';
+    return `${window.location.origin}/sign/${signatureRecord.token}`;
+  };
+
+  const copySignatureLink = () => {
+    navigator.clipboard.writeText(getSignatureUrl());
+    toast.success('Lien copié !');
+  };
+
   return (
     <div className="space-y-6">
       {/* Header with save status */}
@@ -195,6 +247,38 @@ export default function ContractGenerator({ clientName, clientCompany, clientEma
           {saveStatus === 'saved' && <><Check className="h-3 w-3 text-emerald-500" /> Sauvegardé</>}
         </div>
       </div>
+
+      {/* Signature Status Banner */}
+      {signatureRecord && (
+        <div className={`rounded-xl border p-4 flex items-center gap-3 ${
+          signatureRecord.status === 'signed'
+            ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950'
+            : 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950'
+        }`}>
+          {signatureRecord.status === 'signed' ? (
+            <CheckCircle className="h-5 w-5 text-emerald-600 shrink-0" />
+          ) : (
+            <Clock className="h-5 w-5 text-amber-600 shrink-0" />
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground">
+              {signatureRecord.status === 'signed'
+                ? `Contrat signé le ${new Date(signatureRecord.signed_at!).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                : 'En attente de signature'}
+            </p>
+            {signatureRecord.status === 'pending' && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Envoyé le {new Date(signatureRecord.created_at).toLocaleDateString('fr-FR')} — Expire le {new Date(signatureRecord.expires_at).toLocaleDateString('fr-FR')}
+              </p>
+            )}
+          </div>
+          {signatureRecord.status === 'pending' && (
+            <Button variant="ghost" size="sm" onClick={copySignatureLink} className="shrink-0 text-xs gap-1">
+              <ExternalLink className="h-3.5 w-3.5" /> Copier le lien
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Section 1: Service type */}
       <div className="rounded-xl border border-border bg-card p-5 space-y-4">
@@ -335,12 +419,26 @@ export default function ContractGenerator({ clientName, clientCompany, clientEma
       </div>
 
       {/* Actions */}
-      <div className="flex gap-3">
-        <Button onClick={handleDownload} className="flex-1 h-11 gap-2">
-          <Download className="h-4 w-4" /> Télécharger en PDF
-        </Button>
-        <Button variant="outline" onClick={handleSendEmail} disabled={sending || !clientEmail} className="flex-1 h-11 gap-2">
-          <Send className="h-4 w-4" /> {sending ? 'Envoi...' : 'Envoyer par email'}
+      <div className="flex flex-col gap-3">
+        <div className="flex gap-3">
+          <Button onClick={handleDownload} className="flex-1 h-11 gap-2">
+            <Download className="h-4 w-4" /> Télécharger en PDF
+          </Button>
+          <Button variant="outline" onClick={handleSendEmail} disabled={sending || !clientEmail} className="flex-1 h-11 gap-2">
+            <Send className="h-4 w-4" /> {sending ? 'Envoi...' : 'Envoyer par email'}
+          </Button>
+        </div>
+        <Button
+          variant="secondary"
+          onClick={handleSendForSignature}
+          disabled={sendingSignature || !clientEmail}
+          className="w-full h-11 gap-2"
+        >
+          {sendingSignature ? (
+            <><Loader2 className="h-4 w-4 animate-spin" /> Envoi en cours...</>
+          ) : (
+            <><PenTool className="h-4 w-4" /> Envoyer pour signature électronique</>
+          )}
         </Button>
       </div>
     </div>
