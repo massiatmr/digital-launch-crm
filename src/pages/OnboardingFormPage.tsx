@@ -270,15 +270,19 @@ export default function OnboardingFormPage() {
 
   const initializedRef = useRef(false);
   useEffect(() => {
+    if (onboarding?.completed) {
+      setCompleted(true);
+      return;
+    }
     if (initializedRef.current) return;
-    if (onboarding?.responses && Object.keys(onboarding.responses).length > 0) {
-      setResponses(onboarding.responses);
-      if (onboarding.responses._skippedSteps) {
-        setSkippedSteps(onboarding.responses._skippedSteps);
+    if (onboarding?.responses && Object.keys(onboarding.responses as Record<string, any>).length > 0) {
+      setResponses(onboarding.responses as Record<string, any>);
+      const resp = onboarding.responses as Record<string, any>;
+      if (resp._skippedSteps) {
+        setSkippedSteps(resp._skippedSteps);
       }
       initializedRef.current = true;
     }
-    if (onboarding?.completed) setCompleted(true);
   }, [onboarding]);
 
   const autoSave = useCallback(() => {
