@@ -23,6 +23,7 @@ export interface BillingInfo {
   setupFee?: string;
   managementFee?: string;
   recommendedBudget?: string;
+  contractArticles?: { title: string; content: string }[];
 }
 
 interface Props {
