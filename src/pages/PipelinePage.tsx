@@ -36,8 +36,8 @@ const STAGES: { key: PipelineStage; label: string; gradient: string; dotColor: s
   { key: 'qualified', label: 'Qualifié', gradient: 'from-emerald-500/20 to-emerald-600/5', dotColor: 'bg-emerald-400' },
   { key: 'proposal', label: 'Proposition', gradient: 'from-purple-500/20 to-purple-600/5', dotColor: 'bg-purple-400' },
   { key: 'won', label: 'Gagné', gradient: 'from-emerald-500/20 to-emerald-600/5', dotColor: 'bg-emerald-400' },
-  { key: 'lost', label: 'Perdu', gradient: 'from-red-500/20 to-red-600/5', dotColor: 'bg-red-400' },
   { key: 'ghost', label: 'À Relancer', gradient: 'from-amber-500/20 to-amber-600/5', dotColor: 'bg-amber-400' },
+  { key: 'lost', label: 'Perdu', gradient: 'from-neutral-500/10 to-neutral-600/5', dotColor: 'bg-neutral-400' },
 ];
 
 const scoreBarColors: Record<string, string> = {
@@ -74,7 +74,7 @@ function PipelineCard({
     <motion.div
       layout
       initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
+      animate={{ opacity: lead.status === 'lost' ? 0.45 : 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.2 }}
       draggable={!isMobileDevice}
@@ -82,7 +82,7 @@ function PipelineCard({
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onClick={() => { if (isMobileDevice) onClick(lead); }}
-      className="group relative glass-card-hover cursor-pointer overflow-hidden"
+      className={cn("group relative glass-card-hover cursor-pointer overflow-hidden", lead.status === 'lost' && "grayscale")}
     >
       {/* Score color bar */}
       <div className={cn('absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl', scoreBarColors[lead.score])} />
