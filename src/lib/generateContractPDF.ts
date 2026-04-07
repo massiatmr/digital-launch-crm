@@ -1,5 +1,10 @@
 import jsPDF from 'jspdf';
 
+export interface ContractArticle {
+  title: string;
+  content: string;
+}
+
 export interface ContractData {
   clientCompany: string;
   clientRepresentant: string;
@@ -11,6 +16,7 @@ export interface ContractData {
   managementFee: string;
   recommendedBudget: string;
   contractDate: string;
+  customArticles?: ContractArticle[];
 }
 
 const EMITTER = {
