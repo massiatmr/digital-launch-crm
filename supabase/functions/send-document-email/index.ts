@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
 
     const { recipientEmail, recipientName, subject, documentBase64, documentName, message } = await req.json()
 
-    if (!recipientEmail || !subject || !documentBase64 || !documentName) {
+    if (!recipientEmail || !subject) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -63,21 +63,27 @@ Deno.serve(async (req) => {
       </div>
     `
 
+    // Build payload with optional attachment
+    const emailPayload: Record<string, unknown> = {
+      to: recipientEmail,
+      from: 'Digital Launch <contact@digitallaunch-llc.com>',
+      subject,
+      html: emailHtml,
+    }
+
+    if (documentBase64 && documentName) {
+      emailPayload.attachments = [{
+        filename: documentName,
+        content: documentBase64,
+        encoding: 'base64',
+        type: 'application/pdf',
+      }]
+    }
+
     // Enqueue via transactional email system
     const { error: enqueueError } = await supabase.rpc('enqueue_email', {
       queue_name: 'transactional_emails',
-      payload: {
-        to: recipientEmail,
-        from: 'Digital Launch <contact@digitallaunch-llc.com>',
-        subject,
-        html: emailHtml,
-        attachments: [{
-          filename: documentName,
-          content: documentBase64,
-          encoding: 'base64',
-          type: 'application/pdf',
-        }],
-      },
+      payload: emailPayload,
     })
 
     if (enqueueError) {
