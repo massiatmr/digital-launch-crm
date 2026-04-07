@@ -236,7 +236,7 @@ class OnboardingErrorBoundary extends Component<{ children: ReactNode }, { hasEr
   }
 }
 
-function OnboardingFormContent() {
+function FileOrLinkField({ id, value, onChange, clientId }: { id: string; value: any; onChange: (v: any) => void; clientId: string }) {
   const [mode, setMode] = useState<'link' | 'file'>(value?.mode || 'link');
   const [uploading, setUploading] = useState(false);
 
@@ -278,7 +278,7 @@ function OnboardingFormContent() {
   );
 }
 
-export default function OnboardingFormPage() {
+function OnboardingFormContent() {
   const [params] = useSearchParams();
   const token = params.get('token');
   const formTypeFromUrl = window.location.pathname.includes('/ads') ? 'ads' : 'website';
