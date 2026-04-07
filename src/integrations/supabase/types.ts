@@ -303,6 +303,62 @@ export type Database = {
           },
         ]
       }
+      contract_signatures: {
+        Row: {
+          client_id: string
+          contract_data: Json
+          created_at: string
+          expires_at: string
+          id: string
+          owner_id: string
+          signature_image: string | null
+          signed_at: string | null
+          signed_pdf_path: string | null
+          signer_ip: string | null
+          signer_user_agent: string | null
+          status: string
+          token: string
+        }
+        Insert: {
+          client_id: string
+          contract_data?: Json
+          created_at?: string
+          expires_at?: string
+          id?: string
+          owner_id?: string
+          signature_image?: string | null
+          signed_at?: string | null
+          signed_pdf_path?: string | null
+          signer_ip?: string | null
+          signer_user_agent?: string | null
+          status?: string
+          token?: string
+        }
+        Update: {
+          client_id?: string
+          contract_data?: Json
+          created_at?: string
+          expires_at?: string
+          id?: string
+          owner_id?: string
+          signature_image?: string | null
+          signed_at?: string | null
+          signed_pdf_path?: string | null
+          signer_ip?: string | null
+          signer_user_agent?: string | null
+          status?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_signatures_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_send_log: {
         Row: {
           created_at: string
