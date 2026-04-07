@@ -13,6 +13,7 @@ import OffersPage from "@/pages/OffersPage";
 import OfferDetailPage from "@/pages/OfferDetailPage";
 import BookingsPage from "@/pages/BookingsPage";
 import PublicOfferPage from "@/pages/PublicOfferPage";
+import PublicSignaturePage from "@/pages/PublicSignaturePage";
 import AuthPage from "@/pages/AuthPage";
 import UnsubscribePage from "@/pages/UnsubscribePage";
 import ClientsPage from "@/pages/ClientsPage";
@@ -31,6 +32,7 @@ const App = () => (
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/offers/:slug/page" element={<PublicOfferPage />} />
           <Route path="/unsubscribe" element={<UnsubscribePage />} />
+          <Route path="/sign/:token" element={<PublicSignaturePage />} />
           <Route path="/onboarding/website" element={<OnboardingFormPage />} />
           <Route path="/onboarding/ads" element={<OnboardingFormPage />} />
           <Route element={<ProtectedRoute />}>

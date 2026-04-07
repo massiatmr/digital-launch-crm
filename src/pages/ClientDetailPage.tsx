@@ -364,6 +364,7 @@ export default function ClientDetailPage() {
             clientCompany={client.company_name || ''}
             clientEmail={client.email || ''}
             clientPhone={client.phone || ''}
+            clientId={client.id}
             offerName={(client as any).offers?.name}
             billingInfo={billingInfo}
             onBillingInfoChange={handleBillingInfoChange}
