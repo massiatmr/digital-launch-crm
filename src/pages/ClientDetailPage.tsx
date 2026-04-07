@@ -20,6 +20,7 @@ import {
   useClientOnboarding, useCreateOnboarding,
   useClientResources, useAddClientResource, useDeleteClientResource,
   useClientActivities, useAddClientActivity,
+  useUpdateClientSilent,
   getStatusLabel, type ClientStatus,
 } from '@/hooks/useClientData';
 import { useOffers } from '@/hooks/useOfferData';
