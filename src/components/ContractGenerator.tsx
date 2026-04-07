@@ -16,12 +16,22 @@ interface Props {
   clientCompany: string;
   clientEmail: string;
   clientPhone: string;
+  clientId: string;
   offerName?: string;
   billingInfo?: BillingInfo;
   onBillingInfoChange?: (info: BillingInfo) => void;
 }
 
 type SaveStatus = 'idle' | 'saving' | 'saved';
+
+interface SignatureRecord {
+  id: string;
+  token: string;
+  status: string;
+  signed_at: string | null;
+  created_at: string;
+  expires_at: string;
+}
 
 export default function ContractGenerator({ clientName, clientCompany, clientEmail, clientPhone, offerName, billingInfo, onBillingInfoChange }: Props) {
   const defaultServiceType = offerName?.toLowerCase().includes('ads') || offerName?.toLowerCase().includes('pub') ? 'ads' : 'website';
