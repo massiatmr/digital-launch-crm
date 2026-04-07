@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Download, Send, Check, Loader2, Building2, FileSignature, DollarSign, ListChecks, Plus, Trash2, RotateCcw } from 'lucide-react';
+import { Download, Send, Check, Loader2, Building2, FileSignature, DollarSign, ListChecks, Plus, Trash2, RotateCcw, PenTool, Clock, CheckCircle, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { generateContractPDF, ADS_ARTICLES, WEBSITE_ARTICLES, type ContractData, type ContractArticle } from '@/lib/generateContractPDF';
 import { supabase } from '@/integrations/supabase/client';
