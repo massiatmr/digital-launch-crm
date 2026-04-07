@@ -618,3 +618,11 @@ function OnboardingFormContent() {
     </div>
   );
 }
+
+export default function OnboardingFormPage() {
+  return (
+    <OnboardingErrorBoundary>
+      <OnboardingFormContent />
+    </OnboardingErrorBoundary>
+  );
+}
