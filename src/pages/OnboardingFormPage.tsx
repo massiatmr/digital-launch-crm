@@ -238,19 +238,36 @@ class OnboardingErrorBoundary extends Component<{ children: ReactNode }, { hasEr
 }
 
 function FileOrLinkField({ id, value, onChange, clientId }: { id: string; value: any; onChange: (v: any) => void; clientId: string }) {
-  const [mode, setMode] = useState<'link' | 'file'>(value?.mode || 'link');
+  const [mode, setMode] = useState<'link' | 'file'>(() => {
+    if (Array.isArray(value?.files) && value.files.length > 0) return 'file';
+    return value?.mode || 'link';
+  });
   const [uploading, setUploading] = useState(false);
 
-  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const files: { url: string; name: string }[] = Array.isArray(value?.files) ? value.files : 
+    (value?.mode === 'file' && value?.url ? [{ url: value.url, name: value.name }] : []);
+
+  const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files;
+    if (!selected || selected.length === 0) return;
     setUploading(true);
-    const path = `${clientId}/${Date.now()}-${file.name}`;
-    const { error } = await supabase.storage.from('client-resources').upload(path, file);
-    if (error) { toast.error('Erreur upload'); setUploading(false); return; }
-    const { data } = supabase.storage.from('client-resources').getPublicUrl(path);
-    onChange({ mode: 'file', url: data.publicUrl, name: file.name });
+    const newFiles = [...files];
+    for (let i = 0; i < selected.length; i++) {
+      const file = selected[i];
+      const path = `${clientId}/${Date.now()}-${file.name}`;
+      const { error } = await supabase.storage.from('client-resources').upload(path, file);
+      if (error) { toast.error(`Erreur upload: ${file.name}`); continue; }
+      const { data } = supabase.storage.from('client-resources').getPublicUrl(path);
+      newFiles.push({ url: data.publicUrl, name: file.name });
+    }
+    onChange({ mode: 'file', files: newFiles });
     setUploading(false);
+    e.target.value = '';
+  };
+
+  const removeFile = (idx: number) => {
+    const newFiles = files.filter((_, i) => i !== idx);
+    onChange(newFiles.length > 0 ? { mode: 'file', files: newFiles } : '');
   };
 
   return (
@@ -262,15 +279,25 @@ function FileOrLinkField({ id, value, onChange, clientId }: { id: string; value:
       {mode === 'link' ? (
         <Input placeholder="https://drive.google.com/..." value={value?.url || ''} onChange={e => onChange({ mode: 'link', url: e.target.value })} />
       ) : (
-        <div>
+        <div className="space-y-2">
+          {files.length > 0 && (
+            <div className="space-y-1.5">
+              {files.map((f, i) => (
+                <div key={i} className="flex items-center gap-2 text-sm bg-primary/10 rounded-lg px-3 py-1.5">
+                  <span className="text-primary truncate flex-1">✅ {f.name}</span>
+                  <button type="button" onClick={() => removeFile(i)} className="text-muted-foreground hover:text-destructive shrink-0">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           {uploading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Upload en cours...</div>
-          ) : value?.name ? (
-            <p className="text-sm text-primary">✅ {value.name}</p>
           ) : (
             <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-2 rounded-md border border-dashed border-border text-sm hover:bg-muted/50 transition-colors">
-              <input type="file" className="hidden" onChange={handleFile} />
-              Choisir un fichier
+              <input type="file" className="hidden" multiple onChange={handleFiles} />
+              {files.length > 0 ? 'Ajouter d\'autres fichiers' : 'Choisir des fichiers'}
             </label>
           )}
         </div>
