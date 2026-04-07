@@ -161,7 +161,7 @@ export function useUpdateOffer() {
       if (updates.name) {
         updates.slug = slugify(updates.name);
       }
-      const { error } = await supabase.from('offers').update(updates).eq('id', id);
+      const { error } = await supabase.from('offers').update(updates as any).eq('id', id);
       if (error) throw error;
     },
     onSuccess: (_, vars) => {
@@ -208,7 +208,7 @@ export function useUpdateOfferPage() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...updates }: { id: string; [key: string]: any }) => {
-      const { error } = await supabase.from('offer_pages').update(updates).eq('id', id);
+      const { error } = await supabase.from('offer_pages').update(updates as any).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -256,7 +256,7 @@ export function useUpdateBooking() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...updates }: { id: string; [key: string]: any }) => {
-      const { error } = await supabase.from('bookings').update(updates).eq('id', id);
+      const { error } = await supabase.from('bookings').update(updates as any).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {

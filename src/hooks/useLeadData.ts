@@ -177,7 +177,7 @@ export function useUpdateLead() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...updates }: { id: string; [key: string]: any }) => {
-      const { error } = await supabase.from('leads').update(updates).eq('id', id);
+      const { error } = await supabase.from('leads').update(updates as any).eq('id', id);
       if (error) throw error;
     },
     onSuccess: (_, vars) => {
@@ -308,7 +308,7 @@ export function useUpdateReminder() {
       const updates: Record<string, unknown> = {};
       if (action !== undefined) updates.action = action;
       if (due_date !== undefined) updates.due_date = due_date;
-      const { error } = await supabase.from('reminders').update(updates).eq('id', id);
+      const { error } = await supabase.from('reminders').update(updates as any).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
