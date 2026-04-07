@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,12 +11,29 @@ import { generateInvoicePDF, type InvoiceLine, type InvoiceData } from '@/lib/ge
 import { supabase } from '@/integrations/supabase/client';
 import logoUrl from '@/assets/logo.webp';
 
+export interface BillingInfo {
+  clientCompany?: string;
+  clientRepresentant?: string;
+  clientAddress?: string;
+  clientSiret?: string;
+  invoiceNumber?: string;
+  serviceType?: 'website' | 'ads' | 'custom';
+  lines?: InvoiceLine[];
+  prestationDetails?: string;
+  paymentTerms?: string;
+  setupFee?: string;
+  managementFee?: string;
+  recommendedBudget?: string;
+}
+
 interface Props {
   clientName: string;
   clientCompany: string;
   clientEmail: string;
   clientPhone: string;
   offerName?: string;
+  billingInfo?: BillingInfo;
+  onBillingInfoChange?: (info: BillingInfo) => void;
 }
 
 const DEFAULT_WEBSITE_DETAILS = [
@@ -42,28 +59,30 @@ const PAYMENT_TERMS: Record<string, string> = {
   custom: '',
 };
 
-export default function InvoiceGenerator({ clientName, clientCompany, clientEmail, clientPhone, offerName }: Props) {
+export default function InvoiceGenerator({ clientName, clientCompany, clientEmail, clientPhone, offerName, billingInfo, onBillingInfoChange }: Props) {
   const defaultServiceType = offerName?.toLowerCase().includes('ads') || offerName?.toLowerCase().includes('pub') ? 'ads' : 'website';
 
-  const [invoiceNumber, setInvoiceNumber] = useState('DL-001');
+  const [invoiceNumber, setInvoiceNumber] = useState(billingInfo?.invoiceNumber || 'DL-001');
   const [date, setDate] = useState(new Date().toLocaleDateString('fr-FR'));
   const [dueDate, setDueDate] = useState(() => {
     const d = new Date();
     d.setMonth(d.getMonth() + 1);
     return d.toLocaleDateString('fr-FR');
   });
-  const [clientCompanyField, setClientCompanyField] = useState(clientCompany);
-  const [clientRepresentant, setClientRepresentant] = useState(clientName);
-  const [clientAddress, setClientAddress] = useState('');
-  const [clientSiret, setClientSiret] = useState('');
-  const [serviceType, setServiceType] = useState<'website' | 'ads' | 'custom'>(defaultServiceType);
-  const [lines, setLines] = useState<InvoiceLine[]>([
-    { description: defaultServiceType === 'ads' ? 'Gestion campagnes Meta Ads' : 'Conception et Développement Site Web', unitPrice: 650, quantity: 1 },
-  ]);
+  const [clientCompanyField, setClientCompanyField] = useState(billingInfo?.clientCompany || clientCompany);
+  const [clientRepresentant, setClientRepresentant] = useState(billingInfo?.clientRepresentant || clientName);
+  const [clientAddress, setClientAddress] = useState(billingInfo?.clientAddress || '');
+  const [clientSiret, setClientSiret] = useState(billingInfo?.clientSiret || '');
+  const [serviceType, setServiceType] = useState<'website' | 'ads' | 'custom'>(billingInfo?.serviceType || defaultServiceType);
+  const [lines, setLines] = useState<InvoiceLine[]>(
+    billingInfo?.lines?.length ? billingInfo.lines :
+    [{ description: defaultServiceType === 'ads' ? 'Gestion campagnes Meta Ads' : 'Conception et Développement Site Web', unitPrice: 650, quantity: 1 }]
+  );
   const [prestationDetails, setPrestationDetails] = useState<string>(
+    billingInfo?.prestationDetails ||
     (defaultServiceType === 'ads' ? DEFAULT_ADS_DETAILS : DEFAULT_WEBSITE_DETAILS).join('\n')
   );
-  const [paymentTerms, setPaymentTerms] = useState(PAYMENT_TERMS[defaultServiceType]);
+  const [paymentTerms, setPaymentTerms] = useState(billingInfo?.paymentTerms || PAYMENT_TERMS[defaultServiceType]);
   const [sending, setSending] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string>('');
 
@@ -76,6 +95,27 @@ export default function InvoiceGenerator({ clientName, clientCompany, clientEmai
         reader.readAsDataURL(blob);
       });
   }, []);
+
+  // Auto-save billing info on changes (debounced)
+  const saveBillingInfo = useCallback(() => {
+    onBillingInfoChange?.({
+      ...billingInfo,
+      clientCompany: clientCompanyField,
+      clientRepresentant,
+      clientAddress,
+      clientSiret,
+      invoiceNumber,
+      serviceType,
+      lines,
+      prestationDetails,
+      paymentTerms,
+    });
+  }, [clientCompanyField, clientRepresentant, clientAddress, clientSiret, invoiceNumber, serviceType, lines, prestationDetails, paymentTerms, onBillingInfoChange, billingInfo]);
+
+  useEffect(() => {
+    const timer = setTimeout(saveBillingInfo, 1500);
+    return () => clearTimeout(timer);
+  }, [saveBillingInfo]);
 
   const handleServiceTypeChange = (value: string) => {
     const v = value as 'website' | 'ads' | 'custom';

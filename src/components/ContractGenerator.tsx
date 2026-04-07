@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { generateContractPDF, type ContractData } from '@/lib/generateContractPDF';
 import { supabase } from '@/integrations/supabase/client';
 import logoUrl from '@/assets/logo.webp';
+import type { BillingInfo } from './InvoiceGenerator';
 
 interface Props {
   clientName: string;
@@ -16,20 +17,23 @@ interface Props {
   clientEmail: string;
   clientPhone: string;
   offerName?: string;
+  billingInfo?: BillingInfo;
+  onBillingInfoChange?: (info: BillingInfo) => void;
 }
 
-export default function ContractGenerator({ clientName, clientCompany, clientEmail, clientPhone, offerName }: Props) {
+export default function ContractGenerator({ clientName, clientCompany, clientEmail, clientPhone, offerName, billingInfo, onBillingInfoChange }: Props) {
   const defaultServiceType = offerName?.toLowerCase().includes('ads') || offerName?.toLowerCase().includes('pub') ? 'ads' : 'website';
 
-  const [serviceType, setServiceType] = useState<'website' | 'ads'>(defaultServiceType);
-  const [clientCompanyField, setClientCompanyField] = useState(clientCompany);
-  const [clientRepresentant, setClientRepresentant] = useState(clientName);
-  const [clientAddress, setClientAddress] = useState('');
+  const [serviceType, setServiceType] = useState<'website' | 'ads'>(billingInfo?.serviceType === 'ads' || billingInfo?.serviceType === 'website' ? billingInfo.serviceType : defaultServiceType);
+  const [clientCompanyField, setClientCompanyField] = useState(billingInfo?.clientCompany || clientCompany);
+  const [clientRepresentant, setClientRepresentant] = useState(billingInfo?.clientRepresentant || clientName);
+  const [clientAddress, setClientAddress] = useState(billingInfo?.clientAddress || '');
   const [clientEmailField, setClientEmailField] = useState(clientEmail);
   const [clientPhoneField, setClientPhoneField] = useState(clientPhone);
-  const [setupFee, setSetupFee] = useState('');
-  const [managementFee, setManagementFee] = useState('');
-  const [recommendedBudget, setRecommendedBudget] = useState('');
+  const [clientSiret, setClientSiret] = useState(billingInfo?.clientSiret || '');
+  const [setupFee, setSetupFee] = useState(billingInfo?.setupFee || '');
+  const [managementFee, setManagementFee] = useState(billingInfo?.managementFee || '');
+  const [recommendedBudget, setRecommendedBudget] = useState(billingInfo?.recommendedBudget || '');
   const [contractDate, setContractDate] = useState(new Date().toLocaleDateString('fr-FR'));
   const [sending, setSending] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string>('');
@@ -43,6 +47,25 @@ export default function ContractGenerator({ clientName, clientCompany, clientEma
         reader.readAsDataURL(blob);
       });
   }, []);
+
+  // Auto-save billing info on changes (debounced)
+  const saveBillingInfo = useCallback(() => {
+    onBillingInfoChange?.({
+      ...billingInfo,
+      clientCompany: clientCompanyField,
+      clientRepresentant,
+      clientAddress,
+      clientSiret,
+      setupFee,
+      managementFee,
+      recommendedBudget,
+    });
+  }, [clientCompanyField, clientRepresentant, clientAddress, clientSiret, setupFee, managementFee, recommendedBudget, onBillingInfoChange, billingInfo]);
+
+  useEffect(() => {
+    const timer = setTimeout(saveBillingInfo, 1500);
+    return () => clearTimeout(timer);
+  }, [saveBillingInfo]);
 
   const buildData = (): ContractData => ({
     clientCompany: clientCompanyField,
@@ -125,6 +148,10 @@ export default function ContractGenerator({ clientName, clientCompany, clientEma
           <div>
             <Label>Adresse</Label>
             <Input value={clientAddress} onChange={e => setClientAddress(e.target.value)} />
+          </div>
+          <div>
+            <Label>SIRET</Label>
+            <Input value={clientSiret} onChange={e => setClientSiret(e.target.value)} />
           </div>
           <div>
             <Label>Email</Label>

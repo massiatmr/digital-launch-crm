@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Copy, ExternalLink, Plus, Trash2, Upload, Link as LinkIcon, FileText, Clock, Receipt, FileSignature } from 'lucide-react';
-import InvoiceGenerator from '@/components/InvoiceGenerator';
+import InvoiceGenerator, { type BillingInfo } from '@/components/InvoiceGenerator';
 import ContractGenerator from '@/components/ContractGenerator';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -74,6 +74,12 @@ export default function ClientDetailPage() {
 
   if (isLoading) return <div className="text-center py-12 text-muted-foreground">Chargement...</div>;
   if (!client) return <div className="text-center py-12 text-muted-foreground">Client introuvable</div>;
+
+  const billingInfo = (client as any).billing_info as BillingInfo | undefined;
+
+  const handleBillingInfoChange = (info: BillingInfo) => {
+    updateClient.mutate({ id: client.id, billing_info: info } as any);
+  };
 
   const startEdit = () => {
     setForm({
@@ -344,6 +350,8 @@ export default function ClientDetailPage() {
             clientEmail={client.email || ''}
             clientPhone={client.phone || ''}
             offerName={(client as any).offers?.name}
+            billingInfo={billingInfo}
+            onBillingInfoChange={handleBillingInfoChange}
           />
         </TabsContent>
 
@@ -355,6 +363,8 @@ export default function ClientDetailPage() {
             clientEmail={client.email || ''}
             clientPhone={client.phone || ''}
             offerName={(client as any).offers?.name}
+            billingInfo={billingInfo}
+            onBillingInfoChange={handleBillingInfoChange}
           />
         </TabsContent>
 
