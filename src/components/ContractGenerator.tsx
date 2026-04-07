@@ -33,7 +33,7 @@ interface SignatureRecord {
   expires_at: string;
 }
 
-export default function ContractGenerator({ clientName, clientCompany, clientEmail, clientPhone, offerName, billingInfo, onBillingInfoChange }: Props) {
+export default function ContractGenerator({ clientName, clientCompany, clientEmail, clientPhone, clientId, offerName, billingInfo, onBillingInfoChange }: Props) {
   const defaultServiceType = offerName?.toLowerCase().includes('ads') || offerName?.toLowerCase().includes('pub') ? 'ads' : 'website';
 
   const [serviceType, setServiceType] = useState<'website' | 'ads'>(billingInfo?.serviceType === 'ads' || billingInfo?.serviceType === 'website' ? billingInfo.serviceType : defaultServiceType);
@@ -53,8 +53,10 @@ export default function ContractGenerator({ clientName, clientCompany, clientEma
       : (defaultServiceType === 'ads' ? ADS_ARTICLES : WEBSITE_ARTICLES)
   );
   const [sending, setSending] = useState(false);
+  const [sendingSignature, setSendingSignature] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string>('');
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [signatureRecord, setSignatureRecord] = useState<SignatureRecord | null>(null);
   const isFirstRender = useRef(true);
 
   useEffect(() => {
@@ -66,6 +68,21 @@ export default function ContractGenerator({ clientName, clientCompany, clientEma
         reader.readAsDataURL(blob);
       });
   }, []);
+
+  // Load latest signature request for this client
+  useEffect(() => {
+    const loadSignature = async () => {
+      const { data } = await supabase
+        .from('contract_signatures')
+        .select('id, token, status, signed_at, created_at, expires_at')
+        .eq('client_id', clientId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      if (data) setSignatureRecord(data as SignatureRecord);
+    };
+    loadSignature();
+  }, [clientId]);
 
   // Silent auto-save
   const saveBillingInfo = useCallback(() => {
