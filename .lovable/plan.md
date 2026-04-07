@@ -1,65 +1,78 @@
+# Plan : Génération de Factures et Contrats PDF par Client
 
+## Résumé
 
-# Plan : KPIs avancés, champ Show/No-show, et corrections mobile
+Ajouter dans chaque fiche client 2 nouvel onglet **"Facturation"** avec deux sections : génération de **facture** et génération de **contrat**. Chaque document sera généré en PDF côté client avec les données pré-remplies depuis la fiche client, tout en laissant les champs importants éditables. Deux boutons par document : "Télécharger en PDF" et "Envoyer par email".
 
-## 1. Migration DB : ajouter `show_status` aux leads
+## Ce qui sera customisable
 
-Ajouter une colonne `show_status` de type enum (`'pending'`, `'show'`, `'noshow'`) à la table `leads`, avec `'pending'` par défaut. Cela permettra de tracker si le prospect s'est présenté au rendez-vous.
+### Facture
 
-```sql
-CREATE TYPE public.show_status AS ENUM ('pending', 'show', 'noshow');
-ALTER TABLE public.leads ADD COLUMN show_status show_status NOT NULL DEFAULT 'pending';
-```
+- Numéro de facture (auto-incrémenté, modifiable)
+- Date et date d'échéance
+- **Destinataire** : nom entreprise, représentant, adresse, SIRET (pré-remplis depuis la fiche client)
+- **Lignes de facturation** : description, prix unitaire, quantité (ajout/suppression de lignes)
+- **Modalités de paiement** : sélection du type de service avec termes pré-définis :
+  - **Site Web** : 50% à la commande, 50% à la livraison
+  - **Meta Ads** : premier mois payé d'avance, puis toutes les 4 semaines
+  - **Livrables Personnalisé** : texte libre
 
-## 2. Mettre à jour le code pour le champ show/noshow
+### Contrat
 
-- **`DbLead` dans `useLeadData.ts`** : ajouter `show_status: 'pending' | 'show' | 'noshow'`
-- **`LeadEditForm.tsx`** : ajouter un select "Présence au RDV" (Pending / Show / No-show) pour les leads au statut `proposal`, `won`, `lost`
-- **`PipelineCard`** : afficher un petit badge show/noshow quand renseigné
+- **Entreprise cliente** : nom, représentant, adresse, email, téléphone (pré-remplis)
+- **Type de prestation** : Site Web ou Meta Ads (change les articles automatiquement)
+- **Montants** : frais de configuration, honoraires de gestion
+- **Budget publicitaire recommandé** (pour Ads)
+- **Date du contrat**
 
-## 3. Refonte du Dashboard avec les KPIs demandés
+### Info émetteur (hardcodée, non modifiable)
 
-Remplacer les 4 stats actuelles par **8 KPIs** organisés en 2 rangées :
+DIGITAL LAUNCH LLC, 75 E 3RD ST, Sheridan, Wyoming 82801, EIN: 98-1872816, IBAN: BE14 9056 0242 6183, SWIFT: TRWIBEB1XXX
 
-**Rangée 1 — KPIs demandés :**
-- **Nouveaux leads (30j)** : `leads.filter(created_at > 30 jours)`. Alerte visuelle si < 5 (seuil bas).
-- **Temps moyen New → Contacté** : différence moyenne entre `created_at` et `last_contacted_at` pour les leads passés de `new` à `contacted`. Affiché en heures/jours.
-- **Taux de Show-up** : `leads.show_status === 'show'` / total leads avec `show_status !== 'pending'`. Indicateur critique pour les RDV.
-- **Tâches en attente** : nombre de reminders non terminés (`!done`). Avec sous-texte "X en retard" si `due_date < now`.
+## Fichiers à créer/modifier
 
-**Rangée 2 — KPIs complémentaires proposés :**
-- **Taux de Closing** (existant) : won / (proposal + won + lost)
-- **Taux de Qualification** : qualified+ / (contacted + qualified + proposal + won + lost). Mesure l'efficacité du screening.
-- **Valeur pipeline** : nombre de leads en `proposal` (deals en cours à closer)
-- **Leads à relancer** : leads `ghost` + leads non contactés depuis > 7 jours. Indicateur d'action immédiate.
+### 1. `src/components/InvoiceGenerator.tsx` (nouveau)
 
-Chaque KPI aura une couleur conditionnelle (vert/orange/rouge) selon la performance.
+- Formulaire avec les champs éditables de la facture
+- Sélecteur de type de service (Site Web / Ads / Personnalisé) qui pré-remplit les modalités de paiement
+- Tableau de lignes de facturation dynamique
+- Boutons "Télécharger PDF" et "Envoyer par email"
 
-## 4. Corrections mobile
+### 2. `src/components/ContractGenerator.tsx` (nouveau)
 
-Problèmes identifiés dans le code :
+- Formulaire avec les champs éditables du contrat
+- Sélecteur du type de prestation (Site Web / Meta Ads) qui adapte les articles
+- Champs montants et budget
+- Boutons "Télécharger PDF" et "Envoyer par email"
 
-- **Pipeline** (`PipelinePage.tsx`) : les colonnes ont `min-w-[160px] sm:min-w-[220px]` ce qui force un scroll horizontal large. Le conteneur overflow-x-auto avec `-mx-4 px-4` crée un comportement de zoom/dezoom. Corrections :
-  - Réduire `min-w` sur mobile à `140px`
-  - Ajouter `touch-action: pan-x` pour éviter les conflits de zoom
-  - Ajouter `overflow-x: hidden` sur le body en mobile pour empêcher le scroll horizontal global
+### 3. `src/lib/generateInvoicePDF.ts` (nouveau)
 
-- **Dashboard** : les graphiques recharts débordent sur petit écran. Le PieChart avec labels textuels dépasse. Corrections :
-  - Masquer les labels du PieChart sur mobile, garder uniquement le tooltip
-  - Réduire la hauteur des charts sur mobile
-  - Empiler les stats 2x2 au lieu de 4 colonnes (déjà fait via `grid-cols-2`)
+- Utilise **jspdf** pour générer le PDF de facture
+- Reproduit fidèlement le layout du template fourni (logo, tableau, règlement, mentions légales)
 
-- **Layout global** (`AppLayout.tsx`) : ajouter `overflow-x-hidden` sur le `<main>` pour empêcher tout débordement horizontal
+### 4. `src/lib/generateContractPDF.ts` (nouveau)
 
-- **index.css** : ajouter une règle globale `html, body { overflow-x: hidden; }` et `touch-action: manipulation` sur les conteneurs principaux pour éviter le double-tap zoom
+- Utilise **jspdf** pour générer le PDF de contrat sur 2 pages
+- Articles adaptés selon le type de service
 
-## Fichiers modifiés
+### 5. `src/pages/ClientDetailPage.tsx` (modifié)
 
-1. **Migration SQL** : nouvelle colonne `show_status`
-2. **`src/hooks/useLeadData.ts`** : type `DbLead` mis à jour
-3. **`src/components/LeadEditForm.tsx`** : select show/noshow ajouté
-4. **`src/pages/Dashboard.tsx`** : refonte complète des KPIs
-5. **`src/pages/PipelinePage.tsx`** : fixes mobile (min-width, touch-action)
-6. **`src/components/AppLayout.tsx`** : overflow-x-hidden sur main
-7. **`src/index.css`** : règles anti-zoom mobile
+- Ajout d'un onglet **"Facturation"** dans les Tabs
+- Intègre les composants `InvoiceGenerator` et `ContractGenerator`
+- Passe les données client comme props pour le pré-remplissage
 
+### 6. `supabase/functions/send-document-email/index.ts` (nouveau)
+
+- Edge function pour envoyer le PDF en pièce jointe par email via l'infrastructure email existante
+
+## Dépendance
+
+- Installation du package **jspdf** pour la génération PDF côté client
+
+## Détails techniques
+
+- Les PDFs sont générés côté client avec jspdf (pas besoin de serveur)
+- Le logo `src/assets/logo.webp` sera converti en base64 et intégré dans les PDFs
+- Les données client (nom, entreprise, email, téléphone) sont pré-remplies depuis `useClient(id)`
+- L'offre associée au client détermine le type de service par défaut
+- L'envoi par email utilisera l'infrastructure email déjà en place dans le projet
