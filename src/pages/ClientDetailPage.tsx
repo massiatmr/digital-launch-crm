@@ -340,7 +340,28 @@ export default function ClientDetailPage() {
           </Card>
         </TabsContent>
 
-        {/* RESOURCES */}
+        {/* FACTURATION */}
+        <TabsContent value="invoicing">
+          <InvoiceGenerator
+            clientName={client.name}
+            clientCompany={client.company_name || ''}
+            clientEmail={client.email || ''}
+            clientPhone={client.phone || ''}
+            offerName={(client as any).offers?.name}
+          />
+        </TabsContent>
+
+        {/* CONTRAT */}
+        <TabsContent value="contract">
+          <ContractGenerator
+            clientName={client.name}
+            clientCompany={client.company_name || ''}
+            clientEmail={client.email || ''}
+            clientPhone={client.phone || ''}
+            offerName={(client as any).offers?.name}
+          />
+        </TabsContent>
+
         <TabsContent value="resources">
           <Card>
             <CardHeader><CardTitle className="text-base">Ressources</CardTitle></CardHeader>
