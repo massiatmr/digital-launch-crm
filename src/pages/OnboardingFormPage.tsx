@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, Component, type ReactNode } from 'react';
+import type { ErrorInfo } from 'react';
 import logo from '@/assets/logo.webp';
 import { useSearchParams } from 'react-router-dom';
 import { Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
