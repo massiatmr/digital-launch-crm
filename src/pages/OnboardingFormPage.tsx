@@ -361,11 +361,7 @@ export default function OnboardingFormPage() {
       <div className="max-w-2xl mx-auto px-4 py-8 sm:py-12">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary text-primary-foreground shadow-lg mb-4">
-            <span className="text-2xl font-bold">
-              {onboarding.clients?.company_name?.charAt(0) || 'C'}
-            </span>
-          </div>
+          <img src="/logo.webp" alt="Digital Launch" className="h-12 w-auto mx-auto mb-4" />
           {onboarding.clients?.company_name && (
             <p className="text-sm text-muted-foreground mb-1">{onboarding.clients.company_name}</p>
           )}
