@@ -382,13 +382,6 @@ function OnboardingFormContent() {
     if (!token) return;
     const allData = { ...responses, _skippedSteps: skippedSteps };
     await saveResponses.mutateAsync({ token, responses: allData, completed: true });
-    // Update client status to onboarding_complete
-    if (onboarding?.client_id) {
-      await supabase
-        .from('clients')
-        .update({ status: 'onboarding_complete' } as any)
-        .eq('id', onboarding.client_id);
-    }
     setCompleted(true);
   };
 
