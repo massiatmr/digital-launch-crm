@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Copy, ExternalLink, Plus, Trash2, Upload, Link as LinkIcon, FileText, Clock } from 'lucide-react';
+import { ArrowLeft, Copy, ExternalLink, Plus, Trash2, Upload, Link as LinkIcon, FileText, Clock, Receipt, FileSignature } from 'lucide-react';
+import InvoiceGenerator from '@/components/InvoiceGenerator';
+import ContractGenerator from '@/components/ContractGenerator';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
