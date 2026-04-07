@@ -1,5 +1,10 @@
 import jsPDF from 'jspdf';
 
+export interface ContractArticle {
+  title: string;
+  content: string;
+}
+
 export interface ContractData {
   clientCompany: string;
   clientRepresentant: string;
@@ -11,6 +16,7 @@ export interface ContractData {
   managementFee: string;
   recommendedBudget: string;
   contractDate: string;
+  customArticles?: ContractArticle[];
 }
 
 const EMITTER = {
@@ -23,7 +29,7 @@ const EMITTER = {
   representative: 'Arezki Massinissa Ait Amara',
 };
 
-const ADS_ARTICLES = [
+export const ADS_ARTICLES: ContractArticle[] = [
   {
     title: 'Article 1 — Objet',
     content: "Mise en place d'une stratégie de génération de leads via Meta Ads incluant une landing page et un CRM de gestion des leads. L'objectif est de générer des prospects qualifiés pour l'entreprise cliente. Les résultats peuvent varier selon le marché, la concurrence, la saison, le budget et l'offre.",
@@ -62,7 +68,7 @@ const ADS_ARTICLES = [
   },
 ];
 
-const WEBSITE_ARTICLES = [
+export const WEBSITE_ARTICLES: ContractArticle[] = [
   {
     title: 'Article 1 — Objet',
     content: "Conception et développement d'un site web professionnel pour l'entreprise cliente, incluant le design, l'intégration du contenu et la mise en ligne.",
@@ -155,7 +161,7 @@ export function generateContractPDF(data: ContractData, logoBase64?: string): js
   doc.text(`Téléphone : ${data.clientPhone || '[Non renseigné]'}`, margin, y); y += 10;
 
   // Articles
-  const articles = data.serviceType === 'ads' ? ADS_ARTICLES : WEBSITE_ARTICLES;
+  const articles = data.customArticles?.length ? data.customArticles : (data.serviceType === 'ads' ? ADS_ARTICLES : WEBSITE_ARTICLES);
 
   articles.forEach(article => {
     let content = article.content
