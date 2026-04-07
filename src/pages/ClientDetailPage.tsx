@@ -65,6 +65,7 @@ export default function ClientDetailPage() {
   const addResource = useAddClientResource();
   const deleteResource = useDeleteClientResource();
   const addActivity = useAddClientActivity();
+  const updateClientSilent = useUpdateClientSilent();
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<any>({});
@@ -77,7 +78,6 @@ export default function ClientDetailPage() {
   if (!client) return <div className="text-center py-12 text-muted-foreground">Client introuvable</div>;
 
   const billingInfo = (client as any).billing_info as BillingInfo | undefined;
-  const updateClientSilent = useUpdateClientSilent();
 
   const handleBillingInfoChange = (info: BillingInfo) => {
     updateClientSilent.mutate({ id: client.id, billing_info: info } as any);
