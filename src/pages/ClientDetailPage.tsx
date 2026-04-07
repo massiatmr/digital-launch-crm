@@ -75,6 +75,12 @@ export default function ClientDetailPage() {
   if (isLoading) return <div className="text-center py-12 text-muted-foreground">Chargement...</div>;
   if (!client) return <div className="text-center py-12 text-muted-foreground">Client introuvable</div>;
 
+  const billingInfo = (client as any).billing_info as BillingInfo | undefined;
+
+  const handleBillingInfoChange = (info: BillingInfo) => {
+    updateClient.mutate({ id: client.id, billing_info: info } as any);
+  };
+
   const startEdit = () => {
     setForm({
       name: client.name,
@@ -344,6 +350,8 @@ export default function ClientDetailPage() {
             clientEmail={client.email || ''}
             clientPhone={client.phone || ''}
             offerName={(client as any).offers?.name}
+            billingInfo={billingInfo}
+            onBillingInfoChange={handleBillingInfoChange}
           />
         </TabsContent>
 
@@ -355,6 +363,8 @@ export default function ClientDetailPage() {
             clientEmail={client.email || ''}
             clientPhone={client.phone || ''}
             offerName={(client as any).offers?.name}
+            billingInfo={billingInfo}
+            onBillingInfoChange={handleBillingInfoChange}
           />
         </TabsContent>
 
