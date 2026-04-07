@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import logo from '@/assets/logo.webp';
 import { useSearchParams } from 'react-router-dom';
 import { Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -361,7 +362,7 @@ export default function OnboardingFormPage() {
       <div className="max-w-2xl mx-auto px-4 py-8 sm:py-12">
         {/* Header */}
         <div className="text-center mb-8">
-          <img src="/logo.webp" alt="Digital Launch" className="h-12 w-auto mx-auto mb-4" />
+          <img src={logo} alt="Digital Launch" className="h-12 w-auto mx-auto mb-4" />
           {onboarding.clients?.company_name && (
             <p className="text-sm text-muted-foreground mb-1">{onboarding.clients.company_name}</p>
           )}
