@@ -286,12 +286,17 @@ export default function OnboardingFormPage() {
   }, [onboarding]);
 
   const autoSave = useCallback(() => {
-    if (!token) return;
-    const allData = { ...responses, _skippedSteps: skippedSteps };
-    saveResponses.mutate({ token, responses: allData });
+    if (!token || saveResponses.isPending) return;
+    try {
+      const allData = { ...responses, _skippedSteps: skippedSteps };
+      saveResponses.mutate({ token, responses: allData });
+    } catch (e) {
+      console.error('Auto-save error:', e);
+    }
   }, [token, responses, skippedSteps, saveResponses]);
 
   useEffect(() => {
+    if (!initializedRef.current) return;
     const timer = setTimeout(autoSave, 2000);
     return () => clearTimeout(timer);
   }, [responses, skippedSteps]);
