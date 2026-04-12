@@ -22,8 +22,8 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body || '',
-    icon: '/logo-icon.webp',
-    badge: '/logo-icon.webp',
+    icon: data.icon || '/icon-192x192.png',
+    badge: '/icon-192x192.png',
     tag: data.tag || 'default',
     data: data.url ? { url: data.url } : undefined,
     vibrate: [200, 100, 200],
