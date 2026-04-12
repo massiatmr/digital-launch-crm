@@ -187,7 +187,7 @@ export default function Dashboard() {
           label="Taux de closing"
           value={closingRate}
           suffix="%"
-          subtitle={`${wonLeads.length} gagné / ${closingDenominator} en closing`}
+          subtitle={`${wonLeads.length} gagné / ${allShowedUp.length} présents`}
           subtitleColor={closingRate >= 50 ? 'text-emerald-400' : closingRate >= 30 ? 'text-amber-400' : 'text-red-400'}
           icon={Target}
           gradient="from-emerald-500/20 to-emerald-600/5"
