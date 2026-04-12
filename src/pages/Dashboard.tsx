@@ -70,10 +70,13 @@ export default function Dashboard() {
   const pendingReminders = reminders.filter(r => !r.done);
   const overdueReminders = pendingReminders.filter(r => new Date(r.due_date) < new Date());
 
-  // — KPI 5: Closing rate
-  const proposalLeads = leads.filter(l => l.status === 'proposal' || l.status === 'won' || l.status === 'lost');
+  // — KPI 5: Closing rate (won vs leads that reached proposal stage, including lost that passed through proposal)
   const wonLeads = leads.filter(l => l.status === 'won');
-  const closingRate = proposalLeads.length > 0 ? Math.round((wonLeads.length / proposalLeads.length) * 100) : 0;
+  const proposalOrWonLeads = leads.filter(l => ['proposal', 'won'].includes(l.status));
+  // Lost leads that previously went through proposal are counted in the denominator
+  const lostFromProposal = leads.filter(l => l.status === 'lost' && l.show_status !== 'pending');
+  const closingDenominator = proposalOrWonLeads.length + lostFromProposal.length;
+  const closingRate = closingDenominator > 0 ? Math.round((wonLeads.length / closingDenominator) * 100) : 0;
 
   // — KPI 6: Qualification rate (intéressés vs perdus)
   const interestedLeads = leads.filter(l => ['qualified', 'proposal', 'won'].includes(l.status));
@@ -187,7 +190,7 @@ export default function Dashboard() {
           label="Taux de closing"
           value={closingRate}
           suffix="%"
-          subtitle={`${wonLeads.length} gagné / ${proposalLeads.length} propositions`}
+          subtitle={`${wonLeads.length} gagné / ${closingDenominator} en closing`}
           subtitleColor={closingRate >= 50 ? 'text-emerald-400' : closingRate >= 30 ? 'text-amber-400' : 'text-red-400'}
           icon={Target}
           gradient="from-emerald-500/20 to-emerald-600/5"
