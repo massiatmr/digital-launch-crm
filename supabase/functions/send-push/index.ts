@@ -238,6 +238,7 @@ Deno.serve(async (req) => {
     const payload = JSON.stringify({
       title: title || "🔔 Rappel",
       body: body || "Vous avez un rappel en attente.",
+      icon: "https://digital-launch-crm.lovable.app/icon-192x192.png",
       url: url || "/reminders",
       tag: tag || "reminder",
     });
