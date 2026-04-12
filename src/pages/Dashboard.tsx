@@ -70,11 +70,11 @@ export default function Dashboard() {
   const pendingReminders = reminders.filter(r => !r.done);
   const overdueReminders = pendingReminders.filter(r => new Date(r.due_date) < new Date());
 
-  // — KPI 5: Closing rate (gagné / (gagné + show en proposition + show perdu))
+  // — KPI 5: Closing rate (gagné / (gagné + tous en proposition + perdus présents au RDV))
   const wonLeads = leads.filter(l => l.status === 'won');
-  const showProposal = leads.filter(l => l.status === 'proposal' && l.show_status === 'show');
-  const showLost = leads.filter(l => l.status === 'lost' && l.show_status === 'show');
-  const closingDenominator = wonLeads.length + showProposal.length + showLost.length;
+  const inProposal = leads.filter(l => l.status === 'proposal');
+  const lostButShowedUp = leads.filter(l => l.status === 'lost' && l.show_status === 'show');
+  const closingDenominator = wonLeads.length + inProposal.length + lostButShowedUp.length;
   const closingRate = closingDenominator > 0 ? Math.round((wonLeads.length / closingDenominator) * 100) : 0;
 
   // — KPI 6: Qualification rate (intéressés vs perdus)

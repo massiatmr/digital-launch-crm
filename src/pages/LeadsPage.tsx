@@ -8,6 +8,7 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Search, Loader2, Clock, Package } from 'lucide-react';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
+import { ShowStatusToggle } from '@/components/ShowStatusToggle';
 import {
   Select,
   SelectContent,
@@ -126,7 +127,7 @@ export default function LeadsPage() {
                     <span className="capitalize">{lead.source.replace('_', ' ')}</span>
                   </div>
                 </div>
-                <span className="ml-4 shrink-0 flex flex-col items-end gap-0.5">
+                <span className="ml-4 shrink-0 flex flex-col items-end gap-1">
                   {lead.last_contacted_at && (
                     <span className="flex items-center gap-1 text-[10px] text-accent">
                       <Clock className="h-3 w-3" />
@@ -136,6 +137,7 @@ export default function LeadsPage() {
                   <span className="text-xs text-muted-foreground">
                     {format(new Date(lead.created_at), 'dd MMM', { locale: fr })}
                   </span>
+                  <ShowStatusToggle leadId={lead.id} currentStatus={lead.show_status} size="sm" />
                 </span>
               </Link>
             ))

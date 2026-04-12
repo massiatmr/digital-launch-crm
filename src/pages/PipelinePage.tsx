@@ -4,6 +4,7 @@ import { useCreateClient } from '@/hooks/useClientData';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadDetailContent } from '@/components/LeadDetailContent';
 import { QuickActionsMenu } from '@/components/QuickActionsMenu';
+import { ShowStatusToggle } from '@/components/ShowStatusToggle';
 import { useState, useRef } from 'react';
 import { Loader2, GripVertical, User, ArrowRight, Search, Package } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -107,12 +108,7 @@ function PipelineCard({
         <div className="mt-2.5 flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
             <LeadScoreBadge score={lead.score} className="text-[10px] px-1.5 py-0" />
-            {lead.show_status === 'show' && (
-              <span className="text-[10px] px-1.5 py-0 rounded-full bg-emerald-500/15 text-emerald-400 font-medium">Show</span>
-            )}
-            {lead.show_status === 'noshow' && (
-              <span className="text-[10px] px-1.5 py-0 rounded-full bg-red-500/15 text-red-400 font-medium">No-show</span>
-            )}
+            <ShowStatusToggle leadId={lead.id} currentStatus={lead.show_status} size="sm" />
           </div>
           <div className="flex items-center gap-1.5">
             {lead.last_contacted_at && (
