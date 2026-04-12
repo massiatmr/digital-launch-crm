@@ -1,112 +1,47 @@
 
 
-# Plan : Signature électronique intégrée (Option A)
+## Plan: Corriger le taux de closing + show_status partout
 
-## Résumé
+### Logique du taux de closing
 
-Le client génère un contrat depuis la fiche client, clique "Envoyer pour signature", le client reçoit un email avec un lien vers une page publique élégante où il peut lire le contrat et signer via un pad tactile. Le PDF signé est stocké et le statut est mis à jour dans le CRM.
+La formule actuelle filtre `show_status === 'show'` sur les propositions et les perdus, ce qui est trop restrictif.
 
-## Flux utilisateur
+Nouvelle formule demandee :
+- **Numerateur** : leads avec `status = 'won'`
+- **Denominateur** : `won` + `proposal` (tous, en cours) + `lost` avec `show_status = 'show'` (presents au RDV mais perdus)
 
-```text
-CRM: Contrat prêt → "Envoyer pour signature"
-        ↓
-Email au client avec lien /sign/:token
-        ↓
-Page publique: lecture du contrat → signature au doigt/souris
-        ↓
-Validation: signature + IP + timestamp enregistrés
-        ↓
-PDF signé généré et stocké dans Supabase Storage
-        ↓
-CRM: statut "Signé" visible + PDF téléchargeable
-```
+Cela mesure : parmi tous ceux a qui une proposition a ete faite (en cours ou gagnes) et ceux qui ont ete vus en RDV mais perdus, combien ont signe.
 
-## Étapes d'implémentation
+### Modifier le show_status partout
 
-### 1. Migration base de données
+Actuellement le champ "Presence au RDV" est modifiable uniquement dans le formulaire d'edition (LeadEditForm). L'utilisateur veut pouvoir le changer depuis :
 
-Table `contract_signatures` :
-- `id` (uuid, PK)
-- `client_id` (uuid, ref clients)
-- `owner_id` (uuid, auth.uid)
-- `token` (text, unique, généré côté serveur)
-- `contract_data` (jsonb — snapshot complet du contrat au moment de l'envoi)
-- `signature_image` (text — base64 du PNG de la signature)
-- `signed_at` (timestamptz)
-- `signer_ip` (text)
-- `signer_user_agent` (text)
-- `status` (text: `pending`, `signed`, `expired`)
-- `signed_pdf_path` (text — chemin dans le storage)
-- `created_at`, `expires_at`
+1. **Pipeline (PipelinePage.tsx)** : ajouter un mini-selecteur show_status directement sur chaque carte
+2. **Liste des leads (LeadsPage.tsx)** : ajouter un indicateur cliquable show/noshow/pending sur chaque ligne
+3. **Page bookings (BookingsPage.tsx)** : ajouter un selecteur de presence sur chaque booking (en mappant vers le lead associe)
+4. **Fiche lead (LeadDetailContent.tsx)** : ajouter un selecteur rapide dans le header, sans ouvrir le formulaire d'edition
 
-RLS : owner peut CRUD, anon peut SELECT/UPDATE par token (pour la page publique).
-
-Storage bucket `signed-contracts` (privé) pour stocker les PDFs signés.
-
-### 2. Composant `SignaturePad.tsx`
-
-Canvas HTML5 tactile/souris avec :
-- Dessin fluide au doigt ou à la souris (support touch events)
-- Bouton "Effacer" pour recommencer
-- Export en base64 PNG
-- Style sombre cohérent avec le thème de l'app pour la page publique (fond clair pour la page publique)
-
-### 3. Page publique `/sign/:token`
-
-Route publique (pas de ProtectedRoute). UX soignée :
-- **Étape 1** : affichage du contrat en lecture seule (articles, montants, parties prenantes) dans un design propre
-- **Étape 2** : zone de signature avec le pad tactile
-- **Étape 3** : confirmation avec récapitulatif + bouton "Confirmer et signer"
-- **Écran de succès** : animation + message "Votre contrat a été signé"
-- **États d'erreur** : token invalide, expiré, déjà signé
-
-Design : fond blanc, typographie Plus Jakarta Sans, accents violet (primary), responsive mobile-first.
-
-### 4. Edge Function `validate-signature`
-
-- GET `/validate-signature?token=xxx` : vérifie le token, retourne les données du contrat si valide
-- POST `/validate-signature` : reçoit `{ token, signatureBase64 }`, enregistre la signature + IP + user-agent, génère le PDF signé via une régénération du contrat avec signature intégrée, le stocke dans le bucket, met à jour le statut
-
-### 5. Mise à jour de `generateContractPDF.ts`
-
-Ajouter un paramètre optionnel `signatureBase64` + `signedAt` + `signerIP` :
-- Si fourni, ajouter en dernière page : bloc signature avec l'image, date/heure, IP, mention légale "Signé électroniquement le..."
-
-### 6. Mise à jour de `ContractGenerator.tsx`
-
-- Nouveau bouton "Envoyer pour signature" (en plus de Télécharger et Envoyer par email)
-- Au clic : crée une entrée `contract_signatures` avec le snapshot du contrat + token, puis envoie un email avec le lien
-- Affichage du statut de signature sous le bouton (En attente / Signé le...)
-- Bouton "Télécharger le contrat signé" quand signé
-
-### 7. Email d'invitation à signer
-
-Utilise l'edge function `send-document-email` existante (sans pièce jointe) ou un simple invoke pour envoyer un email HTML avec un bouton "Signer mon contrat" pointant vers `/sign/:token`.
-
-## Fichiers à créer
-
-| Fichier | Description |
-|---------|-------------|
-| `supabase/migrations/xxx_contract_signatures.sql` | Table + RLS + bucket |
-| `src/components/SignaturePad.tsx` | Composant canvas signature |
-| `src/pages/PublicSignaturePage.tsx` | Page publique de signature |
-| `supabase/functions/validate-signature/index.ts` | Validation + enregistrement |
-
-## Fichiers à modifier
+### Fichiers modifies
 
 | Fichier | Changement |
-|---------|------------|
-| `src/App.tsx` | Ajouter route `/sign/:token` |
-| `src/lib/generateContractPDF.ts` | Support signature dans le PDF |
-| `src/components/ContractGenerator.tsx` | Bouton envoi pour signature + statut |
-| `src/hooks/useClientData.ts` | Hook pour les signatures |
+|---|---|
+| `src/pages/Dashboard.tsx` (lignes 73-78) | Nouvelle formule closing rate |
+| `src/pages/PipelinePage.tsx` | Mini-select show_status sur PipelineCard |
+| `src/pages/LeadsPage.tsx` | Badge cliquable show_status sur chaque ligne |
+| `src/pages/BookingsPage.tsx` | Select show_status lie au lead_id du booking |
+| `src/components/LeadDetailContent.tsx` | Select rapide show_status dans le header |
 
-## Détails techniques
+### Detail technique
 
-- Le token est un hex aléatoire de 64 caractères généré côté DB
-- Expiration par défaut : 7 jours
-- L'IP du signataire est capturée via les headers de la requête Edge Function
-- Le PDF signé est stocké dans un bucket privé, accessible uniquement par le owner
-- Le snapshot `contract_data` garantit que le contrat signé est immuable (même si on modifie le contrat après envoi)
+```typescript
+// Dashboard.tsx - nouvelle formule
+const wonLeads = leads.filter(l => l.status === 'won');
+const inProposal = leads.filter(l => l.status === 'proposal');
+const lostButShowedUp = leads.filter(l => l.status === 'lost' && l.show_status === 'show');
+const closingDenominator = wonLeads.length + inProposal.length + lostButShowedUp.length;
+const closingRate = closingDenominator > 0
+  ? Math.round((wonLeads.length / closingDenominator) * 100) : 0;
+```
+
+Pour les selecteurs rapides, un petit composant `ShowStatusToggle` sera cree et reutilise partout. Il appellera `useUpdateLead` pour mettre a jour le `show_status` en un clic.
 
