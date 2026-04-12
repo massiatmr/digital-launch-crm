@@ -225,7 +225,7 @@ export function useBookings() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('bookings')
-        .select('*, offers(name)')
+        .select('*, offers(name), leads(show_status)')
         .order('booking_date', { ascending: true });
       if (error) throw error;
       return data as DbBooking[];

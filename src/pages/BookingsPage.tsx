@@ -132,7 +132,7 @@ export default function BookingsPage() {
                         {b.lead_id && (
                           <div className="flex items-center gap-1.5">
                             <span className="text-[10px] text-muted-foreground">Présence :</span>
-                            <ShowStatusToggle leadId={b.lead_id} currentStatus="pending" size="sm" />
+                            <ShowStatusToggle leadId={b.lead_id} currentStatus={(b as any).leads?.show_status || 'pending'} size="sm" />
                           </div>
                         )}
                         {b.offers?.name && <Badge variant="outline" className="text-xs">{b.offers.name}</Badge>}
