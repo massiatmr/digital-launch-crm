@@ -7,6 +7,7 @@ import { NaturalLanguageInput } from '@/components/NaturalLanguageInput';
 import { LeadActivityTimeline } from '@/components/LeadActivityTimeline';
 import { LeadEditForm } from '@/components/LeadEditForm';
 import { Copy, Mail, MessageCircle, Phone, Smartphone, Loader2, ExternalLink, Pencil, Trash2 } from 'lucide-react';
+import { ShowStatusToggle } from '@/components/ShowStatusToggle';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -54,6 +55,7 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
             {lead.company_name && <span className="text-sm text-muted-foreground">· {lead.company_name}</span>}
             <LeadScoreBadge score={lead.score} />
             <LeadStatusBadge status={lead.status} />
+            <ShowStatusToggle leadId={lead.id} currentStatus={lead.show_status} size="md" />
             <div className="ml-auto flex items-center gap-1">
               <Button variant="ghost" size="icon" onClick={() => setEditing(true)}>
                 <Pencil className="h-4 w-4" />

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useBookings, useUpdateBooking, useOffers } from '@/hooks/useOfferData';
+import { ShowStatusToggle } from '@/components/ShowStatusToggle';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -128,6 +129,12 @@ export default function BookingsPage() {
                           <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{b.email}</span>
                           {b.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{b.phone}</span>}
                         </div>
+                        {b.lead_id && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-muted-foreground">Présence :</span>
+                            <ShowStatusToggle leadId={b.lead_id} currentStatus="pending" size="sm" />
+                          </div>
+                        )}
                         {b.offers?.name && <Badge variant="outline" className="text-xs">{b.offers.name}</Badge>}
                         {b.meet_link && (
                           <a href={b.meet_link} target="_blank" rel="noopener noreferrer">
