@@ -62,6 +62,7 @@ export function LeadEditForm({ lead, onClose }: LeadEditFormProps) {
     show_status: lead.show_status || 'pending',
     notes: lead.notes || '',
     next_action: lead.next_action || '',
+    created_at: lead.created_at,
   });
 
   const update = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
