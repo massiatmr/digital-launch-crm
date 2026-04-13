@@ -146,6 +146,26 @@ export function LeadEditForm({ lead, onClose }: LeadEditFormProps) {
           <Input id="edit-action" value={form.next_action} onChange={e => update('next_action', e.target.value)} />
         </div>
         <div className="space-y-1.5">
+          <Label>Date de création</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("w-full justify-start text-left font-normal")}>
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {format(new Date(form.created_at), 'dd MMM yyyy', { locale: fr })}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={new Date(form.created_at)}
+                onSelect={(date) => date && setForm(prev => ({ ...prev, created_at: date.toISOString() }))}
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+        <div className="space-y-1.5">
           <Label>Présence au RDV</Label>
           <Select value={form.show_status} onValueChange={v => update('show_status', v)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
