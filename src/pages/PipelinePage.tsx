@@ -367,47 +367,35 @@ export default function PipelinePage() {
             </SelectContent>
           </Select>
         )}
-        {([
-          { key: 'all' as PeriodKey, label: 'Tout' },
-          { key: '7d' as PeriodKey, label: '7j' },
-          { key: '30d' as PeriodKey, label: '30j' },
-          { key: '90d' as PeriodKey, label: '90j' },
-          { key: 'year' as PeriodKey, label: 'Année' },
-        ]).map(p => (
-          <button
-            key={p.key}
-            onClick={() => setPeriod(p.key)}
-            className={cn(
-              'rounded-lg border px-3 py-2 text-xs font-medium transition-all duration-200',
-              period === p.key
-                ? 'border-primary/30 bg-primary/10 text-primary shadow-[0_0_12px_hsl(var(--primary)/0.15)]'
-                : 'border-border/50 bg-card/80 text-muted-foreground hover:text-foreground hover:border-border'
-            )}
-          >
-            {p.label}
-          </button>
-        ))}
-        <Popover>
-          <PopoverTrigger asChild>
-            <button
-              className={cn(
-                'rounded-lg border px-3 py-2 text-xs font-medium transition-all duration-200 flex items-center gap-1',
-                period === 'custom'
-                  ? 'border-primary/30 bg-primary/10 text-primary shadow-[0_0_12px_hsl(var(--primary)/0.15)]'
-                  : 'border-border/50 bg-card/80 text-muted-foreground hover:text-foreground hover:border-border'
-              )}
-            >
-              <CalendarDays className="h-3 w-3" />
-              Perso.
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-4 flex flex-col gap-2" align="end">
-            <span className="text-xs font-medium text-muted-foreground">Du</span>
-            <Calendar mode="single" selected={customFrom} onSelect={(d) => { setCustomFrom(d || undefined); setPeriod('custom'); }} locale={fr} />
-            <span className="text-xs font-medium text-muted-foreground">Au</span>
-            <Calendar mode="single" selected={customTo} onSelect={(d) => { setCustomTo(d || undefined); setPeriod('custom'); }} locale={fr} />
-          </PopoverContent>
-        </Popover>
+        <Select value={period} onValueChange={(v) => setPeriod(v as PeriodKey)}>
+          <SelectTrigger className="w-[140px] h-9 text-xs border-border/50 bg-card/80">
+            <CalendarDays className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tout</SelectItem>
+            <SelectItem value="7d">7 jours</SelectItem>
+            <SelectItem value="30d">30 jours</SelectItem>
+            <SelectItem value="90d">Trimestre</SelectItem>
+            <SelectItem value="year">Année</SelectItem>
+            <SelectItem value="custom">Personnalisé</SelectItem>
+          </SelectContent>
+        </Select>
+        {period === 'custom' && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 text-xs border-border/50 bg-card/80">
+                {customFrom ? format(customFrom, 'dd/MM', { locale: fr }) : 'Du'} — {customTo ? format(customTo, 'dd/MM', { locale: fr }) : 'Au'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-4 flex flex-col gap-2" align="end">
+              <span className="text-xs font-medium text-muted-foreground">Du</span>
+              <Calendar mode="single" selected={customFrom} onSelect={(d) => setCustomFrom(d || undefined)} locale={fr} />
+              <span className="text-xs font-medium text-muted-foreground">Au</span>
+              <Calendar mode="single" selected={customTo} onSelect={(d) => setCustomTo(d || undefined)} locale={fr} />
+            </PopoverContent>
+          </Popover>
+        )}
       </div>
 
       <div className="flex flex-1 gap-2 sm:gap-3 overflow-x-auto custom-scrollbar pb-4 -mx-4 px-4 sm:mx-0 sm:px-0" style={{ touchAction: 'pan-x' }}>
