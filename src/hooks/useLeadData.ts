@@ -370,9 +370,15 @@ export function useApplyProposal() {
   return useMutation({
     mutationFn: async ({ lead, proposal }: { lead: DbLead; proposal: AiProposal }) => {
       const updates: any = {};
-      if (proposal.status) updates.status = proposal.status;
-      if (proposal.score) updates.score = proposal.score;
-      if (proposal.next_action) updates.next_action = proposal.next_action;
+      
+      // Map all non-null fields from proposal to updates
+      const directFields = ['status', 'score', 'show_status', 'lost_reason', 'email', 'phone', 'company_name', 'next_action', 'next_action_date', 'last_contacted_at', 'sales_angle', 'ai_summary'] as const;
+      for (const field of directFields) {
+        if (proposal[field] !== undefined && proposal[field] !== null) {
+          updates[field] = proposal[field];
+        }
+      }
+      
       if (proposal.notes_append) {
         updates.notes = (lead.notes || '') + '\n' + proposal.notes_append;
       }
