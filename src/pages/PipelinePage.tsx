@@ -88,12 +88,12 @@ function PipelineCard({
       {/* Score color bar */}
       <div className={cn('absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl', scoreBarColors[lead.score])} />
 
-      <div className="p-3 pl-4">
+        <div className="p-3.5 pl-4">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <span className="text-sm font-medium text-foreground line-clamp-1">{lead.name}</span>
+            <span className="text-sm font-medium text-foreground line-clamp-2 leading-snug">{lead.name}</span>
             {lead.company_name && (
-              <span className="text-[10px] text-muted-foreground line-clamp-1">{lead.company_name}</span>
+              <span className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">{lead.company_name}</span>
             )}
             {lead.message && (
               <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{lead.message}</p>
@@ -108,7 +108,6 @@ function PipelineCard({
         <div className="mt-2.5 flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
             <LeadScoreBadge score={lead.score} className="text-[10px] px-1.5 py-0" />
-            <ShowStatusToggle leadId={lead.id} currentStatus={lead.show_status} size="sm" />
           </div>
           <div className="flex items-center gap-1.5">
             {lead.last_contacted_at && (
