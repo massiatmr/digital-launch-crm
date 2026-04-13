@@ -151,12 +151,15 @@ export function LeadEditForm({ lead, onClose }: LeadEditFormProps) {
         </div>
         <div className="space-y-1.5">
           <Label>Statut</Label>
-          <Select value={form.status} onValueChange={v => update('status', v)}>
+          <Select value={form.status} onValueChange={handleStatusChange}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {statuses.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
             </SelectContent>
           </Select>
+          {form.status === 'lost' && form.lost_reason && (
+            <p className="text-xs text-muted-foreground mt-1">Raison : {form.lost_reason}</p>
+          )}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="edit-action">Prochaine action</Label>
