@@ -129,12 +129,12 @@ export default function Dashboard() {
   const interestedAndLost = leads.filter(l => ['qualified', 'proposal', 'won', 'lost'].includes(l.status));
   const qualificationRate = interestedAndLost.length > 0 ? Math.round((interestedLeads.length / interestedAndLost.length) * 100) : 0;
 
-  // — KPI 7: Pipeline value (leads in proposal)
-  const pipelineValue = leads.filter(l => l.status === 'proposal').length;
+  // — KPI 7: Pipeline value (leads in proposal) — global, not period-filtered
+  const pipelineValue = allLeads.filter(l => l.status === 'proposal').length;
 
-  // — KPI 8: Leads to relaunch
+  // — KPI 8: Leads to relaunch — global, not period-filtered
   const sevenDaysAgo = subDays(new Date(), 7);
-  const leadsToRelaunch = leads.filter(l => {
+  const leadsToRelaunch = allLeads.filter(l => {
     if (l.status === 'ghost') return true;
     if (['won', 'lost'].includes(l.status)) return false;
     const lastContact = l.last_contacted_at ? new Date(l.last_contacted_at) : new Date(l.created_at);
