@@ -555,6 +555,7 @@ export type Database = {
           company_name: string | null
           created_at: string
           email: string | null
+          first_contacted_at: string | null
           id: string
           last_contacted_at: string | null
           lost_reason: string | null
@@ -578,6 +579,7 @@ export type Database = {
           company_name?: string | null
           created_at?: string
           email?: string | null
+          first_contacted_at?: string | null
           id?: string
           last_contacted_at?: string | null
           lost_reason?: string | null
@@ -601,6 +603,7 @@ export type Database = {
           company_name?: string | null
           created_at?: string
           email?: string | null
+          first_contacted_at?: string | null
           id?: string
           last_contacted_at?: string | null
           lost_reason?: string | null
