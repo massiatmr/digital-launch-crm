@@ -107,6 +107,39 @@ serve(async (req) => {
       lead = body?.lead;
     }
 
+    // Shared field descriptions for AI prompts
+    const LEAD_FIELDS_DESCRIPTION = `
+Voici TOUS les champs disponibles pour un lead dans le CRM :
+- name (string, obligatoire) : nom complet du contact
+- email (string | null) : adresse email
+- phone (string | null) : numéro de téléphone
+- company_name (string | null) : nom de l'entreprise/société
+- message (string | null) : message initial ou contexte
+- source (enum) : "facebook", "website", "google_sheets", "manual", "other"
+- score (enum) : "hot" (chaud/intéressé), "warm" (tiède), "cold" (froid)
+- status (enum) : "new", "contacted", "qualified", "proposal", "won", "lost", "ghost"
+- show_status (enum) : "pending" (en attente de RDV), "show" (s'est présenté au RDV), "noshow" (ne s'est PAS présenté)
+- lost_reason (string | null) : raison de perte si statut = lost (ex: "trop cher", "pas le bon timing", "a choisi un concurrent", "ne répond plus")
+- next_action (string | null) : prochaine action à faire
+- next_action_date (string ISO | null) : date de la prochaine action
+- notes (string | null) : notes libres, tout ce qui ne rentre pas dans un champ spécifique
+- ai_summary (string | null) : résumé court du lead
+- sales_angle (string | null) : angle de vente recommandé
+- last_contacted_at (string ISO | null) : date du dernier contact
+
+RÈGLES IMPORTANTES :
+- Extrais le MAXIMUM d'informations des données brutes vers les champs structurés
+- "show" / "noshow" / "venu" / "pas venu" / "présent" / "absent" → show_status
+- "perdu" / "lost" → status = "lost", et extrais la raison dans lost_reason
+- "gagné" / "signé" / "won" → status = "won"
+- "fantôme" / "ghost" / "ne répond plus" → status = "ghost"
+- Tout ce qui ne correspond à AUCUN champ → mets-le dans notes
+- Les numéros de téléphone → phone
+- Les emails → email
+- Les noms d'entreprise/société → company_name
+- Les montants, devis, prix → notes (avec contexte)
+- Les dates de RDV passés ou futurs → next_action_date si futur, notes si passé`;
+
     let systemPrompt = "";
     let userPrompt = "";
 
@@ -139,47 +172,69 @@ Réponds avec ce JSON exact:
   "objections": [{"objection": "...", "response": "..."}]
 }`;
     } else if (type === "natural_language_update") {
-      systemPrompt = `Tu es un assistant CRM intelligent. L'utilisateur va te donner une note en langage naturel à propos d'un lead. Tu dois interpréter cette note et extraire les mises à jour CRM.
+      systemPrompt = `Tu es un assistant CRM intelligent. L'utilisateur va te donner une note en langage naturel à propos d'un lead. Tu dois interpréter cette note et extraire les mises à jour CRM pour TOUS les champs concernés.
+
+${LEAD_FIELDS_DESCRIPTION}
 
 Réponds UNIQUEMENT avec un JSON valide (pas de markdown, pas de backticks).`;
 
       userPrompt = `Lead actuel:
 Nom: ${lead.name}
+Entreprise: ${lead.company_name || 'Non renseigné'}
 Statut actuel: ${lead.status}
 Score actuel: ${lead.score}
+Show status actuel: ${lead.show_status}
 Notes actuelles: ${lead.notes || 'Aucune'}
+Email: ${lead.email || 'Non renseigné'}
+Téléphone: ${lead.phone || 'Non renseigné'}
+Raison de perte: ${lead.lost_reason || 'Aucune'}
 
 Note de l'utilisateur: "${lead.new_note}"
 
-Interprète cette note et réponds avec ce JSON:
+Interprète cette note et réponds avec ce JSON. N'inclus QUE les champs qui changent (garde null pour les autres) :
 {
-  "status": "new" ou "contacted" ou "qualified" ou "proposal" ou "won" ou "lost" (garde le statut actuel si pas de changement),
-  "score": "hot" ou "warm" ou "cold" (garde le score actuel si pas de changement),
-  "next_action": "prochaine action suggérée ou null",
-  "next_action_date": "date ISO si mentionnée ou null",
-  "notes_append": "note formatée à ajouter",
-  "updates_summary": ["liste des changements effectués"]
+  "status": "new|contacted|qualified|proposal|won|lost|ghost" ou null si pas de changement,
+  "score": "hot|warm|cold" ou null si pas de changement,
+  "show_status": "pending|show|noshow" ou null si pas de changement,
+  "lost_reason": "raison" ou null si pas de changement,
+  "email": "email extrait" ou null si pas de changement,
+  "phone": "téléphone extrait" ou null si pas de changement,
+  "company_name": "entreprise extraite" ou null si pas de changement,
+  "next_action": "prochaine action suggérée" ou null,
+  "next_action_date": "date ISO si mentionnée" ou null,
+  "last_contacted_at": "date ISO du dernier contact" ou null,
+  "sales_angle": "angle de vente" ou null,
+  "ai_summary": "résumé mis à jour" ou null,
+  "notes_append": "tout ce qui ne correspond à aucun champ structuré, formaté proprement",
+  "updates_summary": ["liste lisible des changements effectués en français"]
 }`;
     } else if (type === "create_lead") {
-      systemPrompt = `Tu es un assistant CRM intelligent. L'utilisateur veut ajouter un nouveau lead via une note en langage naturel. Extrais les informations du lead.
+      systemPrompt = `Tu es un assistant CRM intelligent. L'utilisateur veut ajouter un nouveau lead via des données brutes en langage naturel. Tu dois extraire TOUTES les informations et les mapper aux bons champs.
+
+${LEAD_FIELDS_DESCRIPTION}
 
 Réponds UNIQUEMENT avec un JSON valide (pas de markdown, pas de backticks).`;
 
-      userPrompt = `L'utilisateur veut créer un lead avec cette description : "${lead.new_note}"
+      userPrompt = `L'utilisateur veut créer un lead avec ces données brutes : "${lead.new_note}"
 
-Extrais les informations et réponds avec ce JSON exact :
+Extrais le MAXIMUM d'informations structurées et réponds avec ce JSON exact :
 {
-  "name": "nom du lead (obligatoire, invente un placeholder si absent)",
+  "name": "nom du lead (obligatoire, invente un placeholder si vraiment absent)",
   "email": "email ou null",
   "phone": "téléphone ou null",
-  "message": "contexte/message ou null",
-  "source": "facebook" ou "website" ou "google_sheets" ou "manual" ou "other",
-  "score": "hot" ou "warm" ou "cold",
-  "status": "new",
+  "company_name": "nom entreprise ou null",
+  "message": "contexte/message initial ou null",
+  "source": "facebook|website|google_sheets|manual|other",
+  "score": "hot|warm|cold",
+  "status": "new|contacted|qualified|proposal|won|lost|ghost",
+  "show_status": "pending|show|noshow",
+  "lost_reason": "raison si statut lost, sinon null",
   "next_action": "prochaine action suggérée ou null",
   "next_action_date": "date ISO si mentionnée ou null",
-  "notes": "notes extraites de la description",
-  "ai_summary": "résumé court du lead"
+  "last_contacted_at": "date ISO du dernier contact si mentionnée ou null",
+  "sales_angle": "angle de vente ou null",
+  "notes": "TOUT ce qui ne rentre dans AUCUN champ ci-dessus. Prix, détails de projet, remarques, contexte additionnel. Ne perds aucune information.",
+  "ai_summary": "résumé court du lead en 1-2 phrases"
 }`;
     } else if (type === "pipeline_question") {
       systemPrompt = `Tu es un assistant CRM expert. L'utilisateur te pose une question sur sa pipeline de vente. Tu as accès aux données résumées de sa pipeline.

@@ -321,11 +321,19 @@ export function useUpdateReminder() {
 // ========== NATURAL LANGUAGE UPDATE ==========
 
 export type AiProposal = {
-  status?: string;
-  score?: string;
-  next_action?: string;
-  next_action_date?: string;
-  notes_append?: string;
+  status?: string | null;
+  score?: string | null;
+  show_status?: string | null;
+  lost_reason?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  company_name?: string | null;
+  next_action?: string | null;
+  next_action_date?: string | null;
+  last_contacted_at?: string | null;
+  sales_angle?: string | null;
+  ai_summary?: string | null;
+  notes_append?: string | null;
   updates_summary?: string[];
 };
 
@@ -337,9 +345,14 @@ export function useAnalyzeNote() {
           type: 'natural_language_update',
           lead: {
             name: lead.name,
+            company_name: lead.company_name,
             status: lead.status,
             score: lead.score,
+            show_status: lead.show_status,
             notes: lead.notes,
+            email: lead.email,
+            phone: lead.phone,
+            lost_reason: lead.lost_reason,
             new_note: note,
           },
         },
@@ -357,9 +370,15 @@ export function useApplyProposal() {
   return useMutation({
     mutationFn: async ({ lead, proposal }: { lead: DbLead; proposal: AiProposal }) => {
       const updates: any = {};
-      if (proposal.status) updates.status = proposal.status;
-      if (proposal.score) updates.score = proposal.score;
-      if (proposal.next_action) updates.next_action = proposal.next_action;
+      
+      // Map all non-null fields from proposal to updates
+      const directFields = ['status', 'score', 'show_status', 'lost_reason', 'email', 'phone', 'company_name', 'next_action', 'next_action_date', 'last_contacted_at', 'sales_angle', 'ai_summary'] as const;
+      for (const field of directFields) {
+        if (proposal[field] !== undefined && proposal[field] !== null) {
+          updates[field] = proposal[field];
+        }
+      }
+      
       if (proposal.notes_append) {
         updates.notes = (lead.notes || '') + '\n' + proposal.notes_append;
       }
