@@ -321,11 +321,19 @@ export function useUpdateReminder() {
 // ========== NATURAL LANGUAGE UPDATE ==========
 
 export type AiProposal = {
-  status?: string;
-  score?: string;
-  next_action?: string;
-  next_action_date?: string;
-  notes_append?: string;
+  status?: string | null;
+  score?: string | null;
+  show_status?: string | null;
+  lost_reason?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  company_name?: string | null;
+  next_action?: string | null;
+  next_action_date?: string | null;
+  last_contacted_at?: string | null;
+  sales_angle?: string | null;
+  ai_summary?: string | null;
+  notes_append?: string | null;
   updates_summary?: string[];
 };
 
