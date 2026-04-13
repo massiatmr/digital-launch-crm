@@ -8,7 +8,7 @@ export type DbLead = {
   email: string | null;
   phone: string | null;
   message: string | null;
-  source: 'facebook' | 'website' | 'google_sheets' | 'manual' | 'other';
+  source: 'facebook' | 'website' | 'google_sheets' | 'manual' | 'other' | 'organic_social' | 'recommendation' | 'google_my_business';
   score: 'hot' | 'warm' | 'cold';
   status: 'new' | 'contacted' | 'qualified' | 'proposal' | 'won' | 'lost' | 'ghost';
   show_status: 'pending' | 'show' | 'noshow';

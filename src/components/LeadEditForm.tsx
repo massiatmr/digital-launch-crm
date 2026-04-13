@@ -19,6 +19,9 @@ const sources = [
   { value: 'facebook', label: 'Facebook' },
   { value: 'website', label: 'Site web' },
   { value: 'google_sheets', label: 'Google Sheets' },
+  { value: 'organic_social', label: 'Réseaux organic' },
+  { value: 'recommendation', label: 'Recommendation' },
+  { value: 'google_my_business', label: 'Google My Business' },
   { value: 'manual', label: 'Manuel' },
   { value: 'other', label: 'Autre' },
 ];
