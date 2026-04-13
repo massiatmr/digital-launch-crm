@@ -227,6 +227,7 @@ export default function PipelinePage() {
   const [scoreFilter, setScoreFilter] = useState<'all' | 'hot' | 'warm' | 'cold'>('all');
   const [offerFilter, setOfferFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
+  const [lostDialogLead, setLostDialogLead] = useState<DbLead | null>(null);
   const draggedLead = useRef<DbLead | null>(null);
   const isMobile = useIsMobile();
 
