@@ -247,37 +247,47 @@ export default function PipelinePage() {
     setDragOverStage(null);
     const lead = draggedLead.current;
     if (!lead || lead.status === newStatus) return;
-    const stageLabel = STAGES.find(s => s.key === newStatus)?.label || newStatus;
-    updateLead.mutate(
-      { id: lead.id, status: newStatus },
-      {
-        onSuccess: () => {
-          toast.success(`${lead.name} → "${stageLabel}"`);
-          // Auto-create client when lead is won
-          if (newStatus === 'won') {
-            createClient.mutate({
-              name: lead.name,
-              company_name: lead.company_name || '',
-              email: lead.email || '',
-              phone: lead.phone || '',
-              whatsapp: lead.phone || '',
-              website: '',
-              offer_id: lead.offer_id || null,
-              status: 'signe' as any,
-              notes: [lead.notes, lead.message, lead.ai_summary, lead.sales_angle].filter(Boolean).join('\n\n') || '',
-            } as any, {
-              onSuccess: (data: any) => {
-                toast.success(`Client "${lead.name}" créé automatiquement`, {
-                  action: { label: 'Voir', onClick: () => navigate(`/clients/${data.id}`) },
-                });
-              },
-            });
-          }
-        },
-        onError: () => toast.error('Erreur lors du déplacement'),
-      }
-    );
+    
+    if (newStatus === 'lost') {
+      setLostDialogLead(lead);
+      draggedLead.current = null;
+      return;
+    }
+    
+    applyStatusChange(lead, newStatus);
     draggedLead.current = null;
+  };
+
+  const applyStatusChange = (lead: DbLead, newStatus: PipelineStage, lostReason?: string) => {
+    const stageLabel = STAGES.find(s => s.key === newStatus)?.label || newStatus;
+    const updates: any = { id: lead.id, status: newStatus };
+    if (lostReason) updates.lost_reason = lostReason;
+    
+    updateLead.mutate(updates, {
+      onSuccess: () => {
+        toast.success(`${lead.name} → "${stageLabel}"`);
+        if (newStatus === 'won') {
+          createClient.mutate({
+            name: lead.name,
+            company_name: lead.company_name || '',
+            email: lead.email || '',
+            phone: lead.phone || '',
+            whatsapp: lead.phone || '',
+            website: '',
+            offer_id: lead.offer_id || null,
+            status: 'signe' as any,
+            notes: [lead.notes, lead.message, lead.ai_summary, lead.sales_angle].filter(Boolean).join('\n\n') || '',
+          } as any, {
+            onSuccess: (data: any) => {
+              toast.success(`Client "${lead.name}" créé automatiquement`, {
+                action: { label: 'Voir', onClick: () => navigate(`/clients/${data.id}`) },
+              });
+            },
+          });
+        }
+      },
+      onError: () => toast.error('Erreur lors du déplacement'),
+    });
   };
 
   const leadsByStage = STAGES.reduce((acc, stage) => {
