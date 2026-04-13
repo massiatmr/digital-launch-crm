@@ -220,22 +220,45 @@ function PipelineColumn({
 }
 
 export default function PipelinePage() {
-  const { data: leads = [], isLoading } = useLeads();
+  const { data: allLeads = [], isLoading } = useLeads();
   const { data: offers = [] } = useOffers();
   const updateLead = useUpdateLead();
   const createClient = useCreateClient();
   const navigate = useNavigate();
   const [dragOverStage, setDragOverStage] = useState<PipelineStage | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
-  const [scoreFilter, setScoreFilter] = useState<'all' | 'hot' | 'warm' | 'cold'>('all');
   const [offerFilter, setOfferFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [lostDialogLead, setLostDialogLead] = useState<DbLead | null>(null);
   const draggedLead = useRef<DbLead | null>(null);
   const isMobile = useIsMobile();
 
+  type PeriodKey = '7d' | '30d' | '90d' | 'year' | 'all' | 'custom';
+  const [period, setPeriod] = useState<PeriodKey>('all');
+  const [customFrom, setCustomFrom] = useState<Date | undefined>();
+  const [customTo, setCustomTo] = useState<Date | undefined>();
+
+  const { from: rangeFrom, to: rangeTo } = useMemo(() => {
+    const now = new Date();
+    switch (period) {
+      case '7d': return { from: subDays(now, 7), to: now };
+      case '30d': return { from: subDays(now, 30), to: now };
+      case '90d': return { from: subMonths(now, 3), to: now };
+      case 'year': return { from: startOfYear(now), to: now };
+      case 'custom': return { from: customFrom || subDays(now, 30), to: customTo || now };
+      default: return { from: new Date(0), to: now };
+    }
+  }, [period, customFrom, customTo]);
+
+  const leads = useMemo(() => {
+    if (period === 'all') return allLeads;
+    return allLeads.filter(l => {
+      const d = new Date(l.created_at);
+      return isAfter(d, rangeFrom) && isBefore(d, rangeTo);
+    });
+  }, [allLeads, period, rangeFrom, rangeTo]);
+
   const filteredLeads = leads.filter(l => {
-    if (scoreFilter !== 'all' && l.score !== scoreFilter) return false;
     if (offerFilter !== 'all' && l.offer_id !== offerFilter) return false;
     if (search && !l.name.toLowerCase().includes(search.toLowerCase()) && !(l.company_name || '').toLowerCase().includes(search.toLowerCase())) return false;
     return true;
