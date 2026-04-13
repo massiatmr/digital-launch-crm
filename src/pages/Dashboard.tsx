@@ -124,10 +124,9 @@ export default function Dashboard() {
   const allShowedUp = leads.filter(l => l.show_status === 'show');
   const closingRate = allShowedUp.length > 0 ? Math.round((wonLeads.length / allShowedUp.length) * 100) : 0;
 
-  // — KPI 6: Qualification rate (passés de contacté à qualifié+)
-  const qualifiedAndBeyond = leads.filter(l => ['qualified', 'proposal', 'won', 'lost'].includes(l.status));
-  const contactedAndBeyond = leads.filter(l => l.status !== 'new');
-  const qualificationRate = contactedAndBeyond.length > 0 ? Math.round((qualifiedAndBeyond.length / contactedAndBeyond.length) * 100) : 0;
+  // — KPI 6: Qualification rate (qualifiés+ / total leads)
+  const qualifiedAndBeyond = leads.filter(l => ['qualified', 'proposal', 'won'].includes(l.status));
+  const qualificationRate = leads.length > 0 ? Math.round((qualifiedAndBeyond.length / leads.length) * 100) : 0;
 
   // — KPI 7: Pipeline value (leads in proposal) — global, not period-filtered
   const pipelineValue = allLeads.filter(l => l.status === 'proposal').length;
@@ -336,7 +335,7 @@ export default function Dashboard() {
           label="Taux de qualification"
           value={qualificationRate}
           suffix="%"
-          subtitle={`${qualifiedAndBeyond.length} qualifiés / ${contactedAndBeyond.length} contactés`}
+          subtitle={`${qualifiedAndBeyond.length} qualifiés / ${leads.length} leads`}
           icon={UserCheck}
           gradient="from-indigo-500/20 to-indigo-600/5"
           iconColor="text-indigo-400"
