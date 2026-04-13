@@ -115,7 +115,7 @@ Voici TOUS les champs disponibles pour un lead dans le CRM :
 - phone (string | null) : numéro de téléphone
 - company_name (string | null) : nom de l'entreprise/société
 - message (string | null) : message initial ou contexte
-- source (enum) : "facebook", "website", "google_sheets", "manual", "other"
+- source (enum) : "facebook", "website", "google_sheets", "organic_social", "recommendation", "google_my_business", "manual", "other"
 - score (enum) : "hot" (chaud/intéressé), "warm" (tiède), "cold" (froid)
 - status (enum) : "new", "contacted", "qualified", "proposal", "won", "lost", "ghost"
 - show_status (enum) : "pending" (en attente de RDV), "show" (s'est présenté au RDV), "noshow" (ne s'est PAS présenté)
