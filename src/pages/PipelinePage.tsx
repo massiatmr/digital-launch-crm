@@ -4,6 +4,7 @@ import { useCreateClient } from '@/hooks/useClientData';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadDetailContent } from '@/components/LeadDetailContent';
 import { QuickActionsMenu } from '@/components/QuickActionsMenu';
+import { LostReasonDialog } from '@/components/LostReasonDialog';
 
 import { useState, useRef } from 'react';
 import { Loader2, GripVertical, User, ArrowRight, Search, Package } from 'lucide-react';
