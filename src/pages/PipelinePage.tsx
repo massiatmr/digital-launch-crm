@@ -6,16 +6,19 @@ import { LeadDetailContent } from '@/components/LeadDetailContent';
 import { QuickActionsMenu } from '@/components/QuickActionsMenu';
 import { LostReasonDialog } from '@/components/LostReasonDialog';
 
-import { useState, useRef } from 'react';
-import { Loader2, GripVertical, User, ArrowRight, Search, Package } from 'lucide-react';
+import { useState, useRef, useMemo } from 'react';
+import { Loader2, GripVertical, User, ArrowRight, Search, Package, CalendarDays } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
-import { format } from 'date-fns';
+import { format, subDays, subMonths, startOfYear, isAfter, isBefore } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Button } from '@/components/ui/button';
 import {
   Sheet,
   SheetContent,
