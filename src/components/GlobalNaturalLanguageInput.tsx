@@ -487,11 +487,22 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
 
   const handleCorrect = () => { setShowDialog(false); setProposal(null); };
 
+  const SHOW_STATUS_LABELS: Record<string, string> = {
+    pending: 'En attente', show: 'Présent', noshow: 'Absent',
+  };
+
   const proposalItems = proposal ? [
     proposal.status && `Statut → ${STATUS_LABELS[proposal.status] || proposal.status}`,
     proposal.score && `Score → ${SCORE_LABELS[proposal.score] || proposal.score}`,
+    proposal.show_status && `Présence RDV → ${SHOW_STATUS_LABELS[proposal.show_status] || proposal.show_status}`,
+    proposal.lost_reason && `Raison de perte : ${proposal.lost_reason}`,
+    proposal.email && `Email → ${proposal.email}`,
+    proposal.phone && `Téléphone → ${proposal.phone}`,
+    proposal.company_name && `Entreprise → ${proposal.company_name}`,
+    proposal.sales_angle && `Angle de vente → ${proposal.sales_angle}`,
     proposal.next_action && `Prochaine action : ${proposal.next_action}`,
     proposal.next_action_date && `Date : ${new Date(proposal.next_action_date).toLocaleDateString('fr-FR')}`,
+    proposal.last_contacted_at && `Dernier contact : ${new Date(proposal.last_contacted_at).toLocaleDateString('fr-FR')}`,
     proposal.notes_append && `Note ajoutée : "${proposal.notes_append}"`,
   ].filter(Boolean) as string[] : [];
 
