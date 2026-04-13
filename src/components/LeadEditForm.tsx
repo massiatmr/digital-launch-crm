@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { CalendarIcon, Loader2, Save, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { LostReasonDialog } from '@/components/LostReasonDialog';
 
 const sources = [
   { value: 'facebook', label: 'Facebook' },
@@ -51,6 +52,7 @@ interface LeadEditFormProps {
 
 export function LeadEditForm({ lead, onClose }: LeadEditFormProps) {
   const updateLead = useUpdateLead();
+  const [showLostDialog, setShowLostDialog] = useState(false);
   const [form, setForm] = useState({
     name: lead.name,
     email: lead.email || '',
@@ -63,9 +65,24 @@ export function LeadEditForm({ lead, onClose }: LeadEditFormProps) {
     notes: lead.notes || '',
     next_action: lead.next_action || '',
     created_at: lead.created_at,
+    lost_reason: lead.lost_reason || '',
   });
 
   const update = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
+
+  const handleStatusChange = (v: string) => {
+    if (v === 'lost') {
+      setShowLostDialog(true);
+    } else {
+      update('status', v);
+      if (form.lost_reason) update('lost_reason', '');
+    }
+  };
+
+  const handleLostConfirm = (reason: string) => {
+    setForm(prev => ({ ...prev, status: 'lost', lost_reason: reason }));
+    setShowLostDialog(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
