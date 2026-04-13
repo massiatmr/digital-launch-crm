@@ -1,0 +1,1 @@
+ALTER TABLE public.leads ADD COLUMN lost_reason text DEFAULT '';

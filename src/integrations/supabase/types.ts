@@ -557,6 +557,7 @@ export type Database = {
           email: string | null
           id: string
           last_contacted_at: string | null
+          lost_reason: string | null
           message: string | null
           name: string
           next_action: string | null
@@ -579,6 +580,7 @@ export type Database = {
           email?: string | null
           id?: string
           last_contacted_at?: string | null
+          lost_reason?: string | null
           message?: string | null
           name: string
           next_action?: string | null
@@ -601,6 +603,7 @@ export type Database = {
           email?: string | null
           id?: string
           last_contacted_at?: string | null
+          lost_reason?: string | null
           message?: string | null
           name?: string
           next_action?: string | null
