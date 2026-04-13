@@ -6,16 +6,19 @@ import { LeadDetailContent } from '@/components/LeadDetailContent';
 import { QuickActionsMenu } from '@/components/QuickActionsMenu';
 import { LostReasonDialog } from '@/components/LostReasonDialog';
 
-import { useState, useRef } from 'react';
-import { Loader2, GripVertical, User, ArrowRight, Search, Package } from 'lucide-react';
+import { useState, useRef, useMemo } from 'react';
+import { Loader2, GripVertical, User, ArrowRight, Search, Package, CalendarDays } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
-import { format } from 'date-fns';
+import { format, subDays, subMonths, startOfYear, isAfter, isBefore } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Button } from '@/components/ui/button';
 import {
   Sheet,
   SheetContent,
@@ -217,22 +220,45 @@ function PipelineColumn({
 }
 
 export default function PipelinePage() {
-  const { data: leads = [], isLoading } = useLeads();
+  const { data: allLeads = [], isLoading } = useLeads();
   const { data: offers = [] } = useOffers();
   const updateLead = useUpdateLead();
   const createClient = useCreateClient();
   const navigate = useNavigate();
   const [dragOverStage, setDragOverStage] = useState<PipelineStage | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
-  const [scoreFilter, setScoreFilter] = useState<'all' | 'hot' | 'warm' | 'cold'>('all');
   const [offerFilter, setOfferFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [lostDialogLead, setLostDialogLead] = useState<DbLead | null>(null);
   const draggedLead = useRef<DbLead | null>(null);
   const isMobile = useIsMobile();
 
+  type PeriodKey = '7d' | '30d' | '90d' | 'year' | 'all' | 'custom';
+  const [period, setPeriod] = useState<PeriodKey>('all');
+  const [customFrom, setCustomFrom] = useState<Date | undefined>();
+  const [customTo, setCustomTo] = useState<Date | undefined>();
+
+  const { from: rangeFrom, to: rangeTo } = useMemo(() => {
+    const now = new Date();
+    switch (period) {
+      case '7d': return { from: subDays(now, 7), to: now };
+      case '30d': return { from: subDays(now, 30), to: now };
+      case '90d': return { from: subMonths(now, 3), to: now };
+      case 'year': return { from: startOfYear(now), to: now };
+      case 'custom': return { from: customFrom || subDays(now, 30), to: customTo || now };
+      default: return { from: new Date(0), to: now };
+    }
+  }, [period, customFrom, customTo]);
+
+  const leads = useMemo(() => {
+    if (period === 'all') return allLeads;
+    return allLeads.filter(l => {
+      const d = new Date(l.created_at);
+      return isAfter(d, rangeFrom) && isBefore(d, rangeTo);
+    });
+  }, [allLeads, period, rangeFrom, rangeTo]);
+
   const filteredLeads = leads.filter(l => {
-    if (scoreFilter !== 'all' && l.score !== scoreFilter) return false;
     if (offerFilter !== 'all' && l.offer_id !== offerFilter) return false;
     if (search && !l.name.toLowerCase().includes(search.toLowerCase()) && !(l.company_name || '').toLowerCase().includes(search.toLowerCase())) return false;
     return true;
@@ -341,20 +367,47 @@ export default function PipelinePage() {
             </SelectContent>
           </Select>
         )}
-        {(['all', 'hot', 'warm', 'cold'] as const).map(f => (
+        {([
+          { key: 'all' as PeriodKey, label: 'Tout' },
+          { key: '7d' as PeriodKey, label: '7j' },
+          { key: '30d' as PeriodKey, label: '30j' },
+          { key: '90d' as PeriodKey, label: '90j' },
+          { key: 'year' as PeriodKey, label: 'Année' },
+        ]).map(p => (
           <button
-            key={f}
-            onClick={() => setScoreFilter(f)}
+            key={p.key}
+            onClick={() => setPeriod(p.key)}
             className={cn(
               'rounded-lg border px-3 py-2 text-xs font-medium transition-all duration-200',
-              scoreFilter === f
+              period === p.key
                 ? 'border-primary/30 bg-primary/10 text-primary shadow-[0_0_12px_hsl(var(--primary)/0.15)]'
                 : 'border-border/50 bg-card/80 text-muted-foreground hover:text-foreground hover:border-border'
             )}
           >
-            {f === 'all' ? 'Tous' : f === 'hot' ? '🔥' : f === 'warm' ? '🌤' : '❄️'}
+            {p.label}
           </button>
         ))}
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              className={cn(
+                'rounded-lg border px-3 py-2 text-xs font-medium transition-all duration-200 flex items-center gap-1',
+                period === 'custom'
+                  ? 'border-primary/30 bg-primary/10 text-primary shadow-[0_0_12px_hsl(var(--primary)/0.15)]'
+                  : 'border-border/50 bg-card/80 text-muted-foreground hover:text-foreground hover:border-border'
+              )}
+            >
+              <CalendarDays className="h-3 w-3" />
+              Perso.
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-4 flex flex-col gap-2" align="end">
+            <span className="text-xs font-medium text-muted-foreground">Du</span>
+            <Calendar mode="single" selected={customFrom} onSelect={(d) => { setCustomFrom(d || undefined); setPeriod('custom'); }} locale={fr} />
+            <span className="text-xs font-medium text-muted-foreground">Au</span>
+            <Calendar mode="single" selected={customTo} onSelect={(d) => { setCustomTo(d || undefined); setPeriod('custom'); }} locale={fr} />
+          </PopoverContent>
+        </Popover>
       </div>
 
       <div className="flex flex-1 gap-2 sm:gap-3 overflow-x-auto custom-scrollbar pb-4 -mx-4 px-4 sm:mx-0 sm:px-0" style={{ touchAction: 'pan-x' }}>
