@@ -1,14 +1,19 @@
+import { useState, useMemo } from 'react';
 import { useLeads, useReminders, useToggleReminder } from '@/hooks/useLeadData';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadStatusBadge } from '@/components/LeadStatusBadge';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Users, Flame, Clock, Loader2, Check, TrendingUp, Target, BarChart3, AlertTriangle, CalendarCheck, ListChecks, UserCheck, Zap, RefreshCw } from 'lucide-react';
-import { format, subDays, differenceInHours } from 'date-fns';
+import { ArrowRight, Users, Flame, Clock, Loader2, Check, TrendingUp, Target, BarChart3, AlertTriangle, CalendarCheck, ListChecks, UserCheck, Zap, RefreshCw, CalendarIcon } from 'lucide-react';
+import { format, subDays, subMonths, startOfYear, differenceInHours, isAfter, isBefore, startOfDay, endOfDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, CartesianGrid } from 'recharts';
 import { motion } from 'framer-motion';
 import CountUp from 'react-countup';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { cn } from '@/lib/utils';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { Button } from '@/components/ui/button';
 
 const container = {
   hidden: { opacity: 0 },
@@ -18,6 +23,34 @@ const item = {
   hidden: { opacity: 0, y: 16, filter: 'blur(4px)' },
   show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.4, ease: [0.25, 0.1, 0.25, 1] as const } },
 };
+
+type PeriodKey = '7d' | '30d' | '90d' | 'year' | 'all' | 'custom';
+
+const PERIOD_OPTIONS: { key: PeriodKey; label: string }[] = [
+  { key: '7d', label: '7 jours' },
+  { key: '30d', label: '30 jours' },
+  { key: '90d', label: 'Trimestre' },
+  { key: 'year', label: 'Année' },
+  { key: 'all', label: 'Tout' },
+  { key: 'custom', label: 'Personnalisé' },
+];
+
+function getDateRange(period: PeriodKey, customFrom?: Date, customTo?: Date): { from: Date; to: Date } {
+  const now = new Date();
+  const to = endOfDay(now);
+  switch (period) {
+    case '7d': return { from: startOfDay(subDays(now, 7)), to };
+    case '30d': return { from: startOfDay(subDays(now, 30)), to };
+    case '90d': return { from: startOfDay(subMonths(now, 3)), to };
+    case 'year': return { from: startOfYear(now), to };
+    case 'all': return { from: new Date(2000, 0, 1), to };
+    case 'custom': return {
+      from: customFrom ? startOfDay(customFrom) : startOfDay(subDays(now, 30)),
+      to: customTo ? endOfDay(customTo) : to,
+    };
+    default: return { from: startOfDay(subDays(now, 30)), to };
+  }
+}
 
 function KpiCard({ label, value, suffix, subtitle, subtitleColor, icon: Icon, gradient, iconColor }: {
   label: string; value: number; suffix?: string; subtitle?: string; subtitleColor?: string;
@@ -42,15 +75,31 @@ function KpiCard({ label, value, suffix, subtitle, subtitleColor, icon: Icon, gr
 }
 
 export default function Dashboard() {
-  const { data: leads = [], isLoading } = useLeads();
-  const { data: reminders = [] } = useReminders();
+  const { data: allLeads = [], isLoading } = useLeads();
+  const { data: allReminders = [] } = useReminders();
   const toggleReminder = useToggleReminder();
   const isMobile = useIsMobile();
 
-  // — KPI 1: New leads last 30 days
-  const thirtyDaysAgo = subDays(new Date(), 30);
-  const newLeads30d = leads.filter(l => new Date(l.created_at) >= thirtyDaysAgo);
-  const newLeads30dAlert = newLeads30d.length < 5;
+  const [period, setPeriod] = useState<PeriodKey>('30d');
+  const [customFrom, setCustomFrom] = useState<Date | undefined>();
+  const [customTo, setCustomTo] = useState<Date | undefined>();
+
+  const { from: rangeFrom, to: rangeTo } = getDateRange(period, customFrom, customTo);
+
+  // Filter leads by period
+  const leads = useMemo(() =>
+    allLeads.filter(l => {
+      const d = new Date(l.created_at);
+      return isAfter(d, rangeFrom) && isBefore(d, rangeTo);
+    }),
+    [allLeads, rangeFrom, rangeTo]
+  );
+
+  // Reminders are not filtered by period (always show current state)
+  const reminders = allReminders;
+
+  // — KPI 1: New leads in period
+  const newLeads30dAlert = leads.length < 5;
 
   // — KPI 2: Avg time New → Contacted (hours)
   const contactedLeads = leads.filter(l => l.last_contacted_at && l.status !== 'new');
@@ -102,13 +151,16 @@ export default function Dashboard() {
   ).map(([status, count]) => ({ name: statusLabels[status] || status, value: count }));
   const PIE_COLORS = ['hsl(220,80%,56%)', 'hsl(35,92%,55%)', 'hsl(250,70%,60%)', 'hsl(280,60%,55%)', 'hsl(35,80%,50%)', 'hsl(140,60%,45%)', 'hsl(0,72%,55%)'];
 
-  const last30 = Array.from({ length: 30 }, (_, i) => {
-    const day = subDays(new Date(), 29 - i);
+  // Dynamic chart based on period range
+  const daysDiff = Math.ceil((rangeTo.getTime() - rangeFrom.getTime()) / (1000 * 60 * 60 * 24));
+  const chartDays = Math.min(daysDiff, 90);
+  const chartDataFull = Array.from({ length: chartDays }, (_, i) => {
+    const day = subDays(rangeTo, chartDays - 1 - i);
     const dayStr = format(day, 'dd/MM');
-    const count = leads.filter(l => format(new Date(l.created_at), 'dd/MM') === dayStr).length;
+    const count = leads.filter(l => format(new Date(l.created_at), 'dd/MM/yyyy') === format(day, 'dd/MM/yyyy')).length;
     return { date: dayStr, leads: count };
   });
-  const chartData = last30.slice(-14);
+  const chartData = chartDays > 30 ? chartDataFull.filter((_, i) => i % Math.ceil(chartDays / 30) === 0) : chartDataFull;
 
   const hotLeads = leads.filter(l => l.score === 'hot');
   const warmLeads = leads.filter(l => l.score === 'warm');
@@ -120,6 +172,10 @@ export default function Dashboard() {
   ];
 
   const upcomingReminders = reminders.filter(r => !r.done).slice(0, 3);
+
+  const periodLabel = period === 'custom' && customFrom && customTo
+    ? `${format(customFrom, 'dd MMM', { locale: fr })} – ${format(customTo, 'dd MMM', { locale: fr })}`
+    : PERIOD_OPTIONS.find(p => p.key === period)?.label || '';
 
   if (isLoading) {
     return (
@@ -134,17 +190,100 @@ export default function Dashboard() {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6 sm:space-y-8">
-      <motion.div variants={item}>
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Vue d'ensemble de votre pipeline</p>
+      <motion.div variants={item} className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Vue d'ensemble · <span className="text-foreground font-medium">{periodLabel}</span> · {leads.length} leads
+          </p>
+        </div>
+
+        {/* Period selector */}
+        <div className="flex items-center gap-1 flex-wrap">
+          {PERIOD_OPTIONS.map(opt => (
+            opt.key === 'custom' ? (
+              <Popover key={opt.key}>
+                <PopoverTrigger asChild>
+                  <button
+                    className={cn(
+                      'flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200',
+                      period === 'custom'
+                        ? 'gradient-primary text-white shadow-sm'
+                        : 'bg-muted text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    <CalendarIcon className="h-3 w-3" />
+                    {period === 'custom' && customFrom && customTo
+                      ? `${format(customFrom, 'dd/MM')} – ${format(customTo, 'dd/MM')}`
+                      : 'Personnalisé'}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-3 space-y-3" align="end">
+                  <p className="text-xs font-medium text-muted-foreground">Période personnalisée</p>
+                  <div className="flex gap-2 items-center text-xs">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-1">Du</p>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm" className="h-8 text-xs w-28">
+                            {customFrom ? format(customFrom, 'dd MMM yyyy', { locale: fr }) : 'Début'}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={customFrom}
+                            onSelect={(d) => { setCustomFrom(d); if (d) setPeriod('custom'); }}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-1">Au</p>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm" className="h-8 text-xs w-28">
+                            {customTo ? format(customTo, 'dd MMM yyyy', { locale: fr }) : 'Fin'}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={customTo}
+                            onSelect={(d) => { setCustomTo(d); if (d) setPeriod('custom'); }}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            ) : (
+              <button
+                key={opt.key}
+                onClick={() => setPeriod(opt.key)}
+                className={cn(
+                  'rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200',
+                  period === opt.key
+                    ? 'gradient-primary text-white shadow-sm'
+                    : 'bg-muted text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {opt.label}
+              </button>
+            )
+          ))}
+        </div>
       </motion.div>
 
       {/* KPIs Row 1 */}
       <motion.div variants={item} className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
         <KpiCard
-          label="Nouveaux leads (30j)"
-          value={newLeads30d.length}
-          subtitle={newLeads30dAlert ? '⚠ Volume bas, augmentez vos sources' : `${leads.length} total`}
+          label="Nouveaux leads"
+          value={leads.length}
+          subtitle={newLeads30dAlert ? '⚠ Volume bas, augmentez vos sources' : `${allLeads.length} total`}
           subtitleColor={newLeads30dAlert ? 'text-amber-400' : undefined}
           icon={Users}
           gradient="from-blue-500/20 to-blue-600/5"
@@ -287,7 +426,7 @@ export default function Dashboard() {
           <div className="divide-y divide-border/50">
             {leads.length === 0 ? (
               <div className="px-5 py-12 text-center text-sm text-muted-foreground">
-                Aucun lead. <Link to="/leads/new" className="text-primary hover:underline">Ajoutez votre premier lead</Link>
+                Aucun lead sur cette période. <Link to="/leads/new" className="text-primary hover:underline">Ajoutez un lead</Link>
               </div>
             ) : (
               leads.slice(0, 5).map(lead => (
