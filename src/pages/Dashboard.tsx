@@ -101,10 +101,10 @@ export default function Dashboard() {
   // — KPI 1: New leads in period
   const newLeads30dAlert = leads.length < 5;
 
-  // — KPI 2: Avg time New → Contacted (hours)
-  const contactedLeads = leads.filter(l => l.last_contacted_at && l.status !== 'new');
+  // — KPI 2: Avg time New → First contact (hours)
+  const contactedLeads = leads.filter(l => (l as any).first_contacted_at && l.status !== 'new');
   const avgResponseHours = contactedLeads.length > 0
-    ? Math.round(contactedLeads.reduce((sum, l) => sum + differenceInHours(new Date(l.last_contacted_at!), new Date(l.created_at)), 0) / contactedLeads.length)
+    ? Math.round(contactedLeads.reduce((sum, l) => sum + differenceInHours(new Date((l as any).first_contacted_at), new Date(l.created_at)), 0) / contactedLeads.length)
     : -1;
   const hasResponseData = avgResponseHours >= 0;
 
