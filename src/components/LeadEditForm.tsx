@@ -1,13 +1,18 @@
 import { useState } from 'react';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { DbLead, useUpdateLead } from '@/hooks/useLeadData';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2, Save, X } from 'lucide-react';
+import { CalendarIcon, Loader2, Save, X } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
 const sources = [
   { value: 'facebook', label: 'Facebook' },
