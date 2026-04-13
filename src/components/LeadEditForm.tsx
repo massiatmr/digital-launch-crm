@@ -1,13 +1,18 @@
 import { useState } from 'react';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { DbLead, useUpdateLead } from '@/hooks/useLeadData';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2, Save, X } from 'lucide-react';
+import { CalendarIcon, Loader2, Save, X } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
 const sources = [
   { value: 'facebook', label: 'Facebook' },
@@ -57,6 +62,7 @@ export function LeadEditForm({ lead, onClose }: LeadEditFormProps) {
     show_status: lead.show_status || 'pending',
     notes: lead.notes || '',
     next_action: lead.next_action || '',
+    created_at: lead.created_at,
   });
 
   const update = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
@@ -138,6 +144,26 @@ export function LeadEditForm({ lead, onClose }: LeadEditFormProps) {
         <div className="space-y-1.5">
           <Label htmlFor="edit-action">Prochaine action</Label>
           <Input id="edit-action" value={form.next_action} onChange={e => update('next_action', e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Date de création</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("w-full justify-start text-left font-normal")}>
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {format(new Date(form.created_at), 'dd MMM yyyy', { locale: fr })}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={new Date(form.created_at)}
+                onSelect={(date) => date && setForm(prev => ({ ...prev, created_at: date.toISOString() }))}
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
         </div>
         <div className="space-y-1.5">
           <Label>Présence au RDV</Label>
