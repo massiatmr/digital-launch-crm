@@ -399,16 +399,50 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
         if (error) throw error;
         if (data?.error) throw new Error(data.error);
 
-        await createLead.mutateAsync({
-          name: data.name || 'Lead inconnu',
-          email: data.email || '',
-          phone: data.phone || '',
-          message: data.message || '',
-          source: data.source || 'manual',
-        });
+        // Insert lead with all AI-extracted fields
+        const { data: createdLead, error: insertError } = await supabase
+          .from('leads')
+          .insert({
+            name: data.name || 'Lead inconnu',
+            email: data.email || '',
+            phone: data.phone || '',
+            message: data.message || '',
+            source: (data.source || 'manual') as any,
+            company_name: data.company_name || '',
+            score: (data.score || 'cold') as any,
+            status: (data.status || 'new') as any,
+            show_status: (data.show_status || 'pending') as any,
+            lost_reason: data.lost_reason || '',
+            next_action: data.next_action || '',
+            next_action_date: data.next_action_date || null,
+            last_contacted_at: data.last_contacted_at || null,
+            sales_angle: data.sales_angle || '',
+            ai_summary: data.ai_summary || '',
+            notes: data.notes || '',
+          })
+          .select()
+          .single();
+        if (insertError) throw insertError;
+
+        // Then trigger AI analysis for script/messages
+        try {
+          const { data: aiData } = await supabase.functions.invoke('ai-lead-analysis', {
+            body: { type: 'analyze', lead: { name: data.name, email: data.email, phone: data.phone, message: data.message, source: data.source } },
+          });
+          if (aiData && !aiData.error && createdLead) {
+            if (aiData.whatsapp_message) {
+              await supabase.from('generated_messages').insert({ lead_id: createdLead.id, type: 'whatsapp', content: aiData.whatsapp_message });
+            }
+            if (aiData.script) {
+              await supabase.from('sales_scripts').insert({ lead_id: createdLead.id, script: aiData.script, objections: aiData.objections || [] });
+            }
+          }
+        } catch {}
+
         toast.success(`Lead "${data.name}" créé avec succès !`);
         setNote('');
         setInterimText('');
+        // Invalidate queries
         onDone?.();
       } catch {
         toast.error("Erreur lors de la création du lead");
