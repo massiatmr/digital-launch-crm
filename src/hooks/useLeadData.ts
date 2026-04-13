@@ -20,6 +20,7 @@ export type DbLead = {
   next_action_date: string | null;
   last_contacted_at: string | null;
   offer_id: string | null;
+  lost_reason: string | null;
   created_at: string;
   updated_at: string;
 };
