@@ -381,6 +381,15 @@ export default function PipelinePage() {
           {selectedLeadId && <LeadDetailContent leadId={selectedLeadId} />}
         </SheetContent>
       </Sheet>
+
+      <LostReasonDialog
+        open={!!lostDialogLead}
+        onConfirm={(reason) => {
+          if (lostDialogLead) applyStatusChange(lostDialogLead, 'lost', reason);
+          setLostDialogLead(null);
+        }}
+        onCancel={() => setLostDialogLead(null)}
+      />
     </div>
   );
 }
