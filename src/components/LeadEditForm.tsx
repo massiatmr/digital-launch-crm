@@ -208,6 +208,11 @@ export function LeadEditForm({ lead, onClose }: LeadEditFormProps) {
           Enregistrer
         </Button>
       </div>
+      <LostReasonDialog
+        open={showLostDialog}
+        onConfirm={handleLostConfirm}
+        onCancel={() => setShowLostDialog(false)}
+      />
     </motion.form>
   );
 }
