@@ -908,7 +908,15 @@ export type Database = {
         | "en_cours"
         | "actif"
       lead_score: "hot" | "warm" | "cold"
-      lead_source: "facebook" | "website" | "google_sheets" | "manual" | "other"
+      lead_source:
+        | "facebook"
+        | "website"
+        | "google_sheets"
+        | "manual"
+        | "other"
+        | "organic_social"
+        | "recommendation"
+        | "google_my_business"
       lead_status:
         | "new"
         | "contacted"
@@ -1072,7 +1080,16 @@ export const Constants = {
         "actif",
       ],
       lead_score: ["hot", "warm", "cold"],
-      lead_source: ["facebook", "website", "google_sheets", "manual", "other"],
+      lead_source: [
+        "facebook",
+        "website",
+        "google_sheets",
+        "manual",
+        "other",
+        "organic_social",
+        "recommendation",
+        "google_my_business",
+      ],
       lead_status: [
         "new",
         "contacted",
