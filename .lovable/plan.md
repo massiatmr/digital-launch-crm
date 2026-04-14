@@ -1,42 +1,20 @@
 
 
-## Plan : Corriger le taux de qualification
+## Problème
 
-### Probleme actuel
+Actuellement, le filtre de période dans le Dashboard et la Pipeline filtre les leads par leur **date de création** (`created_at`). Un lead créé il y a 6 mois mais closé (gagné/perdu) cette semaine n'apparaît pas dans les stats des 7 derniers jours.
 
-La formule actuelle (ligne 128-130) compare les leads dont le **statut actuel** est `qualified/proposal/won` vs ceux qui sont `qualified/proposal/won/lost`. Cela exclut un lead qui a été qualifié puis a avancé vers `proposal` ou `won` — il n'est compté que dans sa catégorie finale.
+## Solution
 
-En réalité, le taux de qualification devrait mesurer : **combien de leads sont passés au moins une fois au stade "qualifié" ou au-delà**, peu importe leur statut actuel.
+Utiliser `updated_at` au lieu de `created_at` pour le filtre de période. Le champ `updated_at` est automatiquement mis à jour à chaque modification du lead (trigger existant `update_updated_at_column`), donc un changement de statut récent fera apparaître le lead dans la période correspondante.
 
-### Logique corrigée
+## Changements
 
-Un lead est "qualifié" s'il a atteint `qualified`, `proposal`, ou `won` **à un moment donné**. Puisqu'on n'a pas d'historique de transitions en base, on utilise le fait que si un lead est actuellement en `proposal`, `won`, ou `lost` (après avoir été qualifié), il est forcément passé par la qualification.
+### 1. `src/pages/Dashboard.tsx` (ligne ~92)
+- Remplacer `new Date(l.created_at)` par `new Date(l.updated_at)` dans le filtre de période
 
-**Numérateur** : leads avec statut actuel parmi `qualified`, `proposal`, `won`, `lost` (tous ceux qui ont dépassé le stade "contacté")
+### 2. `src/pages/PipelinePage.tsx` (ligne ~256)
+- Même changement : filtrer sur `l.updated_at` au lieu de `l.created_at`
 
-**Dénominateur** : tous les leads de la période (ou au minimum ceux qui ne sont plus "new")
-
-Mais plus simplement, la demande de l'utilisateur est claire : **tous ceux qui sont passés de contacté à qualifié comptent, même s'ils ont ensuite été perdus ou gagnés**.
-
-Donc :
-- **Numérateur** = leads avec statut `qualified` OR `proposal` OR `won` OR `lost` (car pour être lost il faut avoir été au moins qualifié dans ce flow)
-- **Dénominateur** = tous les leads qui ont été au moins contactés = statut != `new`
-
-### Fichier modifié
-
-| Fichier | Changement |
-|---|---|
-| `src/pages/Dashboard.tsx` (lignes 127-130) | Nouvelle formule : qualifiés (et au-delà) / contactés (et au-delà) |
-
-### Code
-
-```typescript
-// — KPI 6: Qualification rate (passés de contacté à qualifié+)
-const qualifiedAndBeyond = leads.filter(l => ['qualified', 'proposal', 'won', 'lost'].includes(l.status));
-const contactedAndBeyond = leads.filter(l => l.status !== 'new');
-const qualificationRate = contactedAndBeyond.length > 0 
-  ? Math.round((qualifiedAndBeyond.length / contactedAndBeyond.length) * 100) : 0;
-```
-
-Sous-titre du KPI : `${qualifiedAndBeyond.length} qualifiés / ${contactedAndBeyond.length} contactés`
+C'est tout — deux lignes à modifier. Le champ `updated_at` existe déjà et est maintenu par un trigger SQL.
 
