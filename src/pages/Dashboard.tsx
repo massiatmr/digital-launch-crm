@@ -89,7 +89,7 @@ export default function Dashboard() {
   // Filter leads by period
   const leads = useMemo(() =>
     allLeads.filter(l => {
-      const d = new Date(l.created_at);
+      const d = new Date(l.updated_at);
       return isAfter(d, rangeFrom) && isBefore(d, rangeTo);
     }),
     [allLeads, rangeFrom, rangeTo]
