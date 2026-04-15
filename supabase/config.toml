@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.check-due-reminders]
 verify_jwt = false
+
+[functions.upload-onboarding-file]
+verify_jwt = false
