@@ -585,6 +585,7 @@ function OnboardingFormContent() {
                         <FileOrLinkField
                           id={field.id}
                           clientId={clientId}
+                          token={token || ''}
                           value={getFieldValue(field.id)}
                           onChange={v => updateField(field.id, v)}
                         />
