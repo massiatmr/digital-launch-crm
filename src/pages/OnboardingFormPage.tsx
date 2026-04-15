@@ -237,7 +237,7 @@ class OnboardingErrorBoundary extends Component<{ children: ReactNode }, { hasEr
   }
 }
 
-function FileOrLinkField({ id, value, onChange, clientId }: { id: string; value: any; onChange: (v: any) => void; clientId: string }) {
+function FileOrLinkField({ id, value, onChange, clientId, token }: { id: string; value: any; onChange: (v: any) => void; clientId: string; token: string }) {
   const [mode, setMode] = useState<'link' | 'file'>(() => {
     if (Array.isArray(value?.files) && value.files.length > 0) return 'file';
     return value?.mode || 'link';
@@ -252,13 +252,19 @@ function FileOrLinkField({ id, value, onChange, clientId }: { id: string; value:
     if (!selected || selected.length === 0) return;
     setUploading(true);
     const newFiles = [...files];
+    const baseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-onboarding-file`;
     for (let i = 0; i < selected.length; i++) {
       const file = selected[i];
-      const path = `${clientId}/${Date.now()}-${file.name}`;
-      const { error } = await supabase.storage.from('client-resources').upload(path, file);
-      if (error) { toast.error(`Erreur upload: ${file.name}`); continue; }
-      const { data } = supabase.storage.from('client-resources').getPublicUrl(path);
-      newFiles.push({ url: data.publicUrl, name: file.name });
+      const formData = new FormData();
+      formData.append('token', token);
+      formData.append('client_id', clientId);
+      formData.append('file', file);
+      try {
+        const res = await fetch(baseUrl, { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.error) { toast.error(`Erreur upload: ${file.name}`); continue; }
+        newFiles.push({ url: data.url, name: data.name });
+      } catch { toast.error(`Erreur upload: ${file.name}`); }
     }
     onChange({ mode: 'file', files: newFiles });
     setUploading(false);
@@ -579,6 +585,7 @@ function OnboardingFormContent() {
                         <FileOrLinkField
                           id={field.id}
                           clientId={clientId}
+                          token={token || ''}
                           value={getFieldValue(field.id)}
                           onChange={v => updateField(field.id, v)}
                         />
