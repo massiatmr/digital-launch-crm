@@ -154,11 +154,13 @@ export default function ClientDetailPage() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const path = `${client.id}/${Date.now()}-${file.name}`;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { toast.error('Non authentifié'); return; }
+    const path = `${user.id}/${client.id}/${Date.now()}-${file.name}`;
     const { error } = await supabase.storage.from('client-resources').upload(path, file);
     if (error) { toast.error('Erreur upload'); return; }
-    const { data: urlData } = supabase.storage.from('client-resources').getPublicUrl(path);
-    addResource.mutate({ client_id: client.id, name: file.name, resource_type: 'file', url: urlData.publicUrl, storage_path: path, category: 'document' });
+    const { data: urlData } = await supabase.storage.from('client-resources').createSignedUrl(path, 3600 * 24 * 365);
+    addResource.mutate({ client_id: client.id, name: file.name, resource_type: 'file', url: urlData?.signedUrl || '', storage_path: path, category: 'document' });
   };
 
   const handleAddLink = () => {
