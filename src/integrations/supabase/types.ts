@@ -870,6 +870,7 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      get_onboarding_by_token: { Args: { p_token: string }; Returns: Json }
       move_to_dlq: {
         Args: {
           dlq_name: string
@@ -886,6 +887,10 @@ export type Database = {
           msg_id: number
           read_ct: number
         }[]
+      }
+      save_onboarding_by_token: {
+        Args: { p_completed?: boolean; p_responses: Json; p_token: string }
+        Returns: undefined
       }
     }
     Enums: {
