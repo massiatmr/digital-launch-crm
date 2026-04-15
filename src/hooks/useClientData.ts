@@ -192,19 +192,15 @@ export function useCreateOnboarding() {
   });
 }
 
-// Public onboarding (anon)
+// Public onboarding (anon) — uses secure RPC functions
 export function useOnboardingByToken(token: string | null) {
   return useQuery({
     queryKey: ['onboarding-token', token],
     enabled: !!token,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('client_onboarding_responses')
-        .select('*, clients(name, company_name)')
-        .eq('token', token!)
-        .single();
+      const { data, error } = await supabase.rpc('get_onboarding_by_token', { p_token: token! });
       if (error) throw error;
-      return data as DbOnboardingResponse & { clients: { name: string; company_name: string | null } };
+      return data as unknown as DbOnboardingResponse & { clients: { name: string; company_name: string | null } };
     },
   });
 }
@@ -212,12 +208,11 @@ export function useOnboardingByToken(token: string | null) {
 export function useSaveOnboardingResponses() {
   return useMutation({
     mutationFn: async ({ token, responses, completed }: { token: string; responses: Record<string, any>; completed?: boolean }) => {
-      const update: any = { responses };
-      if (completed !== undefined) update.completed = completed;
-      const { error } = await supabase
-        .from('client_onboarding_responses')
-        .update(update)
-        .eq('token', token);
+      const { error } = await supabase.rpc('save_onboarding_by_token', {
+        p_token: token,
+        p_responses: responses as any,
+        p_completed: completed ?? false,
+      });
       if (error) throw error;
     },
   });
