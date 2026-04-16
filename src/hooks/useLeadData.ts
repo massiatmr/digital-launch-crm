@@ -163,6 +163,15 @@ export function useCreateLead() {
         // Lead is still created, just without AI analysis
       }
 
+      // Fire push + email notification (non-blocking)
+      try {
+        await supabase.functions.invoke('notify-new-lead', {
+          body: { lead_id: data.id },
+        });
+      } catch (e) {
+        console.error('notify-new-lead failed:', e);
+      }
+
       return data;
     },
     onSuccess: () => {

@@ -484,6 +484,25 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
               leadgenId,
               leadId: data?.id ?? null,
             });
+
+            // Fire-and-forget push + email notification
+            if (data?.id) {
+              try {
+                const notifyRes = await supabase.functions.invoke("notify-new-lead", {
+                  body: { lead_id: data.id },
+                });
+                logInfo(requestId, "notify-new-lead invoked", {
+                  leadId: data.id,
+                  result: notifyRes.data,
+                  error: notifyRes.error?.message,
+                });
+              } catch (notifyErr) {
+                logError(requestId, "notify-new-lead invocation failed", {
+                  leadId: data.id,
+                  error: notifyErr instanceof Error ? notifyErr.message : String(notifyErr),
+                });
+              }
+            }
           }
         }
       }
