@@ -84,7 +84,7 @@ export default function Dashboard() {
   const toggleReminder = useToggleReminder();
   const isMobile = useIsMobile();
 
-  const [period, setPeriod] = useState<PeriodKey>('30d');
+  const [period, setPeriod] = useState<PeriodKey>('since_apr14');
   const [customFrom, setCustomFrom] = useState<Date | undefined>();
   const [customTo, setCustomTo] = useState<Date | undefined>();
 

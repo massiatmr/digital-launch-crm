@@ -233,7 +233,8 @@ export default function PipelinePage() {
   const draggedLead = useRef<DbLead | null>(null);
   const isMobile = useIsMobile();
 
-  type PeriodKey = '7d' | '30d' | '90d' | 'year' | 'all' | 'custom';
+  type PeriodKey = '7d' | '30d' | '90d' | 'year' | 'since_apr14' | 'all' | 'custom';
+  const SINCE_APR14_DATE = new Date(2026, 3, 14);
   const [period, setPeriod] = useState<PeriodKey>('all');
   const [customFrom, setCustomFrom] = useState<Date | undefined>();
   const [customTo, setCustomTo] = useState<Date | undefined>();
@@ -245,6 +246,7 @@ export default function PipelinePage() {
       case '30d': return { from: subDays(now, 30), to: now };
       case '90d': return { from: subMonths(now, 3), to: now };
       case 'year': return { from: startOfYear(now), to: now };
+      case 'since_apr14': return { from: SINCE_APR14_DATE, to: now };
       case 'custom': return { from: customFrom || subDays(now, 30), to: customTo || now };
       default: return { from: new Date(0), to: now };
     }
@@ -378,6 +380,7 @@ export default function PipelinePage() {
             <SelectItem value="30d">30 jours</SelectItem>
             <SelectItem value="90d">Trimestre</SelectItem>
             <SelectItem value="year">Année</SelectItem>
+            <SelectItem value="since_apr14">Depuis 14 avr. 2026</SelectItem>
             <SelectItem value="custom">Personnalisé</SelectItem>
           </SelectContent>
         </Select>
