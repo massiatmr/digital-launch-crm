@@ -45,6 +45,14 @@ export default function SettingsIntegrationsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
+  // WhatsApp state
+  const [waConfig, setWaConfig] = useState<WhatsappConfig | null>(null);
+  const [waLoading, setWaLoading] = useState(true);
+  const [waBusy, setWaBusy] = useState<string | null>(null);
+  const [waShowGuide, setWaShowGuide] = useState(false);
+  const [waForm, setWaForm] = useState({ phone_number_id: "", business_account_id: "", access_token: "" });
+  const [waTestTo, setWaTestTo] = useState("");
+
   const loadPages = async () => {
     setLoading(true);
     const { data, error } = await supabase.functions.invoke("facebook-pages-manage", {
@@ -58,8 +66,40 @@ export default function SettingsIntegrationsPage() {
     setLoading(false);
   };
 
+  const loadWaConfig = async () => {
+    setWaLoading(true);
+    const { data, error } = await supabase.functions.invoke("whatsapp-config-manage", { body: { action: "get" } });
+    if (!error) setWaConfig(data?.config || null);
+    setWaLoading(false);
+  };
+
+  const callWa = async (action: string, body: Record<string, unknown> = {}, successMsg?: string) => {
+    setWaBusy(action);
+    const { data, error } = await supabase.functions.invoke("whatsapp-config-manage", {
+      body: { action, ...body },
+    });
+    setWaBusy(null);
+    if (error || data?.error) {
+      toast.error("Échec WhatsApp", { description: data?.error || error?.message });
+      return null;
+    }
+    if (successMsg) toast.success(successMsg);
+    await loadWaConfig();
+    return data;
+  };
+
+  const saveWa = async () => {
+    if (!waForm.phone_number_id || !waForm.business_account_id || !waForm.access_token) {
+      toast.error("Remplis les 3 champs");
+      return;
+    }
+    const r = await callWa("save", waForm, "Configuration WhatsApp sauvegardée");
+    if (r) setWaForm({ phone_number_id: "", business_account_id: "", access_token: "" });
+  };
+
   useEffect(() => {
     loadPages();
+    loadWaConfig();
     const fb = params.get("fb");
     if (fb === "connected") {
       const count = params.get("count") || "0";
