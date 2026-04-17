@@ -1,0 +1,186 @@
+// Manage current user's WhatsApp Cloud API config
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const GRAPH = "https://graph.facebook.com/v21.0";
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  try {
+    const auth = req.headers.get("Authorization");
+    if (!auth) return json({ error: "Missing Authorization" }, 401);
+
+    const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: auth } },
+    });
+    const {
+      data: { user },
+    } = await userClient.auth.getUser();
+    if (!user) return json({ error: "Invalid session" }, 401);
+
+    const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    const body = await req.json().catch(() => ({}));
+    const action = body.action as string;
+
+    if (action === "get") {
+      const { data, error } = await admin
+        .from("whatsapp_config")
+        .select("*")
+        .eq("owner_id", user.id)
+        .maybeSingle();
+      if (error) return json({ error: error.message }, 500);
+      return json({ config: data });
+    }
+
+    if (action === "save") {
+      const { phone_number_id, business_account_id, access_token } = body;
+      if (!phone_number_id || !business_account_id || !access_token) {
+        return json({ error: "phone_number_id, business_account_id, access_token requis" }, 400);
+      }
+
+      // Validate token + fetch phone metadata
+      const phoneRes = await fetch(
+        `${GRAPH}/${phone_number_id}?fields=display_phone_number,verified_name&access_token=${access_token}`,
+      );
+      const phoneData = await phoneRes.json();
+      if (!phoneRes.ok) {
+        return json({ error: "Token ou phone_number_id invalide", details: phoneData }, 400);
+      }
+
+      // Upsert
+      const { data: existing } = await admin
+        .from("whatsapp_config")
+        .select("id, verify_token")
+        .eq("owner_id", user.id)
+        .maybeSingle();
+
+      const payload = {
+        owner_id: user.id,
+        phone_number_id,
+        business_account_id,
+        access_token,
+        display_phone_number: phoneData.display_phone_number ?? "",
+        verified_name: phoneData.verified_name ?? "",
+        is_active: true,
+        last_tested_at: new Date().toISOString(),
+        last_test_status: "ok",
+      };
+
+      if (existing) {
+        const { error } = await admin
+          .from("whatsapp_config")
+          .update(payload)
+          .eq("owner_id", user.id);
+        if (error) return json({ error: error.message }, 500);
+      } else {
+        const { error } = await admin.from("whatsapp_config").insert(payload);
+        if (error) return json({ error: error.message }, 500);
+      }
+
+      const { data: fresh } = await admin
+        .from("whatsapp_config")
+        .select("*")
+        .eq("owner_id", user.id)
+        .single();
+      return json({ ok: true, config: fresh });
+    }
+
+    if (action === "subscribe_webhook") {
+      const { data: cfg } = await admin
+        .from("whatsapp_config")
+        .select("*")
+        .eq("owner_id", user.id)
+        .maybeSingle();
+      if (!cfg) return json({ error: "Config WhatsApp introuvable" }, 404);
+
+      const r = await fetch(
+        `${GRAPH}/${cfg.business_account_id}/subscribed_apps?access_token=${cfg.access_token}`,
+        { method: "POST" },
+      );
+      const data = await r.json();
+      if (!r.ok) return json({ error: "Échec abonnement webhook", details: data }, 400);
+
+      await admin
+        .from("whatsapp_config")
+        .update({ webhook_subscribed: true })
+        .eq("owner_id", user.id);
+      return json({ ok: true, details: data });
+    }
+
+    if (action === "test_send") {
+      const { to } = body;
+      if (!to) return json({ error: "Numéro destinataire requis (format E.164 ex 33612345678)" }, 400);
+      const { data: cfg } = await admin
+        .from("whatsapp_config")
+        .select("*")
+        .eq("owner_id", user.id)
+        .maybeSingle();
+      if (!cfg) return json({ error: "Config WhatsApp introuvable" }, 404);
+
+      const r = await fetch(
+        `${GRAPH}/${cfg.phone_number_id}/messages`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${cfg.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            to,
+            type: "template",
+            template: { name: "hello_world", language: { code: "en_US" } },
+          }),
+        },
+      );
+      const data = await r.json();
+      if (!r.ok) return json({ error: "Échec envoi test", details: data }, 400);
+      return json({ ok: true, details: data });
+    }
+
+    if (action === "delete") {
+      const { error } = await admin
+        .from("whatsapp_config")
+        .delete()
+        .eq("owner_id", user.id);
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
+    }
+
+    if (action === "toggle_active") {
+      const { data: cfg } = await admin
+        .from("whatsapp_config")
+        .select("is_active")
+        .eq("owner_id", user.id)
+        .maybeSingle();
+      if (!cfg) return json({ error: "Config introuvable" }, 404);
+      const { error } = await admin
+        .from("whatsapp_config")
+        .update({ is_active: !cfg.is_active })
+        .eq("owner_id", user.id);
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true, is_active: !cfg.is_active });
+    }
+
+    return json({ error: "Unknown action" }, 400);
+  } catch (e) {
+    return json({ error: e instanceof Error ? e.message : String(e) }, 500);
+  }
+});
