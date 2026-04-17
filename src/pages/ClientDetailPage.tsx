@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Copy, ExternalLink, Plus, Trash2, Upload, Link as LinkIcon, FileText, Clock, Receipt, FileSignature } from 'lucide-react';
 import InvoiceGenerator, { type BillingInfo } from '@/components/InvoiceGenerator';
+import InvoicesHistory from '@/components/InvoicesHistory';
 import ContractGenerator from '@/components/ContractGenerator';
 import ContractsHistory from '@/components/ContractsHistory';
 import { Button } from '@/components/ui/button';
@@ -75,6 +76,7 @@ export default function ClientDetailPage() {
   const [resourceUrl, setResourceUrl] = useState('');
   const [resourceName, setResourceName] = useState('');
   const [contractsRefresh, setContractsRefresh] = useState(0);
+  const [invoicesRefresh, setInvoicesRefresh] = useState(0);
 
   if (isLoading) return <div className="text-center py-12 text-muted-foreground">Chargement...</div>;
   if (!client) return <div className="text-center py-12 text-muted-foreground">Client introuvable</div>;
@@ -349,15 +351,33 @@ export default function ClientDetailPage() {
         </TabsContent>
 
         {/* FACTURATION */}
-        <TabsContent value="invoicing">
+        <TabsContent value="invoicing" className="space-y-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Receipt className="h-4 w-4 text-primary" />
+                Factures envoyées
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <InvoicesHistory
+                clientId={client.id}
+                clientEmail={client.email || ''}
+                clientName={client.name}
+                refreshKey={invoicesRefresh}
+              />
+            </CardContent>
+          </Card>
           <InvoiceGenerator
             clientName={client.name}
             clientCompany={client.company_name || ''}
             clientEmail={client.email || ''}
             clientPhone={client.phone || ''}
+            clientId={client.id}
             offerName={(client as any).offers?.name}
             billingInfo={billingInfo}
             onBillingInfoChange={handleBillingInfoChange}
+            onInvoiceCreated={() => setInvoicesRefresh(k => k + 1)}
           />
         </TabsContent>
 
