@@ -3,8 +3,9 @@ import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import SignaturePad from '@/components/SignaturePad';
-import { CheckCircle, AlertCircle, Loader2, FileText, Shield } from 'lucide-react';
-import type { ContractArticle } from '@/lib/generateContractPDF';
+import { CheckCircle, AlertCircle, Loader2, FileText, Shield, Download } from 'lucide-react';
+import { generateContractPDF, type ContractArticle, type SignatureProof } from '@/lib/generateContractPDF';
+import { getLogoBase64 } from '@/lib/logoBase64';
 
 type Status = 'loading' | 'ready' | 'signing' | 'signed' | 'expired' | 'already_signed' | 'error';
 
@@ -30,8 +31,20 @@ export default function PublicSignaturePage() {
   const [contract, setContract] = useState<ContractSnapshot | null>(null);
   const [signatureData, setSignatureData] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const [signatureProof, setSignatureProof] = useState<SignatureProof | null>(null);
 
   const baseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/validate-signature`;
+
+  const handleDownloadSigned = async () => {
+    if (!contract) return;
+    const logo = await getLogoBase64();
+    const proof = signatureProof || (signatureData ? {
+      signatureImage: signatureData,
+      signedAt: new Date().toISOString(),
+    } : undefined);
+    const pdf = generateContractPDF(contract, logo, proof);
+    pdf.save(`Contrat_signe_${contract.clientCompany || contract.clientRepresentant || 'client'}.pdf`);
+  };
 
   useEffect(() => {
     if (!token) { setStatus('error'); return; }
@@ -58,6 +71,8 @@ export default function PublicSignaturePage() {
       });
       const data = await res.json();
       if (data.error) { setErrorMsg(data.error); setStatus('error'); return; }
+      if (data.contract) setContract(data.contract);
+      if (data.signature) setSignatureProof(data.signature);
       setStatus('signed');
     } catch {
       setErrorMsg('Erreur lors de la signature');
@@ -82,8 +97,11 @@ export default function PublicSignaturePage() {
               <CheckCircle className="h-8 w-8 text-emerald-600" />
             </div>
             <h1 className="text-2xl font-bold text-foreground">Contrat signé !</h1>
-            <p className="text-muted-foreground">Votre signature a été enregistrée avec succès. Vous recevrez un email de confirmation.</p>
-            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground/60 pt-4">
+            <p className="text-muted-foreground">Votre signature a été enregistrée avec succès. Téléchargez votre exemplaire signé ci-dessous.</p>
+            <Button onClick={handleDownloadSigned} className="w-full gap-2 h-11">
+              <Download className="h-4 w-4" /> Télécharger mon contrat signé
+            </Button>
+            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground/60 pt-2">
               <Shield className="h-3.5 w-3.5" />
               Signature horodatée et sécurisée
             </div>

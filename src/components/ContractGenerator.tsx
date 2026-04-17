@@ -20,6 +20,7 @@ interface Props {
   offerName?: string;
   billingInfo?: BillingInfo;
   onBillingInfoChange?: (info: BillingInfo) => void;
+  onSignatureCreated?: () => void;
 }
 
 type SaveStatus = 'idle' | 'saving' | 'saved';
@@ -33,7 +34,7 @@ interface SignatureRecord {
   expires_at: string;
 }
 
-export default function ContractGenerator({ clientName, clientCompany, clientEmail, clientPhone, clientId, offerName, billingInfo, onBillingInfoChange }: Props) {
+export default function ContractGenerator({ clientName, clientCompany, clientEmail, clientPhone, clientId, offerName, billingInfo, onBillingInfoChange, onSignatureCreated }: Props) {
   const defaultServiceType = offerName?.toLowerCase().includes('ads') || offerName?.toLowerCase().includes('pub') ? 'ads' : 'website';
 
   const [serviceType, setServiceType] = useState<'website' | 'ads'>(billingInfo?.serviceType === 'ads' || billingInfo?.serviceType === 'website' ? billingInfo.serviceType : defaultServiceType);
@@ -211,6 +212,7 @@ export default function ContractGenerator({ clientName, clientCompany, clientEma
       });
 
       setSignatureRecord(data as SignatureRecord);
+      onSignatureCreated?.();
       toast.success('Lien de signature envoyé par email !');
     } catch (err: any) {
       toast.error(`Erreur : ${err.message}`);

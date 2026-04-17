@@ -106,12 +106,13 @@ Deno.serve(async (req) => {
         || "unknown";
       const signerUserAgent = req.headers.get("user-agent") || "unknown";
 
+      const signedAt = new Date().toISOString();
       // Update signature record
       const { error: updateError } = await supabase
         .from("contract_signatures")
         .update({
           signature_image: signatureBase64,
-          signed_at: new Date().toISOString(),
+          signed_at: signedAt,
           signer_ip: signerIp,
           signer_user_agent: signerUserAgent,
           status: "signed",
@@ -125,7 +126,24 @@ Deno.serve(async (req) => {
         });
       }
 
-      return new Response(JSON.stringify({ success: true }), {
+      // Log activity
+      await supabase.from("client_activities").insert({
+        client_id: data.client_id,
+        owner_id: data.owner_id,
+        action: "Contrat signé",
+        description: `Le client a signé le contrat électroniquement (IP : ${signerIp})`,
+      });
+
+      return new Response(JSON.stringify({
+        success: true,
+        contract: data.contract_data,
+        signature: {
+          signatureImage: signatureBase64,
+          signedAt,
+          signerIp,
+          signerUserAgent,
+        },
+      }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

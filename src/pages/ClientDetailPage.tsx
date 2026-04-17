@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Copy, ExternalLink, Plus, Trash2, Upload, Link as LinkIcon, FileText, Clock, Receipt, FileSignature } from 'lucide-react';
 import InvoiceGenerator, { type BillingInfo } from '@/components/InvoiceGenerator';
 import ContractGenerator from '@/components/ContractGenerator';
+import ContractsHistory from '@/components/ContractsHistory';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -73,6 +74,7 @@ export default function ClientDetailPage() {
   const [newObjective, setNewObjective] = useState('');
   const [resourceUrl, setResourceUrl] = useState('');
   const [resourceName, setResourceName] = useState('');
+  const [contractsRefresh, setContractsRefresh] = useState(0);
 
   if (isLoading) return <div className="text-center py-12 text-muted-foreground">Chargement...</div>;
   if (!client) return <div className="text-center py-12 text-muted-foreground">Client introuvable</div>;
@@ -360,7 +362,18 @@ export default function ClientDetailPage() {
         </TabsContent>
 
         {/* CONTRAT */}
-        <TabsContent value="contract">
+        <TabsContent value="contract" className="space-y-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <FileSignature className="h-4 w-4 text-primary" />
+                Contrats envoyés et signés
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ContractsHistory clientId={client.id} refreshKey={contractsRefresh} />
+            </CardContent>
+          </Card>
           <ContractGenerator
             clientName={client.name}
             clientCompany={client.company_name || ''}
@@ -370,6 +383,7 @@ export default function ClientDetailPage() {
             offerName={(client as any).offers?.name}
             billingInfo={billingInfo}
             onBillingInfoChange={handleBillingInfoChange}
+            onSignatureCreated={() => setContractsRefresh(k => k + 1)}
           />
         </TabsContent>
 
