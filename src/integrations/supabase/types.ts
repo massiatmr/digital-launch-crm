@@ -694,6 +694,45 @@ export type Database = {
           },
         ]
       }
+      meta_pages: {
+        Row: {
+          created_at: string
+          forms: Json
+          id: string
+          is_active: boolean
+          owner_id: string
+          page_access_token: string
+          page_id: string
+          page_name: string
+          subscribed: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          forms?: Json
+          id?: string
+          is_active?: boolean
+          owner_id?: string
+          page_access_token: string
+          page_id: string
+          page_name?: string
+          subscribed?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          forms?: Json
+          id?: string
+          is_active?: boolean
+          owner_id?: string
+          page_access_token?: string
+          page_id?: string
+          page_name?: string
+          subscribed?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       offer_pages: {
         Row: {
           body_content: Json | null
