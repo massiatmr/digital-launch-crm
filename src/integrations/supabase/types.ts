@@ -511,6 +511,68 @@ export type Database = {
         }
         Relationships: []
       }
+      invoices: {
+        Row: {
+          amount: number
+          client_id: string
+          created_at: string
+          currency: string
+          due_date: string | null
+          id: string
+          invoice_data: Json
+          invoice_number: string
+          issue_date: string
+          owner_id: string
+          paid_at: string | null
+          sent_at: string | null
+          status: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          client_id: string
+          created_at?: string
+          currency?: string
+          due_date?: string | null
+          id?: string
+          invoice_data?: Json
+          invoice_number: string
+          issue_date?: string
+          owner_id?: string
+          paid_at?: string | null
+          sent_at?: string | null
+          status?: string
+          token?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          client_id?: string
+          created_at?: string
+          currency?: string
+          due_date?: string | null
+          id?: string
+          invoice_data?: Json
+          invoice_number?: string
+          issue_date?: string
+          owner_id?: string
+          paid_at?: string | null
+          sent_at?: string | null
+          status?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_activities: {
         Row: {
           activity_type: Database["public"]["Enums"]["activity_type"]
@@ -870,7 +932,9 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      get_invoice_by_token: { Args: { p_token: string }; Returns: Json }
       get_onboarding_by_token: { Args: { p_token: string }; Returns: Json }
+      mark_overdue_invoices: { Args: never; Returns: undefined }
       move_to_dlq: {
         Args: {
           dlq_name: string
