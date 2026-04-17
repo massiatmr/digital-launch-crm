@@ -22,6 +22,7 @@ import ClientDetailPage from "@/pages/ClientDetailPage";
 import OnboardingFormPage from "@/pages/OnboardingFormPage";
 import SettingsTestsPage from "@/pages/SettingsTestsPage";
 import SettingsIntegrationsPage from "@/pages/SettingsIntegrationsPage";
+import SettingsAutomationPage from "@/pages/SettingsAutomationPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -53,6 +54,7 @@ const App = () => (
               <Route path="/import" element={<ImportPage />} />
               <Route path="/settings/tests" element={<SettingsTestsPage />} />
               <Route path="/settings/integrations" element={<SettingsIntegrationsPage />} />
+              <Route path="/settings/automation" element={<SettingsAutomationPage />} />
             </Route>
           </Route>
           <Route path="*" element={<NotFound />} />
