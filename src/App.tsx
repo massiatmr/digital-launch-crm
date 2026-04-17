@@ -21,6 +21,7 @@ import ClientsPage from "@/pages/ClientsPage";
 import ClientDetailPage from "@/pages/ClientDetailPage";
 import OnboardingFormPage from "@/pages/OnboardingFormPage";
 import SettingsTestsPage from "@/pages/SettingsTestsPage";
+import SettingsIntegrationsPage from "@/pages/SettingsIntegrationsPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -51,6 +52,7 @@ const App = () => (
               <Route path="/reminders" element={<RemindersPage />} />
               <Route path="/import" element={<ImportPage />} />
               <Route path="/settings/tests" element={<SettingsTestsPage />} />
+              <Route path="/settings/integrations" element={<SettingsIntegrationsPage />} />
             </Route>
           </Route>
           <Route path="*" element={<NotFound />} />
