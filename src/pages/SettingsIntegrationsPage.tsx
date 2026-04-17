@@ -229,24 +229,68 @@ export default function SettingsIntegrationsPage() {
               </div>
 
               {/* Test send */}
-              <div className="border rounded-lg p-4 space-y-2">
+              <div className="border rounded-lg p-4 space-y-3">
                 <Label className="text-sm font-semibold">Envoyer un message test</Label>
                 <p className="text-xs text-muted-foreground">
-                  Envoie le template <code>hello_world</code> (toujours pré-approuvé par Meta).
+                  <strong>Template</strong> = obligatoire pour 1er contact (doit être approuvé par Meta sur ton WABA).
+                  <br />
+                  <strong>Texte libre</strong> = ne fonctionne que si le destinataire t'a écrit dans les dernières 24h.
+                  <br />
+                  ⚠️ <code>hello_world</code> ne marche que pour les numéros de test publics Meta — sur ton vrai numéro, utilise un template approuvé.
                 </p>
-                <div className="flex gap-2">
+                <Input
+                  placeholder="Destinataire : 33612345678 (sans + ni espaces)"
+                  value={waTestTo}
+                  onChange={(e) => setWaTestTo(e.target.value)}
+                  className="font-mono text-sm"
+                />
+                <div className="grid grid-cols-2 gap-2">
                   <Input
-                    placeholder="33612345678 (sans + ni espaces)"
-                    value={waTestTo}
-                    onChange={(e) => setWaTestTo(e.target.value)}
+                    placeholder="Nom du template"
+                    value={waTestTemplate}
+                    onChange={(e) => setWaTestTemplate(e.target.value)}
                     className="font-mono text-sm"
                   />
+                  <Input
+                    placeholder="Langue (en_US, fr, fr_FR…)"
+                    value={waTestLang}
+                    onChange={(e) => setWaTestLang(e.target.value)}
+                    className="font-mono text-sm"
+                  />
+                </div>
+                <Input
+                  placeholder="Ou texte libre (fenêtre 24h uniquement)"
+                  value={waTestText}
+                  onChange={(e) => setWaTestText(e.target.value)}
+                  className="text-sm"
+                />
+                <div className="flex gap-2">
                   <Button
-                    onClick={() => callWa("test_send", { to: waTestTo }, "Message test envoyé")}
-                    disabled={waBusy === "test_send" || !waTestTo}
+                    onClick={() =>
+                      callWa(
+                        "test_send",
+                        {
+                          to: waTestTo,
+                          template_name: waTestTemplate,
+                          language_code: waTestLang,
+                        },
+                        "Template envoyé",
+                      )
+                    }
+                    disabled={waBusy === "test_send" || !waTestTo || !waTestTemplate}
+                    variant="outline"
                   >
                     {waBusy === "test_send" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    Tester
+                    Envoyer template
+                  </Button>
+                  <Button
+                    onClick={() =>
+                      callWa("test_send", { to: waTestTo, text: waTestText }, "Message envoyé")
+                    }
+                    disabled={waBusy === "test_send" || !waTestTo || !waTestText}
+                  >
+                    {waBusy === "test_send" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    Envoyer texte
                   </Button>
                 </div>
               </div>
