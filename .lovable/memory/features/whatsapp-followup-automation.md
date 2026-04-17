@@ -1,0 +1,6 @@
+---
+name: WhatsApp followup automation
+description: Système de tâches/relances automatiques par lead + IA Lovable + état conversation
+type: feature
+---
+Couche additive (n'altère pas pipeline/leads). Tables: `lead_followup_tasks`, `whatsapp_messages`, `lead_conversation_state`, `followup_automation_settings`. Trigger SQL `create_followup_sequence_for_lead` génère 6 tâches à chaque INSERT lead (initial, followup_1/2/last à 24/48/72h, qualification + propose_meeting en pending). Trigger `handle_inbound_whatsapp` annule les relances futures dès qu'un message inbound est inséré et bascule l'état à QUALIFIED. Edge functions: `generate-followup-message` (Gemini Flash, prompt = settings.ai_instructions + ai_examples + contexte lead + offre + historique) et `execute-followup-task` (génère→log dans whatsapp_messages→marque sent). Composant `FollowupTimeline` sur fiche lead : badge état, bouton "Lead a répondu", liste des 6 tâches avec Préparer/Régénérer/Envoyer/Annuler, historique chat. Page `/settings/automation` : toggle, ai_instructions, ai_examples, délais. **WhatsApp Meta non encore branché** : `execute-followup-task` log les sorties avec status='logged_only' — TODO câbler Meta Cloud API + webhook entrant.
