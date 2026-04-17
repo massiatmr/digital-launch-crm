@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { generateInvoicePDF, type InvoiceLine, type InvoiceData } from '@/lib/generateInvoicePDF';
 import { supabase } from '@/integrations/supabase/client';
 import logoUrl from '@/assets/logo-black.png';
+import { getDefaultSignatureBase64 } from '@/lib/signatureBase64';
 
 export interface BillingInfo {
   clientCompany?: string;
@@ -217,7 +218,8 @@ export default function InvoiceGenerator({ clientName, clientCompany, clientEmai
   };
 
   const handleDownload = async () => {
-    const pdf = generateInvoicePDF(buildData(), logoBase64);
+    const providerSig = await getDefaultSignatureBase64();
+    const pdf = generateInvoicePDF(buildData(), logoBase64, providerSig);
     pdf.save(`Facture_${invoiceNumber}.pdf`);
     if (clientId) {
       const result = await persistInvoice(false);
@@ -231,7 +233,8 @@ export default function InvoiceGenerator({ clientName, clientCompany, clientEmai
     if (!clientEmail) { toast.error("Pas d'email client renseigné"); return; }
     setSending(true);
     try {
-      const pdf = generateInvoicePDF(buildData(), logoBase64);
+      const providerSig = await getDefaultSignatureBase64();
+      const pdf = generateInvoicePDF(buildData(), logoBase64, providerSig);
       const pdfBase64 = pdf.output('datauristring').split(',')[1];
       const result = clientId ? await persistInvoice(true) : null;
       const publicLink = result ? `${window.location.origin}/invoice/${result.token}` : '';

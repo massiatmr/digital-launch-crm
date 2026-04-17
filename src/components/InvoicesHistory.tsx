@@ -6,6 +6,7 @@ import { Download, Copy, Loader2, Receipt, Clock, CheckCircle, AlertTriangle, Ex
 import { toast } from 'sonner';
 import { generateInvoicePDF, type InvoiceData } from '@/lib/generateInvoicePDF';
 import { getLogoBase64 } from '@/lib/logoBase64';
+import { getDefaultSignatureBase64 } from '@/lib/signatureBase64';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -60,8 +61,8 @@ export default function InvoicesHistory({ clientId, clientEmail, clientName, ref
   const handleDownload = async (row: InvoiceRow) => {
     setBusy(row.id);
     try {
-      const logo = await getLogoBase64();
-      const pdf = generateInvoicePDF(row.invoice_data as InvoiceData, logo);
+      const [logo, sig] = await Promise.all([getLogoBase64(), getDefaultSignatureBase64()]);
+      const pdf = generateInvoicePDF(row.invoice_data as InvoiceData, logo, sig);
       pdf.save(`Facture_${row.invoice_number}.pdf`);
     } catch (err: any) {
       toast.error(`Erreur PDF : ${err.message}`);
@@ -74,8 +75,8 @@ export default function InvoicesHistory({ clientId, clientEmail, clientName, ref
     if (!clientEmail) { toast.error("Pas d'email client"); return; }
     setBusy(row.id);
     try {
-      const logo = await getLogoBase64();
-      const pdf = generateInvoicePDF(row.invoice_data as InvoiceData, logo);
+      const [logo, sig] = await Promise.all([getLogoBase64(), getDefaultSignatureBase64()]);
+      const pdf = generateInvoicePDF(row.invoice_data as InvoiceData, logo, sig);
       const pdfBase64 = pdf.output('datauristring').split(',')[1];
       const publicLink = `${window.location.origin}/invoice/${row.token}`;
       const { error } = await supabase.functions.invoke('send-document-email', {
