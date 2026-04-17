@@ -12,6 +12,7 @@ import {
   Preview,
   Text,
 } from 'npm:@react-email/components@0.0.22'
+import { LogoHeader } from './logo-header.tsx'
 
 interface RecoveryEmailProps {
   siteName: string
@@ -27,6 +28,7 @@ export const RecoveryEmail = ({
     <Preview>Réinitialisez votre mot de passe pour {siteName}</Preview>
     <Body style={main}>
       <Container style={container}>
+        <LogoHeader />
         <Heading style={h1}>Réinitialisez votre mot de passe</Heading>
         <Text style={text}>
           Nous avons reçu une demande de réinitialisation de votre mot de passe pour {siteName}. Cliquez sur le bouton ci-dessous pour en choisir un nouveau.

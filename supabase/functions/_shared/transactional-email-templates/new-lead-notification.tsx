@@ -3,6 +3,7 @@ import {
   Body, Container, Head, Heading, Html, Preview, Text, Button, Hr, Section,
 } from 'npm:@react-email/components@0.0.22'
 import type { TemplateEntry } from './registry.ts'
+import { LogoHeader } from './logo-header.tsx'
 
 const SITE_NAME = "Digital Launch CRM"
 
@@ -43,6 +44,7 @@ const NewLeadNotificationEmail = ({
       <Preview>🔥 Nouveau lead : {leadName || 'Sans nom'} ({sourceLabel})</Preview>
       <Body style={main}>
         <Container style={container}>
+          <LogoHeader />
           <Heading style={h1}>🔥 Nouveau lead reçu</Heading>
           <Text style={text}>
             Un nouveau prospect vient d'arriver dans ton CRM. Réagis vite — la rapidité de réponse double tes chances de closing.

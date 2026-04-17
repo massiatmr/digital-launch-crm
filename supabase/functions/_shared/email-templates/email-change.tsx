@@ -13,6 +13,7 @@ import {
   Preview,
   Text,
 } from 'npm:@react-email/components@0.0.22'
+import { LogoHeader } from './logo-header.tsx'
 
 interface EmailChangeEmailProps {
   siteName: string
@@ -32,6 +33,7 @@ export const EmailChangeEmail = ({
     <Preview>Confirmez le changement d'email pour {siteName}</Preview>
     <Body style={main}>
       <Container style={container}>
+        <LogoHeader />
         <Heading style={h1}>Confirmez le changement d'email</Heading>
         <Text style={text}>
           Vous avez demandé à changer votre adresse email pour {siteName} de{' '}
