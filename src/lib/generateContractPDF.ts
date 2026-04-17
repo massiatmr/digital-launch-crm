@@ -219,9 +219,9 @@ export function generateContractPDF(
   doc.text(EMITTER.name, margin, y); y += 4;
   if (providerSignatureBase64) {
     try {
-      doc.addImage(providerSignatureBase64, 'PNG', margin, y, 50, 20);
+      doc.addImage(providerSignatureBase64, 'PNG', margin, y, 35, 14);
     } catch { /* ignore */ }
-    y += 22;
+    y += 16;
     doc.setFontSize(8);
     doc.setTextColor(100);
     doc.text('Signature numérique du prestataire', margin, y); y += 8;
