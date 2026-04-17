@@ -1,11 +1,18 @@
-// This file exports the logo as a base64 string for PDF generation
-// We use a dynamic import approach to avoid bloating the bundle
+// Loads the black logo (PDF-optimized) as base64 data URL
+import logoUrl from '@/assets/logo-black.png';
+
+let cached: string | null = null;
+
 export async function getLogoBase64(): Promise<string> {
-  const response = await fetch(new URL('@/assets/logo.webp', import.meta.url).href);
+  if (cached) return cached;
+  const response = await fetch(logoUrl);
   const blob = await response.blob();
   return new Promise((resolve) => {
     const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result as string);
+    reader.onloadend = () => {
+      cached = reader.result as string;
+      resolve(cached);
+    };
     reader.readAsDataURL(blob);
   });
 }
