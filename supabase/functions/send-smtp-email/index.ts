@@ -28,7 +28,12 @@ Deno.serve(async (req) => {
   const SMTP_PORT = Number(Deno.env.get("SMTP_PORT") || "587");
   const SMTP_USER = Deno.env.get("SMTP_USER");
   const SMTP_PASSWORD = Deno.env.get("SMTP_PASSWORD");
-  const SMTP_FROM = Deno.env.get("SMTP_FROM") || SMTP_USER;
+  const SMTP_FROM_EMAIL = Deno.env.get("SMTP_FROM") || SMTP_USER;
+  const SMTP_FROM_NAME = Deno.env.get("SMTP_FROM_NAME") || "Digital Launch Agency";
+  // Format as "Name <email>" if not already formatted
+  const SMTP_FROM = SMTP_FROM_EMAIL?.includes("<")
+    ? SMTP_FROM_EMAIL
+    : `${SMTP_FROM_NAME} <${SMTP_FROM_EMAIL}>`;
 
   if (!SMTP_HOST || !SMTP_USER || !SMTP_PASSWORD) {
     return new Response(JSON.stringify({ error: "SMTP not configured" }), {
