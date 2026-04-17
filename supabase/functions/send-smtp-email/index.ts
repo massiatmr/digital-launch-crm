@@ -73,12 +73,15 @@ Deno.serve(async (req) => {
   });
 
   try {
+    // Strip HTML for the plain-text fallback when only HTML is provided
+    const plainText = text || (html ? html.replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim() : "");
+
     await client.send({
       from: SMTP_FROM!,
       to,
       replyTo,
       subject,
-      content: text || "",
+      content: plainText,
       html: html || undefined,
       attachments: attachments?.map((a) => ({
         filename: a.filename,
