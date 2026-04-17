@@ -132,7 +132,7 @@ Deno.serve(async (req) => {
   try {
     const { name, email, phone, booking_date, time_slot, offer_id, notes, owner_id } = await req.json();
 
-    if (!name || !email || !booking_date || !time_slot || !offer_id || !owner_id) {
+    if (!name || !email || !phone || !booking_date || !time_slot || !offer_id || !owner_id) {
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -302,6 +302,72 @@ Deno.serve(async (req) => {
       console.log("Booking confirmation email sent to:", email);
     } catch (emailErr) {
       console.error("Failed to send booking confirmation email:", emailErr);
+    }
+
+    // 7. Notify the owner (push + email via SMTP)
+    const APP_BASE_URL = "https://digital-launch-crm.lovable.app";
+    const OWNER_NOTIFY_EMAIL = "contact@digitallaunch-llc.com";
+    const bookingUrl = `${APP_BASE_URL}/bookings`;
+    const titleSuffix = offerName ? ` — ${offerName}` : "";
+    const meetRow = meetLink
+      ? `<p style="font-size:12px;color:#7c3aed;font-weight:600;margin:8px 0 2px;text-transform:uppercase;letter-spacing:0.5px">🔗 Google Meet</p>
+         <p style="font-size:14px;color:#1a1a2e;margin:0 0 8px"><a href="${meetLink}" style="color:#7c3aed">${meetLink}</a></p>`
+      : "";
+
+    // Push to owner
+    try {
+      await supabase.functions.invoke("send-push", {
+        body: {
+          user_id: owner_id,
+          title: `📅 Nouveau RDV — ${name}`,
+          body: `${booking_date} à ${time_slot} • ${offerName}`,
+          url: `/bookings`,
+          tag: `new-booking-${bookingId}`,
+        },
+      });
+    } catch (e) {
+      console.error("Owner push failed:", e);
+    }
+
+    // Email to owner via SMTP
+    try {
+      const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"></head>
+<body style="background:#fff;font-family:'Plus Jakarta Sans',Arial,sans-serif;margin:0;padding:0">
+  <div style="max-width:520px;margin:0 auto;padding:30px 25px">
+    <h1 style="font-size:24px;font-weight:700;color:#1a1a2e;margin:0 0 16px">📅 Nouveau RDV réservé${titleSuffix}</h1>
+    <p style="font-size:15px;color:#444;line-height:1.6;margin:0 0 16px">
+      Un prospect vient de prendre rendez-vous via une de tes pages.
+    </p>
+    <div style="background:#f4f0ff;border-radius:12px;padding:20px 24px;margin:20px 0;border-left:4px solid #7c3aed">
+      <p style="font-size:12px;color:#7c3aed;font-weight:600;margin:8px 0 2px;text-transform:uppercase;letter-spacing:0.5px">👤 Nom</p>
+      <p style="font-size:16px;color:#1a1a2e;font-weight:600;margin:0 0 8px">${name}</p>
+      <p style="font-size:12px;color:#7c3aed;font-weight:600;margin:8px 0 2px;text-transform:uppercase;letter-spacing:0.5px">✉️ Email</p>
+      <p style="font-size:16px;color:#1a1a2e;font-weight:600;margin:0 0 8px">${email}</p>
+      <p style="font-size:12px;color:#7c3aed;font-weight:600;margin:8px 0 2px;text-transform:uppercase;letter-spacing:0.5px">📱 Téléphone</p>
+      <p style="font-size:16px;color:#1a1a2e;font-weight:600;margin:0 0 8px">${phone}</p>
+      <p style="font-size:12px;color:#7c3aed;font-weight:600;margin:8px 0 2px;text-transform:uppercase;letter-spacing:0.5px">🗓 Créneau</p>
+      <p style="font-size:16px;color:#1a1a2e;font-weight:600;margin:0 0 8px">${booking_date} à ${time_slot}</p>
+      <p style="font-size:12px;color:#7c3aed;font-weight:600;margin:8px 0 2px;text-transform:uppercase;letter-spacing:0.5px">🎯 Offre</p>
+      <p style="font-size:16px;color:#1a1a2e;font-weight:600;margin:0 0 8px">${offerName}</p>
+      ${meetRow}
+    </div>
+    <div style="text-align:center;margin:25px 0">
+      <a href="${bookingUrl}" style="background:#7c3aed;color:#fff;padding:14px 28px;border-radius:8px;font-size:15px;font-weight:600;text-decoration:none;display:inline-block">
+        Voir dans le CRM
+      </a>
+    </div>
+  </div>
+</body></html>`;
+      await supabase.functions.invoke("send-smtp-email", {
+        body: {
+          to: OWNER_NOTIFY_EMAIL,
+          subject: `📅 Nouveau RDV — ${name} (${booking_date} ${time_slot})`,
+          html,
+          replyTo: email,
+        },
+      });
+    } catch (e) {
+      console.error("Owner email failed:", e);
     }
 
     return new Response(
