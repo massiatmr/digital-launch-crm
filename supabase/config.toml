@@ -35,3 +35,7 @@ project_id = "rvangzupebrajhhhvewu"
     verify_jwt = false
   [functions.facebook-webhook]
     verify_jwt = false
+  [functions.send-smtp-email]
+    verify_jwt = false
+  [functions.notify-new-lead]
+    verify_jwt = false
