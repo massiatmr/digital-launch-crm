@@ -74,6 +74,7 @@ export default function ClientDetailPage() {
   const [newObjective, setNewObjective] = useState('');
   const [resourceUrl, setResourceUrl] = useState('');
   const [resourceName, setResourceName] = useState('');
+  const [contractsRefresh, setContractsRefresh] = useState(0);
 
   if (isLoading) return <div className="text-center py-12 text-muted-foreground">Chargement...</div>;
   if (!client) return <div className="text-center py-12 text-muted-foreground">Client introuvable</div>;
