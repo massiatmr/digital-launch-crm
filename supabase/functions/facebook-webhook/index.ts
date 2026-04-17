@@ -174,17 +174,8 @@ Deno.serve(async (req) => {
       payloadPreview: JSON.stringify(body).slice(0, 500),
     });
 
-    if (!FB_PAGE_ACCESS_TOKEN || !FB_LEAD_OWNER_ID) {
-      logError(requestId, "Missing required Facebook webhook secrets", {
-        hasPageAccessToken: Boolean(FB_PAGE_ACCESS_TOKEN),
-        hasLeadOwnerId: Boolean(FB_LEAD_OWNER_ID),
-      });
-
-      return new Response("OK", { status: 200 });
-    }
-
-    // Respond immediately to Facebook
-    const processPromise = processWebhook(body, FB_PAGE_ACCESS_TOKEN, FB_LEAD_OWNER_ID, requestId);
+    // Respond immediately to Facebook; resolve page → token+owner inside processWebhook
+    const processPromise = processWebhook(body, FB_PAGE_ACCESS_TOKEN ?? "", FB_LEAD_OWNER_ID ?? "", requestId);
     
     // Use waitUntil pattern - process in background but don't block response
     processPromise.catch((err) =>
