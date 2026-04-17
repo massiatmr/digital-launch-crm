@@ -6,6 +6,7 @@ import { Download, Copy, Loader2, FileSignature, Clock, CheckCircle, XCircle, Ex
 import { toast } from 'sonner';
 import { generateContractPDF, type ContractData, type SignatureProof } from '@/lib/generateContractPDF';
 import { getLogoBase64 } from '@/lib/logoBase64';
+import { getDefaultSignatureBase64 } from '@/lib/signatureBase64';
 
 interface SignatureRow {
   id: string;

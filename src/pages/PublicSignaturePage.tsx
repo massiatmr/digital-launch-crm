@@ -6,6 +6,7 @@ import SignaturePad from '@/components/SignaturePad';
 import { CheckCircle, AlertCircle, Loader2, FileText, Shield, Download } from 'lucide-react';
 import { generateContractPDF, type ContractArticle, type SignatureProof } from '@/lib/generateContractPDF';
 import { getLogoBase64 } from '@/lib/logoBase64';
+import { getDefaultSignatureBase64 } from '@/lib/signatureBase64';
 
 type Status = 'loading' | 'ready' | 'signing' | 'signed' | 'expired' | 'already_signed' | 'error';
 
