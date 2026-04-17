@@ -37,10 +37,12 @@ Deno.serve(async (req) => {
     const safeMsg = String(message || '').replace(/[&<>"']/g, (c) =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
     const emailHtml = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #333;">Digital Launch</h2>
-        <p style="white-space: pre-line; color: #555;">${safeMsg}</p>
-        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff;">
+        <div style="text-align: center; padding: 10px 0 20px;">
+          <img src="https://rvangzupebrajhhhvewu.supabase.co/storage/v1/object/public/email-assets/logo.png" alt="Digital Launch" width="160" style="max-width: 160px; height: auto; display: inline-block;" />
+        </div>
+        <p style="white-space: pre-line; color: #444; font-size: 15px; line-height: 1.6;">${safeMsg}</p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
         <p style="color: #999; font-size: 12px;">
           DIGITAL LAUNCH LLC — 75 E 3RD ST, Sheridan, Wyoming 82801<br/>
           contact@digitallaunch-llc.com

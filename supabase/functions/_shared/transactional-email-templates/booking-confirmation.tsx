@@ -3,6 +3,7 @@ import {
   Body, Container, Head, Heading, Html, Preview, Text, Button, Hr, Section,
 } from 'npm:@react-email/components@0.0.22'
 import type { TemplateEntry } from './registry.ts'
+import { LogoHeader } from './logo-header.tsx'
 
 const SITE_NAME = "Digital Launch CRM"
 
@@ -26,6 +27,7 @@ const BookingConfirmationEmail = ({
     <Preview>Votre rendez-vous est confirmé — {bookingDate} à {timeSlot}</Preview>
     <Body style={main}>
       <Container style={container}>
+        <LogoHeader />
         <Heading style={h1}>
           {name ? `${name}, votre rendez-vous est confirmé ! ✅` : 'Votre rendez-vous est confirmé ! ✅'}
         </Heading>

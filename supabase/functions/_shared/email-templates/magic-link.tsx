@@ -12,6 +12,7 @@ import {
   Preview,
   Text,
 } from 'npm:@react-email/components@0.0.22'
+import { LogoHeader } from './logo-header.tsx'
 
 interface MagicLinkEmailProps {
   siteName: string
@@ -27,6 +28,7 @@ export const MagicLinkEmail = ({
     <Preview>Votre lien de connexion pour {siteName}</Preview>
     <Body style={main}>
       <Container style={container}>
+        <LogoHeader />
         <Heading style={h1}>Votre lien de connexion</Heading>
         <Text style={text}>
           Cliquez sur le bouton ci-dessous pour vous connecter à {siteName}. Ce lien expirera sous peu.

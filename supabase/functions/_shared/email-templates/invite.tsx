@@ -13,6 +13,7 @@ import {
   Preview,
   Text,
 } from 'npm:@react-email/components@0.0.22'
+import { LogoHeader } from './logo-header.tsx'
 
 interface InviteEmailProps {
   siteName: string
@@ -30,6 +31,7 @@ export const InviteEmail = ({
     <Preview>Vous êtes invité à rejoindre {siteName}</Preview>
     <Body style={main}>
       <Container style={container}>
+        <LogoHeader />
         <Heading style={h1}>Vous êtes invité</Heading>
         <Text style={text}>
           Vous avez été invité à rejoindre{' '}

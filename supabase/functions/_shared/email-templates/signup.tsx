@@ -13,6 +13,7 @@ import {
   Preview,
   Text,
 } from 'npm:@react-email/components@0.0.22'
+import { LogoHeader } from './logo-header.tsx'
 
 interface SignupEmailProps {
   siteName: string
@@ -32,6 +33,7 @@ export const SignupEmail = ({
     <Preview>Confirmez votre email pour {siteName}</Preview>
     <Body style={main}>
       <Container style={container}>
+        <LogoHeader />
         <Heading style={h1}>Confirmez votre email</Heading>
         <Text style={text}>
           Merci de vous être inscrit sur{' '}
