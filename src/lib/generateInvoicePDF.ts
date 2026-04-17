@@ -199,23 +199,7 @@ export function generateInvoicePDF(data: InvoiceData, logoBase64?: string, provi
   doc.text("d'intérêt légal ainsi qu'un frais de recouvrement de 40 euros sont exigibles.", margin, y);
   y += 10;
 
-  // Provider signature
-  if (providerSignatureBase64) {
-    if (y > 250) { doc.addPage(); y = 20; }
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.text('Signature du prestataire :', margin, y);
-    y += 4;
-    try {
-      doc.addImage(providerSignatureBase64, 'PNG', margin, y, 50, 20);
-    } catch { /* ignore */ }
-    y += 22;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(100);
-    doc.text(`${EMITTER.name} — Signature numérique`, margin, y);
-    doc.setTextColor(0);
-  }
+  // (Signature retirée des factures — non pertinente)
 
   return doc;
 }
