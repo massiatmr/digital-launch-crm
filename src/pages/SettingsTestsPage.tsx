@@ -26,7 +26,7 @@ interface TestResult {
 const StatusBadge = ({ status }: { status: Status }) => {
   if (status === 'idle') return <Badge variant="outline">En attente</Badge>;
   if (status === 'running') return <Badge variant="secondary"><Loader2 className="w-3 h-3 mr-1 animate-spin" />En cours</Badge>;
-  if (status === 'success') return <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40"><CheckCircle2 className="w-3 h-3 mr-1" />OK</Badge>;
+  if (status === 'success') return <Badge className="bg-primary/20 text-primary border-primary/40"><CheckCircle2 className="w-3 h-3 mr-1" />OK</Badge>;
   return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />Échec</Badge>;
 };
 
@@ -48,7 +48,8 @@ const ResultBlock = ({ result }: { result: TestResult }) => {
 
 export default function SettingsTestsPage() {
   const { user } = useAuth();
-  const { isSubscribed, subscribe, sendTestNotification } = usePushNotifications();
+  const { state: pushState, subscribe } = usePushNotifications();
+  const isSubscribed = pushState === 'subscribed';
 
   const [results, setResults] = useState<Record<string, TestResult>>({});
   const [smtpRecipient, setSmtpRecipient] = useState(user?.email || '');
@@ -88,11 +89,20 @@ export default function SettingsTestsPage() {
     set('push', { status: 'running' });
     try {
       if (!isSubscribed) {
-        const ok = await subscribe();
-        if (!ok) throw new Error('Permission push refusée');
+        await subscribe();
       }
-      await sendTestNotification();
-      set('push', { status: 'success', message: 'Notification envoyée — vérifie ton appareil' });
+      // Send a test push via send-push function targeting current user
+      const { data, error } = await supabase.functions.invoke('send-push', {
+        body: {
+          user_id: user?.id,
+          title: '🧪 Test push — Digital Launch CRM',
+          body: 'Si tu vois ce message, les notifications push fonctionnent !',
+          url: '/settings/tests',
+          tag: 'test-push',
+        },
+      });
+      if (error) throw error;
+      set('push', { status: 'success', message: 'Notification envoyée — vérifie ton appareil', data });
     } catch (e: any) {
       set('push', { status: 'error', message: e.message });
     }
@@ -313,7 +323,7 @@ export default function SettingsTestsPage() {
                 <div>
                   <CardTitle className="flex items-center gap-2"><Bell className="w-5 h-5" />Notifications Push</CardTitle>
                   <CardDescription>
-                    Statut : {isSubscribed ? <span className="text-emerald-400">Abonné ✓</span> : <span className="text-amber-400">Non abonné</span>}
+                    Statut : {isSubscribed ? <span className="text-primary">Abonné ✓</span> : <span className="text-muted-foreground">Non abonné</span>}
                   </CardDescription>
                 </div>
                 <StatusBadge status={get('push').status} />
