@@ -114,7 +114,12 @@ export interface SignatureProof {
   signerUserAgent?: string;
 }
 
-export function generateContractPDF(data: ContractData, logoBase64?: string, signature?: SignatureProof): jsPDF {
+export function generateContractPDF(
+  data: ContractData,
+  logoBase64?: string,
+  signature?: SignatureProof,
+  providerSignatureBase64?: string,
+): jsPDF {
   const doc = new jsPDF('p', 'mm', 'a4');
   const pageWidth = 210;
   const margin = 20;
@@ -209,8 +214,21 @@ export function generateContractPDF(data: ContractData, logoBase64?: string, sig
   doc.text(`Prestataire : ${EMITTER.representative}`, margin, y);
   y += 4;
   doc.setFont('helvetica', 'normal');
-  doc.text(EMITTER.name, margin, y); y += 6;
-  doc.text('Signature : ___________________________', margin, y); y += 15;
+  doc.text(EMITTER.name, margin, y); y += 4;
+  if (providerSignatureBase64) {
+    try {
+      doc.addImage(providerSignatureBase64, 'PNG', margin, y, 50, 20);
+    } catch { /* ignore */ }
+    y += 22;
+    doc.setFontSize(8);
+    doc.setTextColor(100);
+    doc.text('Signature numérique du prestataire', margin, y); y += 8;
+    doc.setTextColor(0);
+    doc.setFontSize(9);
+  } else {
+    y += 2;
+    doc.text('Signature : ___________________________', margin, y); y += 15;
+  }
 
   doc.setFont('helvetica', 'bold');
   doc.text(`Entreprise cliente : ${data.clientRepresentant || '___________________________'}`, margin, y);
