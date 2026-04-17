@@ -35,7 +35,7 @@ const EMITTER = {
   accountName: 'Digital Launch LLC',
 };
 
-export function generateInvoicePDF(data: InvoiceData, logoBase64?: string): jsPDF {
+export function generateInvoicePDF(data: InvoiceData, logoBase64?: string, providerSignatureBase64?: string): jsPDF {
   const doc = new jsPDF('p', 'mm', 'a4');
   const pageWidth = 210;
   const margin = 20;
