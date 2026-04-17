@@ -446,6 +446,48 @@ export type Database = {
         }
         Relationships: []
       }
+      followup_automation_settings: {
+        Row: {
+          ai_examples: string
+          ai_instructions: string
+          ai_model: string
+          created_at: string
+          followup_1_delay_hours: number
+          followup_2_delay_hours: number
+          initial_delay_minutes: number
+          is_enabled: boolean
+          last_followup_delay_hours: number
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          ai_examples?: string
+          ai_instructions?: string
+          ai_model?: string
+          created_at?: string
+          followup_1_delay_hours?: number
+          followup_2_delay_hours?: number
+          initial_delay_minutes?: number
+          is_enabled?: boolean
+          last_followup_delay_hours?: number
+          owner_id?: string
+          updated_at?: string
+        }
+        Update: {
+          ai_examples?: string
+          ai_instructions?: string
+          ai_model?: string
+          created_at?: string
+          followup_1_delay_hours?: number
+          followup_2_delay_hours?: number
+          initial_delay_minutes?: number
+          is_enabled?: boolean
+          last_followup_delay_hours?: number
+          owner_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       generated_messages: {
         Row: {
           content: string
@@ -604,6 +646,97 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "lead_activities_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_conversation_state: {
+        Row: {
+          last_inbound_at: string | null
+          last_outbound_at: string | null
+          lead_id: string
+          owner_id: string
+          state: Database["public"]["Enums"]["conversation_state"]
+          updated_at: string
+        }
+        Insert: {
+          last_inbound_at?: string | null
+          last_outbound_at?: string | null
+          lead_id: string
+          owner_id?: string
+          state?: Database["public"]["Enums"]["conversation_state"]
+          updated_at?: string
+        }
+        Update: {
+          last_inbound_at?: string | null
+          last_outbound_at?: string | null
+          lead_id?: string
+          owner_id?: string
+          state?: Database["public"]["Enums"]["conversation_state"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_conversation_state_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: true
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_followup_tasks: {
+        Row: {
+          ai_generated: boolean
+          created_at: string
+          error_message: string | null
+          executed_at: string | null
+          id: string
+          lead_id: string
+          message_content: string | null
+          owner_id: string
+          scheduled_at: string
+          status: Database["public"]["Enums"]["followup_task_status"]
+          step_order: number
+          task_type: Database["public"]["Enums"]["followup_task_type"]
+          updated_at: string
+        }
+        Insert: {
+          ai_generated?: boolean
+          created_at?: string
+          error_message?: string | null
+          executed_at?: string | null
+          id?: string
+          lead_id: string
+          message_content?: string | null
+          owner_id?: string
+          scheduled_at: string
+          status?: Database["public"]["Enums"]["followup_task_status"]
+          step_order?: number
+          task_type: Database["public"]["Enums"]["followup_task_type"]
+          updated_at?: string
+        }
+        Update: {
+          ai_generated?: boolean
+          created_at?: string
+          error_message?: string | null
+          executed_at?: string | null
+          id?: string
+          lead_id?: string
+          message_content?: string | null
+          owner_id?: string
+          scheduled_at?: string
+          status?: Database["public"]["Enums"]["followup_task_status"]
+          step_order?: number
+          task_type?: Database["public"]["Enums"]["followup_task_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_followup_tasks_lead_id_fkey"
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
@@ -958,6 +1091,63 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_messages: {
+        Row: {
+          content: string
+          created_at: string
+          direction: Database["public"]["Enums"]["wa_direction"]
+          error_message: string | null
+          id: string
+          lead_id: string
+          owner_id: string
+          sent_at: string
+          status: string
+          task_id: string | null
+          wa_message_id: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          direction: Database["public"]["Enums"]["wa_direction"]
+          error_message?: string | null
+          id?: string
+          lead_id: string
+          owner_id?: string
+          sent_at?: string
+          status?: string
+          task_id?: string | null
+          wa_message_id?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          direction?: Database["public"]["Enums"]["wa_direction"]
+          error_message?: string | null
+          id?: string
+          lead_id?: string
+          owner_id?: string
+          sent_at?: string
+          status?: string
+          task_id?: string | null
+          wa_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_messages_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_messages_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "lead_followup_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1018,6 +1208,29 @@ export type Database = {
         | "en_preparation"
         | "en_cours"
         | "actif"
+      conversation_state:
+        | "NEW"
+        | "CONTACTED"
+        | "WAITING_REPLY"
+        | "FOLLOWUP_1_SENT"
+        | "FOLLOWUP_2_SENT"
+        | "QUALIFIED"
+        | "BOOKED"
+        | "CLOSED"
+      followup_task_status:
+        | "pending"
+        | "scheduled"
+        | "sent"
+        | "cancelled"
+        | "failed"
+        | "skipped"
+      followup_task_type:
+        | "initial_message"
+        | "followup_1"
+        | "followup_2"
+        | "last_followup"
+        | "qualification"
+        | "propose_meeting"
       lead_score: "hot" | "warm" | "cold"
       lead_source:
         | "facebook"
@@ -1039,6 +1252,7 @@ export type Database = {
       message_type: "whatsapp" | "email" | "sms"
       onboarding_form_type: "website" | "ads"
       show_status: "pending" | "show" | "noshow"
+      wa_direction: "inbound" | "outbound"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1190,6 +1404,32 @@ export const Constants = {
         "en_cours",
         "actif",
       ],
+      conversation_state: [
+        "NEW",
+        "CONTACTED",
+        "WAITING_REPLY",
+        "FOLLOWUP_1_SENT",
+        "FOLLOWUP_2_SENT",
+        "QUALIFIED",
+        "BOOKED",
+        "CLOSED",
+      ],
+      followup_task_status: [
+        "pending",
+        "scheduled",
+        "sent",
+        "cancelled",
+        "failed",
+        "skipped",
+      ],
+      followup_task_type: [
+        "initial_message",
+        "followup_1",
+        "followup_2",
+        "last_followup",
+        "qualification",
+        "propose_meeting",
+      ],
       lead_score: ["hot", "warm", "cold"],
       lead_source: [
         "facebook",
@@ -1213,6 +1453,7 @@ export const Constants = {
       message_type: ["whatsapp", "email", "sms"],
       onboarding_form_type: ["website", "ads"],
       show_status: ["pending", "show", "noshow"],
+      wa_direction: ["inbound", "outbound"],
     },
   },
 } as const
