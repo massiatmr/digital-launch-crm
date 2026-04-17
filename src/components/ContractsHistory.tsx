@@ -52,13 +52,13 @@ export default function ContractsHistory({ clientId, refreshKey }: Props) {
   const handleDownload = async (row: SignatureRow) => {
     setDownloading(row.id);
     try {
-      const logo = await getLogoBase64();
+      const [logo, providerSig] = await Promise.all([getLogoBase64(), getDefaultSignatureBase64()]);
       const proof: SignatureProof | undefined = row.signature_image && row.signed_at ? {
         signatureImage: row.signature_image,
         signedAt: row.signed_at,
         signerIp: row.signer_ip || undefined,
       } : undefined;
-      const pdf = generateContractPDF(row.contract_data as ContractData, logo, proof);
+      const pdf = generateContractPDF(row.contract_data as ContractData, logo, proof, providerSig);
       const suffix = row.status === 'signed' ? 'signe' : 'brouillon';
       const name = row.contract_data?.clientCompany || row.contract_data?.clientRepresentant || 'client';
       pdf.save(`Contrat_${suffix}_${name}.pdf`);

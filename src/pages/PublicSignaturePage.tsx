@@ -38,12 +38,12 @@ export default function PublicSignaturePage() {
 
   const handleDownloadSigned = async () => {
     if (!contract) return;
-    const logo = await getLogoBase64();
+    const [logo, providerSig] = await Promise.all([getLogoBase64(), getDefaultSignatureBase64()]);
     const proof = signatureProof || (signatureData ? {
       signatureImage: signatureData,
       signedAt: new Date().toISOString(),
     } : undefined);
-    const pdf = generateContractPDF(contract, logo, proof);
+    const pdf = generateContractPDF(contract, logo, proof, providerSig);
     pdf.save(`Contrat_signe_${contract.clientCompany || contract.clientRepresentant || 'client'}.pdf`);
   };
 
