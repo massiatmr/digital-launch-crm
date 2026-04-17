@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { generateContractPDF, ADS_ARTICLES, WEBSITE_ARTICLES, type ContractData, type ContractArticle } from '@/lib/generateContractPDF';
 import { supabase } from '@/integrations/supabase/client';
 import logoUrl from '@/assets/logo-black.png';
+import { getDefaultSignatureBase64 } from '@/lib/signatureBase64';
 import type { BillingInfo } from './InvoiceGenerator';
 
 interface Props {
@@ -159,7 +160,8 @@ export default function ContractGenerator({ clientName, clientCompany, clientEma
     if (!clientEmail) { toast.error("Pas d'email client renseigné"); return; }
     setSending(true);
     try {
-      const pdf = generateContractPDF(buildData(), logoBase64);
+      const providerSig = await getDefaultSignatureBase64();
+      const pdf = generateContractPDF(buildData(), logoBase64, undefined, providerSig);
       const pdfBase64 = pdf.output('datauristring').split(',')[1];
       const docName = `Contrat_${serviceType === 'ads' ? 'MetaAds' : 'SiteWeb'}_${clientCompanyField || clientName}.pdf`;
       const { error } = await supabase.functions.invoke('send-document-email', {
