@@ -45,7 +45,7 @@ function downloadIcs(name: string, date: string, time: string, offerName: string
 const bookingSchema = z.object({
   name: z.string().trim().min(1, 'Nom requis').max(100),
   email: z.string().trim().email('Email invalide').max(255),
-  phone: z.string().trim().max(20).optional(),
+  phone: z.string().trim().min(6, 'Téléphone requis').max(20),
   booking_date: z.string().min(1, 'Date requise'),
   time_slot: z.string().min(1, 'Créneau requis'),
 });
@@ -255,7 +255,7 @@ export default function BookingSection({
             {errors.email && <p className="text-xs text-red-400 mt-1">{errors.email}</p>}
           </div>
           <div>
-            <label className="text-sm text-gray-400 mb-1.5 block">Téléphone (optionnel)</label>
+            <label className="text-sm text-gray-400 mb-1.5 block">Téléphone *</label>
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
               <Input
@@ -266,6 +266,7 @@ export default function BookingSection({
                 className="pl-10 bg-white/[0.03] border-white/[0.08] text-white placeholder:text-gray-600 focus:border-red-500"
               />
             </div>
+            {errors.phone && <p className="text-xs text-red-400 mt-1">{errors.phone}</p>}
           </div>
 
           {selectedDate && form.time_slot && (
