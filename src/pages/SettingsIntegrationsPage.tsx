@@ -35,6 +35,7 @@ interface MetaPage {
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const WEBHOOK_URL = `${SUPABASE_URL}/functions/v1/facebook-webhook`;
+const WA_WEBHOOK_URL = `${SUPABASE_URL}/functions/v1/whatsapp-webhook`;
 
 export default function SettingsIntegrationsPage() {
   const [params, setParams] = useSearchParams();
