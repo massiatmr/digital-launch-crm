@@ -20,9 +20,7 @@ import UnsubscribePage from "@/pages/UnsubscribePage";
 import ClientsPage from "@/pages/ClientsPage";
 import ClientDetailPage from "@/pages/ClientDetailPage";
 import OnboardingFormPage from "@/pages/OnboardingFormPage";
-import SettingsTestsPage from "@/pages/SettingsTestsPage";
-import SettingsIntegrationsPage from "@/pages/SettingsIntegrationsPage";
-import SettingsAutomationPage from "@/pages/SettingsAutomationPage";
+import SettingsPage from "@/pages/SettingsPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -52,9 +50,8 @@ const App = () => (
               <Route path="/bookings" element={<BookingsPage />} />
               <Route path="/reminders" element={<RemindersPage />} />
               <Route path="/import" element={<ImportPage />} />
-              <Route path="/settings/tests" element={<SettingsTestsPage />} />
-              <Route path="/settings/integrations" element={<SettingsIntegrationsPage />} />
-              <Route path="/settings/automation" element={<SettingsAutomationPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/settings/:tab" element={<SettingsPage />} />
             </Route>
           </Route>
           <Route path="*" element={<NotFound />} />

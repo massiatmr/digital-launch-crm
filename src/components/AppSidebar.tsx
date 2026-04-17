@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Users, Kanban, MessageSquare, Phone, Bell, PanelLeftClose, PanelLeft, Upload, LogOut, Zap, Package, CalendarCheck, UserCheck, FlaskConical, Plug, Bot } from 'lucide-react';
+import { LayoutDashboard, Kanban, Bell, PanelLeftClose, PanelLeft, LogOut, Package, CalendarCheck, UserCheck, Settings } from 'lucide-react';
 import logo from '@/assets/logo.webp';
 import logoIcon from '@/assets/logo-icon.webp';
 import { useSidebarState } from './AppLayout';
@@ -13,9 +13,7 @@ const links = [
   { to: '/reminders', icon: Bell, label: 'Tâches' },
   { to: '/offers', icon: Package, label: 'Offres' },
   { to: '/bookings', icon: CalendarCheck, label: 'Rendez-vous' },
-  { to: '/settings/automation', icon: Bot, label: 'Automatisation' },
-  { to: '/settings/integrations', icon: Plug, label: 'Intégrations' },
-  { to: '/settings/tests', icon: FlaskConical, label: 'Tests' },
+  { to: '/settings', icon: Settings, label: 'Paramètres' },
 ];
 
 export function AppSidebar() {
