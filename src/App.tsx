@@ -14,6 +14,7 @@ import OfferDetailPage from "@/pages/OfferDetailPage";
 import BookingsPage from "@/pages/BookingsPage";
 import PublicOfferPage from "@/pages/PublicOfferPage";
 import PublicSignaturePage from "@/pages/PublicSignaturePage";
+import PublicInvoicePage from "@/pages/PublicInvoicePage";
 import AuthPage from "@/pages/AuthPage";
 import UnsubscribePage from "@/pages/UnsubscribePage";
 import ClientsPage from "@/pages/ClientsPage";
@@ -34,6 +35,7 @@ const App = () => (
           <Route path="/offers/:slug/page" element={<PublicOfferPage />} />
           <Route path="/unsubscribe" element={<UnsubscribePage />} />
           <Route path="/sign/:token" element={<PublicSignaturePage />} />
+          <Route path="/invoice/:token" element={<PublicInvoicePage />} />
           <Route path="/onboarding/website" element={<OnboardingFormPage />} />
           <Route path="/onboarding/ads" element={<OnboardingFormPage />} />
           <Route element={<ProtectedRoute />}>
