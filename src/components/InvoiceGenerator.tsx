@@ -31,9 +31,11 @@ interface Props {
   clientCompany: string;
   clientEmail: string;
   clientPhone: string;
+  clientId?: string;
   offerName?: string;
   billingInfo?: BillingInfo;
   onBillingInfoChange?: (info: BillingInfo) => void;
+  onInvoiceCreated?: () => void;
 }
 
 const DEFAULT_WEBSITE_DETAILS = [
@@ -61,7 +63,7 @@ const PAYMENT_TERMS: Record<string, string> = {
 
 type SaveStatus = 'idle' | 'saving' | 'saved';
 
-export default function InvoiceGenerator({ clientName, clientCompany, clientEmail, clientPhone, offerName, billingInfo, onBillingInfoChange }: Props) {
+export default function InvoiceGenerator({ clientName, clientCompany, clientEmail, clientPhone, clientId, offerName, billingInfo, onBillingInfoChange, onInvoiceCreated }: Props) {
   const defaultServiceType = offerName?.toLowerCase().includes('ads') || offerName?.toLowerCase().includes('pub') ? 'ads' : 'website';
 
   const [invoiceNumber, setInvoiceNumber] = useState(billingInfo?.invoiceNumber || '');
@@ -181,10 +183,48 @@ export default function InvoiceGenerator({ clientName, clientCompany, clientEmai
     paymentTerms, serviceType,
   });
 
-  const handleDownload = () => {
+  const persistInvoice = async (sendImmediately: boolean): Promise<{ token: string } | null> => {
+    if (!clientId) return null;
+    const toIso = (s: string) => {
+      const parts = s.split('/');
+      if (parts.length === 3) {
+        const [d, m, y] = parts;
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
+      return null;
+    };
+    const issueDateIso = toIso(date) || new Date().toISOString().split('T')[0];
+    const dueDateIso = toIso(dueDate);
+    const { data, error } = await (supabase.from('invoices' as any) as any)
+      .insert({
+        client_id: clientId,
+        invoice_number: invoiceNumber,
+        amount: total,
+        currency: 'EUR',
+        issue_date: issueDateIso,
+        due_date: dueDateIso,
+        status: 'sent',
+        invoice_data: buildData() as any,
+        sent_at: sendImmediately ? new Date().toISOString() : null,
+      })
+      .select('token')
+      .single();
+    if (error) {
+      toast.error(`Erreur enregistrement : ${error.message}`);
+      return null;
+    }
+    return data as { token: string };
+  };
+
+  const handleDownload = async () => {
     const pdf = generateInvoicePDF(buildData(), logoBase64);
     pdf.save(`Facture_${invoiceNumber}.pdf`);
-    toast.success('Facture téléchargée !');
+    if (clientId) {
+      const result = await persistInvoice(false);
+      if (result) { toast.success('Facture téléchargée et enregistrée !'); onInvoiceCreated?.(); }
+    } else {
+      toast.success('Facture téléchargée !');
+    }
   };
 
   const handleSendEmail = async () => {
@@ -193,16 +233,19 @@ export default function InvoiceGenerator({ clientName, clientCompany, clientEmai
     try {
       const pdf = generateInvoicePDF(buildData(), logoBase64);
       const pdfBase64 = pdf.output('datauristring').split(',')[1];
+      const result = clientId ? await persistInvoice(true) : null;
+      const publicLink = result ? `${window.location.origin}/invoice/${result.token}` : '';
       const { error } = await supabase.functions.invoke('send-document-email', {
         body: {
           recipientEmail: clientEmail, recipientName: clientName,
           subject: `Facture ${invoiceNumber} - Digital Launch`,
           documentBase64: pdfBase64, documentName: `Facture_${invoiceNumber}.pdf`,
-          message: `Bonjour ${clientName},\n\nVeuillez trouver ci-joint votre facture n° ${invoiceNumber}.\n\nCordialement,\nDigital Launch`,
+          message: `Bonjour ${clientName},\n\nVeuillez trouver ci-joint votre facture n° ${invoiceNumber}.${publicLink ? `\n\nVous pouvez également la consulter ici : ${publicLink}` : ''}\n\nCordialement,\nDigital Launch Agency`,
         },
       });
       if (error) throw error;
       toast.success('Facture envoyée par email !');
+      onInvoiceCreated?.();
     } catch (err: any) {
       toast.error(`Erreur : ${err.message}`);
     } finally {
