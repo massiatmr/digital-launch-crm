@@ -97,8 +97,11 @@ export default function PublicSignaturePage() {
               <CheckCircle className="h-8 w-8 text-emerald-600" />
             </div>
             <h1 className="text-2xl font-bold text-foreground">Contrat signé !</h1>
-            <p className="text-muted-foreground">Votre signature a été enregistrée avec succès. Vous recevrez un email de confirmation.</p>
-            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground/60 pt-4">
+            <p className="text-muted-foreground">Votre signature a été enregistrée avec succès. Téléchargez votre exemplaire signé ci-dessous.</p>
+            <Button onClick={handleDownloadSigned} className="w-full gap-2 h-11">
+              <Download className="h-4 w-4" /> Télécharger mon contrat signé
+            </Button>
+            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground/60 pt-2">
               <Shield className="h-3.5 w-3.5" />
               Signature horodatée et sécurisée
             </div>
