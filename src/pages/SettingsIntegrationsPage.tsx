@@ -7,8 +7,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Facebook, Loader2, Trash2, RefreshCw, ChevronDown, ChevronUp, Copy, ExternalLink } from "lucide-react";
+import { Facebook, Loader2, Trash2, RefreshCw, ChevronDown, ChevronUp, Copy, ExternalLink, MessageCircle, CheckCircle2, Send, Power } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+interface WhatsappConfig {
+  phone_number_id: string;
+  business_account_id: string;
+  access_token: string;
+  display_phone_number: string;
+  verified_name: string;
+  verify_token: string;
+  webhook_subscribed: boolean;
+  is_active: boolean;
+  last_tested_at: string | null;
+  last_test_status: string;
+}
 
 interface MetaPage {
   id: string;
