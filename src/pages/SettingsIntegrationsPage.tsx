@@ -152,6 +152,188 @@ export default function SettingsIntegrationsPage() {
         </p>
       </div>
 
+      {/* ============== WHATSAPP CLOUD API ============== */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-[#25D366]/10 flex items-center justify-center">
+              <MessageCircle className="h-5 w-5 text-[#25D366]" />
+            </div>
+            <div className="flex-1">
+              <CardTitle>WhatsApp Cloud API</CardTitle>
+              <CardDescription>
+                Envoi automatique des relances et réception des réponses des leads.
+              </CardDescription>
+            </div>
+            {waConfig && (
+              <Badge variant={waConfig.is_active ? "default" : "secondary"}>
+                {waConfig.is_active ? "Actif" : "Inactif"}
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {waLoading ? (
+            <div className="flex items-center justify-center py-8 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
+            </div>
+          ) : waConfig ? (
+            <>
+              {/* Connected state */}
+              <div className="border rounded-lg p-4 bg-card/50 space-y-2">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  <span className="font-semibold">{waConfig.verified_name || "Numéro WhatsApp"}</span>
+                  <Badge variant="outline" className="font-mono">{waConfig.display_phone_number}</Badge>
+                </div>
+                <p className="text-xs text-muted-foreground font-mono">
+                  Phone ID: {waConfig.phone_number_id} · WABA: {waConfig.business_account_id}
+                </p>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {!waConfig.webhook_subscribed ? (
+                    <Button
+                      size="sm"
+                      onClick={() => callWa("subscribe_webhook", {}, "Webhook abonné")}
+                      disabled={waBusy === "subscribe_webhook"}
+                    >
+                      {waBusy === "subscribe_webhook" && <Loader2 className="h-3 w-3 animate-spin" />}
+                      S'abonner aux webhooks
+                    </Button>
+                  ) : (
+                    <Badge variant="default" className="bg-green-500/20 text-green-500 border-green-500/30">
+                      <CheckCircle2 className="h-3 w-3 mr-1" /> Webhook abonné
+                    </Badge>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => callWa("toggle_active", {}, "État modifié")}
+                    disabled={waBusy === "toggle_active"}
+                  >
+                    <Power className="h-3 w-3" /> {waConfig.is_active ? "Désactiver" : "Activer"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      if (confirm("Supprimer la configuration WhatsApp ?")) callWa("delete", {}, "Supprimé");
+                    }}
+                    disabled={waBusy === "delete"}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Test send */}
+              <div className="border rounded-lg p-4 space-y-2">
+                <Label className="text-sm font-semibold">Envoyer un message test</Label>
+                <p className="text-xs text-muted-foreground">
+                  Envoie le template <code>hello_world</code> (toujours pré-approuvé par Meta).
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="33612345678 (sans + ni espaces)"
+                    value={waTestTo}
+                    onChange={(e) => setWaTestTo(e.target.value)}
+                    className="font-mono text-sm"
+                  />
+                  <Button
+                    onClick={() => callWa("test_send", { to: waTestTo }, "Message test envoyé")}
+                    disabled={waBusy === "test_send" || !waTestTo}
+                  >
+                    {waBusy === "test_send" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    Tester
+                  </Button>
+                </div>
+              </div>
+
+              {/* Webhook info */}
+              <div className="border rounded-lg p-4 space-y-3">
+                <Label className="text-sm font-semibold">Configuration Webhook (Meta App Dashboard)</Label>
+                <p className="text-xs text-muted-foreground">
+                  Dans Meta App → WhatsApp → Configuration → Webhook, colle ces deux valeurs et abonne-toi au champ <code>messages</code>.
+                </p>
+                <div className="space-y-2">
+                  <Label className="text-xs">Callback URL</Label>
+                  <div className="flex gap-2">
+                    <Input value={WA_WEBHOOK_URL} readOnly className="font-mono text-xs" />
+                    <Button size="icon" variant="outline" onClick={() => copyText(WA_WEBHOOK_URL, "URL")}>
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Verify Token</Label>
+                  <div className="flex gap-2">
+                    <Input value={waConfig.verify_token} readOnly className="font-mono text-xs" />
+                    <Button size="icon" variant="outline" onClick={() => copyText(waConfig.verify_token, "Token")}>
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Setup form */}
+              <button
+                onClick={() => setWaShowGuide((s) => !s)}
+                className="text-sm font-semibold flex items-center gap-2 hover:text-primary transition-colors"
+              >
+                {waShowGuide ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                Procédure pas-à-pas pour récupérer les 3 valeurs
+              </button>
+              {waShowGuide && (
+                <div className="border rounded-lg p-4 bg-muted/30 text-sm space-y-2">
+                  <p><strong>1.</strong> Va sur <a href="https://business.facebook.com/wa/manage" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">Meta Business Suite → WhatsApp Manager <ExternalLink className="h-3 w-3" /></a> et crée/sélectionne ton compte WhatsApp Business (WABA).</p>
+                  <p><strong>2.</strong> Ajoute un numéro de téléphone et vérifie-le par SMS/appel.</p>
+                  <p><strong>3.</strong> Note le <code>Phone number ID</code> (sous le numéro) et le <code>WhatsApp Business Account ID</code> (en haut).</p>
+                  <p><strong>4.</strong> Va dans <a href="https://business.facebook.com/settings/system-users" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">Business Settings → Utilisateurs Système <ExternalLink className="h-3 w-3" /></a>, crée un System User <em>Admin</em>, attribue-lui ton WABA avec le rôle <em>Manage</em>, puis génère un <strong>token permanent</strong> avec les permissions <code>whatsapp_business_messaging</code> + <code>whatsapp_business_management</code>.</p>
+                  <p><strong>5.</strong> Colle les 3 valeurs ci-dessous et clique <em>Tester & Sauvegarder</em>.</p>
+                </div>
+              )}
+
+              <div className="space-y-3 border rounded-lg p-4">
+                <div className="space-y-2">
+                  <Label className="text-xs">Phone number ID</Label>
+                  <Input
+                    placeholder="ex: 123456789012345"
+                    value={waForm.phone_number_id}
+                    onChange={(e) => setWaForm({ ...waForm, phone_number_id: e.target.value.trim() })}
+                    className="font-mono"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">WhatsApp Business Account ID (WABA)</Label>
+                  <Input
+                    placeholder="ex: 987654321098765"
+                    value={waForm.business_account_id}
+                    onChange={(e) => setWaForm({ ...waForm, business_account_id: e.target.value.trim() })}
+                    className="font-mono"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Access Token (System User permanent)</Label>
+                  <Input
+                    type="password"
+                    placeholder="EAAG..."
+                    value={waForm.access_token}
+                    onChange={(e) => setWaForm({ ...waForm, access_token: e.target.value.trim() })}
+                    className="font-mono"
+                  />
+                </div>
+                <Button onClick={saveWa} disabled={waBusy === "save"} className="w-full">
+                  {waBusy === "save" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  Tester & Sauvegarder
+                </Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ============== META / FACEBOOK ============== */}
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
