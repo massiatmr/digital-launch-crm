@@ -6,6 +6,7 @@ import { LeadStatusBadge } from '@/components/LeadStatusBadge';
 import { NaturalLanguageInput } from '@/components/NaturalLanguageInput';
 import { LeadActivityTimeline } from '@/components/LeadActivityTimeline';
 import { LeadEditForm } from '@/components/LeadEditForm';
+import { FollowupTimeline } from '@/components/FollowupTimeline';
 import { Copy, Mail, MessageCircle, Phone, Smartphone, Loader2, ExternalLink, Pencil, Trash2 } from 'lucide-react';
 import { ShowStatusToggle } from '@/components/ShowStatusToggle';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
@@ -167,6 +168,9 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
             </div>
           )}
         </div>
+
+        {/* Suivi automatique WhatsApp */}
+        <FollowupTimeline leadId={lead.id} />
 
         {/* Activity Timeline */}
         <LeadActivityTimeline leadId={lead.id} />
