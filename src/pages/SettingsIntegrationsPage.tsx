@@ -53,7 +53,7 @@ export default function SettingsIntegrationsPage() {
   const [waForm, setWaForm] = useState({ phone_number_id: "", business_account_id: "", access_token: "" });
   const [waTestTo, setWaTestTo] = useState("");
   const [waTestText, setWaTestText] = useState("");
-  const [waTestTemplate, setWaTestTemplate] = useState("hello_world");
+  const [waTestTemplate, setWaTestTemplate] = useState("");
   const [waTestLang, setWaTestLang] = useState("en_US");
 
   const loadPages = async () => {
