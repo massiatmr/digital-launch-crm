@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "test_send") {
-      const { to } = body;
+      const { to, template_name, language_code, text } = body;
       if (!to) return json({ error: "Numéro destinataire requis (format E.164 ex 33612345678)" }, 400);
       const { data: cfg } = await admin
         .from("whatsapp_config")
@@ -133,6 +133,30 @@ Deno.serve(async (req) => {
         .eq("owner_id", user.id)
         .maybeSingle();
       if (!cfg) return json({ error: "Config WhatsApp introuvable" }, 404);
+
+      // 3 modes :
+      // - text (libre, fonctionne uniquement si destinataire t'a écrit dans les dernières 24h)
+      // - template personnalisé (name + language)
+      // - défaut: hello_world (uniquement numéros de test publics Meta)
+      let payload: Record<string, unknown>;
+      if (text) {
+        payload = {
+          messaging_product: "whatsapp",
+          to,
+          type: "text",
+          text: { body: String(text).slice(0, 1000) },
+        };
+      } else {
+        payload = {
+          messaging_product: "whatsapp",
+          to,
+          type: "template",
+          template: {
+            name: template_name || "hello_world",
+            language: { code: language_code || "en_US" },
+          },
+        };
+      }
 
       const r = await fetch(
         `${GRAPH}/${cfg.phone_number_id}/messages`,
@@ -142,12 +166,7 @@ Deno.serve(async (req) => {
             Authorization: `Bearer ${cfg.access_token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            messaging_product: "whatsapp",
-            to,
-            type: "template",
-            template: { name: "hello_world", language: { code: "en_US" } },
-          }),
+          body: JSON.stringify(payload),
         },
       );
       const data = await r.json();
