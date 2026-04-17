@@ -101,12 +101,20 @@ export default function Dashboard() {
   // — KPI 1: New leads in period
   const newLeads30dAlert = leads.length < 5;
 
-  // — KPI 2: Avg time New → First contact (hours)
+  // — KPI 2: Avg time New → First contact (minutes)
   const contactedLeads = leads.filter(l => (l as any).first_contacted_at && l.status !== 'new');
-  const avgResponseHours = contactedLeads.length > 0
-    ? Math.round(contactedLeads.reduce((sum, l) => sum + differenceInHours(new Date((l as any).first_contacted_at), new Date(l.created_at)), 0) / contactedLeads.length)
+  const avgResponseMinutes = contactedLeads.length > 0
+    ? Math.round(contactedLeads.reduce((sum, l) => sum + differenceInMinutes(new Date((l as any).first_contacted_at), new Date(l.created_at)), 0) / contactedLeads.length)
     : -1;
-  const hasResponseData = avgResponseHours >= 0;
+  const hasResponseData = avgResponseMinutes >= 0;
+  const responseDisplay = !hasResponseData
+    ? { value: 0, suffix: '' }
+    : avgResponseMinutes < 60
+      ? { value: avgResponseMinutes, suffix: ' min' }
+      : avgResponseMinutes < 60 * 48
+        ? { value: Math.round(avgResponseMinutes / 60), suffix: ' h' }
+        : { value: Math.round(avgResponseMinutes / 60 / 24), suffix: ' j' };
+  const responseTooSlow = hasResponseData && avgResponseMinutes > 60 * 24;
 
   // — KPI 3: Show-up rate
   const leadsWithShowStatus = leads.filter(l => l.show_status && l.show_status !== 'pending');
