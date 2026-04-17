@@ -292,7 +292,7 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
             });
 
             const fbRes = await fetch(
-              `https://graph.facebook.com/v25.0/${leadgenId}?fields=field_data,created_time&access_token=${accessToken}`
+              `https://graph.facebook.com/v25.0/${leadgenId}?fields=field_data,created_time&access_token=${effectiveToken}`
             );
 
             if (!fbRes.ok) {
@@ -368,8 +368,7 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
           const { data, error } = await supabase
             .from("leads")
             .select("id, notes")
-            .eq("owner_id", ownerId)
-            .eq("email", email)
+            .eq("owner_id", effectiveOwnerId)
             .maybeSingle();
 
           if (error) {
@@ -393,8 +392,7 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
           const { data, error } = await supabase
             .from("leads")
             .select("id, notes")
-            .eq("owner_id", ownerId)
-            .eq("phone", phone)
+            .eq("owner_id", effectiveOwnerId)
             .maybeSingle();
 
           if (error) {
@@ -473,7 +471,7 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
             source: "facebook" as any,
             status: "new" as any,
             score: "cold" as any,
-            owner_id: ownerId,
+            owner_id: effectiveOwnerId,
             message: `Lead Facebook Ads – ${mapped.name ?? "Nouveau lead"}`,
           };
 
