@@ -4,7 +4,7 @@ import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadStatusBadge } from '@/components/LeadStatusBadge';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Users, Flame, Clock, Loader2, Check, TrendingUp, Target, BarChart3, AlertTriangle, CalendarCheck, ListChecks, UserCheck, Zap, RefreshCw, CalendarIcon } from 'lucide-react';
-import { format, subDays, subMonths, startOfYear, differenceInMinutes, isAfter, isBefore, startOfDay, endOfDay } from 'date-fns';
+import { format, subDays, subMonths, startOfYear, differenceInMinutes, differenceInSeconds, isAfter, isBefore, startOfDay, endOfDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, CartesianGrid } from 'recharts';
 import { motion } from 'framer-motion';
@@ -105,20 +105,22 @@ export default function Dashboard() {
   // — KPI 1: New leads in period
   const newLeads30dAlert = leads.length < 5;
 
-  // — KPI 2: Avg time New → First contact (minutes)
+  // — KPI 2: Avg time New → First contact (seconds, displayed in s/min/h/j)
   const contactedLeads = leads.filter(l => (l as any).first_contacted_at && l.status !== 'new');
-  const avgResponseMinutes = contactedLeads.length > 0
-    ? Math.round(contactedLeads.reduce((sum, l) => sum + differenceInMinutes(new Date((l as any).first_contacted_at), new Date(l.created_at)), 0) / contactedLeads.length)
+  const avgResponseSeconds = contactedLeads.length > 0
+    ? Math.round(contactedLeads.reduce((sum, l) => sum + differenceInSeconds(new Date((l as any).first_contacted_at), new Date(l.created_at)), 0) / contactedLeads.length)
     : -1;
-  const hasResponseData = avgResponseMinutes >= 0;
+  const hasResponseData = avgResponseSeconds >= 0;
   const responseDisplay = !hasResponseData
     ? { value: 0, suffix: '' }
-    : avgResponseMinutes < 60
-      ? { value: avgResponseMinutes, suffix: ' min' }
-      : avgResponseMinutes < 60 * 48
-        ? { value: Math.round(avgResponseMinutes / 60), suffix: ' h' }
-        : { value: Math.round(avgResponseMinutes / 60 / 24), suffix: ' j' };
-  const responseTooSlow = hasResponseData && avgResponseMinutes > 60 * 24;
+    : avgResponseSeconds < 60
+      ? { value: avgResponseSeconds, suffix: ' s' }
+      : avgResponseSeconds < 3600
+        ? { value: Math.round(avgResponseSeconds / 60), suffix: ' min' }
+        : avgResponseSeconds < 3600 * 48
+          ? { value: Math.round(avgResponseSeconds / 3600), suffix: ' h' }
+          : { value: Math.round(avgResponseSeconds / 86400), suffix: ' j' };
+  const responseTooSlow = hasResponseData && avgResponseSeconds > 86400;
 
   // — KPI 3: Show-up rate
   const leadsWithShowStatus = leads.filter(l => l.show_status && l.show_status !== 'pending');
