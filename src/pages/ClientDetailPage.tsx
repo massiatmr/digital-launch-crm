@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Copy, ExternalLink, Plus, Trash2, Upload, Link as LinkIcon, FileText, Clock, Receipt, FileSignature } from 'lucide-react';
+import { ArrowLeft, Copy, ExternalLink, Plus, Trash2, Upload, Link as LinkIcon, FileText, Clock, Receipt, FileSignature, Mail } from 'lucide-react';
 import InvoiceGenerator, { type BillingInfo } from '@/components/InvoiceGenerator';
 import InvoicesHistory from '@/components/InvoicesHistory';
 import ContractGenerator from '@/components/ContractGenerator';
@@ -127,6 +127,38 @@ export default function ClientDetailPage() {
       updateClient.mutate({ id: client.id, status: 'onboarding_envoye' as any });
     }
     addActivity.mutate({ client_id: client.id, action: 'onboarding_sent', description: `Formulaire ${formType === 'website' ? 'Site Web' : 'Campagnes Pub'} envoyé` });
+  };
+
+  const handleEmailOnboarding = async (formType: 'website' | 'ads') => {
+    if (!client.email) {
+      toast.error("Ce client n'a pas d'email renseigné");
+      return;
+    }
+    let ob = onboardings?.find(o => o.form_type === formType);
+    if (!ob) {
+      ob = await createOnboarding.mutateAsync({ client_id: client.id, form_type: formType });
+    }
+    const url = `${window.location.origin}/onboarding/${formType}?token=${ob.token}`;
+    const label = formType === 'website' ? 'Site Web' : 'Campagnes Pub';
+    const message = `Bonjour ${client.name},\n\nVoici le lien pour compléter votre formulaire d'onboarding ${label} :\n\n${url}\n\nIl vous prendra une dizaine de minutes. Merci de le remplir au plus vite afin que nous puissions démarrer votre projet.\n\nÀ très vite,\nDigital Launch`;
+    try {
+      const { error } = await supabase.functions.invoke('send-document-email', {
+        body: {
+          recipientEmail: client.email,
+          subject: `Votre formulaire d'onboarding — ${label}`,
+          message,
+        },
+      });
+      if (error) throw error;
+      toast.success('Email envoyé au client !');
+      if (client.status === 'signe' || client.status === 'nouveau') {
+        updateClient.mutate({ id: client.id, status: 'onboarding_envoye' as any });
+      }
+      addActivity.mutate({ client_id: client.id, action: 'onboarding_emailed', description: `Lien onboarding ${label} envoyé par email à ${client.email}` });
+    } catch (e) {
+      console.error(e);
+      toast.error("Échec de l'envoi de l'email");
+    }
   };
 
   const handleAddAccess = () => {
@@ -277,6 +309,9 @@ export default function ClientDetailPage() {
                           <Copy className="h-3 w-3 mr-1" />Copier le lien
                         </Button>
                       )}
+                      <Button variant="outline" size="sm" onClick={() => handleEmailOnboarding(ft)} disabled={!client.email}>
+                        <Mail className="h-3 w-3 mr-1" />Envoyer par email
+                      </Button>
                       <Button size="sm" onClick={() => handleSendOnboarding(ft)}>
                         {ob ? 'Renvoyer' : 'Créer et copier'}
                       </Button>
