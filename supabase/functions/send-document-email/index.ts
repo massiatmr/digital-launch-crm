@@ -1,107 +1,80 @@
+// Sends a document (PDF) by email via SMTP.
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
+};
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    // Verify JWT
-    const authHeader = req.headers.get('Authorization')
+    const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'Missing authorization' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
-
-    const supabase = createClient(supabaseUrl, serviceRoleKey)
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    const { recipientEmail, recipientName, subject, documentBase64, documentName, message } = await req.json()
-
+    const { recipientEmail, subject, documentBase64, documentName, message } = await req.json();
     if (!recipientEmail || !subject) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    // Use Lovable email API
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')
-    if (!LOVABLE_API_KEY) {
-      return new Response(JSON.stringify({ error: 'Email not configured' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
+    const safeMsg = String(message || '').replace(/[&<>"']/g, (c) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <h2 style="color: #333;">Digital Launch</h2>
-        <p style="white-space: pre-line; color: #555;">${message}</p>
+        <p style="white-space: pre-line; color: #555;">${safeMsg}</p>
         <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
         <p style="color: #999; font-size: 12px;">
           DIGITAL LAUNCH LLC — 75 E 3RD ST, Sheridan, Wyoming 82801<br/>
           contact@digitallaunch-llc.com
         </p>
-      </div>
-    `
+      </div>`;
 
-    // Build payload with optional attachment
-    const emailPayload: Record<string, unknown> = {
+    const body: Record<string, unknown> = {
       to: recipientEmail,
-      from: 'Digital Launch <contact@digitallaunch-llc.com>',
       subject,
       html: emailHtml,
-    }
-
+    };
     if (documentBase64 && documentName) {
-      emailPayload.attachments = [{
+      body.attachments = [{
         filename: documentName,
         content: documentBase64,
-        encoding: 'base64',
-        type: 'application/pdf',
-      }]
+        contentType: 'application/pdf',
+      }];
     }
 
-    // Enqueue via transactional email system
-    const { error: enqueueError } = await supabase.rpc('enqueue_email', {
-      queue_name: 'transactional_emails',
-      payload: emailPayload,
-    })
-
-    if (enqueueError) {
-      console.error('Enqueue error:', enqueueError)
-      return new Response(JSON.stringify({ error: 'Failed to queue email' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    const { data, error } = await supabase.functions.invoke('send-smtp-email', { body });
+    if (error) {
+      console.error('SMTP send error:', error);
+      return new Response(JSON.stringify({ error: 'Failed to send email' }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    return new Response(JSON.stringify({ success: true }), {
+    return new Response(JSON.stringify({ success: true, data }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    });
   } catch (err) {
-    console.error('Error:', err)
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    console.error('Error:', err);
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }), {
+      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
-})
+});
