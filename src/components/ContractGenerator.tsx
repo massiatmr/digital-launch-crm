@@ -148,8 +148,9 @@ export default function ContractGenerator({ clientName, clientCompany, clientEma
     customArticles: articles,
   });
 
-  const handleDownload = () => {
-    const pdf = generateContractPDF(buildData(), logoBase64);
+  const handleDownload = async () => {
+    const providerSig = await getDefaultSignatureBase64();
+    const pdf = generateContractPDF(buildData(), logoBase64, undefined, providerSig);
     pdf.save(`Contrat_${serviceType === 'ads' ? 'MetaAds' : 'SiteWeb'}_${clientCompanyField || clientName}.pdf`);
     toast.success('Contrat téléchargé !');
   };
