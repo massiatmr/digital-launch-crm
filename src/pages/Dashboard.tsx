@@ -4,7 +4,7 @@ import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadStatusBadge } from '@/components/LeadStatusBadge';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Users, Flame, Clock, Loader2, Check, TrendingUp, Target, BarChart3, AlertTriangle, CalendarCheck, ListChecks, UserCheck, Zap, RefreshCw, CalendarIcon } from 'lucide-react';
-import { format, subDays, subMonths, startOfYear, differenceInHours, isAfter, isBefore, startOfDay, endOfDay } from 'date-fns';
+import { format, subDays, subMonths, startOfYear, differenceInMinutes, isAfter, isBefore, startOfDay, endOfDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, CartesianGrid } from 'recharts';
 import { motion } from 'framer-motion';
