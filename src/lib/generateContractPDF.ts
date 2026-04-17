@@ -107,7 +107,14 @@ export const WEBSITE_ARTICLES: ContractArticle[] = [
   },
 ];
 
-export function generateContractPDF(data: ContractData, logoBase64?: string): jsPDF {
+export interface SignatureProof {
+  signatureImage: string; // base64 data URL
+  signedAt: string; // ISO
+  signerIp?: string;
+  signerUserAgent?: string;
+}
+
+export function generateContractPDF(data: ContractData, logoBase64?: string, signature?: SignatureProof): jsPDF {
   const doc = new jsPDF('p', 'mm', 'a4');
   const pageWidth = 210;
   const margin = 20;
@@ -209,7 +216,24 @@ export function generateContractPDF(data: ContractData, logoBase64?: string): js
   doc.text(`Entreprise cliente : ${data.clientRepresentant || '___________________________'}`, margin, y);
   y += 6;
   doc.setFont('helvetica', 'normal');
-  doc.text('Signature : ___________________________', margin, y);
+
+  if (signature?.signatureImage) {
+    try {
+      doc.addImage(signature.signatureImage, 'PNG', margin, y, 60, 25);
+    } catch { /* ignore */ }
+    y += 28;
+    const signedDate = new Date(signature.signedAt).toLocaleString('fr-FR', {
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+    doc.setFontSize(8);
+    doc.setTextColor(100);
+    doc.text(`Signé électroniquement le ${signedDate}`, margin, y); y += 4;
+    if (signature.signerIp) { doc.text(`IP : ${signature.signerIp}`, margin, y); y += 4; }
+    doc.text('Signature horodatée et certifiée — Digital Launch LLC', margin, y);
+    doc.setTextColor(0);
+  } else {
+    doc.text('Signature : ___________________________', margin, y);
+  }
 
   return doc;
 }
