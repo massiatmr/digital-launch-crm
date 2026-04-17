@@ -1,0 +1,95 @@
+// Public WhatsApp Cloud API webhook (no JWT)
+// GET = handshake (verify_token lookup in DB)
+// POST = inbound message → insert into whatsapp_messages
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+function normalizePhone(p: string): string {
+  return p.replace(/[^0-9]/g, "");
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+  // Handshake
+  if (req.method === "GET") {
+    const url = new URL(req.url);
+    const mode = url.searchParams.get("hub.mode");
+    const token = url.searchParams.get("hub.verify_token");
+    const challenge = url.searchParams.get("hub.challenge");
+    if (mode !== "subscribe" || !token) return new Response("Forbidden", { status: 403 });
+    const { data } = await admin
+      .from("whatsapp_config")
+      .select("id")
+      .eq("verify_token", token)
+      .maybeSingle();
+    if (!data) return new Response("Forbidden", { status: 403 });
+    return new Response(challenge ?? "", { status: 200 });
+  }
+
+  if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
+
+  try {
+    const body = await req.json();
+    // WhatsApp Cloud API payload structure
+    for (const entry of body.entry ?? []) {
+      for (const change of entry.changes ?? []) {
+        const value = change.value;
+        if (!value?.messages) continue;
+        const phone_number_id = value.metadata?.phone_number_id;
+        if (!phone_number_id) continue;
+
+        const { data: cfg } = await admin
+          .from("whatsapp_config")
+          .select("owner_id, is_active")
+          .eq("phone_number_id", phone_number_id)
+          .maybeSingle();
+        if (!cfg || !cfg.is_active) continue;
+
+        for (const msg of value.messages) {
+          const from = normalizePhone(msg.from);
+          const content =
+            msg.text?.body ??
+            msg.button?.text ??
+            msg.interactive?.button_reply?.title ??
+            `[${msg.type}]`;
+
+          // Find lead by phone (loose match: ends with last 9 digits)
+          const tail = from.slice(-9);
+          const { data: leads } = await admin
+            .from("leads")
+            .select("id")
+            .eq("owner_id", cfg.owner_id)
+            .ilike("phone", `%${tail}%`)
+            .limit(1);
+          const lead_id = leads?.[0]?.id;
+          if (!lead_id) continue; // Inconnu : on ignore (pas de lead à créer ici)
+
+          await admin.from("whatsapp_messages").insert({
+            lead_id,
+            owner_id: cfg.owner_id,
+            direction: "inbound",
+            content,
+            wa_message_id: msg.id,
+            sent_at: new Date(parseInt(msg.timestamp, 10) * 1000).toISOString(),
+            status: "received",
+          });
+        }
+      }
+    }
+    return new Response("EVENT_RECEIVED", { status: 200 });
+  } catch (e) {
+    console.error("whatsapp-webhook error:", e);
+    return new Response("EVENT_RECEIVED", { status: 200 }); // Always 200 to Meta
+  }
+});

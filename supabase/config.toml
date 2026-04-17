@@ -39,3 +39,7 @@ project_id = "rvangzupebrajhhhvewu"
     verify_jwt = false
   [functions.notify-new-lead]
     verify_jwt = false
+  [functions.whatsapp-webhook]
+    verify_jwt = false
+  [functions.whatsapp-config-manage]
+    verify_jwt = true

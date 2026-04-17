@@ -1091,6 +1091,57 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_config: {
+        Row: {
+          access_token: string
+          business_account_id: string
+          created_at: string
+          display_phone_number: string | null
+          id: string
+          is_active: boolean
+          last_test_status: string | null
+          last_tested_at: string | null
+          owner_id: string
+          phone_number_id: string
+          updated_at: string
+          verified_name: string | null
+          verify_token: string
+          webhook_subscribed: boolean
+        }
+        Insert: {
+          access_token: string
+          business_account_id: string
+          created_at?: string
+          display_phone_number?: string | null
+          id?: string
+          is_active?: boolean
+          last_test_status?: string | null
+          last_tested_at?: string | null
+          owner_id?: string
+          phone_number_id: string
+          updated_at?: string
+          verified_name?: string | null
+          verify_token?: string
+          webhook_subscribed?: boolean
+        }
+        Update: {
+          access_token?: string
+          business_account_id?: string
+          created_at?: string
+          display_phone_number?: string | null
+          id?: string
+          is_active?: boolean
+          last_test_status?: string | null
+          last_tested_at?: string | null
+          owner_id?: string
+          phone_number_id?: string
+          updated_at?: string
+          verified_name?: string | null
+          verify_token?: string
+          webhook_subscribed?: boolean
+        }
+        Relationships: []
+      }
       whatsapp_messages: {
         Row: {
           content: string
