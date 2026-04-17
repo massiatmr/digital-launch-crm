@@ -170,7 +170,19 @@ Deno.serve(async (req) => {
         },
       );
       const data = await r.json();
-      if (!r.ok) return json({ error: "Échec envoi test", details: data }, 400);
+      if (!r.ok) {
+        if (data?.error?.code === 131058) {
+          return json(
+            {
+              error:
+                "Le template hello_world ne peut être envoyé que depuis un Public Test Number Meta. Utilise un template approuvé dans WhatsApp Manager, ou le numéro de test public Meta.",
+              details: data,
+            },
+            400,
+          );
+        }
+        return json({ error: "Échec envoi test", details: data }, 400);
+      }
       return json({ ok: true, details: data });
     }
 
