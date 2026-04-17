@@ -174,17 +174,8 @@ Deno.serve(async (req) => {
       payloadPreview: JSON.stringify(body).slice(0, 500),
     });
 
-    if (!FB_PAGE_ACCESS_TOKEN || !FB_LEAD_OWNER_ID) {
-      logError(requestId, "Missing required Facebook webhook secrets", {
-        hasPageAccessToken: Boolean(FB_PAGE_ACCESS_TOKEN),
-        hasLeadOwnerId: Boolean(FB_LEAD_OWNER_ID),
-      });
-
-      return new Response("OK", { status: 200 });
-    }
-
-    // Respond immediately to Facebook
-    const processPromise = processWebhook(body, FB_PAGE_ACCESS_TOKEN, FB_LEAD_OWNER_ID, requestId);
+    // Respond immediately to Facebook; resolve page → token+owner inside processWebhook
+    const processPromise = processWebhook(body, FB_PAGE_ACCESS_TOKEN ?? "", FB_LEAD_OWNER_ID ?? "", requestId);
     
     // Use waitUntil pattern - process in background but don't block response
     processPromise.catch((err) =>
@@ -227,6 +218,36 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
     });
 
     for (const [entryIndex, entry] of (body.entry ?? []).entries()) {
+      // Resolve page-specific access token + owner from meta_pages table
+      let effectiveToken = accessToken;
+      let effectiveOwnerId = ownerId;
+      const pageId = entry?.id ? String(entry.id) : null;
+
+      if (pageId) {
+        const { data: metaPage } = await supabase
+          .from("meta_pages")
+          .select("owner_id, page_access_token, is_active")
+          .eq("page_id", pageId)
+          .maybeSingle();
+
+        if (metaPage) {
+          if (!metaPage.is_active) {
+            logInfo(requestId, "Skipping entry — page is inactive", { pageId });
+            continue;
+          }
+          effectiveToken = metaPage.page_access_token;
+          effectiveOwnerId = metaPage.owner_id;
+          logInfo(requestId, "Resolved page from meta_pages", { pageId, owner: effectiveOwnerId });
+        } else {
+          logInfo(requestId, "Page not in meta_pages — using env fallback", { pageId });
+        }
+      }
+
+      if (!effectiveToken || !effectiveOwnerId) {
+        logError(requestId, "No token/owner available for page", { pageId });
+        continue;
+      }
+
       logInfo(requestId, "Processing entry", {
         entryIndex,
         changeCount: Array.isArray(entry?.changes) ? entry.changes.length : 0,
@@ -271,7 +292,7 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
             });
 
             const fbRes = await fetch(
-              `https://graph.facebook.com/v25.0/${leadgenId}?fields=field_data,created_time&access_token=${accessToken}`
+              `https://graph.facebook.com/v25.0/${leadgenId}?fields=field_data,created_time&access_token=${effectiveToken}`
             );
 
             if (!fbRes.ok) {
@@ -347,8 +368,7 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
           const { data, error } = await supabase
             .from("leads")
             .select("id, notes")
-            .eq("owner_id", ownerId)
-            .eq("email", email)
+            .eq("owner_id", effectiveOwnerId)
             .maybeSingle();
 
           if (error) {
@@ -372,8 +392,7 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
           const { data, error } = await supabase
             .from("leads")
             .select("id, notes")
-            .eq("owner_id", ownerId)
-            .eq("phone", phone)
+            .eq("owner_id", effectiveOwnerId)
             .maybeSingle();
 
           if (error) {
@@ -452,7 +471,7 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
             source: "facebook" as any,
             status: "new" as any,
             score: "cold" as any,
-            owner_id: ownerId,
+            owner_id: effectiveOwnerId,
             message: `Lead Facebook Ads – ${mapped.name ?? "Nouveau lead"}`,
           };
 
