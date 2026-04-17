@@ -130,10 +130,12 @@ export function generateContractPDF(
     ? 'Contrat de prestation Meta Ads - Génération de Leads'
     : 'Contrat de prestation Site Web';
 
-  // Logo
+  // Logo (black, ratio 300x59 ≈ 5.08)
   if (logoBase64) {
     try {
-      doc.addImage(logoBase64, 'PNG', margin, y, 50, 10);
+      const logoW = 45;
+      const logoH = logoW / (300 / 59);
+      doc.addImage(logoBase64, 'PNG', margin, y, logoW, logoH);
     } catch { /* no logo fallback */ }
   }
 
