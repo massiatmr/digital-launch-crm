@@ -23,10 +23,9 @@ async function initOnce() {
   initPromise = OneSignal.init({
     appId: ONESIGNAL_APP_ID,
     safari_web_id: SAFARI_WEB_ID,
-    notifyButton: { enable: false },
     allowLocalhostAsSecureOrigin: true,
     serviceWorkerPath: 'OneSignalSDKWorker.js',
-  }).catch((e) => {
+  } as any).catch((e: unknown) => {
     console.error('OneSignal init error', e);
     initPromise = null;
   });
