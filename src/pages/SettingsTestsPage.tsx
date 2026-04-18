@@ -674,8 +674,8 @@ export default function SettingsTestsPage() {
                 <Button onClick={testLocalNotification} disabled={get('pushLocal').status === 'running'} variant="secondary">
                   <Bell className="w-4 h-4 mr-2" />Tester affichage local
                 </Button>
-                <Button onClick={testPush} disabled={get('push').status === 'running'}>
-                  <Bell className="w-4 h-4 mr-2" />{isSubscribed ? 'Tester push backend' : 'S\'abonner + tester'}
+                <Button onClick={testPush} disabled={get('push').status === 'running' || dedupedDevices.length === 0}>
+                  <Bell className="w-4 h-4 mr-2" />{selectedCount > 0 ? `Envoyer à ${selectedCount} appareil(s)` : (isSubscribed ? 'Tester push backend' : 'S\'abonner + tester')}
                 </Button>
                 <Button variant="outline" onClick={unsubscribeCurrentDevice} disabled={!currentSubscriptionEndpoint || get('push').status === 'running'}>
                   <Trash2 className="w-4 h-4 mr-2" />Désabonner cet appareil
@@ -760,26 +760,47 @@ export default function SettingsTestsPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
-              {devices.length === 0 ? (
+              <div className="flex flex-wrap items-center gap-2 pb-2">
+                <Button size="sm" variant="outline" onClick={selectAllDevices} disabled={dedupedDevices.length === 0}>
+                  <CheckSquare className="w-4 h-4 mr-2" />Tout sélectionner
+                </Button>
+                <Button size="sm" variant="outline" onClick={clearSelectedDevices} disabled={selectedCount === 0}>
+                  <Square className="w-4 h-4 mr-2" />Tout désélectionner
+                </Button>
+                <Badge variant="outline">{selectedCount} sélectionné(s)</Badge>
+              </div>
+              <ResultBlock result={get('pushDevices')} />
+              {dedupedDevices.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">
                   Aucun appareil. Active les notifications sur le mobile/PC à utiliser.
                 </p>
               ) : (
-                devices.map((d) => {
+                dedupedDevices.map((d) => {
                   const dev = detectDevice(d.device_info);
                   const isCurrentDevice = d.endpoint === currentSubscriptionEndpoint;
+                  const isSelected = selectedDeviceIds.includes(d.id);
                   return (
-                    <div key={d.id} className="flex items-center justify-between p-3 rounded-lg bg-black/30 border border-white/5">
+                    <div key={d.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-black/30 border border-white/5">
                       <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <button
+                          type="button"
+                          onClick={() => toggleDeviceSelection(d.id)}
+                          className="shrink-0 text-primary"
+                          aria-label={isSelected ? 'Désélectionner cet appareil' : 'Sélectionner cet appareil'}
+                        >
+                          {isSelected ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5 text-muted-foreground" />}
+                        </button>
                         <span className="text-2xl">{dev.icon}</span>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-medium">{dev.label}</p>
                             {isCurrentDevice && <Badge variant="outline">Cet appareil</Badge>}
+                            {isSelected && <Badge variant="outline">Ciblé</Badge>}
                           </div>
                           <p className="text-xs text-muted-foreground truncate">
                             Ajouté {new Date(d.created_at).toLocaleDateString('fr-FR')} · {d.device_info?.slice(0, 60)}…
                           </p>
+                          <p className="text-[10px] text-muted-foreground/80 truncate">ID: {d.id}</p>
                         </div>
                       </div>
                       <Button size="sm" variant="ghost" onClick={() => deleteDevice(d.id, d.endpoint)}>
