@@ -59,10 +59,10 @@ function createInfo(type: string, clientPublicKey: Uint8Array, serverPublicKey: 
 async function hkdfExpand(ikm: Uint8Array, salt: Uint8Array, info: Uint8Array, length: number): Promise<Uint8Array> {
   const key = await crypto.subtle.importKey("raw", ikm as BufferSource, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const saltKey = await crypto.subtle.importKey("raw", salt as BufferSource, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const prk = new Uint8Array(await crypto.subtle.sign("HMAC", saltKey, ikm));
-  const prkKey = await crypto.subtle.importKey("raw", prk, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const prk = new Uint8Array(await crypto.subtle.sign("HMAC", saltKey, ikm as BufferSource));
+  const prkKey = await crypto.subtle.importKey("raw", prk as BufferSource, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const infoWithCounter = concatBuffers(info, new Uint8Array([1]));
-  const derived = new Uint8Array(await crypto.subtle.sign("HMAC", prkKey, infoWithCounter));
+  const derived = new Uint8Array(await crypto.subtle.sign("HMAC", prkKey, infoWithCounter as BufferSource));
   return derived.slice(0, length);
 }
 
@@ -111,7 +111,7 @@ async function encryptPayload(
 
   // AES-GCM encrypt
   const key = await crypto.subtle.importKey("raw", contentEncryptionKey as BufferSource, { name: "AES-GCM" }, false, ["encrypt"]);
-  const encrypted = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, key, padded));
+  const encrypted = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce as BufferSource }, key, padded as BufferSource));
 
   return { ciphertext: encrypted, salt, serverPublicKeyBytes };
 }
