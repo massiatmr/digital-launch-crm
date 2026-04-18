@@ -174,27 +174,54 @@ async function sendPushToEndpoint(
   endpoint: string,
   p256dh: string,
   auth: string,
-  payload: string
-): Promise<{ success: boolean; status: number; statusText: string }> {
-  const { ciphertext, salt, serverPublicKeyBytes } = await encryptPayload(p256dh, auth, payload);
-  const vapid = await createVapidAuthHeader(endpoint);
+  payload: string,
+  logs: string[]
+): Promise<{ success: boolean; status: number; statusText: string; responseHeaders: Record<string, string> }> {
+  logs.push(`[STEP 1] Endpoint host: ${new URL(endpoint).host}`);
+  logs.push(`[STEP 2] p256dh length: ${p256dh.length}, auth length: ${auth.length}`);
 
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/octet-stream",
-      "Content-Encoding": "aesgcm",
-      Authorization: vapid.authorization,
-      "Crypto-Key": `dh=${base64UrlEncode(serverPublicKeyBytes)}`,
-      Encryption: `salt=${base64UrlEncode(salt)}`,
-      TTL: "86400",
-      Urgency: "high",
-    },
-    body: ciphertext,
-  });
+  let ciphertext: Uint8Array, salt: Uint8Array, serverPublicKeyBytes: Uint8Array;
+  try {
+    const enc = await encryptPayload(p256dh, auth, payload);
+    ciphertext = enc.ciphertext;
+    salt = enc.salt;
+    serverPublicKeyBytes = enc.serverPublicKeyBytes;
+    logs.push(`[STEP 3] ✅ Encryption OK — ciphertext: ${ciphertext.length}b, salt: ${salt.length}b, serverPubKey: ${serverPublicKeyBytes.length}b`);
+  } catch (e: any) {
+    logs.push(`[STEP 3] ❌ Encryption FAILED: ${e.message}`);
+    throw e;
+  }
 
+  let vapid;
+  try {
+    vapid = await createVapidAuthHeader(endpoint);
+    logs.push(`[STEP 4] ✅ VAPID JWT signed — pubKey len: ${vapid.publicKey.length}, jwt parts: ${vapid.jwt.split('.').length}`);
+    logs.push(`[STEP 4b] VAPID subject: ${getNormalizedVapidSubject()}`);
+  } catch (e: any) {
+    logs.push(`[STEP 4] ❌ VAPID signing FAILED: ${e.message}`);
+    throw e;
+  }
+
+  const headers = {
+    "Content-Type": "application/octet-stream",
+    "Content-Encoding": "aesgcm",
+    Authorization: vapid.authorization,
+    "Crypto-Key": `dh=${base64UrlEncode(serverPublicKeyBytes)}`,
+    Encryption: `salt=${base64UrlEncode(salt)}`,
+    TTL: "86400",
+    Urgency: "high",
+  };
+  logs.push(`[STEP 5] Sending POST to push service...`);
+
+  const response = await fetch(endpoint, { method: "POST", headers, body: ciphertext });
   const responseText = await response.text();
-  return { success: response.ok, status: response.status, statusText: responseText || response.statusText };
+  const responseHeaders: Record<string, string> = {};
+  response.headers.forEach((v, k) => { responseHeaders[k] = v; });
+
+  logs.push(`[STEP 6] ← Push service responded: ${response.status} ${response.statusText}`);
+  if (responseText) logs.push(`[STEP 6b] Response body: ${responseText.slice(0, 500)}`);
+
+  return { success: response.ok, status: response.status, statusText: responseText || response.statusText, responseHeaders };
 }
 
 // --- Main handler ---
@@ -240,37 +267,47 @@ Deno.serve(async (req) => {
     let sent = 0;
     let failed = 0;
     const expiredIds: string[] = [];
+    const debugLogs: any[] = [];
+
+    debugLogs.push({ global: `Found ${subscriptions.length} subscription(s)` });
+    debugLogs.push({ env: {
+      hasPrivateKey: !!VAPID_PRIVATE_KEY,
+      privateKeyLen: VAPID_PRIVATE_KEY?.length || 0,
+      hasSubject: !!VAPID_SUBJECT,
+      subject: getNormalizedVapidSubject(),
+    }});
 
     for (const sub of subscriptions) {
+      const subLogs: string[] = [];
       try {
-        const result = await sendPushToEndpoint(sub.endpoint, sub.keys_p256dh, sub.keys_auth, payload);
+        const result = await sendPushToEndpoint(sub.endpoint, sub.keys_p256dh, sub.keys_auth, payload, subLogs);
+        debugLogs.push({ subId: sub.id, status: result.status, body: result.statusText, headers: result.responseHeaders, logs: subLogs });
         if (result.success) {
           sent++;
         } else if (result.status === 404 || result.status === 410) {
-          // Subscription expired, clean up
           expiredIds.push(sub.id);
           failed++;
         } else {
           console.error(`Push failed for ${sub.endpoint}: ${result.status} ${result.statusText}`);
           failed++;
         }
-      } catch (e) {
+      } catch (e: any) {
+        debugLogs.push({ subId: sub.id, exception: e.message, stack: e.stack, logs: subLogs });
         console.error(`Push error for ${sub.endpoint}:`, e);
         failed++;
       }
     }
 
-    // Clean up expired subscriptions
     if (expiredIds.length > 0) {
       await supabase.from("push_subscriptions").delete().in("id", expiredIds);
     }
 
-    return new Response(JSON.stringify({ sent, failed, expired_cleaned: expiredIds.length }), {
+    return new Response(JSON.stringify({ sent, failed, expired_cleaned: expiredIds.length, debug: debugLogs }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
     console.error("send-push error:", e);
-    return new Response(JSON.stringify({ error: e.message }), {
+    return new Response(JSON.stringify({ error: e.message, stack: e.stack }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
