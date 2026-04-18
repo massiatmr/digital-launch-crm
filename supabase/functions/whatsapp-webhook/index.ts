@@ -16,30 +16,6 @@ function normalizePhone(p: string): string {
   return p.replace(/[^0-9]/g, "");
 }
 
-async function notifyOwner(ownerId: string, leadId: string, leadName: string, content: string) {
-  try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-push`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-      },
-      body: JSON.stringify({
-        user_id: ownerId,
-        title: `💬 ${leadName} a répondu`,
-        body: content.slice(0, 120),
-        url: `/conversations?lead=${leadId}`,
-        tag: `wa-${leadId}`,
-        source: "whatsapp_inbound",
-      }),
-    });
-    const json = await res.json().catch(() => ({}));
-    console.log("whatsapp-webhook → push result", { leadId, status: res.status, ...json });
-  } catch (e) {
-    console.error("send-push trigger failed:", e);
-  }
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -107,8 +83,6 @@ Deno.serve(async (req) => {
             status: "received",
           });
 
-          // Await push so we have logs/visibility (no more fire-and-forget).
-          await notifyOwner(cfg.owner_id, lead.id, lead.name || "Un lead", content);
         }
       }
     }
