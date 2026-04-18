@@ -18,7 +18,7 @@ function normalizePhone(p: string): string {
 
 async function notifyOwner(ownerId: string, leadId: string, leadName: string, content: string) {
   try {
-    await fetch(`${SUPABASE_URL}/functions/v1/send-push`, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-push`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -27,11 +27,14 @@ async function notifyOwner(ownerId: string, leadId: string, leadName: string, co
       body: JSON.stringify({
         user_id: ownerId,
         title: `💬 ${leadName} a répondu`,
-        body: content.slice(0, 100),
+        body: content.slice(0, 120),
         url: `/conversations?lead=${leadId}`,
         tag: `wa-${leadId}`,
+        source: "whatsapp_inbound",
       }),
     });
+    const json = await res.json().catch(() => ({}));
+    console.log("whatsapp-webhook → push result", { leadId, status: res.status, ...json });
   } catch (e) {
     console.error("send-push trigger failed:", e);
   }
@@ -104,8 +107,8 @@ Deno.serve(async (req) => {
             status: "received",
           });
 
-          // Fire-and-forget push notif to owner
-          notifyOwner(cfg.owner_id, lead.id, lead.name || "Un lead", content);
+          // Await push so we have logs/visibility (no more fire-and-forget).
+          await notifyOwner(cfg.owner_id, lead.id, lead.name || "Un lead", content);
         }
       }
     }
