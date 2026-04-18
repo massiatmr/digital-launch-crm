@@ -452,12 +452,17 @@ export type Database = {
           ai_instructions: string
           ai_model: string
           created_at: string
+          dry_run: boolean
           followup_1_delay_hours: number
           followup_2_delay_hours: number
           initial_delay_minutes: number
           is_enabled: boolean
           last_followup_delay_hours: number
           owner_id: string
+          template_followup_1_id: string | null
+          template_followup_2_id: string | null
+          template_initial_id: string | null
+          template_last_followup_id: string | null
           updated_at: string
         }
         Insert: {
@@ -465,12 +470,17 @@ export type Database = {
           ai_instructions?: string
           ai_model?: string
           created_at?: string
+          dry_run?: boolean
           followup_1_delay_hours?: number
           followup_2_delay_hours?: number
           initial_delay_minutes?: number
           is_enabled?: boolean
           last_followup_delay_hours?: number
           owner_id?: string
+          template_followup_1_id?: string | null
+          template_followup_2_id?: string | null
+          template_initial_id?: string | null
+          template_last_followup_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -478,15 +488,49 @@ export type Database = {
           ai_instructions?: string
           ai_model?: string
           created_at?: string
+          dry_run?: boolean
           followup_1_delay_hours?: number
           followup_2_delay_hours?: number
           initial_delay_minutes?: number
           is_enabled?: boolean
           last_followup_delay_hours?: number
           owner_id?: string
+          template_followup_1_id?: string | null
+          template_followup_2_id?: string | null
+          template_initial_id?: string | null
+          template_last_followup_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "followup_automation_settings_template_followup_1_id_fkey"
+            columns: ["template_followup_1_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "followup_automation_settings_template_followup_2_id_fkey"
+            columns: ["template_followup_2_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "followup_automation_settings_template_initial_id_fkey"
+            columns: ["template_initial_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "followup_automation_settings_template_last_followup_id_fkey"
+            columns: ["template_last_followup_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       generated_messages: {
         Row: {
@@ -1198,6 +1242,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      whatsapp_templates: {
+        Row: {
+          body_text: string
+          category: string
+          created_at: string
+          id: string
+          is_synced: boolean
+          language: string
+          meta_template_id: string | null
+          name: string
+          owner_id: string
+          status: string
+          updated_at: string
+          variables_count: number
+        }
+        Insert: {
+          body_text?: string
+          category?: string
+          created_at?: string
+          id?: string
+          is_synced?: boolean
+          language?: string
+          meta_template_id?: string | null
+          name: string
+          owner_id?: string
+          status?: string
+          updated_at?: string
+          variables_count?: number
+        }
+        Update: {
+          body_text?: string
+          category?: string
+          created_at?: string
+          id?: string
+          is_synced?: boolean
+          language?: string
+          meta_template_id?: string | null
+          name?: string
+          owner_id?: string
+          status?: string
+          updated_at?: string
+          variables_count?: number
+        }
+        Relationships: []
       }
     }
     Views: {
