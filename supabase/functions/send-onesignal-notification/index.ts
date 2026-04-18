@@ -57,8 +57,17 @@ Deno.serve(async (req) => {
     const json = await res.json();
     console.log("OneSignal response:", res.status, JSON.stringify(json));
 
-    if (!res.ok) {
-      return new Response(JSON.stringify({ error: "onesignal_error", details: json }), {
+    const hasProviderErrors = Boolean((json as any)?.errors);
+    const hasNotificationId = Boolean((json as any)?.id);
+
+    if (!res.ok || hasProviderErrors || !hasNotificationId) {
+      return new Response(JSON.stringify({
+        error: "onesignal_error",
+        details: json,
+        hint: hasProviderErrors
+          ? "Aucun appareil OneSignal n'est lié à cet utilisateur pour le moment"
+          : "Notification non acceptée par le provider",
+      }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
