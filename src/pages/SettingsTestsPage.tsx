@@ -12,7 +12,7 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { toast } from 'sonner';
 import {
   Mail, Bell, FileSignature, Webhook, Zap, Calendar, Database,
-  CheckCircle2, XCircle, Loader2, Send, Brain, Facebook
+  CheckCircle2, XCircle, Loader2, Send, Brain, Facebook, Smartphone, Trash2, Clock
 } from 'lucide-react';
 
 type Status = 'idle' | 'running' | 'success' | 'error';
