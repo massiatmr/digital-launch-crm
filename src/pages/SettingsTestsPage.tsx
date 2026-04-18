@@ -50,6 +50,7 @@ export default function SettingsTestsPage() {
   const { user } = useAuth();
   const { state: pushState, subscribe } = usePushNotifications();
   const isSubscribed = pushState === 'subscribed';
+  const isPreview = pushState === 'preview';
 
   const [results, setResults] = useState<Record<string, TestResult>>({});
   const [smtpRecipient, setSmtpRecipient] = useState(user?.email || '');
