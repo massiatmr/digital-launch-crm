@@ -1011,34 +1011,106 @@ export type Database = {
         }
         Relationships: []
       }
+      push_delivery_logs: {
+        Row: {
+          body_preview: string | null
+          created_at: string
+          device_label: string | null
+          error_message: string | null
+          id: string
+          provider_status: number | null
+          source: string
+          status: string
+          subscription_id: string | null
+          title: string | null
+          user_id: string
+        }
+        Insert: {
+          body_preview?: string | null
+          created_at?: string
+          device_label?: string | null
+          error_message?: string | null
+          id?: string
+          provider_status?: number | null
+          source?: string
+          status: string
+          subscription_id?: string | null
+          title?: string | null
+          user_id: string
+        }
+        Update: {
+          body_preview?: string | null
+          created_at?: string
+          device_label?: string | null
+          error_message?: string | null
+          id?: string
+          provider_status?: number | null
+          source?: string
+          status?: string
+          subscription_id?: string | null
+          title?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       push_subscriptions: {
         Row: {
+          browser: string | null
           created_at: string
+          device_id: string | null
           device_info: string | null
+          device_label: string | null
           endpoint: string
           id: string
+          is_standalone: boolean | null
           keys_auth: string
           keys_p256dh: string
+          last_error: string | null
+          last_failure_at: string | null
+          last_seen_at: string | null
+          last_success_at: string | null
+          platform: string | null
+          status: string
           updated_at: string
           user_id: string
         }
         Insert: {
+          browser?: string | null
           created_at?: string
+          device_id?: string | null
           device_info?: string | null
+          device_label?: string | null
           endpoint: string
           id?: string
+          is_standalone?: boolean | null
           keys_auth: string
           keys_p256dh: string
+          last_error?: string | null
+          last_failure_at?: string | null
+          last_seen_at?: string | null
+          last_success_at?: string | null
+          platform?: string | null
+          status?: string
           updated_at?: string
           user_id: string
         }
         Update: {
+          browser?: string | null
           created_at?: string
+          device_id?: string | null
           device_info?: string | null
+          device_label?: string | null
           endpoint?: string
           id?: string
+          is_standalone?: boolean | null
           keys_auth?: string
           keys_p256dh?: string
+          last_error?: string | null
+          last_failure_at?: string | null
+          last_seen_at?: string | null
+          last_success_at?: string | null
+          platform?: string | null
+          status?: string
           updated_at?: string
           user_id?: string
         }
