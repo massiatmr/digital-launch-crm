@@ -83,9 +83,9 @@ Deno.serve(async (req) => {
             status: "received",
           });
 
-          // Push notif (même logique que check-due-reminders pour les tâches)
+          // Push notif via OneSignal
           try {
-            const pushRes = await fetch(`${SUPABASE_URL}/functions/v1/send-push`, {
+            const pushRes = await fetch(`${SUPABASE_URL}/functions/v1/send-onesignal-notification`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
               }),
             });
             const txt = await pushRes.text();
-            console.log(`Push for wa msg ${msg.id}: ${pushRes.status} ${txt}`);
+            console.log(`OneSignal push for wa msg ${msg.id}: ${pushRes.status} ${txt}`);
           } catch (pushErr) {
             console.error("Push error:", pushErr);
           }
