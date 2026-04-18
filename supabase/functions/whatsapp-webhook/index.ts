@@ -107,8 +107,8 @@ Deno.serve(async (req) => {
             status: "received",
           });
 
-          // Fire-and-forget push notif to owner
-          notifyOwner(cfg.owner_id, lead.id, lead.name || "Un lead", content);
+          // Await push so we have logs/visibility (no more fire-and-forget).
+          await notifyOwner(cfg.owner_id, lead.id, lead.name || "Un lead", content);
         }
       }
     }

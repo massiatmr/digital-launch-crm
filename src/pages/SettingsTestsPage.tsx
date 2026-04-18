@@ -8,11 +8,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { usePushNotifications, getOrCreateDeviceId } from '@/hooks/usePushNotifications';
 import { toast } from 'sonner';
 import {
   Mail, Bell, FileSignature, Webhook, Zap, Calendar, Database,
-  CheckCircle2, XCircle, Loader2, Send, Brain, Facebook, Smartphone, Trash2, Clock, CheckSquare, Square
+  CheckCircle2, XCircle, Loader2, Send, Brain, Facebook, Smartphone, Trash2, Clock,
+  CheckSquare, Square, RefreshCw, Wrench, MessageCircle,
 } from 'lucide-react';
 
 type Status = 'idle' | 'running' | 'success' | 'error';
@@ -20,15 +21,33 @@ type Status = 'idle' | 'running' | 'success' | 'error';
 type PushDevice = {
   id: string;
   device_info: string | null;
+  device_id: string | null;
+  device_label: string | null;
+  platform: string | null;
+  browser: string | null;
+  is_standalone: boolean | null;
   endpoint: string;
+  status: string | null;
+  last_seen_at: string | null;
+  last_success_at: string | null;
+  last_failure_at: string | null;
+  last_error: string | null;
   created_at: string;
 };
 
-interface TestResult {
-  status: Status;
-  message?: string;
-  data?: any;
-}
+type DeliveryLog = {
+  id: string;
+  created_at: string;
+  source: string;
+  status: string;
+  provider_status: number | null;
+  device_label: string | null;
+  title: string | null;
+  body_preview: string | null;
+  error_message: string | null;
+};
+
+interface TestResult { status: Status; message?: string; data?: any; }
 
 const StatusBadge = ({ status }: { status: Status }) => {
   if (status === 'idle') return <Badge variant="outline">En attente</Badge>;
@@ -43,7 +62,7 @@ const ResultBlock = ({ result }: { result: TestResult }) => {
     <div className="mt-3 p-3 rounded-lg bg-black/40 border border-white/5 text-xs font-mono">
       {result.message && <p className="text-foreground/80 mb-2">{result.message}</p>}
       {result.data && (
-        <ScrollArea className="max-h-40">
+        <ScrollArea className="max-h-60">
           <pre className="text-muted-foreground whitespace-pre-wrap break-all">
             {typeof result.data === 'string' ? result.data : JSON.stringify(result.data, null, 2)}
           </pre>
@@ -53,27 +72,49 @@ const ResultBlock = ({ result }: { result: TestResult }) => {
   );
 };
 
+function relTime(iso?: string | null) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const diff = Date.now() - d.getTime();
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  const days = Math.floor(h / 24);
+  return `${days}j`;
+}
+
+function deviceIcon(platform?: string | null) {
+  if (!platform) return '🌐';
+  if (/iOS/i.test(platform)) return '📱';
+  if (/Android/i.test(platform)) return '🤖';
+  if (/macOS/i.test(platform)) return '💻';
+  if (/Windows/i.test(platform)) return '🖥️';
+  return '🌐';
+}
+
 export default function SettingsTestsPage() {
   const { user } = useAuth();
-  const { state: pushState, subscribe } = usePushNotifications();
+  const { state: pushState, subscribe, deviceId: currentDeviceId } = usePushNotifications();
   const [results, setResults] = useState<Record<string, TestResult>>({});
   const [smtpRecipient, setSmtpRecipient] = useState(user?.email || '');
   const [aiLeadName, setAiLeadName] = useState('Marie Dupont');
-  const [aiLeadMsg, setAiLeadMsg] = useState('Bonjour, je suis intéressée par votre offre marketing pour mon entreprise de déménagement.');
+  const [aiLeadMsg, setAiLeadMsg] = useState('Bonjour, je suis intéressée par votre offre marketing.');
   const [devices, setDevices] = useState<PushDevice[]>([]);
+  const [logs, setLogs] = useState<DeliveryLog[]>([]);
   const [delaySec, setDelaySec] = useState(10);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [currentSubscriptionEndpoint, setCurrentSubscriptionEndpoint] = useState<string | null>(null);
-  const [subscriptionChecked, setSubscriptionChecked] = useState(false);
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>([]);
 
   const isPreview = pushState === 'preview';
-  const isSubscribed = subscriptionChecked ? !!currentSubscriptionEndpoint : pushState === 'subscribed';
   const dedupedDevices = useMemo(() => {
     const seen = new Set<string>();
-    return devices.filter((device) => {
-      if (seen.has(device.endpoint)) return false;
-      seen.add(device.endpoint);
+    return devices.filter((d) => {
+      if (seen.has(d.endpoint)) return false;
+      seen.add(d.endpoint);
       return true;
     });
   }, [devices]);
@@ -83,215 +124,221 @@ export default function SettingsTestsPage() {
   const get = (key: string): TestResult => results[key] || { status: 'idle' };
 
   const getPushRegistration = async () => {
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-      return null;
-    }
-
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) return null;
     return (await navigator.serviceWorker.getRegistration('/service-worker.js'))
       ?? (await navigator.serviceWorker.getRegistration())
       ?? null;
   };
 
   const loadCurrentSubscription = async () => {
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-      setCurrentSubscriptionEndpoint(null);
-      setSubscriptionChecked(true);
-      return;
-    }
-
     try {
-      const registration = await getPushRegistration();
-      if (!registration) {
-        setCurrentSubscriptionEndpoint(null);
-        return;
-      }
-
-      const subscription = await registration.pushManager.getSubscription();
-      setCurrentSubscriptionEndpoint(subscription?.endpoint ?? null);
-    } catch (error) {
-      console.error('Impossible de lire la souscription push actuelle:', error);
-      setCurrentSubscriptionEndpoint(null);
-    } finally {
-      setSubscriptionChecked(true);
-    }
+      const reg = await getPushRegistration();
+      if (!reg) { setCurrentSubscriptionEndpoint(null); return; }
+      const sub = await reg.pushManager.getSubscription();
+      setCurrentSubscriptionEndpoint(sub?.endpoint ?? null);
+    } catch { setCurrentSubscriptionEndpoint(null); }
   };
 
-  // ---------- Load registered devices ----------
   const loadDevices = async () => {
-    if (!user) {
-      setDevices([]);
-      return;
-    }
-
+    if (!user) { setDevices([]); return; }
     const { data, error } = await supabase
       .from('push_subscriptions')
-      .select('id, device_info, endpoint, created_at')
+      .select('id, device_info, device_id, device_label, platform, browser, is_standalone, endpoint, status, last_seen_at, last_success_at, last_failure_at, last_error, created_at')
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-
+      .order('last_seen_at', { ascending: false, nullsFirst: false });
     if (error) {
-      console.error('Impossible de charger les appareils push:', error);
-      set('pushDevices', { status: 'error', message: error.message, data: error });
+      set('pushDevices', { status: 'error', message: error.message });
       return;
     }
+    setDevices((data || []) as any);
+  };
 
-    const nextDevices = (data || []) as PushDevice[];
-    setDevices(nextDevices);
-    set('pushDevices', {
-      status: 'success',
-      message: `${nextDevices.length} appareil(s) récupéré(s) depuis le backend`,
-      data: nextDevices.map((device) => ({
-        id: device.id,
-        created_at: device.created_at,
-        device_info: device.device_info,
-      })),
-    });
+  const loadLogs = async () => {
+    if (!user) { setLogs([]); return; }
+    const { data, error } = await supabase
+      .from('push_delivery_logs')
+      .select('id, created_at, source, status, provider_status, device_label, title, body_preview, error_message')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(30);
+    if (!error) setLogs((data || []) as any);
   };
 
   useEffect(() => {
-    Promise.all([loadDevices(), loadCurrentSubscription()]);
+    Promise.all([loadDevices(), loadCurrentSubscription(), loadLogs()]);
   }, [user?.id]);
 
   useEffect(() => {
     if (!user) return;
     const interval = window.setInterval(() => {
       loadDevices();
+      loadLogs();
     }, 15000);
     return () => window.clearInterval(interval);
   }, [user?.id]);
 
   useEffect(() => {
     setSelectedDeviceIds((prev) => {
-      const available = new Set(dedupedDevices.map((device) => device.id));
+      const available = new Set(dedupedDevices.map((d) => d.id));
       const next = prev.filter((id) => available.has(id));
-      return next.length > 0 || dedupedDevices.length === 0 ? next : dedupedDevices.map((device) => device.id);
+      if (next.length === 0 && dedupedDevices.length > 0) return dedupedDevices.map((d) => d.id);
+      return next;
     });
   }, [dedupedDevices]);
 
   const deleteDevice = async (id: string, endpoint?: string) => {
-    const isCurrentDevice = !!endpoint && endpoint === currentSubscriptionEndpoint;
-
+    const isCurrent = !!endpoint && endpoint === currentSubscriptionEndpoint;
     try {
-      if (isCurrentDevice) {
-        const registration = await getPushRegistration();
-        const subscription = await registration?.pushManager.getSubscription();
-
-        if (subscription?.endpoint === endpoint) {
-          const unsubscribed = await subscription.unsubscribe();
-          if (!unsubscribed) {
-            throw new Error('Impossible de désabonner cet appareil depuis le navigateur');
-          }
-        }
-
+      if (isCurrent) {
+        const reg = await getPushRegistration();
+        const sub = await reg?.pushManager.getSubscription();
+        if (sub?.endpoint === endpoint) await sub.unsubscribe();
         setCurrentSubscriptionEndpoint(null);
       }
-
       const { error } = await supabase.from('push_subscriptions').delete().eq('id', id);
       if (error) throw error;
-
-      toast.success(isCurrentDevice ? 'Cet appareil est désabonné' : 'Appareil supprimé');
+      toast.success(isCurrent ? 'Cet appareil est désabonné' : 'Appareil supprimé');
       await Promise.all([loadDevices(), loadCurrentSubscription()]);
     } catch (e: any) {
       toast.error(e.message || 'Échec du désabonnement');
     }
   };
 
-  const unsubscribeCurrentDevice = async () => {
-    if (!user) {
-      toast.error('Tu dois être connecté');
-      return;
-    }
-
-    const endpoint = currentSubscriptionEndpoint;
-    if (!endpoint) {
-      toast.error('Aucune souscription active détectée sur cet appareil');
-      return;
-    }
-
+  const repairCurrentDevice = async () => {
+    set('repair', { status: 'running' });
     try {
-      const registration = await getPushRegistration();
-      const subscription = await registration?.pushManager.getSubscription();
-
-      if (subscription?.endpoint === endpoint) {
-        const unsubscribed = await subscription.unsubscribe();
-        if (!unsubscribed) {
-          throw new Error('Impossible de désabonner cet appareil depuis le navigateur');
-        }
-      }
-
-      const { error } = await supabase
-        .from('push_subscriptions')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('endpoint', endpoint);
-
-      if (error) throw error;
-
-      setCurrentSubscriptionEndpoint(null);
-      toast.success('Cet appareil est désabonné');
-      await Promise.all([loadDevices(), loadCurrentSubscription()]);
+      const reg = await getPushRegistration();
+      const sub = await reg?.pushManager.getSubscription();
+      if (sub) await sub.unsubscribe();
+      await subscribe();
+      await Promise.all([loadDevices(), loadCurrentSubscription(), loadLogs()]);
+      set('repair', { status: 'success', message: 'Souscription régénérée pour cet appareil' });
     } catch (e: any) {
-      toast.error(e.message || 'Échec du désabonnement');
+      set('repair', { status: 'error', message: e.message });
     }
   };
 
-  const toggleDeviceSelection = (id: string) => {
-    setSelectedDeviceIds((prev) => prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id]);
+  const toggleDeviceSelection = (id: string) =>
+    setSelectedDeviceIds((p) => p.includes(id) ? p.filter((v) => v !== id) : [...p, id]);
+  const selectAllDevices = () => setSelectedDeviceIds(dedupedDevices.map((d) => d.id));
+  const clearSelectedDevices = () => setSelectedDeviceIds([]);
+
+  const sendPushTo = async (mode: 'all' | 'selected' | 'current', label: string, key: string) => {
+    set(key, { status: 'running' });
+    try {
+      let body: any = {
+        user_id: user?.id,
+        title: '🧪 Test push — Digital Launch CRM',
+        body: `${label} · ${new Date().toLocaleTimeString('fr-FR')}`,
+        url: '/settings/tests',
+        tag: 'test-' + key,
+        source: 'manual_test',
+      };
+      if (mode === 'selected') body.subscription_ids = selectedDeviceIds;
+      if (mode === 'current') {
+        const did = getOrCreateDeviceId();
+        body.device_ids = [did];
+      }
+      const { data, error } = await supabase.functions.invoke('send-push', { body });
+      if (error) throw error;
+      set(key, {
+        status: data?.failed > 0 && data?.sent === 0 ? 'error' : 'success',
+        message: `Envoyé: ${data?.sent ?? 0} · Échecs: ${data?.failed ?? 0} · Expirés: ${data?.expired_cleaned ?? 0}`,
+        data,
+      });
+      await Promise.all([loadDevices(), loadLogs()]);
+    } catch (e: any) {
+      set(key, { status: 'error', message: e.message, data: e });
+    }
   };
 
-  const selectAllDevices = () => {
-    setSelectedDeviceIds(dedupedDevices.map((device) => device.id));
-  };
-
-  const clearSelectedDevices = () => {
-    setSelectedDeviceIds([]);
-  };
-
-  const detectDevice = (ua: string = '') => {
-    if (/iphone|ipad|ipod/i.test(ua)) return { icon: '📱', label: 'iOS' };
-    if (/android/i.test(ua)) return { icon: '🤖', label: 'Android' };
-    if (/macintosh/i.test(ua)) return { icon: '💻', label: 'Mac' };
-    if (/windows/i.test(ua)) return { icon: '🖥️', label: 'Windows' };
-    return { icon: '🌐', label: 'Web' };
-  };
-
-  // ---------- Delayed push test (close app then receive) ----------
   const testPushDelayed = async () => {
     set('pushDelayed', { status: 'running', message: `Tu as ${delaySec}s pour fermer l'app sur ton mobile…` });
     setCountdown(delaySec);
-    const interval = setInterval(() => {
-      setCountdown((c) => (c === null || c <= 1 ? null : c - 1));
-    }, 1000);
-
+    const interval = setInterval(() => setCountdown((c) => (c === null || c <= 1 ? null : c - 1)), 1000);
     setTimeout(async () => {
       clearInterval(interval);
       setCountdown(null);
-      try {
-        const { data, error } = await supabase.functions.invoke('send-push', {
-          body: {
-            user_id: user?.id,
-            subscription_ids: selectedDeviceIds.length > 0 ? selectedDeviceIds : undefined,
-            title: '📱 Test mobile — App fermée ?',
-            body: `Envoyé à ${new Date().toLocaleTimeString('fr-FR')}. Si tu lis ça, tout marche !`,
-            url: '/settings/tests',
-            tag: 'test-mobile-delayed',
-          },
-        });
-        if (error) throw error;
-        set('pushDelayed', {
-          status: 'success',
-          message: `Push test envoyé à ${data?.sent || 0}/${selectedDeviceIds.length || dedupedDevices.length} appareil(s) ciblé(s). Vérifie maintenant !`,
-          data,
-        });
-        toast.success('Notification envoyée');
-      } catch (e: any) {
-        set('pushDelayed', { status: 'error', message: e.message, data: e });
-      }
+      await sendPushTo(selectedCount > 0 ? 'selected' : 'all', 'Test mobile différé', 'pushDelayed');
     }, delaySec * 1000);
   };
 
+  const testLocalNotification = async () => {
+    set('pushLocal', { status: 'running' });
+    try {
+      if (!('Notification' in window)) throw new Error('API Notification absente');
+      if (Notification.permission === 'default') {
+        const p = await Notification.requestPermission();
+        if (p !== 'granted') throw new Error('Permission refusée');
+      } else if (Notification.permission === 'denied') {
+        throw new Error('Permission DENIED — débloque dans les réglages du navigateur');
+      }
+      const reg = await getPushRegistration();
+      if (reg && 'showNotification' in reg) {
+        await reg.showNotification('🧪 Test local — Digital Launch', {
+          body: 'Notification locale via Service Worker',
+          icon: '/icon-192x192.png',
+          tag: 'test-local-' + Date.now(),
+        });
+      } else {
+        new Notification('🧪 Test local', { body: 'Via API Notification', icon: '/icon-192x192.png' });
+      }
+      set('pushLocal', { status: 'success', message: 'Notification locale déclenchée' });
+    } catch (e: any) {
+      set('pushLocal', { status: 'error', message: e.message });
+    }
+  };
 
-  // ---------- TEST 1: SMTP ----------
+  const simulateWhatsAppInbound = async () => {
+    set('waSim', { status: 'running' });
+    try {
+      // Use existing lead if any, else create a temporary one.
+      const { data: existing } = await supabase
+        .from('leads').select('id, name').eq('owner_id', user?.id).limit(1);
+      let leadId = existing?.[0]?.id;
+      let leadName = existing?.[0]?.name || 'Lead test';
+      if (!leadId) {
+        const { data: created, error: cErr } = await supabase.from('leads').insert({
+          name: '[TEST WA] Marie',
+          phone: '+33600000000',
+          source: 'manual' as const,
+          status: 'new' as const,
+        }).select('id, name').single();
+        if (cErr) throw cErr;
+        leadId = created.id;
+        leadName = created.name;
+      }
+      // 1) Insert inbound message (mimics webhook behavior).
+      const { error: mErr } = await supabase.from('whatsapp_messages').insert({
+        lead_id: leadId,
+        direction: 'inbound' as const,
+        content: `[TEST] message simulé à ${new Date().toLocaleTimeString('fr-FR')}`,
+        status: 'received',
+      } as any);
+      if (mErr) throw mErr;
+      // 2) Trigger push exactly like webhook.
+      const { data, error } = await supabase.functions.invoke('send-push', {
+        body: {
+          user_id: user?.id,
+          title: `💬 ${leadName} a répondu`,
+          body: 'Message simulé — vérifie tes appareils',
+          url: `/conversations?lead=${leadId}`,
+          tag: `wa-${leadId}`,
+          source: 'whatsapp_inbound',
+        },
+      });
+      if (error) throw error;
+      set('waSim', {
+        status: data?.sent > 0 ? 'success' : 'error',
+        message: `Push envoyés: ${data?.sent ?? 0} / ${data?.results?.length ?? 0}`,
+        data,
+      });
+      await loadLogs();
+    } catch (e: any) {
+      set('waSim', { status: 'error', message: e.message });
+    }
+  };
+
   const testSmtp = async () => {
     if (!smtpRecipient) return toast.error('Renseigne un email destinataire');
     set('smtp', { status: 'running' });
@@ -300,236 +347,69 @@ export default function SettingsTestsPage() {
         body: {
           to: smtpRecipient,
           subject: '✅ Test SMTP — Digital Launch CRM',
-          html: `<div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:30px">
-            <h1 style="color:#7c3aed">Test SMTP réussi 🎉</h1>
-            <p>Si tu lis ce message, ton serveur SMTP est bien configuré.</p>
-            <p style="color:#999;font-size:12px">Envoyé depuis la page Tests du CRM — ${new Date().toLocaleString('fr-FR')}</p>
-          </div>`,
+          html: `<p>Test SMTP réussi — ${new Date().toLocaleString('fr-FR')}</p>`,
         },
       });
       if (error) throw error;
       set('smtp', { status: 'success', message: `Email envoyé à ${smtpRecipient}`, data });
-      toast.success('Email SMTP envoyé');
-    } catch (e: any) {
-      set('smtp', { status: 'error', message: e.message, data: e });
-      toast.error('Échec SMTP : ' + e.message);
-    }
+    } catch (e: any) { set('smtp', { status: 'error', message: e.message }); }
   };
 
-  // ---------- TEST 2: Push notification ----------
-  const testPush = async () => {
-    set('push', { status: 'running' });
-    try {
-      if (!isSubscribed) {
-        await subscribe();
-        await loadCurrentSubscription();
-        await loadDevices();
-      }
-      const { data, error } = await supabase.functions.invoke('send-push', {
-        body: {
-          user_id: user?.id,
-          subscription_ids: selectedDeviceIds.length > 0 ? selectedDeviceIds : undefined,
-          title: '🧪 Test push — Digital Launch CRM',
-          body: 'Si tu vois ce message, les notifications push fonctionnent !',
-          url: '/settings/tests',
-          tag: 'test-push',
-        },
-      });
-      if (error) throw error;
-      set('push', {
-        status: 'success',
-        message: `Push backend envoyé à ${data?.sent || 0}/${selectedDeviceIds.length || dedupedDevices.length} appareil(s) ciblé(s)`,
-        data,
-      });
-    } catch (e: any) {
-      set('push', { status: 'error', message: e.message, data: e });
-    }
-  };
-
-  const testLocalNotification = async () => {
-    set('pushLocal', { status: 'running' });
-    const debug: any = {
-      userAgent: navigator.userAgent,
-      platform: navigator.platform,
-      isStandalone: window.matchMedia('(display-mode: standalone)').matches,
-      isSecureContext: window.isSecureContext,
-      hasNotification: 'Notification' in window,
-      hasServiceWorker: 'serviceWorker' in navigator,
-      permission: 'Notification' in window ? Notification.permission : 'n/a',
-      hostname: window.location.hostname,
-      protocol: window.location.protocol,
-    };
-    try {
-      if (!('Notification' in window)) {
-        throw new Error('API Notification absente du navigateur');
-      }
-      if (!window.isSecureContext) {
-        throw new Error('Contexte non sécurisé (HTTPS requis)');
-      }
-
-      // Demander permission si pas encore accordée
-      if (Notification.permission === 'default') {
-        debug.permissionRequest = 'asking';
-        const p = await Notification.requestPermission();
-        debug.permissionRequest = p;
-        if (p !== 'granted') throw new Error('Permission refusée par l\'utilisateur');
-      } else if (Notification.permission === 'denied') {
-        throw new Error('Permission DENIED — débloque dans les réglages du navigateur (icône cadenas → Notifications → Autoriser)');
-      }
-
-      // Tente méthode 1 : Service Worker
-      let swSuccess = false;
-      let swError: string | null = null;
-      try {
-        const registration = await getPushRegistration();
-        debug.swRegistration = !!registration;
-        debug.swActive = !!registration?.active;
-        if (registration && 'showNotification' in registration) {
-          await registration.showNotification('🧪 Test SW — Digital Launch', {
-            body: 'Notification via Service Worker (méthode push)',
-            icon: '/icon-192x192.png',
-            badge: '/icon-192x192.png',
-            tag: 'test-sw-' + Date.now(),
-            requireInteraction: false,
-          });
-          swSuccess = true;
-          debug.swMethod = 'OK';
-        } else {
-          debug.swMethod = 'no-registration';
-        }
-      } catch (e: any) {
-        swError = e?.message || String(e);
-        debug.swMethod = 'error: ' + swError;
-      }
-
-      // Tente méthode 2 : Notification API directe (souvent plus fiable sur PC)
-      let directSuccess = false;
-      let directError: string | null = null;
-      try {
-        const n = new Notification('🧪 Test direct — Digital Launch', {
-          body: 'Notification via API directe Notification()',
-          icon: '/icon-192x192.png',
-          tag: 'test-direct-' + Date.now(),
-        });
-        n.onerror = (ev) => { debug.directOnError = String(ev); };
-        n.onshow = () => { debug.directOnShow = true; };
-        directSuccess = true;
-        debug.directMethod = 'OK';
-      } catch (e: any) {
-        directError = e?.message || String(e);
-        debug.directMethod = 'error: ' + directError;
-      }
-
-      if (!swSuccess && !directSuccess) {
-        throw new Error(`Aucune méthode n'a fonctionné. SW: ${swError}. Direct: ${directError}. Vérifie les réglages OS (Windows: Paramètres → Notifications → Chrome activé + désactive "Assistant de concentration"; macOS: Préférences → Notifications → Chrome → Autoriser).`);
-      }
-
-      set('pushLocal', {
-        status: 'success',
-        message: `Notification déclenchée (SW: ${swSuccess ? '✅' : '❌'}, Direct: ${directSuccess ? '✅' : '❌'}). Si tu ne vois rien sur PC, c'est un blocage au niveau de Windows/macOS, pas du code.`,
-        data: debug,
-      });
-    } catch (e: any) {
-      set('pushLocal', { status: 'error', message: e.message, data: debug });
-    }
-  };
-
-  // ---------- TEST 3: Notify new lead (full flow) ----------
   const testNotifyLead = async () => {
     set('notifyLead', { status: 'running' });
     try {
-      // Create a temp lead
-      const { data: lead, error: insertErr } = await supabase
-        .from('leads')
-        .insert({
-          name: '[TEST] ' + aiLeadName,
-          email: 'test@example.com',
-          phone: '+33612345678',
-          company_name: 'Test Société',
-          source: 'manual' as const,
-          message: aiLeadMsg,
-          status: 'new' as const,
-        })
-        .select()
-        .single();
+      const { data: lead, error: insertErr } = await supabase.from('leads').insert({
+        name: '[TEST] ' + aiLeadName,
+        email: 'test@example.com', phone: '+33612345678',
+        source: 'manual' as const, message: aiLeadMsg, status: 'new' as const,
+      }).select().single();
       if (insertErr) throw insertErr;
-
-      const { data, error } = await supabase.functions.invoke('notify-new-lead', {
-        body: { lead_id: lead.id },
-      });
+      const { data, error } = await supabase.functions.invoke('notify-new-lead', { body: { lead_id: lead.id } });
       if (error) throw error;
-
-      set('notifyLead', {
-        status: 'success',
-        message: `Lead test créé (${lead.id.slice(0, 8)}...) — push + email déclenchés`,
-        data,
-      });
-      toast.success('Notifications déclenchées');
-    } catch (e: any) {
-      set('notifyLead', { status: 'error', message: e.message, data: e });
-    }
+      set('notifyLead', { status: 'success', message: `Lead test créé (${lead.id.slice(0, 8)}…)`, data });
+    } catch (e: any) { set('notifyLead', { status: 'error', message: e.message }); }
   };
 
-  // ---------- TEST 4: AI Lead Analysis ----------
   const testAiAnalysis = async () => {
     set('ai', { status: 'running' });
     try {
       const { data, error } = await supabase.functions.invoke('ai-lead-analysis', {
-        body: {
-          name: aiLeadName,
-          message: aiLeadMsg,
-          source: 'manual',
-        },
+        body: { name: aiLeadName, message: aiLeadMsg, source: 'manual' },
       });
       if (error) throw error;
       set('ai', { status: 'success', message: 'Analyse IA réussie', data });
-    } catch (e: any) {
-      set('ai', { status: 'error', message: e.message, data: e });
-    }
+    } catch (e: any) { set('ai', { status: 'error', message: e.message }); }
   };
 
-  // ---------- TEST 5: Facebook webhook subscription ----------
   const testFbSubscription = async () => {
     set('fb', { status: 'running' });
     try {
       const { data, error } = await supabase.functions.invoke('fb-check-subscription', { body: {} });
       if (error) throw error;
       set('fb', { status: 'success', message: 'Statut récupéré', data });
-    } catch (e: any) {
-      set('fb', { status: 'error', message: e.message, data: e });
-    }
+    } catch (e: any) { set('fb', { status: 'error', message: e.message }); }
   };
 
-  // ---------- TEST 6: Check availability ----------
   const testAvailability = async () => {
     set('avail', { status: 'running' });
     try {
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const date = tomorrow.toISOString().split('T')[0];
-      const { data, error } = await supabase.functions.invoke('check-availability', {
-        body: { date, owner_id: user?.id },
-      });
+      const t = new Date(); t.setDate(t.getDate() + 1);
+      const date = t.toISOString().split('T')[0];
+      const { data, error } = await supabase.functions.invoke('check-availability', { body: { date, owner_id: user?.id } });
       if (error) throw error;
       set('avail', { status: 'success', message: `Créneaux pour ${date}`, data });
-    } catch (e: any) {
-      set('avail', { status: 'error', message: e.message, data: e });
-    }
+    } catch (e: any) { set('avail', { status: 'error', message: e.message }); }
   };
 
-  // ---------- TEST 7: Due reminders cron ----------
   const testReminders = async () => {
     set('reminders', { status: 'running' });
     try {
       const { data, error } = await supabase.functions.invoke('check-due-reminders', { body: {} });
       if (error) throw error;
       set('reminders', { status: 'success', message: 'Cron exécuté', data });
-    } catch (e: any) {
-      set('reminders', { status: 'error', message: e.message, data: e });
-    }
+    } catch (e: any) { set('reminders', { status: 'error', message: e.message }); }
   };
 
-  // ---------- TEST 8: DB connection ----------
   const testDb = async () => {
     set('db', { status: 'running' });
     try {
@@ -538,43 +418,23 @@ export default function SettingsTestsPage() {
         supabase.from('clients').select('*', { count: 'exact', head: true }),
         supabase.from('bookings').select('*', { count: 'exact', head: true }),
       ]);
-      set('db', {
-        status: 'success',
-        message: 'Connexion BDD OK',
-        data: { leads, clients, bookings },
-      });
-    } catch (e: any) {
-      set('db', { status: 'error', message: e.message });
-    }
+      set('db', { status: 'success', message: 'Connexion BDD OK', data: { leads, clients, bookings } });
+    } catch (e: any) { set('db', { status: 'error', message: e.message }); }
   };
 
-  // ---------- TEST 9: Signature flow (create token) ----------
   const testSignature = async () => {
     set('sign', { status: 'running' });
     try {
       const { data: clients } = await supabase.from('clients').select('id, name').limit(1);
-      if (!clients || clients.length === 0) {
-        throw new Error('Aucun client en base — crée-en un d\'abord');
-      }
-      const client = clients[0];
-      const { data: token, error } = await supabase
-        .from('contract_signatures')
-        .insert({
-          client_id: client.id,
-          contract_data: { test: true, generated_at: new Date().toISOString() } as any,
-        })
-        .select('token')
-        .single();
+      if (!clients || clients.length === 0) throw new Error('Aucun client en base');
+      const c = clients[0];
+      const { data: token, error } = await supabase.from('contract_signatures').insert({
+        client_id: c.id,
+        contract_data: { test: true, generated_at: new Date().toISOString() } as any,
+      }).select('token').single();
       if (error) throw error;
-      const url = `${window.location.origin}/sign/${token.token}`;
-      set('sign', {
-        status: 'success',
-        message: `Lien de signature créé pour "${client.name}"`,
-        data: url,
-      });
-    } catch (e: any) {
-      set('sign', { status: 'error', message: e.message });
-    }
+      set('sign', { status: 'success', message: `Lien signature pour "${c.name}"`, data: `${window.location.origin}/sign/${token.token}` });
+    } catch (e: any) { set('sign', { status: 'error', message: e.message }); }
   };
 
   return (
@@ -585,20 +445,220 @@ export default function SettingsTestsPage() {
           Centre de Tests
         </h1>
         <p className="text-xs sm:text-base text-muted-foreground">
-          Vérifie en un clic que toutes tes intégrations et automatisations fonctionnent.
+          Diagnostic complet des notifications + intégrations.
         </p>
       </div>
 
-      <Tabs defaultValue="emails" className="space-y-4">
+      <Tabs defaultValue="notifications" className="space-y-4">
         <ScrollArea className="w-full">
           <TabsList className="inline-flex w-max md:grid md:grid-cols-5 md:w-full h-auto">
-            <TabsTrigger value="emails" className="text-xs sm:text-sm whitespace-nowrap">📧 Emails</TabsTrigger>
             <TabsTrigger value="notifications" className="text-xs sm:text-sm whitespace-nowrap">🔔 Notifs</TabsTrigger>
+            <TabsTrigger value="emails" className="text-xs sm:text-sm whitespace-nowrap">📧 Emails</TabsTrigger>
             <TabsTrigger value="integrations" className="text-xs sm:text-sm whitespace-nowrap">🔗 Intég.</TabsTrigger>
             <TabsTrigger value="ai" className="text-xs sm:text-sm whitespace-nowrap">🤖 IA</TabsTrigger>
             <TabsTrigger value="system" className="text-xs sm:text-sm whitespace-nowrap">⚙️ Système</TabsTrigger>
           </TabsList>
         </ScrollArea>
+
+        {/* NOTIFICATIONS */}
+        <TabsContent value="notifications" className="space-y-4">
+          {isPreview && (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm">
+              <p className="font-medium text-destructive">⚠️ Push indisponible dans le preview</p>
+              <p className="text-foreground/70 text-xs mt-1">
+                Ouvre la version publiée :{' '}
+                <a href="https://digital-launch-crm.lovable.app/settings/tests" target="_blank" rel="noreferrer" className="underline font-medium text-primary">
+                  digital-launch-crm.lovable.app
+                </a>
+              </p>
+            </div>
+          )}
+
+          {/* Current device */}
+          <Card className="border-primary/30">
+            <CardHeader>
+              <div className="flex items-start justify-between gap-2 flex-wrap">
+                <div>
+                  <CardTitle className="flex items-center gap-2"><Smartphone className="w-5 h-5 text-primary" />Cet appareil</CardTitle>
+                  <CardDescription>
+                    Statut : {pushState === 'subscribed' ? <span className="text-primary">Abonné ✓</span> : <span className="text-muted-foreground">Non abonné</span>}
+                    {' · '}device_id: <code className="text-[10px]">{currentDeviceId?.slice(0, 12)}…</code>
+                  </CardDescription>
+                </div>
+                <StatusBadge status={get('repair').status} />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={subscribe} disabled={pushState === 'subscribed' || pushState === 'denied' || pushState === 'preview'}>
+                  <Bell className="w-4 h-4 mr-2" />Activer sur cet appareil
+                </Button>
+                <Button onClick={testLocalNotification} disabled={get('pushLocal').status === 'running'} variant="secondary">
+                  <Bell className="w-4 h-4 mr-2" />Test affichage local
+                </Button>
+                <Button onClick={() => sendPushTo('current', 'Backend → cet appareil', 'pushCurrent')} variant="default" disabled={get('pushCurrent').status === 'running'}>
+                  <Send className="w-4 h-4 mr-2" />Envoyer backend → cet appareil
+                </Button>
+                <Button onClick={repairCurrentDevice} variant="outline" disabled={get('repair').status === 'running'}>
+                  <Wrench className="w-4 h-4 mr-2" />Réparer la souscription
+                </Button>
+              </div>
+              <ResultBlock result={get('pushLocal')} />
+              <ResultBlock result={get('pushCurrent')} />
+              <ResultBlock result={get('repair')} />
+            </CardContent>
+          </Card>
+
+          {/* Devices */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between gap-2 flex-wrap">
+                <div>
+                  <CardTitle className="flex items-center gap-2"><Smartphone className="w-5 h-5" />Appareils enregistrés ({dedupedDevices.length})</CardTitle>
+                  <CardDescription>État de santé en direct. Coche pour cibler des envois.</CardDescription>
+                </div>
+                <Button size="sm" variant="ghost" onClick={() => Promise.all([loadDevices(), loadCurrentSubscription(), loadLogs()])}>
+                  <RefreshCw className="w-4 h-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2 pb-2">
+                <Button size="sm" variant="outline" onClick={selectAllDevices} disabled={dedupedDevices.length === 0}>
+                  <CheckSquare className="w-4 h-4 mr-2" />Tout sélectionner
+                </Button>
+                <Button size="sm" variant="outline" onClick={clearSelectedDevices} disabled={selectedCount === 0}>
+                  <Square className="w-4 h-4 mr-2" />Tout désélectionner
+                </Button>
+                <Badge variant="outline">{selectedCount} sélectionné(s)</Badge>
+                <div className="flex-1" />
+                <Button size="sm" onClick={() => sendPushTo('all', 'Test à tous', 'pushAll')} disabled={get('pushAll').status === 'running' || dedupedDevices.length === 0}>
+                  <Send className="w-4 h-4 mr-2" />Envoyer à tous
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => sendPushTo('selected', 'Test ciblé', 'pushSelected')} disabled={get('pushSelected').status === 'running' || selectedCount === 0}>
+                  <Send className="w-4 h-4 mr-2" />Envoyer aux sélectionnés
+                </Button>
+              </div>
+              <ResultBlock result={get('pushAll')} />
+              <ResultBlock result={get('pushSelected')} />
+              {dedupedDevices.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">Aucun appareil. Active les notifications.</p>
+              ) : (
+                dedupedDevices.map((d) => {
+                  const isCurrent = d.endpoint === currentSubscriptionEndpoint || d.device_id === currentDeviceId;
+                  const isSelected = selectedDeviceIds.includes(d.id);
+                  const healthColor = d.status === 'invalid' ? 'destructive' : d.last_failure_at && (!d.last_success_at || d.last_failure_at > d.last_success_at) ? 'secondary' : 'outline';
+                  return (
+                    <div key={d.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-black/30 border border-white/5">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <button type="button" onClick={() => toggleDeviceSelection(d.id)} className="shrink-0 text-primary">
+                          {isSelected ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5 text-muted-foreground" />}
+                        </button>
+                        <span className="text-2xl">{deviceIcon(d.platform)}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-medium">{d.device_label || d.platform || 'Appareil'}</p>
+                            {isCurrent && <Badge variant="outline">Cet appareil</Badge>}
+                            <Badge variant={healthColor as any}>{d.status || 'active'}</Badge>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">
+                            Vu il y a {relTime(d.last_seen_at)} · ✅ {relTime(d.last_success_at)} · ❌ {relTime(d.last_failure_at)}
+                          </p>
+                          {d.last_error && (
+                            <p className="text-[10px] text-destructive truncate">{d.last_error}</p>
+                          )}
+                        </div>
+                      </div>
+                      <Button size="sm" variant="ghost" onClick={() => deleteDevice(d.id, d.endpoint)}>
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </div>
+                  );
+                })
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Delayed test */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between gap-2 flex-wrap">
+                <div>
+                  <CardTitle className="flex items-center gap-2"><Smartphone className="w-5 h-5 text-primary" />Test push différé (app fermée)</CardTitle>
+                  <CardDescription>Ferme l'app sur ton mobile pendant le compte à rebours.</CardDescription>
+                </div>
+                <StatusBadge status={get('pushDelayed').status} />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <Label htmlFor="delay">Délai (sec)</Label>
+                  <Input id="delay" type="number" min={3} max={120} value={delaySec} onChange={(e) => setDelaySec(Number(e.target.value) || 10)} />
+                </div>
+                <Button onClick={testPushDelayed} disabled={get('pushDelayed').status === 'running' || !user} className="shrink-0">
+                  {countdown !== null ? <><Clock className="w-4 h-4 mr-2 animate-pulse" />{countdown}s</> : <><Smartphone className="w-4 h-4 mr-2" />Lancer</>}
+                </Button>
+              </div>
+              <ResultBlock result={get('pushDelayed')} />
+            </CardContent>
+          </Card>
+
+          {/* WhatsApp simulation */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between gap-2 flex-wrap">
+                <div>
+                  <CardTitle className="flex items-center gap-2"><MessageCircle className="w-5 h-5 text-primary" />Simuler WhatsApp entrant</CardTitle>
+                  <CardDescription>Insère un message inbound + déclenche le push exactement comme le webhook.</CardDescription>
+                </div>
+                <StatusBadge status={get('waSim').status} />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Button onClick={simulateWhatsAppInbound} disabled={get('waSim').status === 'running' || !user}>
+                <Zap className="w-4 h-4 mr-2" />Simuler maintenant
+              </Button>
+              <ResultBlock result={get('waSim')} />
+            </CardContent>
+          </Card>
+
+          {/* Delivery logs */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between gap-2 flex-wrap">
+                <div>
+                  <CardTitle className="flex items-center gap-2"><Database className="w-5 h-5" />Historique des envois ({logs.length})</CardTitle>
+                  <CardDescription>30 derniers envois backend, par appareil et par source.</CardDescription>
+                </div>
+                <Button size="sm" variant="ghost" onClick={loadLogs}><RefreshCw className="w-4 h-4" /></Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-1">
+              {logs.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">Aucun envoi enregistré pour le moment.</p>
+              ) : (
+                logs.map((l) => (
+                  <div key={l.id} className="text-xs p-2 rounded border border-white/5 bg-black/30 flex items-start gap-2">
+                    <span className="shrink-0">
+                      {l.status === 'sent' ? '✅' : l.status === 'expired' ? '⛔' : '❌'}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Badge variant="outline" className="text-[10px]">{l.source}</Badge>
+                        <span className="font-medium truncate">{l.device_label || '—'}</span>
+                        <span className="text-muted-foreground">· {new Date(l.created_at).toLocaleTimeString('fr-FR')}</span>
+                        {l.provider_status && <span className="text-muted-foreground">· HTTP {l.provider_status}</span>}
+                      </div>
+                      <p className="text-muted-foreground truncate">{l.title} — {l.body_preview}</p>
+                      {l.error_message && <p className="text-destructive truncate">{l.error_message}</p>}
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* EMAILS */}
         <TabsContent value="emails" className="space-y-4">
@@ -607,7 +667,7 @@ export default function SettingsTestsPage() {
               <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
                   <CardTitle className="flex items-center gap-2"><Mail className="w-5 h-5" />SMTP — Email transactionnel</CardTitle>
-                  <CardDescription>Envoie un email de test via ton serveur SMTP perso.</CardDescription>
+                  <CardDescription>Envoie un email de test.</CardDescription>
                 </div>
                 <StatusBadge status={get('smtp').status} />
               </div>
@@ -615,7 +675,7 @@ export default function SettingsTestsPage() {
             <CardContent className="space-y-3">
               <div>
                 <Label htmlFor="smtp-to">Email destinataire</Label>
-                <Input id="smtp-to" type="email" value={smtpRecipient} onChange={(e) => setSmtpRecipient(e.target.value)} placeholder="toi@exemple.com" />
+                <Input id="smtp-to" type="email" value={smtpRecipient} onChange={(e) => setSmtpRecipient(e.target.value)} />
               </div>
               <Button onClick={testSmtp} disabled={get('smtp').status === 'running'}>
                 <Send className="w-4 h-4 mr-2" />Envoyer email test
@@ -629,206 +689,34 @@ export default function SettingsTestsPage() {
               <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
                   <CardTitle className="flex items-center gap-2"><Bell className="w-5 h-5" />Notification nouveau lead</CardTitle>
-                  <CardDescription>Crée un lead [TEST] et déclenche le flux complet (push + email).</CardDescription>
+                  <CardDescription>Crée un lead [TEST] et déclenche le flux complet.</CardDescription>
                 </div>
                 <StatusBadge status={get('notifyLead').status} />
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
               <Button onClick={testNotifyLead} disabled={get('notifyLead').status === 'running'}>
-                <Zap className="w-4 h-4 mr-2" />Lancer le flux complet
+                <Zap className="w-4 h-4 mr-2" />Lancer le flux
               </Button>
               <ResultBlock result={get('notifyLead')} />
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* NOTIFICATIONS */}
-        <TabsContent value="notifications" className="space-y-4">
-          {isPreview && (
-            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm">
-              <p className="font-medium text-destructive">⚠️ Notifications push indisponibles dans le preview Lovable</p>
-              <p className="text-foreground/70 text-xs mt-1">
-                Les service workers sont désactivés dans l'éditeur. Ouvre la version publiée pour tester :
-                {' '}
-                <a href="https://digital-launch-crm.lovable.app/settings/tests" target="_blank" rel="noreferrer" className="underline font-medium text-primary">
-                  digital-launch-crm.lovable.app
-                </a>
-              </p>
-            </div>
-          )}
-          <Card>
-            <CardHeader>
-              <div className="flex items-start justify-between gap-2 flex-wrap">
-                <div>
-                  <CardTitle className="flex items-center gap-2"><Bell className="w-5 h-5" />Notifications Push</CardTitle>
-                  <CardDescription>
-                    Statut : {isSubscribed ? <span className="text-primary">Abonné ✓</span> : <span className="text-muted-foreground">Non abonné</span>}
-                  </CardDescription>
-                </div>
-                <StatusBadge status={get('push').status} />
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                <Button onClick={testLocalNotification} disabled={get('pushLocal').status === 'running'} variant="secondary">
-                  <Bell className="w-4 h-4 mr-2" />Tester affichage local
-                </Button>
-                <Button onClick={testPush} disabled={get('push').status === 'running' || dedupedDevices.length === 0}>
-                  <Bell className="w-4 h-4 mr-2" />{selectedCount > 0 ? `Envoyer à ${selectedCount} appareil(s)` : (isSubscribed ? 'Tester push backend' : 'S\'abonner + tester')}
-                </Button>
-                <Button variant="outline" onClick={unsubscribeCurrentDevice} disabled={!currentSubscriptionEndpoint || get('push').status === 'running'}>
-                  <Trash2 className="w-4 h-4 mr-2" />Désabonner cet appareil
-                </Button>
-              </div>
-              <ResultBlock result={get('pushLocal')} />
-              <ResultBlock result={get('push')} />
-            </CardContent>
-          </Card>
-
-          {/* MOBILE PUSH TEST — Differé pour fermer l'app */}
-          <Card className="border-primary/30">
-            <CardHeader>
-              <div className="flex items-start justify-between gap-2 flex-wrap">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Smartphone className="w-5 h-5 text-primary" />
-                    Test push mobile (app fermée)
-                  </CardTitle>
-                  <CardDescription>
-                    Déclenche depuis ton PC une notif différée. Tu as le temps de fermer l'app sur ton mobile pour vérifier qu'elle arrive bien en arrière-plan.
-                  </CardDescription>
-                </div>
-                <StatusBadge status={get('pushDelayed').status} />
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 text-xs space-y-1">
-                <p className="font-medium">📋 Mode d'emploi :</p>
-                <ol className="text-muted-foreground space-y-0.5 ml-4 list-decimal">
-                  <li>Sur mobile : ouvre l'app PWA (écran d'accueil) et active les notifs</li>
-                  <li>Sur PC : choisis un délai puis clique sur "Lancer test différé"</li>
-                  <li>Sur mobile : ferme complètement l'app pendant le compte à rebours</li>
-                  <li>Vérifie que la notif arrive sur l'écran verrouillé</li>
-                </ol>
-              </div>
-
-              <div className="flex gap-2 items-end">
-                <div className="flex-1">
-                  <Label htmlFor="delay">Délai avant envoi (sec)</Label>
-                  <Input
-                    id="delay"
-                    type="number"
-                    min={3}
-                    max={120}
-                    value={delaySec}
-                    onChange={(e) => setDelaySec(Number(e.target.value) || 10)}
-                  />
-                </div>
-                <Button
-                  onClick={testPushDelayed}
-                  disabled={get('pushDelayed').status === 'running' || !user}
-                  className="shrink-0"
-                >
-                  {countdown !== null ? (
-                    <><Clock className="w-4 h-4 mr-2 animate-pulse" />{countdown}s</>
-                  ) : (
-                    <><Smartphone className="w-4 h-4 mr-2" />Lancer test différé</>
-                  )}
-                </Button>
-              </div>
-              <ResultBlock result={get('pushDelayed')} />
-            </CardContent>
-          </Card>
-
-          {/* DEVICES LIST */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-start justify-between gap-2 flex-wrap">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Smartphone className="w-5 h-5" />
-                    Appareils enregistrés ({devices.length})
-                  </CardTitle>
-                  <CardDescription>
-                    Tous les appareils qui recevront tes notifications. Supprime les anciens si besoin.
-                  </CardDescription>
-                </div>
-                <Button size="sm" variant="ghost" onClick={async () => {
-                  await Promise.all([loadDevices(), loadCurrentSubscription()]);
-                }}>↻</Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2 pb-2">
-                <Button size="sm" variant="outline" onClick={selectAllDevices} disabled={dedupedDevices.length === 0}>
-                  <CheckSquare className="w-4 h-4 mr-2" />Tout sélectionner
-                </Button>
-                <Button size="sm" variant="outline" onClick={clearSelectedDevices} disabled={selectedCount === 0}>
-                  <Square className="w-4 h-4 mr-2" />Tout désélectionner
-                </Button>
-                <Badge variant="outline">{selectedCount} sélectionné(s)</Badge>
-              </div>
-              <ResultBlock result={get('pushDevices')} />
-              {dedupedDevices.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Aucun appareil. Active les notifications sur le mobile/PC à utiliser.
-                </p>
-              ) : (
-                dedupedDevices.map((d) => {
-                  const dev = detectDevice(d.device_info);
-                  const isCurrentDevice = d.endpoint === currentSubscriptionEndpoint;
-                  const isSelected = selectedDeviceIds.includes(d.id);
-                  return (
-                    <div key={d.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-black/30 border border-white/5">
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <button
-                          type="button"
-                          onClick={() => toggleDeviceSelection(d.id)}
-                          className="shrink-0 text-primary"
-                          aria-label={isSelected ? 'Désélectionner cet appareil' : 'Sélectionner cet appareil'}
-                        >
-                          {isSelected ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5 text-muted-foreground" />}
-                        </button>
-                        <span className="text-2xl">{dev.icon}</span>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium">{dev.label}</p>
-                            {isCurrentDevice && <Badge variant="outline">Cet appareil</Badge>}
-                            {isSelected && <Badge variant="outline">Ciblé</Badge>}
-                          </div>
-                          <p className="text-xs text-muted-foreground truncate">
-                            Ajouté {new Date(d.created_at).toLocaleDateString('fr-FR')} · {d.device_info?.slice(0, 60)}…
-                          </p>
-                          <p className="text-[10px] text-muted-foreground/80 truncate">ID: {d.id}</p>
-                        </div>
-                      </div>
-                      <Button size="sm" variant="ghost" onClick={() => deleteDevice(d.id, d.endpoint)}>
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
-                    </div>
-                  );
-                })
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
+        {/* INTEGRATIONS */}
         <TabsContent value="integrations" className="space-y-4">
           <Card>
             <CardHeader>
               <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
-                  <CardTitle className="flex items-center gap-2"><Facebook className="w-5 h-5" />Facebook Lead Ads — Webhook</CardTitle>
-                  <CardDescription>Vérifie l'abonnement de la page aux leads Facebook.</CardDescription>
+                  <CardTitle className="flex items-center gap-2"><Facebook className="w-5 h-5" />Facebook Webhook</CardTitle>
+                  <CardDescription>Vérifie l'abonnement.</CardDescription>
                 </div>
                 <StatusBadge status={get('fb').status} />
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button onClick={testFbSubscription} disabled={get('fb').status === 'running'}>
-                <Webhook className="w-4 h-4 mr-2" />Vérifier l'abonnement
-              </Button>
+              <Button onClick={testFbSubscription} disabled={get('fb').status === 'running'}><Webhook className="w-4 h-4 mr-2" />Vérifier</Button>
               <ResultBlock result={get('fb')} />
             </CardContent>
           </Card>
@@ -837,16 +725,14 @@ export default function SettingsTestsPage() {
             <CardHeader>
               <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
-                  <CardTitle className="flex items-center gap-2"><Calendar className="w-5 h-5" />Google Calendar — Disponibilités</CardTitle>
-                  <CardDescription>Récupère les créneaux libres de demain via Google FreeBusy.</CardDescription>
+                  <CardTitle className="flex items-center gap-2"><Calendar className="w-5 h-5" />Google Calendar</CardTitle>
+                  <CardDescription>Créneaux de demain.</CardDescription>
                 </div>
                 <StatusBadge status={get('avail').status} />
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button onClick={testAvailability} disabled={get('avail').status === 'running'}>
-                <Calendar className="w-4 h-4 mr-2" />Vérifier les créneaux
-              </Button>
+              <Button onClick={testAvailability} disabled={get('avail').status === 'running'}><Calendar className="w-4 h-4 mr-2" />Vérifier</Button>
               <ResultBlock result={get('avail')} />
             </CardContent>
           </Card>
@@ -856,19 +742,15 @@ export default function SettingsTestsPage() {
               <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
                   <CardTitle className="flex items-center gap-2"><FileSignature className="w-5 h-5" />E-Signature</CardTitle>
-                  <CardDescription>Génère un lien de signature de test pour le 1er client en base.</CardDescription>
+                  <CardDescription>Lien de signature test.</CardDescription>
                 </div>
                 <StatusBadge status={get('sign').status} />
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button onClick={testSignature} disabled={get('sign').status === 'running'}>
-                <FileSignature className="w-4 h-4 mr-2" />Générer lien signature
-              </Button>
+              <Button onClick={testSignature} disabled={get('sign').status === 'running'}><FileSignature className="w-4 h-4 mr-2" />Générer</Button>
               {get('sign').status === 'success' && typeof get('sign').data === 'string' && (
-                <a href={get('sign').data} target="_blank" rel="noreferrer" className="text-primary text-sm underline block">
-                  → Ouvrir la page de signature
-                </a>
+                <a href={get('sign').data} target="_blank" rel="noreferrer" className="text-primary text-sm underline block">→ Ouvrir</a>
               )}
               <ResultBlock result={get('sign')} />
             </CardContent>
@@ -881,24 +763,16 @@ export default function SettingsTestsPage() {
             <CardHeader>
               <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
-                  <CardTitle className="flex items-center gap-2"><Brain className="w-5 h-5" />Analyse IA d'un lead</CardTitle>
-                  <CardDescription>Teste le scoring + résumé + angle de vente via Gemini.</CardDescription>
+                  <CardTitle className="flex items-center gap-2"><Brain className="w-5 h-5" />Analyse IA</CardTitle>
+                  <CardDescription>Scoring + résumé.</CardDescription>
                 </div>
                 <StatusBadge status={get('ai').status} />
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div>
-                <Label>Nom du lead</Label>
-                <Input value={aiLeadName} onChange={(e) => setAiLeadName(e.target.value)} />
-              </div>
-              <div>
-                <Label>Message du lead</Label>
-                <Input value={aiLeadMsg} onChange={(e) => setAiLeadMsg(e.target.value)} />
-              </div>
-              <Button onClick={testAiAnalysis} disabled={get('ai').status === 'running'}>
-                <Brain className="w-4 h-4 mr-2" />Analyser
-              </Button>
+              <div><Label>Nom</Label><Input value={aiLeadName} onChange={(e) => setAiLeadName(e.target.value)} /></div>
+              <div><Label>Message</Label><Input value={aiLeadMsg} onChange={(e) => setAiLeadMsg(e.target.value)} /></div>
+              <Button onClick={testAiAnalysis} disabled={get('ai').status === 'running'}><Brain className="w-4 h-4 mr-2" />Analyser</Button>
               <ResultBlock result={get('ai')} />
             </CardContent>
           </Card>
@@ -909,17 +783,12 @@ export default function SettingsTestsPage() {
           <Card>
             <CardHeader>
               <div className="flex items-start justify-between gap-2 flex-wrap">
-                <div>
-                  <CardTitle className="flex items-center gap-2"><Database className="w-5 h-5" />Base de données</CardTitle>
-                  <CardDescription>Compte les enregistrements pour vérifier la connexion + RLS.</CardDescription>
-                </div>
+                <div><CardTitle className="flex items-center gap-2"><Database className="w-5 h-5" />Base de données</CardTitle></div>
                 <StatusBadge status={get('db').status} />
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button onClick={testDb} disabled={get('db').status === 'running'}>
-                <Database className="w-4 h-4 mr-2" />Tester la connexion
-              </Button>
+              <Button onClick={testDb} disabled={get('db').status === 'running'}><Database className="w-4 h-4 mr-2" />Tester</Button>
               <ResultBlock result={get('db')} />
             </CardContent>
           </Card>
@@ -927,17 +796,12 @@ export default function SettingsTestsPage() {
           <Card>
             <CardHeader>
               <div className="flex items-start justify-between gap-2 flex-wrap">
-                <div>
-                  <CardTitle className="flex items-center gap-2"><Bell className="w-5 h-5" />Cron — Rappels dus</CardTitle>
-                  <CardDescription>Force l'exécution du cron qui envoie les push de rappels.</CardDescription>
-                </div>
+                <div><CardTitle className="flex items-center gap-2"><Bell className="w-5 h-5" />Cron rappels</CardTitle></div>
                 <StatusBadge status={get('reminders').status} />
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button onClick={testReminders} disabled={get('reminders').status === 'running'}>
-                <Zap className="w-4 h-4 mr-2" />Exécuter le cron
-              </Button>
+              <Button onClick={testReminders} disabled={get('reminders').status === 'running'}><Zap className="w-4 h-4 mr-2" />Exécuter</Button>
               <ResultBlock result={get('reminders')} />
             </CardContent>
           </Card>
