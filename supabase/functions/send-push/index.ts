@@ -1,7 +1,11 @@
-// send-push : utilise la lib web-push (RFC 8291 aes128gcm) pour fiabilité maximale
-// même quand l'app est fermée sur mobile et desktop.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.99.1";
-import webpush from "https://esm.sh/web-push@3.6.7?target=deno&deno-std=0.177.0";
+import {
+  ApplicationServer,
+  PushMessageError,
+  type PushSubscription,
+  Urgency,
+} from "jsr:@negrel/webpush@0.5.0";
+import { p256 } from "https://esm.sh/@noble/curves@1.4.2/p256";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,7 +13,6 @@ const corsHeaders = {
 };
 
 const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY")!;
-const VAPID_PUBLIC_KEY = Deno.env.get("VAPID_PUBLIC_KEY")!;
 const VAPID_SUBJECT_RAW = Deno.env.get("VAPID_SUBJECT") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -21,23 +24,59 @@ function getNormalizedVapidSubject(): string {
   return "mailto:contact@digitallaunch-llc.com";
 }
 
-// Derive public key from private key if missing/mismatched
-async function ensureVapidKeys(): Promise<{ publicKey: string; privateKey: string }> {
-  if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-    return { publicKey: VAPID_PUBLIC_KEY, privateKey: VAPID_PRIVATE_KEY };
-  }
-  // Fallback: derive public from private
-  const { p256 } = await import("https://esm.sh/@noble/curves@1.4.2/p256");
-  const padding = "=".repeat((4 - (VAPID_PRIVATE_KEY.length % 4)) % 4);
-  const base64 = (VAPID_PRIVATE_KEY + padding).replace(/-/g, "+").replace(/_/g, "/");
+function base64UrlToBytes(base64Url: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64Url.length % 4)) % 4);
+  const base64 = (base64Url + padding).replace(/-/g, "+").replace(/_/g, "/");
   const bin = atob(base64);
-  const privBytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) privBytes[i] = bin.charCodeAt(i);
-  const pubBytes = p256.getPublicKey(privBytes, false);
-  let binPub = "";
-  for (const b of pubBytes) binPub += String.fromCharCode(b);
-  const pubKey = btoa(binPub).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  return { publicKey: pubKey, privateKey: VAPID_PRIVATE_KEY };
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+function bytesToBase64Url(bytes: Uint8Array): string {
+  let bin = "";
+  for (const byte of bytes) bin += String.fromCharCode(byte);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function importVapidKeyPairFromRawPrivateKey(rawPrivateKey: string): Promise<CryptoKeyPair> {
+  const privateBytes = base64UrlToBytes(rawPrivateKey);
+  const publicBytes = p256.getPublicKey(privateBytes, false);
+  const x = publicBytes.slice(1, 33);
+  const y = publicBytes.slice(33, 65);
+
+  const publicKey = await crypto.subtle.importKey(
+    "jwk",
+    {
+      kty: "EC",
+      crv: "P-256",
+      x: bytesToBase64Url(x),
+      y: bytesToBase64Url(y),
+      key_ops: ["verify"],
+      ext: true,
+    },
+    { name: "ECDSA", namedCurve: "P-256" },
+    true,
+    ["verify"],
+  );
+
+  const privateKey = await crypto.subtle.importKey(
+    "jwk",
+    {
+      kty: "EC",
+      crv: "P-256",
+      d: bytesToBase64Url(privateBytes),
+      x: bytesToBase64Url(x),
+      y: bytesToBase64Url(y),
+      key_ops: ["sign"],
+      ext: true,
+    },
+    { name: "ECDSA", namedCurve: "P-256" },
+    false,
+    ["sign"],
+  );
+
+  return { publicKey, privateKey };
 }
 
 Deno.serve(async (req) => {
@@ -55,20 +94,22 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { publicKey, privateKey } = await ensureVapidKeys();
+    const vapidKeys = await importVapidKeyPairFromRawPrivateKey(VAPID_PRIVATE_KEY);
     const subject = getNormalizedVapidSubject();
-    webpush.setVapidDetails(subject, publicKey, privateKey);
+    const appServer = await ApplicationServer.new({
+      contactInformation: subject,
+      vapidKeys,
+    });
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
     const { data: subscriptions, error } = await supabase
       .from("push_subscriptions")
       .select("endpoint, keys_p256dh, keys_auth, id")
       .eq("user_id", user_id);
 
     if (error) throw error;
-    if (!subscriptions || subscriptions.length === 0) {
-      return new Response(JSON.stringify({ sent: 0, message: "No subscriptions found" }), {
+    if (!subscriptions?.length) {
+      return new Response(JSON.stringify({ sent: 0, failed: 0, expired_cleaned: 0, debug: [] }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -85,47 +126,52 @@ Deno.serve(async (req) => {
     let sent = 0;
     let failed = 0;
     const expiredIds: string[] = [];
-    const debugLogs: any[] = [];
-
-    debugLogs.push({
-      global: `Found ${subscriptions.length} subscription(s)`,
-      mode: "aes128gcm (RFC 8291 via web-push)",
-      vapidSubject: subject,
-      vapidPublicKeyLen: publicKey.length,
-    });
+    const debugLogs: Array<Record<string, unknown>> = [
+      {
+        global: `Found ${subscriptions.length} subscription(s)`,
+        mode: "aes128gcm (RFC 8291 via @negrel/webpush)",
+        vapidSubject: subject,
+      },
+    ];
 
     for (const sub of subscriptions) {
+      const host = new URL(sub.endpoint).host;
       try {
-        const result = await webpush.sendNotification(
-          {
-            endpoint: sub.endpoint,
-            keys: { p256dh: sub.keys_p256dh, auth: sub.keys_auth },
-          },
-          payload,
-          { TTL: 86400, urgency: "high" }
-        );
-        debugLogs.push({
-          subId: sub.id,
-          host: new URL(sub.endpoint).host,
-          status: result.statusCode,
-          headers: result.headers,
-          body: (result.body || "").toString().slice(0, 300),
-          ok: true,
+        const subscriber = appServer.subscribe({
+          endpoint: sub.endpoint,
+          keys: { p256dh: sub.keys_p256dh, auth: sub.keys_auth },
+        } satisfies PushSubscription);
+
+        await subscriber.pushTextMessage(payload, {
+          ttl: 86400,
+          urgency: Urgency.High,
+          topic: typeof tag === "string" && tag.length > 0 ? tag : undefined,
         });
+
+        debugLogs.push({ subId: sub.id, host, ok: true, status: 201 });
         sent++;
-      } catch (e: any) {
-        const status = e?.statusCode;
-        debugLogs.push({
-          subId: sub.id,
-          host: new URL(sub.endpoint).host,
-          status,
-          error: e?.message || String(e),
-          body: (e?.body || "").toString().slice(0, 300),
-          headers: e?.headers,
-          ok: false,
-        });
-        if (status === 404 || status === 410 || status === 403) {
-          expiredIds.push(sub.id);
+      } catch (error) {
+        if (error instanceof PushMessageError) {
+          const status = error.response.status;
+          const responseBody = await error.response.text();
+          debugLogs.push({
+            subId: sub.id,
+            host,
+            status,
+            error: error.toString(),
+            body: responseBody.slice(0, 300),
+            ok: false,
+          });
+          if (status === 403 || status === 404 || status === 410) {
+            expiredIds.push(sub.id);
+          }
+        } else {
+          debugLogs.push({
+            subId: sub.id,
+            host,
+            error: error instanceof Error ? error.message : String(error),
+            ok: false,
+          });
         }
         failed++;
       }
@@ -135,13 +181,15 @@ Deno.serve(async (req) => {
       await supabase.from("push_subscriptions").delete().in("id", expiredIds);
     }
 
-    return new Response(
-      JSON.stringify({ sent, failed, expired_cleaned: expiredIds.length, debug: debugLogs }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  } catch (e: any) {
-    console.error("send-push error:", e);
-    return new Response(JSON.stringify({ error: e.message, stack: e.stack }), {
+    return new Response(JSON.stringify({ sent, failed, expired_cleaned: expiredIds.length, debug: debugLogs }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error("send-push error:", error);
+    return new Response(JSON.stringify({
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
