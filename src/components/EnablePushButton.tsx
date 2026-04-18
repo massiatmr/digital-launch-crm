@@ -4,6 +4,7 @@ import { usePushNotifications, PushState } from '@/hooks/usePushNotifications';
 
 const labels: Record<PushState, string> = {
   unsupported: 'Non supporté',
+  preview: 'Indispo en preview',
   default: 'Activer les rappels',
   denied: 'Notifications bloquées',
   granted: 'Activer les rappels',
@@ -12,6 +13,7 @@ const labels: Record<PushState, string> = {
 
 const icons: Record<PushState, React.ReactNode> = {
   unsupported: <BellOff className="h-4 w-4" />,
+  preview: <BellOff className="h-4 w-4" />,
   default: <Bell className="h-4 w-4" />,
   denied: <BellOff className="h-4 w-4" />,
   granted: <BellRing className="h-4 w-4" />,
@@ -21,7 +23,7 @@ const icons: Record<PushState, React.ReactNode> = {
 export function EnablePushButton() {
   const { state, subscribe, loading } = usePushNotifications();
 
-  const disabled = state === 'unsupported' || state === 'denied' || state === 'subscribed' || loading;
+  const disabled = state === 'unsupported' || state === 'preview' || state === 'denied' || state === 'subscribed' || loading;
 
   return (
     <Button
