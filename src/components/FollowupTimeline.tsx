@@ -27,6 +27,7 @@ const STATUS_META: Record<string, { label: string; icon: any; className: string 
 };
 
 export function FollowupTimeline({ leadId }: { leadId: string }) {
+  useWhatsAppRealtime(leadId);
   const { data: tasks = [], isLoading } = useFollowupTasks(leadId);
   const { data: messages = [] } = useWhatsAppMessages(leadId);
   const { data: convState } = useConversationState(leadId);
@@ -34,11 +35,17 @@ export function FollowupTimeline({ leadId }: { leadId: string }) {
   const cancelTask = useCancelTask();
   const generate = useGenerateMessage();
   const markReplied = useMarkLeadReplied();
+  const sendWA = useSendWhatsAppMessage();
 
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
-  const [replyContent, setReplyContent] = useState('');
-  const [showReplyInput, setShowReplyInput] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [showSequence, setShowSequence] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages.length]);
 
   const startEdit = async (taskId: string, taskType: string) => {
     setEditing(taskId);
@@ -47,6 +54,13 @@ export function FollowupTimeline({ leadId }: { leadId: string }) {
       const msg = await generate.mutateAsync({ leadId, taskType });
       setDraft(msg);
     } catch {}
+  };
+
+  const handleSend = async () => {
+    const msg = chatInput.trim();
+    if (!msg) return;
+    setChatInput('');
+    await sendWA.mutateAsync({ leadId, message: msg });
   };
 
   if (isLoading) return <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>;
