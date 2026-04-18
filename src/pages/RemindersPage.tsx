@@ -3,7 +3,8 @@ import { format, addDays, setHours, setMinutes, startOfDay, isSameDay, isToday, 
 import { fr } from 'date-fns/locale';
 import { Check, Clock, Loader2, Pencil, X, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
@@ -150,13 +151,20 @@ function DateTimePicker({ value, onChange }: { value: Date; onChange: (d: Date) 
   );
 }
 
-function ReminderCard({ r, isPending }: { r: any; isPending: boolean }) {
+function ReminderCard({ r, isPending, highlighted }: { r: any; isPending: boolean; highlighted?: boolean }) {
   const toggleReminder = useToggleReminder();
   const updateReminder = useUpdateReminder();
   const [editing, setEditing] = useState(false);
   const [editAction, setEditAction] = useState(r.action);
   const [editDate, setEditDate] = useState<Date>(new Date(r.due_date));
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (highlighted && cardRef.current) {
+      cardRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [highlighted]);
 
   const now = new Date();
   const dueDate = new Date(r.due_date);
@@ -187,7 +195,7 @@ function ReminderCard({ r, isPending }: { r: any; isPending: boolean }) {
 
   if (!isPending) {
     return (
-      <div className="flex items-center gap-4 rounded-xl border border-border bg-card/50 px-5 py-3 opacity-60">
+      <div ref={cardRef} className={cn("flex items-center gap-4 rounded-xl border border-border bg-card/50 px-5 py-3 opacity-60", highlighted && 'highlight-flash')}>
         <button
           onClick={() => toggleReminder.mutate({ id: r.id, done: false })}
           className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-primary bg-primary/20"
@@ -200,9 +208,10 @@ function ReminderCard({ r, isPending }: { r: any; isPending: boolean }) {
   }
 
   return (
-    <div className={cn(
+    <div ref={cardRef} className={cn(
       "rounded-xl border px-5 py-4 transition-colors",
-      isOverdue ? "border-destructive/40 bg-destructive/5" : "border-border bg-card"
+      isOverdue ? "border-destructive/40 bg-destructive/5" : "border-border bg-card",
+      highlighted && 'highlight-flash'
     )}>
       <div className="flex items-start gap-4">
         <button
@@ -278,6 +287,20 @@ function ReminderCard({ r, isPending }: { r: any; isPending: boolean }) {
 
 export default function RemindersPage() {
   const { data: reminders = [], isLoading } = useReminders();
+  const [params, setParams] = useSearchParams();
+  const highlightId = params.get('highlight');
+
+  // Strip the highlight param after the animation
+  useEffect(() => {
+    if (!highlightId) return;
+    const t = setTimeout(() => {
+      const next = new URLSearchParams(params);
+      next.delete('highlight');
+      setParams(next, { replace: true });
+    }, 5000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightId]);
 
   const pending = reminders.filter(r => !r.done);
   const done = reminders.filter(r => r.done);
@@ -305,7 +328,7 @@ export default function RemindersPage() {
         <>
           <div className="space-y-3">
             {pending.map(r => (
-              <ReminderCard key={r.id} r={r} isPending={true} />
+              <ReminderCard key={r.id} r={r} isPending={true} highlighted={r.id === highlightId} />
             ))}
           </div>
 
@@ -314,7 +337,7 @@ export default function RemindersPage() {
               <h2 className="font-heading text-lg text-muted-foreground mb-3">Terminés</h2>
               <div className="space-y-2">
                 {done.map(r => (
-                  <ReminderCard key={r.id} r={r} isPending={false} />
+                  <ReminderCard key={r.id} r={r} isPending={false} highlighted={r.id === highlightId} />
                 ))}
               </div>
             </div>

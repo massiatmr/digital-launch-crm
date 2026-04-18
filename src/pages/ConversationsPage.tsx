@@ -16,7 +16,9 @@ export default function ConversationsPage() {
   const { items, isLoading, markSeen } = useWhatsAppInbox();
   const { data: settings } = useFollowupSettings();
   const [search, setSearch] = useState('');
+  const [flash, setFlash] = useState(false);
   const selectedId = params.get('lead');
+  const highlight = params.get('highlight') === '1';
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -26,17 +28,28 @@ export default function ConversationsPage() {
 
   const selected = items.find((i) => i.lead_id === selectedId) ?? null;
 
-  // Auto-select first when desktop and none chosen
   useEffect(() => {
     if (!selectedId && items.length && window.innerWidth >= 768) {
       setParams({ lead: items[0].lead_id }, { replace: true });
     }
   }, [items, selectedId, setParams]);
 
-  // Mark seen when opened
   useEffect(() => {
     if (selectedId) markSeen(selectedId);
   }, [selectedId, markSeen]);
+
+  useEffect(() => {
+    if (!highlight || !selected) return;
+    setFlash(true);
+    const t = setTimeout(() => {
+      setFlash(false);
+      const next = new URLSearchParams(params);
+      next.delete('highlight');
+      setParams(next, { replace: true });
+    }, 4500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlight, selected?.lead_id]);
 
   const selectLead = (id: string) => setParams({ lead: id });
   const back = () => setParams({});
@@ -107,7 +120,7 @@ export default function ConversationsPage() {
               Sélectionne une conversation
             </div>
           ) : (
-            <div className="flex flex-col h-full rounded-xl border border-border bg-card overflow-hidden">
+            <div className={cn('flex flex-col h-full rounded-xl border border-border bg-card overflow-hidden', flash && 'highlight-flash')}>
               <header className="flex items-center gap-2 px-3 py-2.5 border-b border-border bg-muted/20">
                 <Button variant="ghost" size="icon" className="md:hidden h-8 w-8" onClick={back}>
                   <ArrowLeft className="h-4 w-4" />

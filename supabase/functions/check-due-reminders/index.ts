@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
           user_id: reminder.owner_id,
           title: `🔔 Rappel : ${leadName}`,
           body: reminder.action,
-          url: `/leads/${reminder.lead_id}`,
+          url: `/reminders?highlight=${reminder.id}`,
           tag: `reminder-${reminder.id}`.slice(0, 32),
         }),
       });
