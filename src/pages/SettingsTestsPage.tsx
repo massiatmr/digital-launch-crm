@@ -342,7 +342,7 @@ export default function SettingsTestsPage() {
         <TabsContent value="emails" className="space-y-4">
           <Card>
             <CardHeader>
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
                   <CardTitle className="flex items-center gap-2"><Mail className="w-5 h-5" />SMTP — Email transactionnel</CardTitle>
                   <CardDescription>Envoie un email de test via ton serveur SMTP perso.</CardDescription>
@@ -364,7 +364,7 @@ export default function SettingsTestsPage() {
 
           <Card>
             <CardHeader>
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
                   <CardTitle className="flex items-center gap-2"><Bell className="w-5 h-5" />Notification nouveau lead</CardTitle>
                   <CardDescription>Crée un lead [TEST] et déclenche le flux complet (push + email).</CardDescription>
@@ -385,7 +385,7 @@ export default function SettingsTestsPage() {
         <TabsContent value="notifications" className="space-y-4">
           <Card>
             <CardHeader>
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
                   <CardTitle className="flex items-center gap-2"><Bell className="w-5 h-5" />Notifications Push</CardTitle>
                   <CardDescription>
@@ -406,7 +406,7 @@ export default function SettingsTestsPage() {
           {/* MOBILE PUSH TEST — Differé pour fermer l'app */}
           <Card className="border-primary/30">
             <CardHeader>
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <Smartphone className="w-5 h-5 text-primary" />
@@ -461,7 +461,7 @@ export default function SettingsTestsPage() {
           {/* DEVICES LIST */}
           <Card>
             <CardHeader>
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <Smartphone className="w-5 h-5" />
@@ -507,7 +507,7 @@ export default function SettingsTestsPage() {
         <TabsContent value="integrations" className="space-y-4">
           <Card>
             <CardHeader>
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
                   <CardTitle className="flex items-center gap-2"><Facebook className="w-5 h-5" />Facebook Lead Ads — Webhook</CardTitle>
                   <CardDescription>Vérifie l'abonnement de la page aux leads Facebook.</CardDescription>
@@ -525,7 +525,7 @@ export default function SettingsTestsPage() {
 
           <Card>
             <CardHeader>
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
                   <CardTitle className="flex items-center gap-2"><Calendar className="w-5 h-5" />Google Calendar — Disponibilités</CardTitle>
                   <CardDescription>Récupère les créneaux libres de demain via Google FreeBusy.</CardDescription>
@@ -543,7 +543,7 @@ export default function SettingsTestsPage() {
 
           <Card>
             <CardHeader>
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
                   <CardTitle className="flex items-center gap-2"><FileSignature className="w-5 h-5" />E-Signature</CardTitle>
                   <CardDescription>Génère un lien de signature de test pour le 1er client en base.</CardDescription>
@@ -569,7 +569,7 @@ export default function SettingsTestsPage() {
         <TabsContent value="ai" className="space-y-4">
           <Card>
             <CardHeader>
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
                   <CardTitle className="flex items-center gap-2"><Brain className="w-5 h-5" />Analyse IA d'un lead</CardTitle>
                   <CardDescription>Teste le scoring + résumé + angle de vente via Gemini.</CardDescription>
@@ -598,7 +598,7 @@ export default function SettingsTestsPage() {
         <TabsContent value="system" className="space-y-4">
           <Card>
             <CardHeader>
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
                   <CardTitle className="flex items-center gap-2"><Database className="w-5 h-5" />Base de données</CardTitle>
                   <CardDescription>Compte les enregistrements pour vérifier la connexion + RLS.</CardDescription>
@@ -616,7 +616,7 @@ export default function SettingsTestsPage() {
 
           <Card>
             <CardHeader>
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
                   <CardTitle className="flex items-center gap-2"><Bell className="w-5 h-5" />Cron — Rappels dus</CardTitle>
                   <CardDescription>Force l'exécution du cron qui envoie les push de rappels.</CardDescription>
