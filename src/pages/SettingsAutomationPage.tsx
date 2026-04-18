@@ -231,6 +231,73 @@ export default function SettingsAutomationPage() {
               <Switch checked={form.is_enabled} onCheckedChange={(v) => set({ is_enabled: v })} />
             </div>
           </div>
+
+          {/* DÉCLENCHEUR & EXÉCUTION */}
+          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+            <div>
+              <h2 className="font-heading text-base flex items-center gap-2">
+                <Zap className="h-4 w-4 text-primary" /> Déclencheur & exécution
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Le moteur qui détecte les tâches dues et lance les envois.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Trigger DB */}
+              <div className="rounded-lg border border-border bg-background/50 p-3">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-green-400" /> Trigger lead
+                </div>
+                <p className="text-sm font-medium">Actif</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Crée la séquence à chaque nouveau lead</p>
+              </div>
+
+              {/* Cron */}
+              <div className="rounded-lg border border-border bg-background/50 p-3">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                  {cronStatus?.active ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-green-400" />
+                  ) : (
+                    <AlertTriangle className="h-3.5 w-3.5 text-yellow-400" />
+                  )}
+                  Cron (chaque minute)
+                </div>
+                <p className="text-sm font-medium">{cronStatus?.active ? 'Actif' : 'Inactif'}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  {cronStatus?.last_run_at
+                    ? `Dernier run: ${formatDistanceToNow(new Date(cronStatus.last_run_at), { addSuffix: true, locale: fr })}`
+                    : 'Pas encore exécuté'}
+                </p>
+              </div>
+
+              {/* Tâches dues */}
+              <div className="rounded-lg border border-border bg-background/50 p-3">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                  <Clock className="h-3.5 w-3.5 text-primary" /> Tâches dues
+                </div>
+                <p className="text-sm font-medium font-mono">{dueCount}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">En attente de traitement</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => runNow.mutate()}
+                disabled={runNow.isPending || dueCount === 0}
+                className="gap-2"
+              >
+                {runNow.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+                Exécuter maintenant ({dueCount})
+              </Button>
+              <p className="text-xs text-muted-foreground sm:self-center">
+                Force le traitement immédiat de toutes les tâches dues, sans attendre le cron.
+              </p>
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
 
