@@ -1,0 +1,86 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
+
+export interface WhatsAppTemplate {
+  id: string;
+  name: string;
+  language: string;
+  category: string;
+  body_text: string;
+  variables_count: number;
+  status: string;
+  is_synced: boolean;
+  meta_template_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+async function call(action: string, payload: Record<string, unknown> = {}) {
+  const { data, error } = await supabase.functions.invoke("whatsapp-templates-manage", {
+    body: { action, ...payload },
+  });
+  if (error) throw new Error(error.message);
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
+export function useWhatsAppTemplates() {
+  return useQuery({
+    queryKey: ["wa-templates"],
+    queryFn: async () => {
+      const data = await call("list");
+      return (data?.templates || []) as WhatsAppTemplate[];
+    },
+  });
+}
+
+export function useSyncTemplates() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => call("sync"),
+    onSuccess: (data) => {
+      toast({ title: "Synchronisation OK", description: `${data?.count ?? 0} templates importés` });
+      qc.invalidateQueries({ queryKey: ["wa-templates"] });
+    },
+    onError: (e: any) => toast({ title: "Erreur sync", description: e.message, variant: "destructive" }),
+  });
+}
+
+export function useCreateLocalTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { name: string; language: string; body_text: string; category?: string }) =>
+      call("create_local", payload),
+    onSuccess: () => {
+      toast({ title: "Template créé" });
+      qc.invalidateQueries({ queryKey: ["wa-templates"] });
+    },
+    onError: (e: any) => toast({ title: "Erreur", description: e.message, variant: "destructive" }),
+  });
+}
+
+export function useUpdateTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { id: string; body_text?: string; name?: string; language?: string; category?: string }) =>
+      call("update", payload),
+    onSuccess: () => {
+      toast({ title: "Template mis à jour" });
+      qc.invalidateQueries({ queryKey: ["wa-templates"] });
+    },
+    onError: (e: any) => toast({ title: "Erreur", description: e.message, variant: "destructive" }),
+  });
+}
+
+export function useDeleteTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => call("delete", { id }),
+    onSuccess: () => {
+      toast({ title: "Template supprimé" });
+      qc.invalidateQueries({ queryKey: ["wa-templates"] });
+    },
+    onError: (e: any) => toast({ title: "Erreur", description: e.message, variant: "destructive" }),
+  });
+}
