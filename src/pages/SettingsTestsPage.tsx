@@ -287,40 +287,89 @@ export default function SettingsTestsPage() {
 
   const testLocalNotification = async () => {
     set('pushLocal', { status: 'running' });
+    const debug: any = {
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      isStandalone: window.matchMedia('(display-mode: standalone)').matches,
+      isSecureContext: window.isSecureContext,
+      hasNotification: 'Notification' in window,
+      hasServiceWorker: 'serviceWorker' in navigator,
+      permission: 'Notification' in window ? Notification.permission : 'n/a',
+      hostname: window.location.hostname,
+      protocol: window.location.protocol,
+    };
     try {
-      if (typeof window === 'undefined' || !('Notification' in window)) {
-        throw new Error('Notifications non supportées sur cet appareil');
+      if (!('Notification' in window)) {
+        throw new Error('API Notification absente du navigateur');
+      }
+      if (!window.isSecureContext) {
+        throw new Error('Contexte non sécurisé (HTTPS requis)');
       }
 
-      if (window.Notification.permission !== 'granted') {
-        throw new Error('Autorisation notifications non accordée');
+      // Demander permission si pas encore accordée
+      if (Notification.permission === 'default') {
+        debug.permissionRequest = 'asking';
+        const p = await Notification.requestPermission();
+        debug.permissionRequest = p;
+        if (p !== 'granted') throw new Error('Permission refusée par l\'utilisateur');
+      } else if (Notification.permission === 'denied') {
+        throw new Error('Permission DENIED — débloque dans les réglages du navigateur (icône cadenas → Notifications → Autoriser)');
       }
 
-      const registration = await getPushRegistration();
+      // Tente méthode 1 : Service Worker
+      let swSuccess = false;
+      let swError: string | null = null;
+      try {
+        const registration = await getPushRegistration();
+        debug.swRegistration = !!registration;
+        debug.swActive = !!registration?.active;
+        if (registration && 'showNotification' in registration) {
+          await registration.showNotification('🧪 Test SW — Digital Launch', {
+            body: 'Notification via Service Worker (méthode push)',
+            icon: '/icon-192x192.png',
+            badge: '/icon-192x192.png',
+            tag: 'test-sw-' + Date.now(),
+            requireInteraction: false,
+          });
+          swSuccess = true;
+          debug.swMethod = 'OK';
+        } else {
+          debug.swMethod = 'no-registration';
+        }
+      } catch (e: any) {
+        swError = e?.message || String(e);
+        debug.swMethod = 'error: ' + swError;
+      }
 
-      if (registration && 'showNotification' in registration) {
-        await registration.showNotification('🧪 Test local — Digital Launch CRM', {
-          body: 'Cette notification est affichée directement par ton appareil.',
+      // Tente méthode 2 : Notification API directe (souvent plus fiable sur PC)
+      let directSuccess = false;
+      let directError: string | null = null;
+      try {
+        const n = new Notification('🧪 Test direct — Digital Launch', {
+          body: 'Notification via API directe Notification()',
           icon: '/icon-192x192.png',
-          badge: '/icon-192x192.png',
-          tag: 'test-local-notification',
-          data: { url: '/settings/tests' },
+          tag: 'test-direct-' + Date.now(),
         });
-      } else {
-        new Notification('🧪 Test local — Digital Launch CRM', {
-          body: 'Cette notification est affichée directement par le navigateur.',
-          icon: '/icon-192x192.png',
-          tag: 'test-local-notification',
-        });
+        n.onerror = (ev) => { debug.directOnError = String(ev); };
+        n.onshow = () => { debug.directOnShow = true; };
+        directSuccess = true;
+        debug.directMethod = 'OK';
+      } catch (e: any) {
+        directError = e?.message || String(e);
+        debug.directMethod = 'error: ' + directError;
+      }
+
+      if (!swSuccess && !directSuccess) {
+        throw new Error(`Aucune méthode n'a fonctionné. SW: ${swError}. Direct: ${directError}. Vérifie les réglages OS (Windows: Paramètres → Notifications → Chrome activé + désactive "Assistant de concentration"; macOS: Préférences → Notifications → Chrome → Autoriser).`);
       }
 
       set('pushLocal', {
         status: 'success',
-        message: 'Notification locale affichée immédiatement sur cet appareil',
-        data: { mode: registration ? 'service-worker.showNotification' : 'Notification()' },
+        message: `Notification déclenchée (SW: ${swSuccess ? '✅' : '❌'}, Direct: ${directSuccess ? '✅' : '❌'}). Si tu ne vois rien sur PC, c'est un blocage au niveau de Windows/macOS, pas du code.`,
+        data: debug,
       });
     } catch (e: any) {
-      set('pushLocal', { status: 'error', message: e.message, data: e });
+      set('pushLocal', { status: 'error', message: e.message, data: debug });
     }
   };
 
