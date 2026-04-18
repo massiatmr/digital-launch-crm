@@ -267,37 +267,47 @@ Deno.serve(async (req) => {
     let sent = 0;
     let failed = 0;
     const expiredIds: string[] = [];
+    const debugLogs: any[] = [];
+
+    debugLogs.push({ global: `Found ${subscriptions.length} subscription(s)` });
+    debugLogs.push({ env: {
+      hasPrivateKey: !!VAPID_PRIVATE_KEY,
+      privateKeyLen: VAPID_PRIVATE_KEY?.length || 0,
+      hasSubject: !!VAPID_SUBJECT,
+      subject: getNormalizedVapidSubject(),
+    }});
 
     for (const sub of subscriptions) {
+      const subLogs: string[] = [];
       try {
-        const result = await sendPushToEndpoint(sub.endpoint, sub.keys_p256dh, sub.keys_auth, payload);
+        const result = await sendPushToEndpoint(sub.endpoint, sub.keys_p256dh, sub.keys_auth, payload, subLogs);
+        debugLogs.push({ subId: sub.id, status: result.status, body: result.statusText, headers: result.responseHeaders, logs: subLogs });
         if (result.success) {
           sent++;
         } else if (result.status === 404 || result.status === 410) {
-          // Subscription expired, clean up
           expiredIds.push(sub.id);
           failed++;
         } else {
           console.error(`Push failed for ${sub.endpoint}: ${result.status} ${result.statusText}`);
           failed++;
         }
-      } catch (e) {
+      } catch (e: any) {
+        debugLogs.push({ subId: sub.id, exception: e.message, stack: e.stack, logs: subLogs });
         console.error(`Push error for ${sub.endpoint}:`, e);
         failed++;
       }
     }
 
-    // Clean up expired subscriptions
     if (expiredIds.length > 0) {
       await supabase.from("push_subscriptions").delete().in("id", expiredIds);
     }
 
-    return new Response(JSON.stringify({ sent, failed, expired_cleaned: expiredIds.length }), {
+    return new Response(JSON.stringify({ sent, failed, expired_cleaned: expiredIds.length, debug: debugLogs }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
     console.error("send-push error:", e);
-    return new Response(JSON.stringify({ error: e.message }), {
+    return new Response(JSON.stringify({ error: e.message, stack: e.stack }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
