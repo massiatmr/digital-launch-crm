@@ -3,22 +3,11 @@ import { AppSidebar } from './AppSidebar';
 import { MobileBottomNav } from './MobileBottomNav';
 import { AiFloatingButton } from './AiFloatingButton';
 import { EnablePushButton } from './EnablePushButton';
-import { createContext, useContext, useEffect, useState } from 'react';
-import { useReminderNotifications, requestNotificationPermission } from '@/hooks/useNotifications';
+import { createContext, useContext, useState } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 const SidebarContext = createContext({ collapsed: false, setCollapsed: (_: boolean) => {} });
 export const useSidebarState = () => useContext(SidebarContext);
-
-function NotificationManager() {
-  useReminderNotifications();
-
-  useEffect(() => {
-    requestNotificationPermission();
-  }, []);
-
-  return null;
-}
 
 export function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
@@ -26,7 +15,6 @@ export function AppLayout() {
 
   return (
     <SidebarContext.Provider value={{ collapsed, setCollapsed }}>
-      <NotificationManager />
       <div className="flex min-h-screen">
         {!isMobile && <AppSidebar />}
         <main className={`flex-1 transition-all duration-300 overflow-x-hidden ${

@@ -156,7 +156,7 @@ Deno.serve(async (req) => {
 
     // ---- 1) Push
     try {
-      const pushRes = await supabase.functions.invoke("send-push", {
+      const pushRes = await supabase.functions.invoke("send-onesignal-notification", {
         body: {
           user_id: lead.owner_id,
           title: `🔥 Nouveau lead — ${lead.name}${titleSuffix}`,
