@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,10 +12,17 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { toast } from 'sonner';
 import {
   Mail, Bell, FileSignature, Webhook, Zap, Calendar, Database,
-  CheckCircle2, XCircle, Loader2, Send, Brain, Facebook, Smartphone, Trash2, Clock
+  CheckCircle2, XCircle, Loader2, Send, Brain, Facebook, Smartphone, Trash2, Clock, CheckSquare, Square
 } from 'lucide-react';
 
 type Status = 'idle' | 'running' | 'success' | 'error';
+
+type PushDevice = {
+  id: string;
+  device_info: string | null;
+  endpoint: string;
+  created_at: string;
+};
 
 interface TestResult {
   status: Status;
@@ -53,14 +60,24 @@ export default function SettingsTestsPage() {
   const [smtpRecipient, setSmtpRecipient] = useState(user?.email || '');
   const [aiLeadName, setAiLeadName] = useState('Marie Dupont');
   const [aiLeadMsg, setAiLeadMsg] = useState('Bonjour, je suis intéressée par votre offre marketing pour mon entreprise de déménagement.');
-  const [devices, setDevices] = useState<any[]>([]);
+  const [devices, setDevices] = useState<PushDevice[]>([]);
   const [delaySec, setDelaySec] = useState(10);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [currentSubscriptionEndpoint, setCurrentSubscriptionEndpoint] = useState<string | null>(null);
   const [subscriptionChecked, setSubscriptionChecked] = useState(false);
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>([]);
 
   const isPreview = pushState === 'preview';
   const isSubscribed = subscriptionChecked ? !!currentSubscriptionEndpoint : pushState === 'subscribed';
+  const dedupedDevices = useMemo(() => {
+    const seen = new Set<string>();
+    return devices.filter((device) => {
+      if (seen.has(device.endpoint)) return false;
+      seen.add(device.endpoint);
+      return true;
+    });
+  }, [devices]);
+  const selectedCount = selectedDeviceIds.length;
 
   const set = (key: string, r: TestResult) => setResults((p) => ({ ...p, [key]: r }));
   const get = (key: string): TestResult => results[key] || { status: 'idle' };
@@ -106,18 +123,50 @@ export default function SettingsTestsPage() {
       return;
     }
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('push_subscriptions')
       .select('id, device_info, endpoint, created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
-    setDevices(data || []);
+
+    if (error) {
+      console.error('Impossible de charger les appareils push:', error);
+      set('pushDevices', { status: 'error', message: error.message, data: error });
+      return;
+    }
+
+    const nextDevices = (data || []) as PushDevice[];
+    setDevices(nextDevices);
+    set('pushDevices', {
+      status: 'success',
+      message: `${nextDevices.length} appareil(s) récupéré(s) depuis le backend`,
+      data: nextDevices.map((device) => ({
+        id: device.id,
+        created_at: device.created_at,
+        device_info: device.device_info,
+      })),
+    });
   };
 
   useEffect(() => {
-    loadDevices();
-    loadCurrentSubscription();
+    Promise.all([loadDevices(), loadCurrentSubscription()]);
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!user) return;
+    const interval = window.setInterval(() => {
+      loadDevices();
+    }, 15000);
+    return () => window.clearInterval(interval);
+  }, [user?.id]);
+
+  useEffect(() => {
+    setSelectedDeviceIds((prev) => {
+      const available = new Set(dedupedDevices.map((device) => device.id));
+      const next = prev.filter((id) => available.has(id));
+      return next.length > 0 || dedupedDevices.length === 0 ? next : dedupedDevices.map((device) => device.id);
+    });
+  }, [dedupedDevices]);
 
   const deleteDevice = async (id: string, endpoint?: string) => {
     const isCurrentDevice = !!endpoint && endpoint === currentSubscriptionEndpoint;
@@ -186,6 +235,18 @@ export default function SettingsTestsPage() {
     }
   };
 
+  const toggleDeviceSelection = (id: string) => {
+    setSelectedDeviceIds((prev) => prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id]);
+  };
+
+  const selectAllDevices = () => {
+    setSelectedDeviceIds(dedupedDevices.map((device) => device.id));
+  };
+
+  const clearSelectedDevices = () => {
+    setSelectedDeviceIds([]);
+  };
+
   const detectDevice = (ua: string = '') => {
     if (/iphone|ipad|ipod/i.test(ua)) return { icon: '📱', label: 'iOS' };
     if (/android/i.test(ua)) return { icon: '🤖', label: 'Android' };
@@ -209,6 +270,7 @@ export default function SettingsTestsPage() {
         const { data, error } = await supabase.functions.invoke('send-push', {
           body: {
             user_id: user?.id,
+            subscription_ids: selectedDeviceIds.length > 0 ? selectedDeviceIds : undefined,
             title: '📱 Test mobile — App fermée ?',
             body: `Envoyé à ${new Date().toLocaleTimeString('fr-FR')}. Si tu lis ça, tout marche !`,
             url: '/settings/tests',
@@ -218,7 +280,7 @@ export default function SettingsTestsPage() {
         if (error) throw error;
         set('pushDelayed', {
           status: 'success',
-          message: `Push test envoyé à ${data?.sent || 0} appareil(s). Vérifie ton mobile maintenant !`,
+          message: `Push test envoyé à ${data?.sent || 0}/${selectedDeviceIds.length || dedupedDevices.length} appareil(s) ciblé(s). Vérifie maintenant !`,
           data,
         });
         toast.success('Notification envoyée');
@@ -266,6 +328,7 @@ export default function SettingsTestsPage() {
       const { data, error } = await supabase.functions.invoke('send-push', {
         body: {
           user_id: user?.id,
+          subscription_ids: selectedDeviceIds.length > 0 ? selectedDeviceIds : undefined,
           title: '🧪 Test push — Digital Launch CRM',
           body: 'Si tu vois ce message, les notifications push fonctionnent !',
           url: '/settings/tests',
@@ -275,7 +338,7 @@ export default function SettingsTestsPage() {
       if (error) throw error;
       set('push', {
         status: 'success',
-        message: 'Push backend envoyé — si rien ne s’affiche, le souci vient côté appareil/service worker',
+        message: `Push backend envoyé à ${data?.sent || 0}/${selectedDeviceIds.length || dedupedDevices.length} appareil(s) ciblé(s)`,
         data,
       });
     } catch (e: any) {
