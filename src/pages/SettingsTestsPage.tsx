@@ -213,12 +213,13 @@ export default function SettingsTestsPage() {
             body: `Envoyé à ${new Date().toLocaleTimeString('fr-FR')}. Si tu lis ça, tout marche !`,
             url: '/settings/tests',
             tag: 'test-mobile-delayed',
+            skip_payload: true,
           },
         });
         if (error) throw error;
         set('pushDelayed', {
           status: 'success',
-          message: `Push envoyé à ${data?.sent || 0} appareil(s). Vérifie ton mobile maintenant !`,
+          message: `Push test envoyé à ${data?.sent || 0} appareil(s). Vérifie ton mobile maintenant !`,
           data,
         });
         toast.success('Notification envoyée');
@@ -263,7 +264,6 @@ export default function SettingsTestsPage() {
         await loadCurrentSubscription();
         await loadDevices();
       }
-      // Send a test push via send-push function targeting current user
       const { data, error } = await supabase.functions.invoke('send-push', {
         body: {
           user_id: user?.id,
@@ -271,12 +271,17 @@ export default function SettingsTestsPage() {
           body: 'Si tu vois ce message, les notifications push fonctionnent !',
           url: '/settings/tests',
           tag: 'test-push',
+          skip_payload: true,
         },
       });
       if (error) throw error;
-      set('push', { status: 'success', message: 'Notification envoyée — vérifie ton appareil', data });
+      set('push', {
+        status: 'success',
+        message: 'Notification test envoyée instantanément — le service worker affichera le message par défaut',
+        data,
+      });
     } catch (e: any) {
-      set('push', { status: 'error', message: e.message });
+      set('push', { status: 'error', message: e.message, data: e });
     }
   };
 
