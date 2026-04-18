@@ -27,8 +27,8 @@ export function useWhatsAppInbox() {
 
   // Realtime: any new wa message → refetch
   useEffect(() => {
-    const channel = supabase
-      .channel('wa-inbox-all')
+    const channel = supabase.channel(`wa-inbox-${Math.random().toString(36).slice(2)}`);
+    channel
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages' }, () => {
         qc.invalidateQueries({ queryKey: ['wa-inbox'] });
       })
