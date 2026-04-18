@@ -210,7 +210,7 @@ export default function ClientDetailPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/clients')}><ArrowLeft className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" onClick={goBack}><ArrowLeft className="h-4 w-4" /></Button>
         <div className="flex-1">
           <h1 className="text-xl font-bold">{client.name}</h1>
           {client.company_name && <p className="text-sm text-muted-foreground">{client.company_name}</p>}
