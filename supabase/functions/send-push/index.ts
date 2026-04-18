@@ -3,15 +3,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.99.1";
+import { p256 } from "https://esm.sh/@noble/curves@1.4.2/p256";
 
-const VAPID_PUBLIC_KEY = Deno.env.get("VAPID_PUBLIC_KEY")!;
 const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY")!;
 const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-// --- Web Push crypto utilities (RFC 8291 / RFC 8188) ---
-// We use the Web Crypto API available in Deno to implement VAPID + payload encryption.
 
 function base64UrlDecode(str: string): Uint8Array {
   const padding = "=".repeat((4 - (str.length % 4)) % 4);
@@ -29,6 +26,17 @@ function base64UrlEncode(buf: ArrayBuffer | Uint8Array): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+function getVapidKeyPair() {
+  const privateKeyBytes = base64UrlDecode(VAPID_PRIVATE_KEY);
+  const publicKeyBytes = p256.getPublicKey(privateKeyBytes, false);
+
+  return {
+    privateKeyBytes,
+    publicKeyBytes,
+    publicKey: base64UrlEncode(publicKeyBytes),
+  };
+}
+
 function concatBuffers(...buffers: Uint8Array[]): Uint8Array {
   const total = buffers.reduce((sum, b) => sum + b.length, 0);
   const result = new Uint8Array(total);
@@ -43,21 +51,19 @@ function concatBuffers(...buffers: Uint8Array[]): Uint8Array {
 function createInfo(type: string, clientPublicKey: Uint8Array, serverPublicKey: Uint8Array): Uint8Array {
   const encoder = new TextEncoder();
   const typeBytes = encoder.encode(type);
-  // "Content-Encoding: <type>\0" + "P-256\0\0A" + clientPubKey + "\0A" + serverPubKey
   const header = encoder.encode("Content-Encoding: ");
   const nul = new Uint8Array([0]);
-  const p256 = encoder.encode("P-256");
+  const p256Label = encoder.encode("P-256");
   const clientLen = new Uint8Array(2);
   clientLen[0] = 0;
   clientLen[1] = clientPublicKey.length;
   const serverLen = new Uint8Array(2);
   serverLen[0] = 0;
   serverLen[1] = serverPublicKey.length;
-  return concatBuffers(header, typeBytes, nul, p256, nul, serverLen, serverPublicKey, clientLen, clientPublicKey);
+  return concatBuffers(header, typeBytes, nul, p256Label, nul, serverLen, serverPublicKey, clientLen, clientPublicKey);
 }
 
 async function hkdfExpand(ikm: Uint8Array, salt: Uint8Array, info: Uint8Array, length: number): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey("raw", ikm as BufferSource, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const saltKey = await crypto.subtle.importKey("raw", salt as BufferSource, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const prk = new Uint8Array(await crypto.subtle.sign("HMAC", saltKey, ikm as BufferSource));
   const prkKey = await crypto.subtle.importKey("raw", prk as BufferSource, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -75,41 +81,30 @@ async function encryptPayload(
   const clientAuth = base64UrlDecode(clientAuthStr);
   const payloadBytes = new TextEncoder().encode(payload);
 
-  // Generate server ECDH key pair
   const serverKeys = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
   const serverPublicKeyBytes = new Uint8Array(await crypto.subtle.exportKey("raw", serverKeys.publicKey));
-
-  // Import client public key
   const clientKey = await crypto.subtle.importKey("raw", clientPublicKey as BufferSource, { name: "ECDH", namedCurve: "P-256" }, false, []);
-
-  // ECDH shared secret
   const sharedSecret = new Uint8Array(
     await crypto.subtle.deriveBits({ name: "ECDH", public: clientKey }, serverKeys.privateKey, 256)
   );
 
-  // Generate salt
   const salt = crypto.getRandomValues(new Uint8Array(16));
-
-  // HKDF for auth info
   const authEncoder = new TextEncoder();
   const authInfo = concatBuffers(authEncoder.encode("Content-Encoding: auth\0"));
   const ikm = await hkdfExpand(sharedSecret, clientAuth, authInfo, 32);
 
-  // Derive content encryption key and nonce
   const cekInfo = createInfo("aesgcm", clientPublicKey, serverPublicKeyBytes);
   const nonceInfo = createInfo("nonce", clientPublicKey, serverPublicKeyBytes);
 
   const contentEncryptionKey = await hkdfExpand(ikm, salt, cekInfo, 16);
   const nonce = await hkdfExpand(ikm, salt, nonceInfo, 12);
 
-  // Pad payload (2 bytes padding length + padding)
   const paddingLength = 0;
   const padded = new Uint8Array(2 + paddingLength + payloadBytes.length);
   padded[0] = (paddingLength >> 8) & 0xff;
   padded[1] = paddingLength & 0xff;
   padded.set(payloadBytes, 2 + paddingLength);
 
-  // AES-GCM encrypt
   const key = await crypto.subtle.importKey("raw", contentEncryptionKey as BufferSource, { name: "AES-GCM" }, false, ["encrypt"]);
   const encrypted = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce as BufferSource }, key, padded as BufferSource));
 
@@ -117,18 +112,9 @@ async function encryptPayload(
 }
 
 function getNormalizedVapidSubject(): string {
-  if (!VAPID_SUBJECT) {
-    return "mailto:contact@digitallaunch-llc.com";
-  }
-
-  if (VAPID_SUBJECT.startsWith("mailto:") || VAPID_SUBJECT.startsWith("https://")) {
-    return VAPID_SUBJECT;
-  }
-
-  if (VAPID_SUBJECT.includes("@")) {
-    return `mailto:${VAPID_SUBJECT}`;
-  }
-
+  if (!VAPID_SUBJECT) return "mailto:contact@digitallaunch-llc.com";
+  if (VAPID_SUBJECT.startsWith("mailto:") || VAPID_SUBJECT.startsWith("https://")) return VAPID_SUBJECT;
+  if (VAPID_SUBJECT.includes("@")) return `mailto:${VAPID_SUBJECT}`;
   return "mailto:contact@digitallaunch-llc.com";
 }
 
@@ -137,9 +123,7 @@ async function createVapidAuthHeader(endpoint: string): Promise<{ jwt: string; p
   const audience = `${url.protocol}//${url.host}`;
   const expiration = Math.floor(Date.now() / 1000) + 12 * 60 * 60;
 
-  const privateKeyBytes = base64UrlDecode(VAPID_PRIVATE_KEY);
-  const publicKeyBytes = base64UrlDecode(VAPID_PUBLIC_KEY);
-
+  const { privateKeyBytes, publicKeyBytes, publicKey } = getVapidKeyPair();
   const jwk = {
     kty: "EC",
     crv: "P-256",
@@ -149,38 +133,16 @@ async function createVapidAuthHeader(endpoint: string): Promise<{ jwt: string; p
   };
 
   const key = await crypto.subtle.importKey("jwk", jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
-
   const header = base64UrlEncode(new TextEncoder().encode(JSON.stringify({ typ: "JWT", alg: "ES256" })));
   const body = base64UrlEncode(
     new TextEncoder().encode(JSON.stringify({ aud: audience, exp: expiration, sub: getNormalizedVapidSubject() }))
   );
   const unsignedToken = `${header}.${body}`;
-
   const signature = new Uint8Array(
     await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, new TextEncoder().encode(unsignedToken) as BufferSource)
   );
 
-  let rawSig: Uint8Array;
-  if (signature.length === 64) {
-    rawSig = signature;
-  } else {
-    let offset = 2;
-    const rLen = signature[offset + 1];
-    offset += 2;
-    const r = signature.slice(offset, offset + rLen);
-    offset += rLen;
-    const sLen = signature[offset + 1];
-    offset += 2;
-    const s = signature.slice(offset, offset + sLen);
-    const rPad = r.length > 32 ? r.slice(r.length - 32) : r;
-    const sPad = s.length > 32 ? s.slice(s.length - 32) : s;
-    rawSig = new Uint8Array(64);
-    rawSig.set(rPad, 32 - rPad.length);
-    rawSig.set(sPad, 64 - sPad.length);
-  }
-
-  const token = `${unsignedToken}.${base64UrlEncode(rawSig)}`;
-  const publicKey = base64UrlEncode(publicKeyBytes);
+  const token = `${unsignedToken}.${base64UrlEncode(signature.length === 64 ? signature : signature)}`;
 
   return {
     jwt: token,
