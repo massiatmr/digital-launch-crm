@@ -1,12 +1,13 @@
-import { useState, useRef, useEffect } from 'react';
-import { useFollowupTasks, useWhatsAppMessages, useConversationState, useSendNow, useCancelTask, useGenerateMessage, useMarkLeadReplied, useSendWhatsAppMessage, useWhatsAppRealtime } from '@/hooks/useFollowupTasks';
+import { useState } from 'react';
+import { useFollowupTasks, useConversationState, useSendNow, useCancelTask, useGenerateMessage, useMarkLeadReplied } from '@/hooks/useFollowupTasks';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Send, X, Sparkles, MessageSquare, Bot, User, CheckCircle2, Clock, XCircle, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, Send, X, Sparkles, MessageSquare, Bot, CheckCircle2, Clock, XCircle, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { WhatsAppChat } from './WhatsAppChat';
 
 const TYPE_LABEL: Record<string, string> = {
   initial_message: 'Message initial',
@@ -27,25 +28,16 @@ const STATUS_META: Record<string, { label: string; icon: any; className: string 
 };
 
 export function FollowupTimeline({ leadId }: { leadId: string }) {
-  useWhatsAppRealtime(leadId);
   const { data: tasks = [], isLoading } = useFollowupTasks(leadId);
-  const { data: messages = [] } = useWhatsAppMessages(leadId);
   const { data: convState } = useConversationState(leadId);
   const sendNow = useSendNow();
   const cancelTask = useCancelTask();
   const generate = useGenerateMessage();
   const markReplied = useMarkLeadReplied();
-  const sendWA = useSendWhatsAppMessage();
 
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
-  const [chatInput, setChatInput] = useState('');
   const [showSequence, setShowSequence] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length]);
 
   const startEdit = async (taskId: string, taskType: string) => {
     setEditing(taskId);
@@ -54,13 +46,6 @@ export function FollowupTimeline({ leadId }: { leadId: string }) {
       const msg = await generate.mutateAsync({ leadId, taskType });
       setDraft(msg);
     } catch {}
-  };
-
-  const handleSend = async () => {
-    const msg = chatInput.trim();
-    if (!msg) return;
-    setChatInput('');
-    await sendWA.mutateAsync({ leadId, message: msg });
   };
 
   if (isLoading) return <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>;
@@ -83,52 +68,7 @@ export function FollowupTimeline({ leadId }: { leadId: string }) {
         )}
       </div>
 
-      {/* Chat (style WhatsApp) */}
-      <div className="rounded-xl border border-border bg-muted/10 flex flex-col">
-        <div className="max-h-[420px] min-h-[200px] overflow-y-auto p-3 space-y-2">
-          {messages.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">Aucun message. Écris ci-dessous pour démarrer.</p>
-          ) : (
-            messages.map((m: any) => (
-              <div key={m.id} className={cn('flex', m.direction === 'outbound' ? 'justify-end' : 'justify-start')}>
-                <div className={cn('max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm',
-                  m.direction === 'outbound'
-                    ? 'bg-primary/20 rounded-br-sm'
-                    : 'bg-card rounded-bl-sm border border-border')}>
-                  <p className="whitespace-pre-line">{m.content}</p>
-                  <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
-                    {format(new Date(m.sent_at), "HH:mm", { locale: fr })}
-                    {m.direction === 'outbound' && m.status === 'dry_run' && <span className="text-amber-500">· dry-run</span>}
-                    {m.direction === 'outbound' && m.status === 'sent' && <CheckCircle2 className="h-2.5 w-2.5 text-green-500" />}
-                    {m.direction === 'outbound' && m.status === 'failed' && <AlertCircle className="h-2.5 w-2.5 text-destructive" />}
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-          <div ref={chatEndRef} />
-        </div>
-
-        {/* Composer */}
-        <div className="border-t border-border p-2 flex items-end gap-2">
-          <Textarea
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            placeholder="Écris un message... (Entrée pour envoyer)"
-            rows={1}
-            className="min-h-[40px] max-h-32 resize-none border-0 bg-transparent focus-visible:ring-0"
-          />
-          <Button size="icon" onClick={handleSend} disabled={sendWA.isPending || !chatInput.trim()} className="shrink-0">
-            {sendWA.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          </Button>
-        </div>
-      </div>
+      <WhatsAppChat leadId={leadId} className="max-h-[420px]" />
 
       {/* Marquer une réponse manuelle */}
       <Button

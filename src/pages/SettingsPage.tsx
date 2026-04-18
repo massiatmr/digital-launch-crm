@@ -4,6 +4,7 @@ import { Bot, Plug, FlaskConical } from 'lucide-react';
 import SettingsAutomationPage from './SettingsAutomationPage';
 import SettingsIntegrationsPage from './SettingsIntegrationsPage';
 import SettingsTestsPage from './SettingsTestsPage';
+import { PwaInstallGuide } from '@/components/PwaInstallGuide';
 
 const VALID = ['automation', 'integrations', 'tests'] as const;
 type Tab = (typeof VALID)[number];
@@ -14,11 +15,13 @@ export default function SettingsPage() {
   const current: Tab = (VALID as readonly string[]).includes(tab ?? '') ? (tab as Tab) : 'automation';
 
   return (
-    <div className="container mx-auto p-4 sm:p-6 max-w-6xl">
-      <div className="mb-6">
+    <div className="container mx-auto p-4 sm:p-6 max-w-6xl space-y-4">
+      <div>
         <h1 className="text-2xl font-bold">Paramètres</h1>
         <p className="text-sm text-muted-foreground">Gère ton automatisation, tes intégrations et tes tests système</p>
       </div>
+
+      <PwaInstallGuide />
 
       <Tabs value={current} onValueChange={(v) => navigate(`/settings/${v}`)}>
         <TabsList className="grid w-full grid-cols-3 max-w-md">

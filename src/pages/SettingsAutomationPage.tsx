@@ -81,6 +81,17 @@ export default function SettingsAutomationPage() {
 
   return (
     <div className="max-w-5xl space-y-6 pb-24">
+      {form.dry_run && (
+        <div className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm text-yellow-300">
+            <FlaskConical className="h-4 w-4" />
+            <span><strong>Mode test actif</strong> — aucun message WhatsApp réel n'est envoyé aux leads.</span>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => set({ dry_run: false })} className="shrink-0 border-yellow-500/40 text-yellow-200 hover:bg-yellow-500/10">
+            Passer en LIVE
+          </Button>
+        </div>
+      )}
       {/* HEADER */}
       <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>

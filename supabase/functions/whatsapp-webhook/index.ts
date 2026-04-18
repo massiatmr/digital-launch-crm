@@ -1,6 +1,6 @@
 // Public WhatsApp Cloud API webhook (no JWT)
 // GET = handshake (verify_token lookup in DB)
-// POST = inbound message → insert into whatsapp_messages
+// POST = inbound message → insert into whatsapp_messages + push notif owner
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -14,6 +14,27 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 function normalizePhone(p: string): string {
   return p.replace(/[^0-9]/g, "");
+}
+
+async function notifyOwner(ownerId: string, leadId: string, leadName: string, content: string) {
+  try {
+    await fetch(`${SUPABASE_URL}/functions/v1/send-push`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify({
+        user_id: ownerId,
+        title: `💬 ${leadName} a répondu`,
+        body: content.slice(0, 100),
+        url: `/conversations?lead=${leadId}`,
+        tag: `wa-${leadId}`,
+      }),
+    });
+  } catch (e) {
+    console.error("send-push trigger failed:", e);
+  }
 }
 
 Deno.serve(async (req) => {
@@ -41,7 +62,6 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    // WhatsApp Cloud API payload structure
     for (const entry of body.entry ?? []) {
       for (const change of entry.changes ?? []) {
         const value = change.value;
@@ -64,19 +84,18 @@ Deno.serve(async (req) => {
             msg.interactive?.button_reply?.title ??
             `[${msg.type}]`;
 
-          // Find lead by phone (loose match: ends with last 9 digits)
           const tail = from.slice(-9);
           const { data: leads } = await admin
             .from("leads")
-            .select("id")
+            .select("id, name")
             .eq("owner_id", cfg.owner_id)
             .ilike("phone", `%${tail}%`)
             .limit(1);
-          const lead_id = leads?.[0]?.id;
-          if (!lead_id) continue; // Inconnu : on ignore (pas de lead à créer ici)
+          const lead = leads?.[0];
+          if (!lead) continue;
 
           await admin.from("whatsapp_messages").insert({
-            lead_id,
+            lead_id: lead.id,
             owner_id: cfg.owner_id,
             direction: "inbound",
             content,
@@ -84,12 +103,15 @@ Deno.serve(async (req) => {
             sent_at: new Date(parseInt(msg.timestamp, 10) * 1000).toISOString(),
             status: "received",
           });
+
+          // Fire-and-forget push notif to owner
+          notifyOwner(cfg.owner_id, lead.id, lead.name || "Un lead", content);
         }
       }
     }
     return new Response("EVENT_RECEIVED", { status: 200 });
   } catch (e) {
     console.error("whatsapp-webhook error:", e);
-    return new Response("EVENT_RECEIVED", { status: 200 }); // Always 200 to Meta
+    return new Response("EVENT_RECEIVED", { status: 200 });
   }
 });
