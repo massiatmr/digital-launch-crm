@@ -193,7 +193,52 @@ Deno.serve(async (req) => {
       const genData = await genResp.json();
       messageContent = genData.message;
       aiGenerated = true;
-      if (!dryRun) { logStatus = "skipped_no_template"; errorMessage = "Aucun template mappé — envoi texte libre non tenté (fenêtre 24h Meta)"; }
+
+      // Vérifier si la fenêtre 24h Meta est ouverte (lead a répondu au moins une fois)
+      const { data: lastInbound } = await admin
+        .from("whatsapp_messages")
+        .select("sent_at")
+        .eq("lead_id", task.lead_id)
+        .eq("direction", "inbound")
+        .order("sent_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const windowOpen = lastInbound && (Date.now() - new Date(lastInbound.sent_at).getTime() < 24 * 60 * 60 * 1000);
+
+      if (!dryRun) {
+        if (!windowOpen) {
+          logStatus = "skipped_no_template";
+          errorMessage = "Aucun template mappé et fenêtre 24h fermée — Meta refuse le texte libre. Mappe un template ou attends une réponse du lead.";
+        } else {
+          // Envoi texte libre autorisé
+          const { data: config } = await admin
+            .from("whatsapp_config").select("*").eq("owner_id", ownerId).maybeSingle();
+          if (!config) {
+            errorMessage = "WhatsApp non configuré";
+            logStatus = "failed";
+          } else {
+            const phone = normalizePhone(lead.phone);
+            if (!phone) {
+              errorMessage = "Téléphone du lead invalide";
+              logStatus = "failed";
+            } else {
+              const resp = await fetch(`${GRAPH}/${config.phone_number_id}/messages`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${config.access_token}`, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  messaging_product: "whatsapp",
+                  to: phone,
+                  type: "text",
+                  text: { body: messageContent },
+                }),
+              });
+              const data = await resp.json();
+              if (!resp.ok) { errorMessage = JSON.stringify(data); logStatus = "failed"; }
+              else { waMessageId = data.messages?.[0]?.id || null; logStatus = "sent"; }
+            }
+          }
+        }
+      }
     }
 
     await admin.from("whatsapp_messages").insert({
