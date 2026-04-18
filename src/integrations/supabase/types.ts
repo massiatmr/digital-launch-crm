@@ -1301,6 +1301,7 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      get_followup_cron_status: { Args: never; Returns: Json }
       get_invoice_by_token: { Args: { p_token: string }; Returns: Json }
       get_onboarding_by_token: { Args: { p_token: string }; Returns: Json }
       mark_overdue_invoices: { Args: never; Returns: undefined }

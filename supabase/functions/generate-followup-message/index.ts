@@ -20,24 +20,27 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const isInternalCron = req.headers.get("x-internal-cron") === "1";
+    const cronOwnerId = req.headers.get("x-owner-id");
+    if (!authHeader && !isInternalCron) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
+    const supabase = isInternalCron
+      ? createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!)
+      : createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: authHeader! } } });
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    let ownerId = cronOwnerId;
+    if (!isInternalCron) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      ownerId = user.id;
+    }
 
     const { lead_id, task_type } = await req.json();
     if (!lead_id || !task_type) return new Response(JSON.stringify({ error: "Missing lead_id or task_type" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    // Charger lead, settings, historique
     const [{ data: lead }, { data: settings }, { data: history }, { data: offer }] = await Promise.all([
       supabase.from("leads").select("*").eq("id", lead_id).maybeSingle(),
-      supabase.from("followup_automation_settings").select("*").eq("owner_id", user.id).maybeSingle(),
+      supabase.from("followup_automation_settings").select("*").eq("owner_id", ownerId).maybeSingle(),
       supabase.from("whatsapp_messages").select("direction,content,sent_at").eq("lead_id", lead_id).order("sent_at", { ascending: true }).limit(20),
       supabase.from("leads").select("offer_id, offers(name, description, price)").eq("id", lead_id).maybeSingle(),
     ]);

@@ -64,32 +64,44 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const isInternalCron = req.headers.get("x-internal-cron") === "1";
+    if (!authHeader && !isInternalCron) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
+    // Service-role client (used for cron + reading settings) and a per-user client (when invoked from UI)
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const supabase = isInternalCron
+      ? admin
+      : createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_ANON_KEY")!,
+          { global: { headers: { Authorization: authHeader! } } }
+        );
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-
-    const { task_id, custom_message } = await req.json();
+    const { task_id, custom_message, owner_id: bodyOwnerId } = await req.json();
     if (!task_id) return new Response(JSON.stringify({ error: "Missing task_id" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const { data: task, error: taskErr } = await supabase
+    let ownerId: string | null = null;
+    if (!isInternalCron) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      ownerId = user.id;
+    }
+
+    const { data: task, error: taskErr } = await admin
       .from("lead_followup_tasks").select("*").eq("id", task_id).maybeSingle();
 
     if (taskErr || !task) return new Response(JSON.stringify({ error: "Task not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    if (isInternalCron) ownerId = task.owner_id;
+    else if (task.owner_id !== ownerId) return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     if (task.status === 'sent' || task.status === 'cancelled') {
       return new Response(JSON.stringify({ error: `Task already ${task.status}` }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Charger settings (dry_run + mapping templates)
-    const { data: settings } = await supabase
-      .from("followup_automation_settings").select("*").eq("owner_id", user.id).maybeSingle();
+    const { data: settings } = await admin
+      .from("followup_automation_settings").select("*").eq("owner_id", ownerId).maybeSingle();
     const dryRun = settings?.dry_run !== false; // default true (sécurité)
 
     // Charger lead pour variables/contexte
@@ -127,9 +139,8 @@ Deno.serve(async (req) => {
       aiGenerated = template.variables_count > 0;
 
       if (!dryRun) {
-        // Envoi réel via Meta API en mode template
-        const { data: config } = await supabase
-          .from("whatsapp_config").select("*").eq("owner_id", user.id).maybeSingle();
+        const { data: config } = await admin
+          .from("whatsapp_config").select("*").eq("owner_id", ownerId).maybeSingle();
         if (!config) {
           errorMessage = "WhatsApp non configuré";
           logStatus = "failed";
@@ -159,59 +170,51 @@ Deno.serve(async (req) => {
               body: JSON.stringify(payload),
             });
             const data = await resp.json();
-            if (!resp.ok) {
-              errorMessage = JSON.stringify(data);
-              logStatus = "failed";
-            } else {
-              waMessageId = data.messages?.[0]?.id || null;
-              logStatus = "sent";
-            }
+            if (!resp.ok) { errorMessage = JSON.stringify(data); logStatus = "failed"; }
+            else { waMessageId = data.messages?.[0]?.id || null; logStatus = "sent"; }
           }
         }
       }
     } else {
-      // Pas de template mappé → générer message texte via IA
       const genResp = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-followup-message`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: authHeader },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: isInternalCron ? `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` : authHeader!,
+          ...(isInternalCron ? { "x-internal-cron": "1", "x-owner-id": ownerId! } : {}),
+        },
         body: JSON.stringify({ lead_id: task.lead_id, task_type: task.task_type }),
       });
       if (!genResp.ok) {
         const errBody = await genResp.text();
-        await supabase.from("lead_followup_tasks").update({ status: 'failed', error_message: errBody }).eq("id", task_id);
+        await admin.from("lead_followup_tasks").update({ status: 'failed', error_message: errBody } as any).eq("id", task_id);
         return new Response(JSON.stringify({ error: "Failed to generate message", details: errBody }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       const genData = await genResp.json();
       messageContent = genData.message;
       aiGenerated = true;
-      // En mode dry_run : log only. Sinon : tentative texte libre (souvent bloquée hors fenêtre 24h).
-      if (!dryRun) {
-        logStatus = "skipped_no_template";
-        errorMessage = "Aucun template mappé — envoi texte libre non tenté (fenêtre 24h Meta)";
-      }
+      if (!dryRun) { logStatus = "skipped_no_template"; errorMessage = "Aucun template mappé — envoi texte libre non tenté (fenêtre 24h Meta)"; }
     }
 
-    // Logger dans whatsapp_messages
-    await supabase.from("whatsapp_messages").insert({
+    await admin.from("whatsapp_messages").insert({
       lead_id: task.lead_id,
-      owner_id: user.id,
+      owner_id: ownerId,
       direction: 'outbound',
       content: messageContent,
       task_id: task_id,
       status: logStatus,
       wa_message_id: waMessageId,
       error_message: errorMessage,
-    });
+    } as any);
 
-    // MAJ tâche
     const newStatus = logStatus === "failed" ? "failed" : (logStatus === "skipped_no_template" ? "skipped" : "sent");
-    await supabase.from("lead_followup_tasks").update({
+    await admin.from("lead_followup_tasks").update({
       status: newStatus,
       executed_at: new Date().toISOString(),
       message_content: messageContent,
       ai_generated: aiGenerated,
       error_message: errorMessage,
-    }).eq("id", task_id);
+    } as any).eq("id", task_id);
 
     return new Response(JSON.stringify({ success: logStatus !== "failed", message: messageContent, dry_run: dryRun, status: logStatus }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
