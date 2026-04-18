@@ -3,6 +3,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.99.1";
+import { importJWK, SignJWT } from "npm:jose@5.9.6";
 
 const VAPID_PUBLIC_KEY = Deno.env.get("VAPID_PUBLIC_KEY")!;
 const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY")!;
@@ -116,7 +117,23 @@ async function encryptPayload(
   return { ciphertext: encrypted, salt, serverPublicKeyBytes };
 }
 
-async function createVapidAuthHeader(endpoint: string): Promise<{ authorization: string; cryptoKey: string }> {
+function getNormalizedVapidSubject(): string {
+  if (!VAPID_SUBJECT) {
+    return "mailto:contact@digitallaunch-llc.com";
+  }
+
+  if (VAPID_SUBJECT.startsWith("mailto:") || VAPID_SUBJECT.startsWith("https://")) {
+    return VAPID_SUBJECT;
+  }
+
+  if (VAPID_SUBJECT.includes("@")) {
+    return `mailto:${VAPID_SUBJECT}`;
+  }
+
+  return "mailto:contact@digitallaunch-llc.com";
+}
+
+async function createVapidAuthHeader(endpoint: string): Promise<{ jwt: string; publicKey: string }> {
   const url = new URL(endpoint);
   const audience = `${url.protocol}//${url.host}`;
   const expiration = Math.floor(Date.now() / 1000) + 12 * 60 * 60;
@@ -125,7 +142,6 @@ async function createVapidAuthHeader(endpoint: string): Promise<{ authorization:
   const privateKeyBytes = base64UrlDecode(VAPID_PRIVATE_KEY);
   const publicKeyBytes = base64UrlDecode(VAPID_PUBLIC_KEY);
 
-  // Import private key for signing
   const jwk = {
     kty: "EC",
     crv: "P-256",
@@ -134,45 +150,17 @@ async function createVapidAuthHeader(endpoint: string): Promise<{ authorization:
     d: base64UrlEncode(privateKeyBytes),
   };
 
-  const key = await crypto.subtle.importKey("jwk", jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
-
-  // Create JWT
-  const header = base64UrlEncode(new TextEncoder().encode(JSON.stringify({ typ: "JWT", alg: "ES256" })));
-  const body = base64UrlEncode(
-    new TextEncoder().encode(JSON.stringify({ aud: audience, exp: expiration, sub: VAPID_SUBJECT }))
-  );
-  const unsignedToken = `${header}.${body}`;
-
-  const signature = new Uint8Array(
-    await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, new TextEncoder().encode(unsignedToken))
-  );
-
-  // Convert DER signature to raw r||s (64 bytes)
-  let rawSig: Uint8Array;
-  if (signature.length === 64) {
-    rawSig = signature;
-  } else {
-    // DER decode
-    let offset = 2;
-    const rLen = signature[offset + 1];
-    offset += 2;
-    const r = signature.slice(offset, offset + rLen);
-    offset += rLen;
-    const sLen = signature[offset + 1];
-    offset += 2;
-    const s = signature.slice(offset, offset + sLen);
-    const rPad = r.length > 32 ? r.slice(r.length - 32) : r;
-    const sPad = s.length > 32 ? s.slice(s.length - 32) : s;
-    rawSig = new Uint8Array(64);
-    rawSig.set(rPad, 32 - rPad.length);
-    rawSig.set(sPad, 64 - sPad.length);
-  }
-
-  const token = `${unsignedToken}.${base64UrlEncode(rawSig)}`;
+  const key = await importJWK(jwk, "ES256");
+  const token = await new SignJWT({})
+    .setProtectedHeader({ typ: "JWT", alg: "ES256" })
+    .setAudience(audience)
+    .setExpirationTime(expiration)
+    .setSubject(getNormalizedVapidSubject())
+    .sign(key);
 
   return {
-    authorization: `vapid t=${token}, k=${base64UrlEncode(publicKeyBytes)}`,
-    cryptoKey: `p256ecdsa=${base64UrlEncode(publicKeyBytes)}`,
+    jwt: token,
+    publicKey: base64UrlEncode(publicKeyBytes),
   };
 }
 
@@ -190,8 +178,8 @@ async function sendPushToEndpoint(
     headers: {
       "Content-Type": "application/octet-stream",
       "Content-Encoding": "aesgcm",
-      Authorization: vapid.authorization,
-      "Crypto-Key": `${vapid.cryptoKey};dh=${base64UrlEncode(serverPublicKeyBytes)}`,
+      Authorization: `WebPush ${vapid.jwt}`,
+      "Crypto-Key": `dh=${base64UrlEncode(serverPublicKeyBytes)};p256ecdsa=${vapid.publicKey}`,
       Encryption: `salt=${base64UrlEncode(salt)}`,
       TTL: "86400",
       Urgency: "high",
