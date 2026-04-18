@@ -175,10 +175,40 @@ async function sendPushToEndpoint(
   p256dh: string,
   auth: string,
   payload: string,
-  logs: string[]
+  logs: string[],
+  skipPayload = false
 ): Promise<{ success: boolean; status: number; statusText: string; responseHeaders: Record<string, string> }> {
   logs.push(`[STEP 1] Endpoint host: ${new URL(endpoint).host}`);
   logs.push(`[STEP 2] p256dh length: ${p256dh.length}, auth length: ${auth.length}`);
+
+  let vapid;
+  try {
+    vapid = await createVapidAuthHeader(endpoint);
+    logs.push(`[STEP 3] ✅ VAPID JWT signed — pubKey len: ${vapid.publicKey.length}, jwt parts: ${vapid.jwt.split('.').length}`);
+    logs.push(`[STEP 3b] VAPID subject: ${getNormalizedVapidSubject()}`);
+  } catch (e: any) {
+    logs.push(`[STEP 3] ❌ VAPID signing FAILED: ${e.message}`);
+    throw e;
+  }
+
+  const responseHeaders: Record<string, string> = {};
+
+  if (skipPayload) {
+    logs.push(`[STEP 4] Using EMPTY push payload mode (standard compatibility test)`);
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: vapid.authorization,
+        TTL: "86400",
+        Urgency: "high",
+      },
+    });
+    const responseText = await response.text();
+    response.headers.forEach((v, k) => { responseHeaders[k] = v; });
+    logs.push(`[STEP 5] ← Push service responded: ${response.status} ${response.statusText}`);
+    if (responseText) logs.push(`[STEP 5b] Response body: ${responseText.slice(0, 500)}`);
+    return { success: response.ok, status: response.status, statusText: responseText || response.statusText, responseHeaders };
+  }
 
   let ciphertext: Uint8Array, salt: Uint8Array, serverPublicKeyBytes: Uint8Array;
   try {
@@ -186,19 +216,9 @@ async function sendPushToEndpoint(
     ciphertext = enc.ciphertext;
     salt = enc.salt;
     serverPublicKeyBytes = enc.serverPublicKeyBytes;
-    logs.push(`[STEP 3] ✅ Encryption OK — ciphertext: ${ciphertext.length}b, salt: ${salt.length}b, serverPubKey: ${serverPublicKeyBytes.length}b`);
+    logs.push(`[STEP 4] ✅ Encryption OK — ciphertext: ${ciphertext.length}b, salt: ${salt.length}b, serverPubKey: ${serverPublicKeyBytes.length}b`);
   } catch (e: any) {
-    logs.push(`[STEP 3] ❌ Encryption FAILED: ${e.message}`);
-    throw e;
-  }
-
-  let vapid;
-  try {
-    vapid = await createVapidAuthHeader(endpoint);
-    logs.push(`[STEP 4] ✅ VAPID JWT signed — pubKey len: ${vapid.publicKey.length}, jwt parts: ${vapid.jwt.split('.').length}`);
-    logs.push(`[STEP 4b] VAPID subject: ${getNormalizedVapidSubject()}`);
-  } catch (e: any) {
-    logs.push(`[STEP 4] ❌ VAPID signing FAILED: ${e.message}`);
+    logs.push(`[STEP 4] ❌ Encryption FAILED: ${e.message}`);
     throw e;
   }
 
@@ -211,11 +231,10 @@ async function sendPushToEndpoint(
     TTL: "86400",
     Urgency: "high",
   };
-  logs.push(`[STEP 5] Sending POST to push service...`);
+  logs.push(`[STEP 5] Sending POST to push service with encrypted payload...`);
 
   const response = await fetch(endpoint, { method: "POST", headers, body: ciphertext });
   const responseText = await response.text();
-  const responseHeaders: Record<string, string> = {};
   response.headers.forEach((v, k) => { responseHeaders[k] = v; });
 
   logs.push(`[STEP 6] ← Push service responded: ${response.status} ${response.statusText}`);
@@ -232,7 +251,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { user_id, title, body, url, tag } = await req.json();
+    const { user_id, title, body, url, tag, skip_payload } = await req.json();
 
     if (!user_id) {
       return new Response(JSON.stringify({ error: "user_id required" }), {
@@ -243,7 +262,6 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Get all push subscriptions for this user
     const { data: subscriptions, error } = await supabase
       .from("push_subscriptions")
       .select("endpoint, keys_p256dh, keys_auth, id")
@@ -264,12 +282,14 @@ Deno.serve(async (req) => {
       tag: tag || "reminder",
     });
 
+    const useEmptyPayload = !!skip_payload;
     let sent = 0;
     let failed = 0;
     const expiredIds: string[] = [];
     const debugLogs: any[] = [];
 
     debugLogs.push({ global: `Found ${subscriptions.length} subscription(s)` });
+    debugLogs.push({ mode: useEmptyPayload ? "empty-payload" : "encrypted-payload" });
     debugLogs.push({ env: {
       hasPrivateKey: !!VAPID_PRIVATE_KEY,
       privateKeyLen: VAPID_PRIVATE_KEY?.length || 0,
@@ -280,12 +300,11 @@ Deno.serve(async (req) => {
     for (const sub of subscriptions) {
       const subLogs: string[] = [];
       try {
-        const result = await sendPushToEndpoint(sub.endpoint, sub.keys_p256dh, sub.keys_auth, payload, subLogs);
+        const result = await sendPushToEndpoint(sub.endpoint, sub.keys_p256dh, sub.keys_auth, payload, subLogs, useEmptyPayload);
         debugLogs.push({ subId: sub.id, status: result.status, body: result.statusText, headers: result.responseHeaders, logs: subLogs });
         if (result.success) {
           sent++;
         } else if (result.status === 404 || result.status === 410 || result.status === 403) {
-          // 403 = VAPID key mismatch (subscription created with old keys) → unrecoverable, clean up
           expiredIds.push(sub.id);
           failed++;
         } else {
