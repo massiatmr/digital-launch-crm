@@ -174,27 +174,54 @@ async function sendPushToEndpoint(
   endpoint: string,
   p256dh: string,
   auth: string,
-  payload: string
-): Promise<{ success: boolean; status: number; statusText: string }> {
-  const { ciphertext, salt, serverPublicKeyBytes } = await encryptPayload(p256dh, auth, payload);
-  const vapid = await createVapidAuthHeader(endpoint);
+  payload: string,
+  logs: string[]
+): Promise<{ success: boolean; status: number; statusText: string; responseHeaders: Record<string, string> }> {
+  logs.push(`[STEP 1] Endpoint host: ${new URL(endpoint).host}`);
+  logs.push(`[STEP 2] p256dh length: ${p256dh.length}, auth length: ${auth.length}`);
 
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/octet-stream",
-      "Content-Encoding": "aesgcm",
-      Authorization: vapid.authorization,
-      "Crypto-Key": `dh=${base64UrlEncode(serverPublicKeyBytes)}`,
-      Encryption: `salt=${base64UrlEncode(salt)}`,
-      TTL: "86400",
-      Urgency: "high",
-    },
-    body: ciphertext,
-  });
+  let ciphertext: Uint8Array, salt: Uint8Array, serverPublicKeyBytes: Uint8Array;
+  try {
+    const enc = await encryptPayload(p256dh, auth, payload);
+    ciphertext = enc.ciphertext;
+    salt = enc.salt;
+    serverPublicKeyBytes = enc.serverPublicKeyBytes;
+    logs.push(`[STEP 3] ✅ Encryption OK — ciphertext: ${ciphertext.length}b, salt: ${salt.length}b, serverPubKey: ${serverPublicKeyBytes.length}b`);
+  } catch (e: any) {
+    logs.push(`[STEP 3] ❌ Encryption FAILED: ${e.message}`);
+    throw e;
+  }
 
+  let vapid;
+  try {
+    vapid = await createVapidAuthHeader(endpoint);
+    logs.push(`[STEP 4] ✅ VAPID JWT signed — pubKey len: ${vapid.publicKey.length}, jwt parts: ${vapid.jwt.split('.').length}`);
+    logs.push(`[STEP 4b] VAPID subject: ${getNormalizedVapidSubject()}`);
+  } catch (e: any) {
+    logs.push(`[STEP 4] ❌ VAPID signing FAILED: ${e.message}`);
+    throw e;
+  }
+
+  const headers = {
+    "Content-Type": "application/octet-stream",
+    "Content-Encoding": "aesgcm",
+    Authorization: vapid.authorization,
+    "Crypto-Key": `dh=${base64UrlEncode(serverPublicKeyBytes)}`,
+    Encryption: `salt=${base64UrlEncode(salt)}`,
+    TTL: "86400",
+    Urgency: "high",
+  };
+  logs.push(`[STEP 5] Sending POST to push service...`);
+
+  const response = await fetch(endpoint, { method: "POST", headers, body: ciphertext });
   const responseText = await response.text();
-  return { success: response.ok, status: response.status, statusText: responseText || response.statusText };
+  const responseHeaders: Record<string, string> = {};
+  response.headers.forEach((v, k) => { responseHeaders[k] = v; });
+
+  logs.push(`[STEP 6] ← Push service responded: ${response.status} ${response.statusText}`);
+  if (responseText) logs.push(`[STEP 6b] Response body: ${responseText.slice(0, 500)}`);
+
+  return { success: response.ok, status: response.status, statusText: responseText || response.statusText, responseHeaders };
 }
 
 // --- Main handler ---
