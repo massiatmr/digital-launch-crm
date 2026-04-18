@@ -270,7 +270,6 @@ export default function SettingsTestsPage() {
           body: 'Si tu vois ce message, les notifications push fonctionnent !',
           url: '/settings/tests',
           tag: 'test-push',
-          skip_payload: true,
         },
       });
       if (error) throw error;
