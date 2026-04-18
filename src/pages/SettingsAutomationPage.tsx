@@ -8,7 +8,19 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Save, Bot, FlaskConical, Workflow, FileText, Sparkles, Settings as SettingsIcon, AlertTriangle, CheckCircle2, Zap, PlayCircle, Clock } from 'lucide-react';
+import { Loader2, Save, Bot, FlaskConical, Workflow, FileText, Sparkles, Settings as SettingsIcon, AlertTriangle, CheckCircle2, Zap, PlayCircle, Clock, Filter } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+
+const LEAD_SOURCES: { value: string; label: string }[] = [
+  { value: 'facebook', label: 'Facebook Lead Ads' },
+  { value: 'website', label: 'Site web' },
+  { value: 'google_sheets', label: 'Google Sheets' },
+  { value: 'organic_social', label: 'Réseaux organic' },
+  { value: 'recommendation', label: 'Recommendation' },
+  { value: 'google_my_business', label: 'Google My Business' },
+  { value: 'manual', label: 'Manuel' },
+  { value: 'other', label: 'Autre' },
+];
 import { STEPS, StepCard } from '@/components/automation/StepCard';
 import { StepEditorSheet } from '@/components/automation/StepEditorSheet';
 import { TemplatesManager } from '@/components/automation/TemplatesManager';
