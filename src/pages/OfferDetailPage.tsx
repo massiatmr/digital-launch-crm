@@ -23,6 +23,7 @@ type SectionItem = {
 
 export default function OfferDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const goBack = useSmartBack('/offers');
   const { data: offer, isLoading } = useOffer(id);
   const { data: offerPage } = useOfferPage(id);
   const { data: leads } = useLeads();
