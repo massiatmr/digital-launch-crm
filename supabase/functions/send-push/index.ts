@@ -9,7 +9,7 @@ import { p256 } from "https://esm.sh/@noble/curves@1.4.2/p256";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY")!;
@@ -97,6 +97,8 @@ Deno.serve(async (req) => {
     const targetIds = Array.isArray(subscription_ids)
       ? subscription_ids.filter((value): value is string => typeof value === "string" && value.length > 0)
       : [];
+
+    console.log("send-push request", { hasUserId: Boolean(user_id), targetCount: targetIds.length });
 
     const vapidKeys = await importVapidKeyPairFromRawPrivateKey(VAPID_PRIVATE_KEY);
     const subject = getNormalizedVapidSubject();
@@ -203,6 +205,8 @@ Deno.serve(async (req) => {
     if (expiredIds.length > 0) {
       await supabase.from("push_subscriptions").delete().in("id", expiredIds);
     }
+
+    console.log("send-push result", { sent, failed, expired: expiredIds.length, targeted: targetIds.length > 0 });
 
     return new Response(JSON.stringify({ sent, failed, expired_cleaned: expiredIds.length, debug: debugLogs }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
