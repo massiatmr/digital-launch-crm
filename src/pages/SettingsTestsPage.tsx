@@ -213,7 +213,6 @@ export default function SettingsTestsPage() {
             body: `Envoyé à ${new Date().toLocaleTimeString('fr-FR')}. Si tu lis ça, tout marche !`,
             url: '/settings/tests',
             tag: 'test-mobile-delayed',
-            skip_payload: true,
           },
         });
         if (error) throw error;
