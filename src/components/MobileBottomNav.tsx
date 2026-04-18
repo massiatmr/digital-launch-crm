@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Kanban, Bell, MoreHorizontal, LogOut, Package, CalendarCheck, UserCheck, MessageCircle } from 'lucide-react';
+import { LayoutDashboard, Kanban, Bell, MoreHorizontal, LogOut, Package, CalendarCheck, UserCheck, MessageCircle, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import {
@@ -22,6 +22,7 @@ const moreLinks = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/offers', icon: Package, label: 'Offres' },
   { to: '/bookings', icon: CalendarCheck, label: 'Rendez-vous' },
+  { to: '/settings', icon: Settings, label: 'Paramètres' },
 ];
 
 export function MobileBottomNav() {
