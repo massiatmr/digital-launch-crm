@@ -42,7 +42,7 @@ export default function ConversationsPage() {
   const back = () => setParams({});
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-4rem)] md:h-[calc(100dvh-1rem)]">
+    <div className="flex flex-col h-[calc(100dvh-9rem)] md:h-[calc(100dvh-2rem)] -mx-4 md:mx-0 -mb-20 md:mb-0">
       {settings?.dry_run && (
         <div className="mx-2 md:mx-4 mt-2 rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 flex items-center justify-between gap-2 text-xs">
           <span className="flex items-center gap-2 text-yellow-300">
