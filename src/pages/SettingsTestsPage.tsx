@@ -1,14 +1,31 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Bell, BellOff, Send, Clock, CheckCircle2, XCircle, Loader2, MessageCircle, AlertTriangle } from 'lucide-react';
+import { Bell, BellOff, Send, Clock, CheckCircle2, XCircle, Loader2, MessageCircle, AlertTriangle, ExternalLink } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { requestOneSignalPermission, getOneSignalPermission } from '@/hooks/useOneSignal';
 import { toast } from 'sonner';
 
 type Step = 'idle' | 'sending' | 'sent' | 'error';
+
+const PUBLISHED_URL = 'https://digital-launch-crm.lovable.app';
+
+function isPreviewEnvironment() {
+  if (typeof window === 'undefined') return false;
+  const isPreviewHost =
+    window.location.hostname.includes('id-preview--') ||
+    window.location.hostname.includes('lovableproject.com');
+  const isInIframe = (() => {
+    try {
+      return window.self !== window.top;
+    } catch {
+      return true;
+    }
+  })();
+  return isPreviewHost || isInIframe;
+}
 
 export default function SettingsTestsPage() {
   const { user } = useAuth();
@@ -18,8 +35,8 @@ export default function SettingsTestsPage() {
   const [waStep, setWaStep] = useState<Step>('idle');
   const [lastError, setLastError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(0);
+  const inPreview = useMemo(() => isPreviewEnvironment(), []);
 
-  // Track permission live
   useEffect(() => {
     setPermission(getOneSignalPermission() || (typeof Notification !== 'undefined' && Notification.permission === 'granted'));
     const t = setInterval(() => {
@@ -28,7 +45,6 @@ export default function SettingsTestsPage() {
     return () => clearInterval(t);
   }, []);
 
-  // Countdown ticker
   useEffect(() => {
     if (countdown <= 0) return;
     const t = setTimeout(() => setCountdown((c) => c - 1), 1000);
@@ -36,6 +52,10 @@ export default function SettingsTestsPage() {
   }, [countdown]);
 
   const enable = async () => {
+    if (inPreview) {
+      toast.error('Le preview ne peut pas enregistrer OneSignal. Ouvre la version publiée.');
+      return;
+    }
     const ok = await requestOneSignalPermission();
     if (ok) {
       setPermission(true);
@@ -53,6 +73,12 @@ export default function SettingsTestsPage() {
       toast.error('Non connecté');
       return;
     }
+    if (inPreview) {
+      setLastError('Le preview Lovable ne peut pas lier cet appareil à OneSignal. Ouvre la version publiée puis active les notifications là-bas.');
+      setter('error');
+      toast.error('Teste sur la version publiée, pas dans le preview');
+      return;
+    }
     setter('sending');
     setLastError(null);
     try {
@@ -60,7 +86,7 @@ export default function SettingsTestsPage() {
         body: { user_id: user.id, ...payload },
       });
       if (error) throw new Error(error.message);
-      if (data?.error) throw new Error(JSON.stringify(data));
+      if (data?.error) throw new Error(data?.hint ? `${data.error} — ${data.hint}` : JSON.stringify(data));
       setter('sent');
       toast.success('Notif envoyée — regarde ton écran 🔔');
     } catch (e) {
@@ -110,6 +136,27 @@ export default function SettingsTestsPage() {
 
   return (
     <div className="space-y-4 max-w-2xl">
+      {inPreview && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base text-destructive">
+              <AlertTriangle className="h-4 w-4" /> Test impossible dans le preview
+            </CardTitle>
+            <CardDescription>
+              Les logs backend montrent actuellement `invalid_aliases` : aucun appareil OneSignal n'est lié à ton user, donc aucune notif ne peut partir.
+              Le preview Lovable n'enregistre pas correctement OneSignal. Il faut activer les notifs sur la version publiée.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild className="gap-2">
+              <a href={PUBLISHED_URL} target="_blank" rel="noreferrer">
+                Ouvrir la version publiée <ExternalLink className="h-4 w-4" />
+              </a>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* STEP 1 — Activation */}
       <Card>
         <CardHeader>
