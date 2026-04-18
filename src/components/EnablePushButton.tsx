@@ -23,7 +23,7 @@ const icons: Record<PushState, React.ReactNode> = {
 export function EnablePushButton() {
   const { state, subscribe, loading } = usePushNotifications();
 
-  const disabled = state === 'unsupported' || state === 'denied' || state === 'subscribed' || loading;
+  const disabled = state === 'unsupported' || state === 'preview' || state === 'denied' || state === 'subscribed' || loading;
 
   return (
     <Button
