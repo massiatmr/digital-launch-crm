@@ -55,9 +55,73 @@ export default function SettingsTestsPage() {
   const [smtpRecipient, setSmtpRecipient] = useState(user?.email || '');
   const [aiLeadName, setAiLeadName] = useState('Marie Dupont');
   const [aiLeadMsg, setAiLeadMsg] = useState('Bonjour, je suis intéressée par votre offre marketing pour mon entreprise de déménagement.');
+  const [devices, setDevices] = useState<any[]>([]);
+  const [delaySec, setDelaySec] = useState(10);
+  const [countdown, setCountdown] = useState<number | null>(null);
 
   const set = (key: string, r: TestResult) => setResults((p) => ({ ...p, [key]: r }));
   const get = (key: string): TestResult => results[key] || { status: 'idle' };
+
+  // ---------- Load registered devices ----------
+  const loadDevices = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('push_subscriptions')
+      .select('id, device_info, endpoint, created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+    setDevices(data || []);
+  };
+  useEffect(() => { loadDevices(); }, [user?.id]);
+
+  const deleteDevice = async (id: string) => {
+    await supabase.from('push_subscriptions').delete().eq('id', id);
+    toast.success('Appareil supprimé');
+    loadDevices();
+  };
+
+  const detectDevice = (ua: string = '') => {
+    if (/iphone|ipad|ipod/i.test(ua)) return { icon: '📱', label: 'iOS' };
+    if (/android/i.test(ua)) return { icon: '🤖', label: 'Android' };
+    if (/macintosh/i.test(ua)) return { icon: '💻', label: 'Mac' };
+    if (/windows/i.test(ua)) return { icon: '🖥️', label: 'Windows' };
+    return { icon: '🌐', label: 'Web' };
+  };
+
+  // ---------- Delayed push test (close app then receive) ----------
+  const testPushDelayed = async () => {
+    set('pushDelayed', { status: 'running', message: `Tu as ${delaySec}s pour fermer l'app sur ton mobile…` });
+    setCountdown(delaySec);
+    const interval = setInterval(() => {
+      setCountdown((c) => (c === null || c <= 1 ? null : c - 1));
+    }, 1000);
+
+    setTimeout(async () => {
+      clearInterval(interval);
+      setCountdown(null);
+      try {
+        const { data, error } = await supabase.functions.invoke('send-push', {
+          body: {
+            user_id: user?.id,
+            title: '📱 Test mobile — App fermée ?',
+            body: `Envoyé à ${new Date().toLocaleTimeString('fr-FR')}. Si tu lis ça, tout marche !`,
+            url: '/settings/tests',
+            tag: 'test-mobile-delayed',
+          },
+        });
+        if (error) throw error;
+        set('pushDelayed', {
+          status: 'success',
+          message: `Push envoyé à ${data?.sent || 0} appareil(s). Vérifie ton mobile maintenant !`,
+          data,
+        });
+        toast.success('Notification envoyée');
+      } catch (e: any) {
+        set('pushDelayed', { status: 'error', message: e.message, data: e });
+      }
+    }, delaySec * 1000);
+  };
+
 
   // ---------- TEST 1: SMTP ----------
   const testSmtp = async () => {
