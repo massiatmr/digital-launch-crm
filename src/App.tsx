@@ -23,6 +23,7 @@ import OnboardingFormPage from "@/pages/OnboardingFormPage";
 import SettingsPage from "@/pages/SettingsPage";
 import ConversationsPage from "@/pages/ConversationsPage";
 import NotFound from "@/pages/NotFound";
+import ScrollRestoration from "@/components/ScrollRestoration";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +32,7 @@ const App = () => (
     <TooltipProvider>
       <Sonner />
       <BrowserRouter>
+        <ScrollRestoration />
         <Routes>
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/offers/:slug/page" element={<PublicOfferPage />} />
