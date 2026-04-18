@@ -178,7 +178,7 @@ export default function SettingsTestsPage() {
             <StepIcon s={delayedStep} />
           </Button>
           {countdown > 0 && (
-            <p className="text-xs text-amber-400 flex items-center gap-1">
+            <p className="text-xs text-primary flex items-center gap-1">
               <AlertTriangle className="h-3 w-3" /> Ferme ou minimise l'app maintenant !
             </p>
           )}
