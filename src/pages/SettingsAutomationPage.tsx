@@ -58,7 +58,15 @@ export default function SettingsAutomationPage() {
       template_followup_1_id: form.template_followup_1_id,
       template_followup_2_id: form.template_followup_2_id,
       template_last_followup_id: form.template_last_followup_id,
+      trigger_sources: form.trigger_sources,
+      trigger_only_new_status: form.trigger_only_new_status,
     } as any, { onSuccess: () => setDirty(false) });
+  };
+
+  const toggleSource = (src: string) => {
+    const current: string[] = form.trigger_sources || [];
+    const next = current.includes(src) ? current.filter((s) => s !== src) : [...current, src];
+    set({ trigger_sources: next });
   };
 
   const stats = useMemo(() => {
