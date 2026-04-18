@@ -316,25 +316,27 @@ export default function SettingsTestsPage() {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-5xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
-          <Zap className="w-8 h-8 text-primary" />
+    <div className="container mx-auto p-2 sm:p-6 max-w-5xl">
+      <div className="mb-4 sm:mb-8 px-1">
+        <h1 className="text-xl sm:text-3xl font-bold mb-1 sm:mb-2 flex items-center gap-2 sm:gap-3">
+          <Zap className="w-5 h-5 sm:w-8 sm:h-8 text-primary" />
           Centre de Tests
         </h1>
-        <p className="text-muted-foreground">
+        <p className="text-xs sm:text-base text-muted-foreground">
           Vérifie en un clic que toutes tes intégrations et automatisations fonctionnent.
         </p>
       </div>
 
       <Tabs defaultValue="emails" className="space-y-4">
-        <TabsList className="grid grid-cols-2 md:grid-cols-5 w-full">
-          <TabsTrigger value="emails">📧 Emails</TabsTrigger>
-          <TabsTrigger value="notifications">🔔 Notifs</TabsTrigger>
-          <TabsTrigger value="integrations">🔗 Intégrations</TabsTrigger>
-          <TabsTrigger value="ai">🤖 IA</TabsTrigger>
-          <TabsTrigger value="system">⚙️ Système</TabsTrigger>
-        </TabsList>
+        <ScrollArea className="w-full">
+          <TabsList className="inline-flex w-max md:grid md:grid-cols-5 md:w-full h-auto">
+            <TabsTrigger value="emails" className="text-xs sm:text-sm whitespace-nowrap">📧 Emails</TabsTrigger>
+            <TabsTrigger value="notifications" className="text-xs sm:text-sm whitespace-nowrap">🔔 Notifs</TabsTrigger>
+            <TabsTrigger value="integrations" className="text-xs sm:text-sm whitespace-nowrap">🔗 Intég.</TabsTrigger>
+            <TabsTrigger value="ai" className="text-xs sm:text-sm whitespace-nowrap">🤖 IA</TabsTrigger>
+            <TabsTrigger value="system" className="text-xs sm:text-sm whitespace-nowrap">⚙️ Système</TabsTrigger>
+          </TabsList>
+        </ScrollArea>
 
         {/* EMAILS */}
         <TabsContent value="emails" className="space-y-4">
