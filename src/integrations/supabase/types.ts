@@ -463,6 +463,8 @@ export type Database = {
           template_followup_2_id: string | null
           template_initial_id: string | null
           template_last_followup_id: string | null
+          trigger_only_new_status: boolean
+          trigger_sources: Database["public"]["Enums"]["lead_source"][]
           updated_at: string
         }
         Insert: {
@@ -481,6 +483,8 @@ export type Database = {
           template_followup_2_id?: string | null
           template_initial_id?: string | null
           template_last_followup_id?: string | null
+          trigger_only_new_status?: boolean
+          trigger_sources?: Database["public"]["Enums"]["lead_source"][]
           updated_at?: string
         }
         Update: {
@@ -499,6 +503,8 @@ export type Database = {
           template_followup_2_id?: string | null
           template_initial_id?: string | null
           template_last_followup_id?: string | null
+          trigger_only_new_status?: boolean
+          trigger_sources?: Database["public"]["Enums"]["lead_source"][]
           updated_at?: string
         }
         Relationships: [
