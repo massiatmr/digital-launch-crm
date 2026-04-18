@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +12,7 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { toast } from 'sonner';
 import {
   Mail, Bell, FileSignature, Webhook, Zap, Calendar, Database,
-  CheckCircle2, XCircle, Loader2, Send, Brain, Facebook
+  CheckCircle2, XCircle, Loader2, Send, Brain, Facebook, Smartphone, Trash2, Clock
 } from 'lucide-react';
 
 type Status = 'idle' | 'running' | 'success' | 'error';
@@ -55,9 +55,73 @@ export default function SettingsTestsPage() {
   const [smtpRecipient, setSmtpRecipient] = useState(user?.email || '');
   const [aiLeadName, setAiLeadName] = useState('Marie Dupont');
   const [aiLeadMsg, setAiLeadMsg] = useState('Bonjour, je suis intéressée par votre offre marketing pour mon entreprise de déménagement.');
+  const [devices, setDevices] = useState<any[]>([]);
+  const [delaySec, setDelaySec] = useState(10);
+  const [countdown, setCountdown] = useState<number | null>(null);
 
   const set = (key: string, r: TestResult) => setResults((p) => ({ ...p, [key]: r }));
   const get = (key: string): TestResult => results[key] || { status: 'idle' };
+
+  // ---------- Load registered devices ----------
+  const loadDevices = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('push_subscriptions')
+      .select('id, device_info, endpoint, created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+    setDevices(data || []);
+  };
+  useEffect(() => { loadDevices(); }, [user?.id]);
+
+  const deleteDevice = async (id: string) => {
+    await supabase.from('push_subscriptions').delete().eq('id', id);
+    toast.success('Appareil supprimé');
+    loadDevices();
+  };
+
+  const detectDevice = (ua: string = '') => {
+    if (/iphone|ipad|ipod/i.test(ua)) return { icon: '📱', label: 'iOS' };
+    if (/android/i.test(ua)) return { icon: '🤖', label: 'Android' };
+    if (/macintosh/i.test(ua)) return { icon: '💻', label: 'Mac' };
+    if (/windows/i.test(ua)) return { icon: '🖥️', label: 'Windows' };
+    return { icon: '🌐', label: 'Web' };
+  };
+
+  // ---------- Delayed push test (close app then receive) ----------
+  const testPushDelayed = async () => {
+    set('pushDelayed', { status: 'running', message: `Tu as ${delaySec}s pour fermer l'app sur ton mobile…` });
+    setCountdown(delaySec);
+    const interval = setInterval(() => {
+      setCountdown((c) => (c === null || c <= 1 ? null : c - 1));
+    }, 1000);
+
+    setTimeout(async () => {
+      clearInterval(interval);
+      setCountdown(null);
+      try {
+        const { data, error } = await supabase.functions.invoke('send-push', {
+          body: {
+            user_id: user?.id,
+            title: '📱 Test mobile — App fermée ?',
+            body: `Envoyé à ${new Date().toLocaleTimeString('fr-FR')}. Si tu lis ça, tout marche !`,
+            url: '/settings/tests',
+            tag: 'test-mobile-delayed',
+          },
+        });
+        if (error) throw error;
+        set('pushDelayed', {
+          status: 'success',
+          message: `Push envoyé à ${data?.sent || 0} appareil(s). Vérifie ton mobile maintenant !`,
+          data,
+        });
+        toast.success('Notification envoyée');
+      } catch (e: any) {
+        set('pushDelayed', { status: 'error', message: e.message, data: e });
+      }
+    }, delaySec * 1000);
+  };
+
 
   // ---------- TEST 1: SMTP ----------
   const testSmtp = async () => {
@@ -336,9 +400,108 @@ export default function SettingsTestsPage() {
               <ResultBlock result={get('push')} />
             </CardContent>
           </Card>
+
+          {/* MOBILE PUSH TEST — Differé pour fermer l'app */}
+          <Card className="border-primary/30">
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Smartphone className="w-5 h-5 text-primary" />
+                    Test push mobile (app fermée)
+                  </CardTitle>
+                  <CardDescription>
+                    Déclenche depuis ton PC une notif différée. Tu as le temps de fermer l'app sur ton mobile pour vérifier qu'elle arrive bien en arrière-plan.
+                  </CardDescription>
+                </div>
+                <StatusBadge status={get('pushDelayed').status} />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 text-xs space-y-1">
+                <p className="font-medium">📋 Mode d'emploi :</p>
+                <ol className="text-muted-foreground space-y-0.5 ml-4 list-decimal">
+                  <li>Sur mobile : ouvre l'app PWA (écran d'accueil) et active les notifs</li>
+                  <li>Sur PC : choisis un délai puis clique sur "Lancer test différé"</li>
+                  <li>Sur mobile : ferme complètement l'app pendant le compte à rebours</li>
+                  <li>Vérifie que la notif arrive sur l'écran verrouillé</li>
+                </ol>
+              </div>
+
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <Label htmlFor="delay">Délai avant envoi (sec)</Label>
+                  <Input
+                    id="delay"
+                    type="number"
+                    min={3}
+                    max={120}
+                    value={delaySec}
+                    onChange={(e) => setDelaySec(Number(e.target.value) || 10)}
+                  />
+                </div>
+                <Button
+                  onClick={testPushDelayed}
+                  disabled={get('pushDelayed').status === 'running' || !user}
+                  className="shrink-0"
+                >
+                  {countdown !== null ? (
+                    <><Clock className="w-4 h-4 mr-2 animate-pulse" />{countdown}s</>
+                  ) : (
+                    <><Smartphone className="w-4 h-4 mr-2" />Lancer test différé</>
+                  )}
+                </Button>
+              </div>
+              <ResultBlock result={get('pushDelayed')} />
+            </CardContent>
+          </Card>
+
+          {/* DEVICES LIST */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Smartphone className="w-5 h-5" />
+                    Appareils enregistrés ({devices.length})
+                  </CardTitle>
+                  <CardDescription>
+                    Tous les appareils qui recevront tes notifications. Supprime les anciens si besoin.
+                  </CardDescription>
+                </div>
+                <Button size="sm" variant="ghost" onClick={loadDevices}>↻</Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {devices.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Aucun appareil. Active les notifications sur le mobile/PC à utiliser.
+                </p>
+              ) : (
+                devices.map((d) => {
+                  const dev = detectDevice(d.device_info);
+                  return (
+                    <div key={d.id} className="flex items-center justify-between p-3 rounded-lg bg-black/30 border border-white/5">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <span className="text-2xl">{dev.icon}</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium">{dev.label}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            Ajouté {new Date(d.created_at).toLocaleDateString('fr-FR')} · {d.device_info?.slice(0, 60)}…
+                          </p>
+                        </div>
+                      </div>
+                      <Button size="sm" variant="ghost" onClick={() => deleteDevice(d.id)}>
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </div>
+                  );
+                })
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
-        {/* INTÉGRATIONS */}
         <TabsContent value="integrations" className="space-y-4">
           <Card>
             <CardHeader>
