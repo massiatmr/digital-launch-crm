@@ -107,7 +107,7 @@ export default function ConversationsPage() {
               Sélectionne une conversation
             </div>
           ) : (
-            <div className="flex flex-col h-full rounded-xl border border-border bg-card overflow-hidden">
+            <div className={cn('flex flex-col h-full rounded-xl border border-border bg-card overflow-hidden', flash && 'highlight-flash')}>
               <header className="flex items-center gap-2 px-3 py-2.5 border-b border-border bg-muted/20">
                 <Button variant="ghost" size="icon" className="md:hidden h-8 w-8" onClick={back}>
                   <ArrowLeft className="h-4 w-4" />
