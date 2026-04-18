@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useSmartBack } from '@/hooks/useSmartBack';
 import { ArrowLeft, Copy, ExternalLink, Plus, Trash2, Upload, Link as LinkIcon, FileText, Clock, Receipt, FileSignature, Mail } from 'lucide-react';
 import InvoiceGenerator, { type BillingInfo } from '@/components/InvoiceGenerator';
 import InvoicesHistory from '@/components/InvoicesHistory';
@@ -56,6 +57,7 @@ const ADS_FORM_LABELS: FormLabel[] = [
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const goBack = useSmartBack('/clients');
   const { data: client, isLoading } = useClient(id);
   const { data: offers } = useOffers();
   const { data: onboardings } = useClientOnboarding(id);
@@ -209,7 +211,7 @@ export default function ClientDetailPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/clients')}><ArrowLeft className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" onClick={goBack}><ArrowLeft className="h-4 w-4" /></Button>
         <div className="flex-1">
           <h1 className="text-xl font-bold">{client.name}</h1>
           {client.company_name && <p className="text-sm text-muted-foreground">{client.company_name}</p>}
