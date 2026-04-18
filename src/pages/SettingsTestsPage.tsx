@@ -49,9 +49,6 @@ const ResultBlock = ({ result }: { result: TestResult }) => {
 export default function SettingsTestsPage() {
   const { user } = useAuth();
   const { state: pushState, subscribe } = usePushNotifications();
-  const isSubscribed = pushState === 'subscribed';
-  const isPreview = pushState === 'preview';
-
   const [results, setResults] = useState<Record<string, TestResult>>({});
   const [smtpRecipient, setSmtpRecipient] = useState(user?.email || '');
   const [aiLeadName, setAiLeadName] = useState('Marie Dupont');
@@ -59,13 +56,56 @@ export default function SettingsTestsPage() {
   const [devices, setDevices] = useState<any[]>([]);
   const [delaySec, setDelaySec] = useState(10);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [currentSubscriptionEndpoint, setCurrentSubscriptionEndpoint] = useState<string | null>(null);
+  const [subscriptionChecked, setSubscriptionChecked] = useState(false);
+
+  const isPreview = pushState === 'preview';
+  const isSubscribed = subscriptionChecked ? !!currentSubscriptionEndpoint : pushState === 'subscribed';
 
   const set = (key: string, r: TestResult) => setResults((p) => ({ ...p, [key]: r }));
   const get = (key: string): TestResult => results[key] || { status: 'idle' };
 
+  const getPushRegistration = async () => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+      return null;
+    }
+
+    return (await navigator.serviceWorker.getRegistration('/service-worker.js'))
+      ?? (await navigator.serviceWorker.getRegistration())
+      ?? null;
+  };
+
+  const loadCurrentSubscription = async () => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+      setCurrentSubscriptionEndpoint(null);
+      setSubscriptionChecked(true);
+      return;
+    }
+
+    try {
+      const registration = await getPushRegistration();
+      if (!registration) {
+        setCurrentSubscriptionEndpoint(null);
+        return;
+      }
+
+      const subscription = await registration.pushManager.getSubscription();
+      setCurrentSubscriptionEndpoint(subscription?.endpoint ?? null);
+    } catch (error) {
+      console.error('Impossible de lire la souscription push actuelle:', error);
+      setCurrentSubscriptionEndpoint(null);
+    } finally {
+      setSubscriptionChecked(true);
+    }
+  };
+
   // ---------- Load registered devices ----------
   const loadDevices = async () => {
-    if (!user) return;
+    if (!user) {
+      setDevices([]);
+      return;
+    }
+
     const { data } = await supabase
       .from('push_subscriptions')
       .select('id, device_info, endpoint, created_at')
@@ -73,12 +113,77 @@ export default function SettingsTestsPage() {
       .order('created_at', { ascending: false });
     setDevices(data || []);
   };
-  useEffect(() => { loadDevices(); }, [user?.id]);
 
-  const deleteDevice = async (id: string) => {
-    await supabase.from('push_subscriptions').delete().eq('id', id);
-    toast.success('Appareil supprimé');
+  useEffect(() => {
     loadDevices();
+    loadCurrentSubscription();
+  }, [user?.id]);
+
+  const deleteDevice = async (id: string, endpoint?: string) => {
+    const isCurrentDevice = !!endpoint && endpoint === currentSubscriptionEndpoint;
+
+    try {
+      if (isCurrentDevice) {
+        const registration = await getPushRegistration();
+        const subscription = await registration?.pushManager.getSubscription();
+
+        if (subscription?.endpoint === endpoint) {
+          const unsubscribed = await subscription.unsubscribe();
+          if (!unsubscribed) {
+            throw new Error('Impossible de désabonner cet appareil depuis le navigateur');
+          }
+        }
+
+        setCurrentSubscriptionEndpoint(null);
+      }
+
+      const { error } = await supabase.from('push_subscriptions').delete().eq('id', id);
+      if (error) throw error;
+
+      toast.success(isCurrentDevice ? 'Cet appareil est désabonné' : 'Appareil supprimé');
+      await Promise.all([loadDevices(), loadCurrentSubscription()]);
+    } catch (e: any) {
+      toast.error(e.message || 'Échec du désabonnement');
+    }
+  };
+
+  const unsubscribeCurrentDevice = async () => {
+    if (!user) {
+      toast.error('Tu dois être connecté');
+      return;
+    }
+
+    const endpoint = currentSubscriptionEndpoint;
+    if (!endpoint) {
+      toast.error('Aucune souscription active détectée sur cet appareil');
+      return;
+    }
+
+    try {
+      const registration = await getPushRegistration();
+      const subscription = await registration?.pushManager.getSubscription();
+
+      if (subscription?.endpoint === endpoint) {
+        const unsubscribed = await subscription.unsubscribe();
+        if (!unsubscribed) {
+          throw new Error('Impossible de désabonner cet appareil depuis le navigateur');
+        }
+      }
+
+      const { error } = await supabase
+        .from('push_subscriptions')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('endpoint', endpoint);
+
+      if (error) throw error;
+
+      setCurrentSubscriptionEndpoint(null);
+      toast.success('Cet appareil est désabonné');
+      await Promise.all([loadDevices(), loadCurrentSubscription()]);
+    } catch (e: any) {
+      toast.error(e.message || 'Échec du désabonnement');
+    }
   };
 
   const detectDevice = (ua: string = '') => {
@@ -155,6 +260,8 @@ export default function SettingsTestsPage() {
     try {
       if (!isSubscribed) {
         await subscribe();
+        await loadCurrentSubscription();
+        await loadDevices();
       }
       // Send a test push via send-push function targeting current user
       const { data, error } = await supabase.functions.invoke('send-push', {
@@ -409,9 +516,14 @@ export default function SettingsTestsPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button onClick={testPush} disabled={get('push').status === 'running'}>
-                <Bell className="w-4 h-4 mr-2" />{isSubscribed ? 'Envoyer notif test' : 'S\'abonner + tester'}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={testPush} disabled={get('push').status === 'running'}>
+                  <Bell className="w-4 h-4 mr-2" />{isSubscribed ? 'Envoyer notif test' : 'S\'abonner + tester'}
+                </Button>
+                <Button variant="outline" onClick={unsubscribeCurrentDevice} disabled={!currentSubscriptionEndpoint || get('push').status === 'running'}>
+                  <Trash2 className="w-4 h-4 mr-2" />Désabonner cet appareil
+                </Button>
+              </div>
               <ResultBlock result={get('push')} />
             </CardContent>
           </Card>
@@ -484,7 +596,9 @@ export default function SettingsTestsPage() {
                     Tous les appareils qui recevront tes notifications. Supprime les anciens si besoin.
                   </CardDescription>
                 </div>
-                <Button size="sm" variant="ghost" onClick={loadDevices}>↻</Button>
+                <Button size="sm" variant="ghost" onClick={async () => {
+                  await Promise.all([loadDevices(), loadCurrentSubscription()]);
+                }}>↻</Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -495,18 +609,22 @@ export default function SettingsTestsPage() {
               ) : (
                 devices.map((d) => {
                   const dev = detectDevice(d.device_info);
+                  const isCurrentDevice = d.endpoint === currentSubscriptionEndpoint;
                   return (
                     <div key={d.id} className="flex items-center justify-between p-3 rounded-lg bg-black/30 border border-white/5">
                       <div className="flex items-center gap-3 min-w-0 flex-1">
                         <span className="text-2xl">{dev.icon}</span>
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium">{dev.label}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium">{dev.label}</p>
+                            {isCurrentDevice && <Badge variant="outline">Cet appareil</Badge>}
+                          </div>
                           <p className="text-xs text-muted-foreground truncate">
                             Ajouté {new Date(d.created_at).toLocaleDateString('fr-FR')} · {d.device_info?.slice(0, 60)}…
                           </p>
                         </div>
                       </div>
-                      <Button size="sm" variant="ghost" onClick={() => deleteDevice(d.id)}>
+                      <Button size="sm" variant="ghost" onClick={() => deleteDevice(d.id, d.endpoint)}>
                         <Trash2 className="w-4 h-4 text-destructive" />
                       </Button>
                     </div>
