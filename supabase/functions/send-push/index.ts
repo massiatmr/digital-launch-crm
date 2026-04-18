@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { user_id, title, body, url, tag } = await req.json();
+    const { user_id, title, body, url, tag, subscription_ids } = await req.json();
 
     if (!user_id) {
       return new Response(JSON.stringify({ error: "user_id required" }), {
@@ -93,6 +93,10 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const targetIds = Array.isArray(subscription_ids)
+      ? subscription_ids.filter((value): value is string => typeof value === "string" && value.length > 0)
+      : [];
 
     const vapidKeys = await importVapidKeyPairFromRawPrivateKey(VAPID_PRIVATE_KEY);
     const subject = getNormalizedVapidSubject();
@@ -102,10 +106,16 @@ Deno.serve(async (req) => {
     });
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { data: subscriptions, error } = await supabase
+    let query = supabase
       .from("push_subscriptions")
-      .select("endpoint, keys_p256dh, keys_auth, id")
+      .select("endpoint, keys_p256dh, keys_auth, id, device_info, created_at")
       .eq("user_id", user_id);
+
+    if (targetIds.length > 0) {
+      query = query.in("id", targetIds);
+    }
+
+    const { data: subscriptions, error } = await query;
 
     if (error) throw error;
     if (!subscriptions?.length) {
@@ -129,6 +139,8 @@ Deno.serve(async (req) => {
     const debugLogs: Array<Record<string, unknown>> = [
       {
         global: `Found ${subscriptions.length} subscription(s)`,
+        targeted: targetIds.length > 0,
+        requestedTargets: targetIds.length,
         mode: "aes128gcm (RFC 8291 via @negrel/webpush)",
         vapidSubject: subject,
       },
@@ -148,7 +160,14 @@ Deno.serve(async (req) => {
           topic: typeof tag === "string" && tag.length > 0 ? tag : undefined,
         });
 
-        debugLogs.push({ subId: sub.id, host, ok: true, status: 201 });
+        debugLogs.push({
+          subId: sub.id,
+          host,
+          device: sub.device_info,
+          created_at: sub.created_at,
+          ok: true,
+          status: 201,
+        });
         sent++;
       } catch (error) {
         if (error instanceof PushMessageError) {
@@ -157,6 +176,8 @@ Deno.serve(async (req) => {
           debugLogs.push({
             subId: sub.id,
             host,
+            device: sub.device_info,
+            created_at: sub.created_at,
             status,
             error: error.toString(),
             body: responseBody.slice(0, 300),
@@ -169,6 +190,8 @@ Deno.serve(async (req) => {
           debugLogs.push({
             subId: sub.id,
             host,
+            device: sub.device_info,
+            created_at: sub.created_at,
             error: error instanceof Error ? error.message : String(error),
             ok: false,
           });
