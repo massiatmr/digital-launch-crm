@@ -1,11 +1,13 @@
 import { useEffect } from 'react';
 import OneSignal from 'react-onesignal';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from './useAuth';
 
 const ONESIGNAL_APP_ID = '46f7498d-e02a-4ee9-bbc6-28f0ec0d7aea';
 const SAFARI_WEB_ID = 'web.onesignal.auto.1b1338f0-ae7a-49c0-a5a1-0112be9b9bea';
 
 let initPromise: Promise<void> | null = null;
+let clickHandlerBound = false;
 
 function isPreviewIframe() {
   try {
@@ -35,13 +37,40 @@ async function initOnce() {
 
 export function useOneSignal() {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (isPreviewIframe()) return;
     let cancelled = false;
     (async () => {
       await initOnce();
-      if (cancelled || !user) return;
+      if (cancelled) return;
+
+      // Bind click handler once → SPA navigation instead of full reload
+      if (!clickHandlerBound) {
+        try {
+          OneSignal.Notifications.addEventListener('click', (event: any) => {
+            const url: string | undefined = event?.notification?.launchURL || event?.notification?.url;
+            if (!url) return;
+            try {
+              const u = new URL(url, window.location.origin);
+              if (u.origin === window.location.origin) {
+                navigate(u.pathname + u.search + u.hash);
+                window.focus();
+                return;
+              }
+            } catch {
+              // ignore
+            }
+            window.location.href = url;
+          });
+          clickHandlerBound = true;
+        } catch (e) {
+          console.warn('OneSignal click handler bind failed', e);
+        }
+      }
+
+      if (!user) return;
       try {
         await OneSignal.login(user.id);
       } catch (e) {
@@ -51,7 +80,7 @@ export function useOneSignal() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id]);
+  }, [user?.id, navigate]);
 
   useEffect(() => {
     if (isPreviewIframe()) return;
