@@ -148,10 +148,22 @@ Deno.serve(async (req) => {
           keys: { p256dh: sub.keys_p256dh, auth: sub.keys_auth },
         } satisfies PushSubscription);
 
+        // Apple Push exige un Topic ≤32 chars, base64url-safe.
+        // On hash le tag fourni (qui peut contenir un UUID = 39 chars) en court ID stable.
+        let safeTopic: string | undefined = undefined;
+        if (typeof tag === "string" && tag.length > 0) {
+          if (/^[A-Za-z0-9_-]{1,32}$/.test(tag)) {
+            safeTopic = tag;
+          } else {
+            const hashBuf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(tag));
+            safeTopic = bytesToBase64Url(new Uint8Array(hashBuf)).slice(0, 32);
+          }
+        }
+
         await subscriber.pushTextMessage(payload, {
           ttl: 86400,
           urgency: Urgency.High,
-          topic: typeof tag === "string" && tag.length > 0 ? tag : undefined,
+          topic: safeTopic,
         });
 
         sent++;
