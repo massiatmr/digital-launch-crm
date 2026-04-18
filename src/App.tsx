@@ -32,6 +32,7 @@ const App = () => (
     <TooltipProvider>
       <Sonner />
       <BrowserRouter>
+        <ScrollRestoration />
         <Routes>
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/offers/:slug/page" element={<PublicOfferPage />} />
