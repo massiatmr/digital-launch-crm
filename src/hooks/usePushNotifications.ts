@@ -43,7 +43,8 @@ export function usePushNotifications() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    const hasNotification = typeof window !== 'undefined' && 'Notification' in window;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !hasNotification) {
       setState('unsupported');
       return;
     }
@@ -53,7 +54,7 @@ export function usePushNotifications() {
       return;
     }
 
-    const perm = Notification.permission;
+    const perm = window.Notification.permission;
     if (perm === 'denied') {
       setState('denied');
       return;
@@ -74,6 +75,11 @@ export function usePushNotifications() {
       toast.error('Tu dois être connecté');
       return;
     }
+    if (typeof window === 'undefined' || !('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+      toast.error('Ton navigateur ne supporte pas les notifications push. Sur iPhone : ajoute le site à l\'écran d\'accueil puis ouvre-le depuis l\'icône.');
+      setState('unsupported');
+      return;
+    }
     if (isPreviewEnvironment()) {
       toast.error('Les notifications push ne fonctionnent pas dans le preview Lovable. Ouvre la version publiée : digital-launch-crm.lovable.app');
       return;
@@ -85,7 +91,7 @@ export function usePushNotifications() {
         toast.error('Clé VAPID introuvable côté serveur');
         return;
       }
-      const permission = await Notification.requestPermission();
+      const permission = await window.Notification.requestPermission();
       if (permission !== 'granted') {
         setState('denied');
         toast.error('Permission refusée pour les notifications');
@@ -100,7 +106,25 @@ export function usePushNotifications() {
       }
       await navigator.serviceWorker.ready;
 
+      // Force re-subscription: if an old subscription exists (e.g. with previous VAPID key), unsubscribe it first
       let subscription = await registration.pushManager.getSubscription();
+      if (subscription) {
+        try {
+          // Check if applicationServerKey matches current VAPID key
+          const currentKey = subscription.options?.applicationServerKey;
+          const expectedKey = urlBase64ToUint8Array(vapidKey).buffer;
+          const matches = currentKey && new Uint8Array(currentKey as ArrayBuffer).every(
+            (b, i) => b === new Uint8Array(expectedKey)[i]
+          );
+          if (!matches) {
+            await subscription.unsubscribe();
+            subscription = null;
+          }
+        } catch {
+          await subscription.unsubscribe();
+          subscription = null;
+        }
+      }
 
       if (!subscription) {
         subscription = await registration.pushManager.subscribe({
