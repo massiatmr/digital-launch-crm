@@ -132,12 +132,11 @@ function getNormalizedVapidSubject(): string {
   return "mailto:contact@digitallaunch-llc.com";
 }
 
-async function createVapidAuthHeader(endpoint: string): Promise<{ jwt: string; publicKey: string }> {
+async function createVapidAuthHeader(endpoint: string): Promise<{ jwt: string; publicKey: string; authorization: string }> {
   const url = new URL(endpoint);
   const audience = `${url.protocol}//${url.host}`;
   const expiration = Math.floor(Date.now() / 1000) + 12 * 60 * 60;
 
-  // Decode VAPID private key
   const privateKeyBytes = base64UrlDecode(VAPID_PRIVATE_KEY);
   const publicKeyBytes = base64UrlDecode(VAPID_PUBLIC_KEY);
 
@@ -158,7 +157,7 @@ async function createVapidAuthHeader(endpoint: string): Promise<{ jwt: string; p
   const unsignedToken = `${header}.${body}`;
 
   const signature = new Uint8Array(
-    await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, new TextEncoder().encode(unsignedToken))
+    await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, new TextEncoder().encode(unsignedToken) as BufferSource)
   );
 
   let rawSig: Uint8Array;
@@ -181,10 +180,12 @@ async function createVapidAuthHeader(endpoint: string): Promise<{ jwt: string; p
   }
 
   const token = `${unsignedToken}.${base64UrlEncode(rawSig)}`;
+  const publicKey = base64UrlEncode(publicKeyBytes);
 
   return {
     jwt: token,
-    publicKey: base64UrlEncode(publicKeyBytes),
+    publicKey,
+    authorization: `vapid t=${token}, k=${publicKey}`,
   };
 }
 
@@ -202,8 +203,8 @@ async function sendPushToEndpoint(
     headers: {
       "Content-Type": "application/octet-stream",
       "Content-Encoding": "aesgcm",
-      Authorization: `WebPush ${vapid.jwt}`,
-      "Crypto-Key": `dh=${base64UrlEncode(serverPublicKeyBytes)};p256ecdsa=${vapid.publicKey}`,
+      Authorization: vapid.authorization,
+      "Crypto-Key": `dh=${base64UrlEncode(serverPublicKeyBytes)}`,
       Encryption: `salt=${base64UrlEncode(salt)}`,
       TTL: "86400",
       Urgency: "high",
