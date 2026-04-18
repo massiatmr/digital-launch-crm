@@ -277,11 +277,50 @@ export default function SettingsTestsPage() {
       if (error) throw error;
       set('push', {
         status: 'success',
-        message: 'Notification test envoyée instantanément — le service worker affichera le message par défaut',
+        message: 'Push backend envoyé — si rien ne s’affiche, le souci vient côté appareil/service worker',
         data,
       });
     } catch (e: any) {
       set('push', { status: 'error', message: e.message, data: e });
+    }
+  };
+
+  const testLocalNotification = async () => {
+    set('pushLocal', { status: 'running' });
+    try {
+      if (typeof window === 'undefined' || !('Notification' in window)) {
+        throw new Error('Notifications non supportées sur cet appareil');
+      }
+
+      if (window.Notification.permission !== 'granted') {
+        throw new Error('Autorisation notifications non accordée');
+      }
+
+      const registration = await getPushRegistration();
+
+      if (registration && 'showNotification' in registration) {
+        await registration.showNotification('🧪 Test local — Digital Launch CRM', {
+          body: 'Cette notification est affichée directement par ton appareil.',
+          icon: '/icon-192x192.png',
+          badge: '/icon-192x192.png',
+          tag: 'test-local-notification',
+          data: { url: '/settings/tests' },
+        });
+      } else {
+        new Notification('🧪 Test local — Digital Launch CRM', {
+          body: 'Cette notification est affichée directement par le navigateur.',
+          icon: '/icon-192x192.png',
+          tag: 'test-local-notification',
+        });
+      }
+
+      set('pushLocal', {
+        status: 'success',
+        message: 'Notification locale affichée immédiatement sur cet appareil',
+        data: { mode: registration ? 'service-worker.showNotification' : 'Notification()' },
+      });
+    } catch (e: any) {
+      set('pushLocal', { status: 'error', message: e.message, data: e });
     }
   };
 
@@ -522,13 +561,17 @@ export default function SettingsTestsPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex flex-wrap gap-2">
+                <Button onClick={testLocalNotification} disabled={get('pushLocal').status === 'running'} variant="secondary">
+                  <Bell className="w-4 h-4 mr-2" />Tester affichage local
+                </Button>
                 <Button onClick={testPush} disabled={get('push').status === 'running'}>
-                  <Bell className="w-4 h-4 mr-2" />{isSubscribed ? 'Envoyer notif test' : 'S\'abonner + tester'}
+                  <Bell className="w-4 h-4 mr-2" />{isSubscribed ? 'Tester push backend' : 'S\'abonner + tester'}
                 </Button>
                 <Button variant="outline" onClick={unsubscribeCurrentDevice} disabled={!currentSubscriptionEndpoint || get('push').status === 'running'}>
                   <Trash2 className="w-4 h-4 mr-2" />Désabonner cet appareil
                 </Button>
               </div>
+              <ResultBlock result={get('pushLocal')} />
               <ResultBlock result={get('push')} />
             </CardContent>
           </Card>
