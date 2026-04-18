@@ -1,47 +1,70 @@
 
-## Refonte du panneau latéral de détail du lead
+## Plan : fiabiliser le suivi WhatsApp
 
-Le composant `LeadDetailContent.tsx` est actuellement une longue liste verticale qui empile tout : header, badges, formulaire d'édition, input IA, message, analyse IA (4 sections), timeline followup, timeline activités, messages générés, scripts. C'est noyé.
+### 1. Push notif sur message entrant (CRITIQUE — fix #1 risque de perte)
+Modifier `whatsapp-webhook/index.ts` : après l'insert d'un message inbound dans `whatsapp_messages`, invoquer `send-push` vers `cfg.owner_id` :
+- Titre : `💬 [Nom du lead] a répondu`
+- Corps : 100 premiers caractères du message
+- URL : `/conversations?lead={lead_id}`
 
-### Nouvelle structure proposée
+→ Notif push reçue même app fermée (sur iOS, requiert PWA installée écran d'accueil — voir point 5).
 
-**Header sticky compact** (haut du Sheet, toujours visible)
-- Nom + score + statut sur une ligne
-- Téléphone cliquable (WA) + email + date création en sous-ligne discrète
-- Actions rapides à droite : icônes Éditer / Présence / Supprimer (au lieu de boutons texte)
+### 2. Nouvelle page `/conversations` (inbox WhatsApp temps réel)
 
-**Bandeau IA résumé** (juste sous le header, condensé)
-- 2-3 lignes max : résumé IA + angle de vente
-- Bouton "Voir plus" pour déplier les notes complètes et next_action
+**Layout 2 colonnes desktop / stack mobile :**
+- **Gauche** : liste des leads avec ≥1 message WhatsApp
+  - Nom + dernier message tronqué + heure
+  - Point violet "non lu" si dernier message inbound non vu
+  - Tri : dernier inbound en haut
+  - Recherche par nom/téléphone
+  - Realtime : nouveau message → remonte en haut
+- **Droite** : conversation active
+  - Header (nom, score, lien vers fiche)
+  - Bulles inbound/outbound avec auto-scroll
+  - Composer en bas (Entrée = envoyer, optimistic UI)
 
-**Système d'onglets** (cœur du panneau, remplace l'empilement)
-1. **Vue d'ensemble** (par défaut)
-   - Message initial du lead (si présent)
-   - Bandeau IA déplié (sales_angle, next_action, notes)
-   - Input langage naturel pour ajouter une note
-2. **Suivi auto** 
-   - `FollowupTimeline` (séquence WhatsApp + état conversation)
-3. **Activités**
-   - `LeadActivityTimeline` (historique manuel : appels, emails, notes)
-4. **Contenu IA**
-   - Messages générés (WhatsApp/email/SMS) avec copier
-   - Scripts de vente avec objections
+**Composant extrait** : `WhatsAppChat.tsx` (réutilisable depuis `FollowupTimeline` et la page Conversations).
 
-**Mode édition** : ouvert dans un sous-Sheet (au lieu d'inline qui pousse tout) ou via toggle qui remplace temporairement le contenu du tab actif.
+**Hook nouveau** : `useWhatsAppInbox.ts` — agrège les leads par dernier message + realtime + comptage non-lus (via `localStorage` `lastSeen[leadId]`).
 
-### Bénéfices
-- Plus de scroll infini : chaque tab tient dans la viewport
-- Header toujours visible → contexte permanent
-- L'IA / activités / suivi auto ont leur espace dédié
-- Mobile-friendly : tabs plus lisibles que sections empilées
+**Navigation** :
+- `AppSidebar` : entrée "Conversations" (icône MessageCircle) après Pipeline, avec badge non-lus
+- `MobileBottomNav` : entrée "Conversations" remplace ou complète une entrée
+- Route `/conversations` dans `App.tsx`
 
-### Fichier impacté
-- `src/components/LeadDetailContent.tsx` : refonte complète (réutilise tous les sous-composants existants, change uniquement la structure)
+### 3. Optimistic UI dans le chat
+Dans `WhatsAppChat`, la bulle envoyée apparaît immédiatement avec état "envoi…" avant la confirmation serveur → masque la latence perçue.
 
-Aucun changement DB, aucune nouvelle dépendance, aucun autre composant à modifier.
+### 4. Bandeau dry_run visible
+Si `followup_automation_settings.dry_run = true`, afficher un bandeau orange en haut de `/conversations` et `/settings/automation` :
+> ⚠️ Mode test — aucun message WhatsApp réel n'est envoyé. [Passer en production]
+
+### 5. Guide installation PWA iOS
+Petite carte dans `/settings` expliquant :
+> Pour recevoir les notifications même app fermée : Partager → Sur l'écran d'accueil
+
+(Sur iOS, le Web Push ne fonctionne en background QUE si la PWA est installée — c'est une contrainte Apple, pas un bug.)
+
+### Fichiers impactés
+
+| Fichier | Action |
+|---|---|
+| `supabase/functions/whatsapp-webhook/index.ts` | Trigger `send-push` sur message inbound |
+| `src/pages/ConversationsPage.tsx` | **Nouveau** : inbox 2 colonnes |
+| `src/components/WhatsAppChat.tsx` | **Nouveau** : chat extrait, optimistic UI |
+| `src/components/FollowupTimeline.tsx` | Utilise `<WhatsAppChat />` |
+| `src/hooks/useWhatsAppInbox.ts` | **Nouveau** : liste convs + realtime + non-lus |
+| `src/App.tsx` | Route `/conversations` |
+| `src/components/AppSidebar.tsx` | Entrée Conversations + badge |
+| `src/components/MobileBottomNav.tsx` | Entrée Conversations |
+| `src/pages/SettingsAutomationPage.tsx` | Bandeau dry_run |
+| `src/pages/SettingsPage.tsx` | Carte guide PWA iOS |
+
+Aucun changement de schéma DB (non-lus = `localStorage`).
 
 <lov-actions>
-<lov-suggestion message="Vérifie la nouvelle interface : ouvre une fiche lead depuis la pipeline, navigue les 4 onglets, teste le mode édition, et vérifie que tout reste fluide sur mobile">Vérifier le rendu end-to-end</lov-suggestion>
-<lov-suggestion message="Go, refais le panneau latéral du lead avec la structure proposée (header sticky, bandeau IA résumé, 4 onglets)">Lancer la refonte</lov-suggestion>
-<lov-suggestion message="Avant la refonte, ajoute aussi un mini compteur d'étape de séquence (ex: 'Étape 2/4 - Relance 1 dans 2h') dans le header sticky">Ajouter compteur séquence au header</lov-suggestion>
+<lov-suggestion message="Vérifie end-to-end : crée un lead test, envoie un message WhatsApp entrant, vérifie la notif push mobile + l'apparition dans /conversations + le badge non-lu">Tester end-to-end</lov-suggestion>
+<lov-suggestion message="Go, lance les 5 chantiers dans l'ordre : push inbound, page Conversations + nav, optimistic UI, bandeau dry_run, guide PWA iOS">Lancer tout</lov-suggestion>
+<lov-suggestion message="Fais d'abord uniquement le critique : push notif sur message entrant + page /conversations avec inbox temps réel">Critique seulement (1+2)</lov-suggestion>
+<lov-suggestion message="Ajoute aussi un son de notification dans /conversations quand un nouveau message arrive">Ajouter son notification</lov-suggestion>
 </lov-actions>
