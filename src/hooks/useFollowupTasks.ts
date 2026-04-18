@@ -1,6 +1,44 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+
+export function useSendWhatsAppMessage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ leadId, message }: { leadId: string; message: string }) => {
+      const { data, error } = await supabase.functions.invoke('send-whatsapp-message', {
+        body: { lead_id: leadId, message },
+      });
+      if (error) throw error;
+      if ((data as any)?.error && !(data as any)?.success) throw new Error((data as any).error);
+      return data;
+    },
+    onSuccess: (data: any, vars) => {
+      if (data?.dry_run) toast.success('Message simulé (dry-run actif)');
+      else toast.success('Message envoyé');
+      qc.invalidateQueries({ queryKey: ['wa-messages', vars.leadId] });
+      qc.invalidateQueries({ queryKey: ['conv-state', vars.leadId] });
+    },
+    onError: (e: any) => toast.error(e.message || 'Erreur envoi'),
+  });
+}
+
+export function useWhatsAppRealtime(leadId?: string) {
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (!leadId) return;
+    const channel = supabase
+      .channel(`wa-msgs-${leadId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_messages', filter: `lead_id=eq.${leadId}` }, () => {
+        qc.invalidateQueries({ queryKey: ['wa-messages', leadId] });
+        qc.invalidateQueries({ queryKey: ['conv-state', leadId] });
+        qc.invalidateQueries({ queryKey: ['followup-tasks', leadId] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [leadId, qc]);
+}
 
 export function useFollowupTasks(leadId?: string) {
   return useQuery({
