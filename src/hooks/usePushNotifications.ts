@@ -3,7 +3,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
 
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
+let CACHED_VAPID_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
+
+async function getVapidPublicKey(): Promise<string> {
+  if (CACHED_VAPID_KEY) return CACHED_VAPID_KEY;
+  const { data, error } = await supabase.functions.invoke('get-vapid-public-key');
+  if (error) throw new Error('Impossible de récupérer la clé VAPID : ' + error.message);
+  CACHED_VAPID_KEY = (data as any)?.publicKey || '';
+  return CACHED_VAPID_KEY;
+}
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -70,13 +78,13 @@ export function usePushNotifications() {
       toast.error('Les notifications push ne fonctionnent pas dans le preview Lovable. Ouvre la version publiée : digital-launch-crm.lovable.app');
       return;
     }
-    if (!VAPID_PUBLIC_KEY) {
-      toast.error('Clé VAPID manquante (VITE_VAPID_PUBLIC_KEY)');
-      return;
-    }
-
     setLoading(true);
     try {
+      const vapidKey = await getVapidPublicKey();
+      if (!vapidKey) {
+        toast.error('Clé VAPID introuvable côté serveur');
+        return;
+      }
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
         setState('denied');
@@ -97,7 +105,7 @@ export function usePushNotifications() {
       if (!subscription) {
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY).buffer as ArrayBuffer,
+          applicationServerKey: urlBase64ToUint8Array(vapidKey).buffer as ArrayBuffer,
         });
       }
 
