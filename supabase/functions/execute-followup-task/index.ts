@@ -139,9 +139,8 @@ Deno.serve(async (req) => {
       aiGenerated = template.variables_count > 0;
 
       if (!dryRun) {
-        // Envoi réel via Meta API en mode template
-        const { data: config } = await supabase
-          .from("whatsapp_config").select("*").eq("owner_id", user.id).maybeSingle();
+        const { data: config } = await admin
+          .from("whatsapp_config").select("*").eq("owner_id", ownerId).maybeSingle();
         if (!config) {
           errorMessage = "WhatsApp non configuré";
           logStatus = "failed";
@@ -171,59 +170,51 @@ Deno.serve(async (req) => {
               body: JSON.stringify(payload),
             });
             const data = await resp.json();
-            if (!resp.ok) {
-              errorMessage = JSON.stringify(data);
-              logStatus = "failed";
-            } else {
-              waMessageId = data.messages?.[0]?.id || null;
-              logStatus = "sent";
-            }
+            if (!resp.ok) { errorMessage = JSON.stringify(data); logStatus = "failed"; }
+            else { waMessageId = data.messages?.[0]?.id || null; logStatus = "sent"; }
           }
         }
       }
     } else {
-      // Pas de template mappé → générer message texte via IA
       const genResp = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-followup-message`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: authHeader },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: isInternalCron ? `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` : authHeader!,
+          ...(isInternalCron ? { "x-internal-cron": "1", "x-owner-id": ownerId! } : {}),
+        },
         body: JSON.stringify({ lead_id: task.lead_id, task_type: task.task_type }),
       });
       if (!genResp.ok) {
         const errBody = await genResp.text();
-        await supabase.from("lead_followup_tasks").update({ status: 'failed', error_message: errBody }).eq("id", task_id);
+        await admin.from("lead_followup_tasks").update({ status: 'failed', error_message: errBody } as any).eq("id", task_id);
         return new Response(JSON.stringify({ error: "Failed to generate message", details: errBody }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       const genData = await genResp.json();
       messageContent = genData.message;
       aiGenerated = true;
-      // En mode dry_run : log only. Sinon : tentative texte libre (souvent bloquée hors fenêtre 24h).
-      if (!dryRun) {
-        logStatus = "skipped_no_template";
-        errorMessage = "Aucun template mappé — envoi texte libre non tenté (fenêtre 24h Meta)";
-      }
+      if (!dryRun) { logStatus = "skipped_no_template"; errorMessage = "Aucun template mappé — envoi texte libre non tenté (fenêtre 24h Meta)"; }
     }
 
-    // Logger dans whatsapp_messages
-    await supabase.from("whatsapp_messages").insert({
+    await admin.from("whatsapp_messages").insert({
       lead_id: task.lead_id,
-      owner_id: user.id,
+      owner_id: ownerId,
       direction: 'outbound',
       content: messageContent,
       task_id: task_id,
       status: logStatus,
       wa_message_id: waMessageId,
       error_message: errorMessage,
-    });
+    } as any);
 
-    // MAJ tâche
     const newStatus = logStatus === "failed" ? "failed" : (logStatus === "skipped_no_template" ? "skipped" : "sent");
-    await supabase.from("lead_followup_tasks").update({
+    await admin.from("lead_followup_tasks").update({
       status: newStatus,
       executed_at: new Date().toISOString(),
       message_content: messageContent,
       ai_generated: aiGenerated,
       error_message: errorMessage,
-    }).eq("id", task_id);
+    } as any).eq("id", task_id);
 
     return new Response(JSON.stringify({ success: logStatus !== "failed", message: messageContent, dry_run: dryRun, status: logStatus }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
