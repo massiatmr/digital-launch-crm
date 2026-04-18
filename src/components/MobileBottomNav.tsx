@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Kanban, Bell, MoreHorizontal, Upload, LogOut, Zap, Package, CalendarCheck, UserCheck } from 'lucide-react';
+import { LayoutDashboard, Kanban, Bell, MoreHorizontal, LogOut, Package, CalendarCheck, UserCheck, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import {
@@ -8,18 +8,19 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { MessageSquare, Phone } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useWhatsAppInbox } from '@/hooks/useWhatsAppInbox';
 
 const mainLinks = [
   { to: '/', icon: Kanban, label: 'Pipeline' },
+  { to: '/conversations', icon: MessageCircle, label: 'Chats' },
   { to: '/clients', icon: UserCheck, label: 'Clients' },
   { to: '/reminders', icon: Bell, label: 'Tâches' },
-  { to: '/offers', icon: Package, label: 'Offres' },
 ];
 
 const moreLinks = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/offers', icon: Package, label: 'Offres' },
   { to: '/bookings', icon: CalendarCheck, label: 'Rendez-vous' },
 ];
 
@@ -27,6 +28,7 @@ export function MobileBottomNav() {
   const location = useLocation();
   const [showMore, setShowMore] = useState(false);
   const { signOut } = useAuth();
+  const { unreadCount } = useWhatsAppInbox();
 
   return (
     <>
@@ -34,17 +36,23 @@ export function MobileBottomNav() {
         <div className="flex items-center justify-around px-2 py-1.5">
           {mainLinks.map(({ to, icon: Icon, label }) => {
             const active = location.pathname === to || (to !== '/' && location.pathname.startsWith(to));
+            const showBadge = to === '/conversations' && unreadCount > 0;
             return (
               <NavLink
                 key={to}
                 to={to}
                 className={cn(
-                  'flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-[10px] transition-colors',
+                  'relative flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-[10px] transition-colors',
                   active ? 'text-primary' : 'text-muted-foreground'
                 )}
               >
                 <Icon className="h-5 w-5" />
                 <span>{label}</span>
+                {showBadge && (
+                  <span className="absolute top-0 right-1 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
               </NavLink>
             );
           })}

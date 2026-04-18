@@ -21,6 +21,7 @@ import ClientsPage from "@/pages/ClientsPage";
 import ClientDetailPage from "@/pages/ClientDetailPage";
 import OnboardingFormPage from "@/pages/OnboardingFormPage";
 import SettingsPage from "@/pages/SettingsPage";
+import ConversationsPage from "@/pages/ConversationsPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -48,6 +49,7 @@ const App = () => (
               <Route path="/offers" element={<OffersPage />} />
               <Route path="/offers/:id" element={<OfferDetailPage />} />
               <Route path="/bookings" element={<BookingsPage />} />
+              <Route path="/conversations" element={<ConversationsPage />} />
               <Route path="/reminders" element={<RemindersPage />} />
               <Route path="/import" element={<ImportPage />} />
               <Route path="/settings" element={<SettingsPage />} />

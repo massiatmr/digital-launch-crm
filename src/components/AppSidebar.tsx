@@ -1,14 +1,16 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Kanban, Bell, PanelLeftClose, PanelLeft, LogOut, Package, CalendarCheck, UserCheck, Settings } from 'lucide-react';
+import { LayoutDashboard, Kanban, Bell, PanelLeftClose, PanelLeft, LogOut, Package, CalendarCheck, UserCheck, Settings, MessageCircle } from 'lucide-react';
 import logo from '@/assets/logo.webp';
 import logoIcon from '@/assets/logo-icon.webp';
 import { useSidebarState } from './AppLayout';
 import { useAuth } from '@/hooks/useAuth';
+import { useWhatsAppInbox } from '@/hooks/useWhatsAppInbox';
 
 const links = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/', icon: Kanban, label: 'Pipeline' },
+  { to: '/conversations', icon: MessageCircle, label: 'Conversations' },
   { to: '/clients', icon: UserCheck, label: 'Clients' },
   { to: '/reminders', icon: Bell, label: 'Tâches' },
   { to: '/offers', icon: Package, label: 'Offres' },
@@ -20,6 +22,7 @@ export function AppSidebar() {
   const location = useLocation();
   const { collapsed, setCollapsed } = useSidebarState();
   const { signOut } = useAuth();
+  const { unreadCount } = useWhatsAppInbox();
 
   return (
     <aside
@@ -60,7 +63,15 @@ export function AppSidebar() {
                 <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-primary" />
               )}
               <Icon className={cn("h-[18px] w-[18px] shrink-0 transition-colors", active && "text-primary")} />
-              {!collapsed && <span>{label}</span>}
+              {!collapsed && <span className="flex-1">{label}</span>}
+              {to === '/conversations' && unreadCount > 0 && (
+                <span className={cn(
+                  'ml-auto inline-flex items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground',
+                  collapsed ? 'absolute top-1 right-1 h-4 w-4' : 'h-5 min-w-5 px-1.5'
+                )}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </NavLink>
           );
         })}
