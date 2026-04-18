@@ -1,4 +1,5 @@
 import { useParams, Link } from 'react-router-dom';
+import { useSmartBack } from '@/hooks/useSmartBack';
 import { useOffer, useUpdateOffer, useOfferPage, useUpdateOfferPage, useBookings } from '@/hooks/useOfferData';
 import { useLeads } from '@/hooks/useLeadData';
 import { Button } from '@/components/ui/button';
