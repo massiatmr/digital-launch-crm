@@ -3,7 +3,8 @@ import { format, addDays, setHours, setMinutes, startOfDay, isSameDay, isToday, 
 import { fr } from 'date-fns/locale';
 import { Check, Clock, Loader2, Pencil, X, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
