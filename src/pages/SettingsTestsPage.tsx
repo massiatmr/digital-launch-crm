@@ -385,12 +385,12 @@ export default function SettingsTestsPage() {
         {/* NOTIFICATIONS */}
         <TabsContent value="notifications" className="space-y-4">
           {isPreview && (
-            <div className="rounded-lg border border-orange-500/40 bg-orange-500/10 p-3 text-sm">
-              <p className="font-medium text-orange-200">⚠️ Notifications push indisponibles dans le preview Lovable</p>
-              <p className="text-orange-200/80 text-xs mt-1">
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm">
+              <p className="font-medium text-destructive">⚠️ Notifications push indisponibles dans le preview Lovable</p>
+              <p className="text-foreground/70 text-xs mt-1">
                 Les service workers sont désactivés dans l'éditeur. Ouvre la version publiée pour tester :
                 {' '}
-                <a href="https://digital-launch-crm.lovable.app/settings/tests" target="_blank" rel="noreferrer" className="underline font-medium">
+                <a href="https://digital-launch-crm.lovable.app/settings/tests" target="_blank" rel="noreferrer" className="underline font-medium text-primary">
                   digital-launch-crm.lovable.app
                 </a>
               </p>
