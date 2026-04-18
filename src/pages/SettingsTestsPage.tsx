@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,10 +12,17 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { toast } from 'sonner';
 import {
   Mail, Bell, FileSignature, Webhook, Zap, Calendar, Database,
-  CheckCircle2, XCircle, Loader2, Send, Brain, Facebook, Smartphone, Trash2, Clock
+  CheckCircle2, XCircle, Loader2, Send, Brain, Facebook, Smartphone, Trash2, Clock, CheckSquare, Square
 } from 'lucide-react';
 
 type Status = 'idle' | 'running' | 'success' | 'error';
+
+type PushDevice = {
+  id: string;
+  device_info: string | null;
+  endpoint: string;
+  created_at: string;
+};
 
 interface TestResult {
   status: Status;
@@ -53,14 +60,24 @@ export default function SettingsTestsPage() {
   const [smtpRecipient, setSmtpRecipient] = useState(user?.email || '');
   const [aiLeadName, setAiLeadName] = useState('Marie Dupont');
   const [aiLeadMsg, setAiLeadMsg] = useState('Bonjour, je suis intéressée par votre offre marketing pour mon entreprise de déménagement.');
-  const [devices, setDevices] = useState<any[]>([]);
+  const [devices, setDevices] = useState<PushDevice[]>([]);
   const [delaySec, setDelaySec] = useState(10);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [currentSubscriptionEndpoint, setCurrentSubscriptionEndpoint] = useState<string | null>(null);
   const [subscriptionChecked, setSubscriptionChecked] = useState(false);
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>([]);
 
   const isPreview = pushState === 'preview';
   const isSubscribed = subscriptionChecked ? !!currentSubscriptionEndpoint : pushState === 'subscribed';
+  const dedupedDevices = useMemo(() => {
+    const seen = new Set<string>();
+    return devices.filter((device) => {
+      if (seen.has(device.endpoint)) return false;
+      seen.add(device.endpoint);
+      return true;
+    });
+  }, [devices]);
+  const selectedCount = selectedDeviceIds.length;
 
   const set = (key: string, r: TestResult) => setResults((p) => ({ ...p, [key]: r }));
   const get = (key: string): TestResult => results[key] || { status: 'idle' };
@@ -106,18 +123,50 @@ export default function SettingsTestsPage() {
       return;
     }
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('push_subscriptions')
       .select('id, device_info, endpoint, created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
-    setDevices(data || []);
+
+    if (error) {
+      console.error('Impossible de charger les appareils push:', error);
+      set('pushDevices', { status: 'error', message: error.message, data: error });
+      return;
+    }
+
+    const nextDevices = (data || []) as PushDevice[];
+    setDevices(nextDevices);
+    set('pushDevices', {
+      status: 'success',
+      message: `${nextDevices.length} appareil(s) récupéré(s) depuis le backend`,
+      data: nextDevices.map((device) => ({
+        id: device.id,
+        created_at: device.created_at,
+        device_info: device.device_info,
+      })),
+    });
   };
 
   useEffect(() => {
-    loadDevices();
-    loadCurrentSubscription();
+    Promise.all([loadDevices(), loadCurrentSubscription()]);
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!user) return;
+    const interval = window.setInterval(() => {
+      loadDevices();
+    }, 15000);
+    return () => window.clearInterval(interval);
+  }, [user?.id]);
+
+  useEffect(() => {
+    setSelectedDeviceIds((prev) => {
+      const available = new Set(dedupedDevices.map((device) => device.id));
+      const next = prev.filter((id) => available.has(id));
+      return next.length > 0 || dedupedDevices.length === 0 ? next : dedupedDevices.map((device) => device.id);
+    });
+  }, [dedupedDevices]);
 
   const deleteDevice = async (id: string, endpoint?: string) => {
     const isCurrentDevice = !!endpoint && endpoint === currentSubscriptionEndpoint;
@@ -186,6 +235,18 @@ export default function SettingsTestsPage() {
     }
   };
 
+  const toggleDeviceSelection = (id: string) => {
+    setSelectedDeviceIds((prev) => prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id]);
+  };
+
+  const selectAllDevices = () => {
+    setSelectedDeviceIds(dedupedDevices.map((device) => device.id));
+  };
+
+  const clearSelectedDevices = () => {
+    setSelectedDeviceIds([]);
+  };
+
   const detectDevice = (ua: string = '') => {
     if (/iphone|ipad|ipod/i.test(ua)) return { icon: '📱', label: 'iOS' };
     if (/android/i.test(ua)) return { icon: '🤖', label: 'Android' };
@@ -209,6 +270,7 @@ export default function SettingsTestsPage() {
         const { data, error } = await supabase.functions.invoke('send-push', {
           body: {
             user_id: user?.id,
+            subscription_ids: selectedDeviceIds.length > 0 ? selectedDeviceIds : undefined,
             title: '📱 Test mobile — App fermée ?',
             body: `Envoyé à ${new Date().toLocaleTimeString('fr-FR')}. Si tu lis ça, tout marche !`,
             url: '/settings/tests',
@@ -218,7 +280,7 @@ export default function SettingsTestsPage() {
         if (error) throw error;
         set('pushDelayed', {
           status: 'success',
-          message: `Push test envoyé à ${data?.sent || 0} appareil(s). Vérifie ton mobile maintenant !`,
+          message: `Push test envoyé à ${data?.sent || 0}/${selectedDeviceIds.length || dedupedDevices.length} appareil(s) ciblé(s). Vérifie maintenant !`,
           data,
         });
         toast.success('Notification envoyée');
@@ -266,6 +328,7 @@ export default function SettingsTestsPage() {
       const { data, error } = await supabase.functions.invoke('send-push', {
         body: {
           user_id: user?.id,
+          subscription_ids: selectedDeviceIds.length > 0 ? selectedDeviceIds : undefined,
           title: '🧪 Test push — Digital Launch CRM',
           body: 'Si tu vois ce message, les notifications push fonctionnent !',
           url: '/settings/tests',
@@ -275,7 +338,7 @@ export default function SettingsTestsPage() {
       if (error) throw error;
       set('push', {
         status: 'success',
-        message: 'Push backend envoyé — si rien ne s’affiche, le souci vient côté appareil/service worker',
+        message: `Push backend envoyé à ${data?.sent || 0}/${selectedDeviceIds.length || dedupedDevices.length} appareil(s) ciblé(s)`,
         data,
       });
     } catch (e: any) {
@@ -611,8 +674,8 @@ export default function SettingsTestsPage() {
                 <Button onClick={testLocalNotification} disabled={get('pushLocal').status === 'running'} variant="secondary">
                   <Bell className="w-4 h-4 mr-2" />Tester affichage local
                 </Button>
-                <Button onClick={testPush} disabled={get('push').status === 'running'}>
-                  <Bell className="w-4 h-4 mr-2" />{isSubscribed ? 'Tester push backend' : 'S\'abonner + tester'}
+                <Button onClick={testPush} disabled={get('push').status === 'running' || dedupedDevices.length === 0}>
+                  <Bell className="w-4 h-4 mr-2" />{selectedCount > 0 ? `Envoyer à ${selectedCount} appareil(s)` : (isSubscribed ? 'Tester push backend' : 'S\'abonner + tester')}
                 </Button>
                 <Button variant="outline" onClick={unsubscribeCurrentDevice} disabled={!currentSubscriptionEndpoint || get('push').status === 'running'}>
                   <Trash2 className="w-4 h-4 mr-2" />Désabonner cet appareil
@@ -697,26 +760,47 @@ export default function SettingsTestsPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
-              {devices.length === 0 ? (
+              <div className="flex flex-wrap items-center gap-2 pb-2">
+                <Button size="sm" variant="outline" onClick={selectAllDevices} disabled={dedupedDevices.length === 0}>
+                  <CheckSquare className="w-4 h-4 mr-2" />Tout sélectionner
+                </Button>
+                <Button size="sm" variant="outline" onClick={clearSelectedDevices} disabled={selectedCount === 0}>
+                  <Square className="w-4 h-4 mr-2" />Tout désélectionner
+                </Button>
+                <Badge variant="outline">{selectedCount} sélectionné(s)</Badge>
+              </div>
+              <ResultBlock result={get('pushDevices')} />
+              {dedupedDevices.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">
                   Aucun appareil. Active les notifications sur le mobile/PC à utiliser.
                 </p>
               ) : (
-                devices.map((d) => {
+                dedupedDevices.map((d) => {
                   const dev = detectDevice(d.device_info);
                   const isCurrentDevice = d.endpoint === currentSubscriptionEndpoint;
+                  const isSelected = selectedDeviceIds.includes(d.id);
                   return (
-                    <div key={d.id} className="flex items-center justify-between p-3 rounded-lg bg-black/30 border border-white/5">
+                    <div key={d.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-black/30 border border-white/5">
                       <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <button
+                          type="button"
+                          onClick={() => toggleDeviceSelection(d.id)}
+                          className="shrink-0 text-primary"
+                          aria-label={isSelected ? 'Désélectionner cet appareil' : 'Sélectionner cet appareil'}
+                        >
+                          {isSelected ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5 text-muted-foreground" />}
+                        </button>
                         <span className="text-2xl">{dev.icon}</span>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-medium">{dev.label}</p>
                             {isCurrentDevice && <Badge variant="outline">Cet appareil</Badge>}
+                            {isSelected && <Badge variant="outline">Ciblé</Badge>}
                           </div>
                           <p className="text-xs text-muted-foreground truncate">
                             Ajouté {new Date(d.created_at).toLocaleDateString('fr-FR')} · {d.device_info?.slice(0, 60)}…
                           </p>
+                          <p className="text-[10px] text-muted-foreground/80 truncate">ID: {d.id}</p>
                         </div>
                       </div>
                       <Button size="sm" variant="ghost" onClick={() => deleteDevice(d.id, d.endpoint)}>
