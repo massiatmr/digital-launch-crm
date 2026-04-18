@@ -22,6 +22,7 @@ const moreLinks = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/offers', icon: Package, label: 'Offres' },
   { to: '/bookings', icon: CalendarCheck, label: 'Rendez-vous' },
+  { to: '/settings', icon: Settings, label: 'Paramètres' },
 ];
 
 export function MobileBottomNav() {
