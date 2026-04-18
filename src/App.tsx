@@ -24,6 +24,7 @@ import SettingsPage from "@/pages/SettingsPage";
 import ConversationsPage from "@/pages/ConversationsPage";
 import NotFound from "@/pages/NotFound";
 import ScrollRestoration from "@/components/ScrollRestoration";
+import { OneSignalInit } from "@/components/OneSignalInit";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +34,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <ScrollRestoration />
+        <OneSignalInit />
         <Routes>
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/offers/:slug/page" element={<PublicOfferPage />} />

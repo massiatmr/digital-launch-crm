@@ -39,8 +39,8 @@ Deno.serve(async (req) => {
     for (const reminder of dueReminders) {
       const leadName = (reminder.leads as any)?.name || "Lead";
 
-      // Call send-push for this user
-      const pushResponse = await fetch(`${SUPABASE_URL}/functions/v1/send-push`, {
+      // Call send-onesignal-notification for this user
+      const pushResponse = await fetch(`${SUPABASE_URL}/functions/v1/send-onesignal-notification`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
           title: `🔔 Rappel : ${leadName}`,
           body: reminder.action,
           url: `/leads/${reminder.lead_id}`,
-          tag: `reminder-${reminder.id}`,
+          tag: `reminder-${reminder.id}`.slice(0, 32),
         }),
       });
 

@@ -45,3 +45,5 @@ project_id = "rvangzupebrajhhhvewu"
     verify_jwt = false
   [functions.get-vapid-public-key]
     verify_jwt = false
+  [functions.send-onesignal-notification]
+    verify_jwt = false

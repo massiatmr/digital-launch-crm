@@ -1,40 +1,60 @@
-import { Bell, BellOff, BellRing, Check } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Bell, BellOff, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { usePushNotifications, PushState } from '@/hooks/usePushNotifications';
-
-const labels: Record<PushState, string> = {
-  unsupported: 'Non supporté',
-  preview: 'Indispo en preview',
-  default: 'Activer les rappels',
-  denied: 'Notifications bloquées',
-  granted: 'Activer les rappels',
-  subscribed: 'Rappels activés',
-};
-
-const icons: Record<PushState, React.ReactNode> = {
-  unsupported: <BellOff className="h-4 w-4" />,
-  preview: <BellOff className="h-4 w-4" />,
-  default: <Bell className="h-4 w-4" />,
-  denied: <BellOff className="h-4 w-4" />,
-  granted: <BellRing className="h-4 w-4" />,
-  subscribed: <Check className="h-4 w-4" />,
-};
+import { toast } from 'sonner';
+import { requestOneSignalPermission, getOneSignalPermission } from '@/hooks/useOneSignal';
 
 export function EnablePushButton() {
-  const { state, subscribe, loading } = usePushNotifications();
+  const [enabled, setEnabled] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [supported, setSupported] = useState(true);
 
-  const disabled = state === 'unsupported' || state === 'preview' || state === 'denied' || state === 'subscribed' || loading;
+  useEffect(() => {
+    if (typeof Notification === 'undefined') {
+      setSupported(false);
+      return;
+    }
+    setEnabled(getOneSignalPermission() || Notification.permission === 'granted');
+    const t = setInterval(() => {
+      setEnabled(getOneSignalPermission() || Notification.permission === 'granted');
+    }, 1500);
+    return () => clearInterval(t);
+  }, []);
+
+  const handleClick = async () => {
+    setLoading(true);
+    try {
+      const ok = await requestOneSignalPermission();
+      if (ok) {
+        setEnabled(true);
+        toast.success('Notifications activées');
+      } else {
+        toast.error('Permission refusée ou bloquée');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!supported) {
+    return (
+      <Button variant="outline" size="sm" disabled className="gap-2">
+        <BellOff className="h-4 w-4" />
+        Non supporté
+      </Button>
+    );
+  }
 
   return (
     <Button
-      variant={state === 'subscribed' ? 'outline' : 'default'}
+      variant={enabled ? 'outline' : 'default'}
       size="sm"
-      disabled={disabled}
-      onClick={subscribe}
+      disabled={enabled || loading}
+      onClick={handleClick}
       className="gap-2"
     >
-      {icons[state]}
-      {loading ? 'Activation…' : labels[state]}
+      {enabled ? <Check className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
+      {loading ? 'Activation…' : enabled ? 'Notifications activées' : 'Activer les notifications'}
     </Button>
   );
 }
