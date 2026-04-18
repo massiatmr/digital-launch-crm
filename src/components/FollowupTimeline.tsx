@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { useFollowupTasks, useWhatsAppMessages, useConversationState, useSendNow, useCancelTask, useGenerateMessage, useMarkLeadReplied } from '@/hooks/useFollowupTasks';
+import { useState, useRef, useEffect } from 'react';
+import { useFollowupTasks, useWhatsAppMessages, useConversationState, useSendNow, useCancelTask, useGenerateMessage, useMarkLeadReplied, useSendWhatsAppMessage, useWhatsAppRealtime } from '@/hooks/useFollowupTasks';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Send, X, Sparkles, MessageSquare, Bot, User, CheckCircle2, Clock, XCircle, AlertCircle } from 'lucide-react';
+import { Loader2, Send, X, Sparkles, MessageSquare, Bot, User, CheckCircle2, Clock, XCircle, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
