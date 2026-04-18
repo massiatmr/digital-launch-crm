@@ -284,7 +284,8 @@ Deno.serve(async (req) => {
         debugLogs.push({ subId: sub.id, status: result.status, body: result.statusText, headers: result.responseHeaders, logs: subLogs });
         if (result.success) {
           sent++;
-        } else if (result.status === 404 || result.status === 410) {
+        } else if (result.status === 404 || result.status === 410 || result.status === 403) {
+          // 403 = VAPID key mismatch (subscription created with old keys) → unrecoverable, clean up
           expiredIds.push(sub.id);
           failed++;
         } else {
