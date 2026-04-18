@@ -57,6 +57,7 @@ const ADS_FORM_LABELS: FormLabel[] = [
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const goBack = useSmartBack('/clients');
   const { data: client, isLoading } = useClient(id);
   const { data: offers } = useOffers();
   const { data: onboardings } = useClientOnboarding(id);
