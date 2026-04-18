@@ -1,56 +1,47 @@
 
-The user wants a Settings page where they can connect their Facebook account and manage which Meta Pages and Lead Forms feed leads into the CRM — instead of relying on hardcoded `FB_PAGE_ACCESS_TOKEN` / `FB_LEAD_OWNER_ID` secrets.
+## Refonte du panneau latéral de détail du lead
 
-Currently:
-- `facebook-webhook` uses a single `FB_PAGE_ACCESS_TOKEN` env secret + single `FB_LEAD_OWNER_ID`
-- `fb-check-subscription` debugs that single token
-- No UI to add/manage pages
+Le composant `LeadDetailContent.tsx` est actuellement une longue liste verticale qui empile tout : header, badges, formulaire d'édition, input IA, message, analyse IA (4 sections), timeline followup, timeline activités, messages générés, scripts. C'est noyé.
 
-## Plan: Meta Integration Settings
+### Nouvelle structure proposée
 
-### 1. Database (migration)
-New table `meta_pages`:
-- `id`, `owner_id` (auth.uid), `page_id` (text, unique per owner), `page_name`, `page_access_token` (long-lived), `is_active` (bool), `subscribed` (bool), `forms` (jsonb — cached list of lead forms), `created_at`, `updated_at`
-- RLS: owner-only CRUD
-- Webhook lookups use service role to find `owner_id` by `page_id`
+**Header sticky compact** (haut du Sheet, toujours visible)
+- Nom + score + statut sur une ligne
+- Téléphone cliquable (WA) + email + date création en sous-ligne discrète
+- Actions rapides à droite : icônes Éditer / Présence / Supprimer (au lieu de boutons texte)
 
-### 2. Facebook OAuth flow (edge functions)
-- **`facebook-auth-init`**: returns Facebook Login URL with scopes `pages_show_list`, `pages_read_engagement`, `pages_manage_metadata`, `leads_retrieval`, `pages_manage_ads`
-- **`facebook-auth-callback`**: exchanges `code` → user access token → fetches `/me/accounts` → stores each page with its long-lived page token in `meta_pages`
-- **`facebook-pages-manage`**: authenticated endpoint to:
-  - list pages of current user
-  - subscribe/unsubscribe a page to the app webhook (`POST /{page-id}/subscribed_apps?subscribed_fields=leadgen`)
-  - fetch & cache lead forms (`GET /{page-id}/leadgen_forms`)
-  - toggle `is_active`, delete page
-- Requires new secrets: `FB_APP_ID`, `FB_APP_SECRET` → ask user via add_secret
+**Bandeau IA résumé** (juste sous le header, condensé)
+- 2-3 lignes max : résumé IA + angle de vente
+- Bouton "Voir plus" pour déplier les notes complètes et next_action
 
-### 3. Update `facebook-webhook`
-- Look up the page in `meta_pages` by `page_id` from webhook payload
-- Use its stored `page_access_token` (not the env secret) to fetch lead details
-- Use its `owner_id` (not env `FB_LEAD_OWNER_ID`) to assign the lead
-- Skip pages where `is_active = false`
-- Keep env-secret fallback for backward compatibility during transition
+**Système d'onglets** (cœur du panneau, remplace l'empilement)
+1. **Vue d'ensemble** (par défaut)
+   - Message initial du lead (si présent)
+   - Bandeau IA déplié (sales_angle, next_action, notes)
+   - Input langage naturel pour ajouter une note
+2. **Suivi auto** 
+   - `FollowupTimeline` (séquence WhatsApp + état conversation)
+3. **Activités**
+   - `LeadActivityTimeline` (historique manuel : appels, emails, notes)
+4. **Contenu IA**
+   - Messages générés (WhatsApp/email/SMS) avec copier
+   - Scripts de vente avec objections
 
-### 4. UI: new `/settings/integrations` page (also add "Paramètres" group in sidebar)
-- "Meta / Facebook" card with:
-  - "Connecter mon compte Facebook" button → opens OAuth popup
-  - List of connected pages: name, page_id, status badge (Abonnée/Non abonnée), toggle active, "S'abonner aux leads" button, "Voir les formulaires" expandable list, delete
-  - Webhook URL display (read-only) + "Verify Token" copy field for users who configure it manually in Meta App Dashboard
-- Add link in `AppSidebar.tsx` ("Paramètres" → Integrations, Tests)
+**Mode édition** : ouvert dans un sous-Sheet (au lieu d'inline qui pousse tout) ou via toggle qui remplace temporairement le contenu du tab actif.
 
-### 5. Technical details
-- Reuse existing redirect pattern from `google-auth` / `google-calendar-callback`
-- Tokens stored encrypted-at-rest by Supabase; never expose page tokens client-side (only via authenticated edge function)
-- Add notification toasts on subscribe/unsubscribe success
+### Bénéfices
+- Plus de scroll infini : chaque tab tient dans la viewport
+- Header toujours visible → contexte permanent
+- L'IA / activités / suivi auto ont leur espace dédié
+- Mobile-friendly : tabs plus lisibles que sections empilées
 
-### Required from user
-- Facebook App credentials: `FB_APP_ID` + `FB_APP_SECRET` (from developers.facebook.com → My App → Settings → Basic)
-- Add OAuth redirect URI in their FB App: `https://rvangzupebrajhhhvewu.supabase.co/functions/v1/facebook-auth-callback`
+### Fichier impacté
+- `src/components/LeadDetailContent.tsx` : refonte complète (réutilise tous les sous-composants existants, change uniquement la structure)
 
-### Files to create/modify
-- **New migration**: `meta_pages` table + RLS
-- **New edge functions**: `facebook-auth-init`, `facebook-auth-callback`, `facebook-pages-manage`
-- **Modified**: `supabase/functions/facebook-webhook/index.ts` (multi-page lookup)
-- **New page**: `src/pages/SettingsIntegrationsPage.tsx`
-- **Modified**: `src/App.tsx` (route), `src/components/AppSidebar.tsx` (nav link)
-- **Add secrets**: `FB_APP_ID`, `FB_APP_SECRET`
+Aucun changement DB, aucune nouvelle dépendance, aucun autre composant à modifier.
+
+<lov-actions>
+<lov-suggestion message="Vérifie la nouvelle interface : ouvre une fiche lead depuis la pipeline, navigue les 4 onglets, teste le mode édition, et vérifie que tout reste fluide sur mobile">Vérifier le rendu end-to-end</lov-suggestion>
+<lov-suggestion message="Go, refais le panneau latéral du lead avec la structure proposée (header sticky, bandeau IA résumé, 4 onglets)">Lancer la refonte</lov-suggestion>
+<lov-suggestion message="Avant la refonte, ajoute aussi un mini compteur d'étape de séquence (ex: 'Étape 2/4 - Relance 1 dans 2h') dans le header sticky">Ajouter compteur séquence au header</lov-suggestion>
+</lov-actions>
