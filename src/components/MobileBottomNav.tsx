@@ -33,7 +33,7 @@ export function MobileBottomNav() {
   return (
     <>
       <nav className="fixed bottom-0 inset-x-0 z-50 border-t border-border bg-card/95 backdrop-blur-md safe-area-pb h-16">
-        <div className="flex items-center justify-around px-2 py-1.5">
+        <div className="flex items-center justify-around px-1 py-1.5">
           {mainLinks.map(({ to, icon: Icon, label }) => {
             const active = location.pathname === to || (to !== '/' && location.pathname.startsWith(to));
             const showBadge = to === '/conversations' && unreadCount > 0;
@@ -42,14 +42,14 @@ export function MobileBottomNav() {
                 key={to}
                 to={to}
                 className={cn(
-                  'relative flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-[10px] transition-colors',
+                  'relative flex flex-col items-center gap-0.5 rounded-lg px-2 py-1.5 text-[10px] transition-colors flex-1 min-w-0',
                   active ? 'text-primary' : 'text-muted-foreground'
                 )}
               >
-                <Icon className="h-5 w-5" />
-                <span>{label}</span>
+                <Icon className="h-5 w-5 shrink-0" />
+                <span className="truncate max-w-full">{label}</span>
                 {showBadge && (
-                  <span className="absolute top-0 right-1 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
+                  <span className="absolute top-0.5 right-2 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
@@ -59,10 +59,10 @@ export function MobileBottomNav() {
           <button
             onClick={() => setShowMore(true)}
             className={cn(
-              'flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-[10px] text-muted-foreground'
+              'flex flex-col items-center gap-0.5 rounded-lg px-2 py-1.5 text-[10px] text-muted-foreground flex-1 min-w-0'
             )}
           >
-            <MoreHorizontal className="h-5 w-5" />
+            <MoreHorizontal className="h-5 w-5 shrink-0" />
             <span>Plus</span>
           </button>
         </div>
