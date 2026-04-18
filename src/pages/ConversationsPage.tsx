@@ -16,7 +16,9 @@ export default function ConversationsPage() {
   const { items, isLoading, markSeen } = useWhatsAppInbox();
   const { data: settings } = useFollowupSettings();
   const [search, setSearch] = useState('');
+  const [flash, setFlash] = useState(false);
   const selectedId = params.get('lead');
+  const highlight = params.get('highlight') === '1';
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -26,17 +28,28 @@ export default function ConversationsPage() {
 
   const selected = items.find((i) => i.lead_id === selectedId) ?? null;
 
-  // Auto-select first when desktop and none chosen
   useEffect(() => {
     if (!selectedId && items.length && window.innerWidth >= 768) {
       setParams({ lead: items[0].lead_id }, { replace: true });
     }
   }, [items, selectedId, setParams]);
 
-  // Mark seen when opened
   useEffect(() => {
     if (selectedId) markSeen(selectedId);
   }, [selectedId, markSeen]);
+
+  useEffect(() => {
+    if (!highlight || !selected) return;
+    setFlash(true);
+    const t = setTimeout(() => {
+      setFlash(false);
+      const next = new URLSearchParams(params);
+      next.delete('highlight');
+      setParams(next, { replace: true });
+    }, 4500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlight, selected?.lead_id]);
 
   const selectLead = (id: string) => setParams({ lead: id });
   const back = () => setParams({});
