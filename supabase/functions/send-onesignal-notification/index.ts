@@ -38,8 +38,11 @@ Deno.serve(async (req) => {
       contents: { en: body, fr: body },
     };
     if (url) {
-      notifPayload.url = url;
-      notifPayload.web_url = url;
+      // OneSignal exige une URL absolue (http:// ou https://) et n'accepte pas url + web_url ensemble
+      const absoluteUrl = url.startsWith("http://") || url.startsWith("https://")
+        ? url
+        : `https://digital-launch-crm.lovable.app${url.startsWith("/") ? url : `/${url}`}`;
+      notifPayload.web_url = absoluteUrl;
     }
     if (tag) {
       notifPayload.web_push_topic = tag;
