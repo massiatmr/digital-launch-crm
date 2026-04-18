@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useLead, useLeadMessages, useLeadScripts, useDeleteLead } from '@/hooks/useLeadData';
+import { useLead, useLeadMessages, useLeadScripts, useDeleteLead, useUpdateLead } from '@/hooks/useLeadData';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadStatusBadge } from '@/components/LeadStatusBadge';
 import { NaturalLanguageInput } from '@/components/NaturalLanguageInput';
@@ -8,8 +8,8 @@ import { LeadActivityTimeline } from '@/components/LeadActivityTimeline';
 import { LeadEditForm } from '@/components/LeadEditForm';
 import { FollowupTimeline } from '@/components/FollowupTimeline';
 import {
-  Copy, Mail, MessageCircle, Phone, Smartphone, Loader2, ExternalLink,
-  Pencil, Trash2, ChevronDown, ChevronUp, Sparkles, Activity, Bot, LayoutGrid,
+  Mail, Phone, Smartphone, Loader2, ExternalLink,
+  Pencil, Trash2, Sparkles, Activity, LayoutGrid, Building2, Save,
 } from 'lucide-react';
 import { ShowStatusToggle } from '@/components/ShowStatusToggle';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
@@ -18,6 +18,7 @@ import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import {
@@ -27,12 +28,16 @@ import {
 
 export function LeadDetailContent({ leadId }: { leadId: string }) {
   const [editing, setEditing] = useState(false);
-  const [aiExpanded, setAiExpanded] = useState(false);
+  const [notesDraft, setNotesDraft] = useState('');
+  const [notesDirty, setNotesDirty] = useState(false);
   const navigate = useNavigate();
   const { data: lead, isLoading } = useLead(leadId);
-  const { data: messages = [] } = useLeadMessages(leadId);
-  const { data: scripts = [] } = useLeadScripts(leadId);
   const deleteLead = useDeleteLead();
+  const updateLead = useUpdateLead();
+
+  useEffect(() => {
+    if (lead && !notesDirty) setNotesDraft(lead.notes ?? '');
+  }, [lead?.notes, notesDirty]);
 
   if (isLoading) {
     return (
@@ -46,12 +51,11 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
     return <p className="text-muted-foreground py-10 text-center">Lead introuvable</p>;
   }
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success('Copié !');
+  const saveNotes = async () => {
+    await updateLead.mutateAsync({ id: lead.id, notes: notesDraft });
+    setNotesDirty(false);
+    toast.success('Notes sauvegardées');
   };
-
-  const hasAiAnalysis = lead.ai_summary || lead.sales_angle || lead.next_action || lead.notes;
 
   return (
     <div className="flex h-[calc(100vh-80px)] flex-col">
@@ -65,7 +69,9 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
               <LeadStatusBadge status={lead.status} />
             </div>
             {lead.company_name && (
-              <p className="text-xs text-muted-foreground mt-0.5">{lead.company_name}</p>
+              <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                <Building2 className="h-3 w-3" />{lead.company_name}
+              </p>
             )}
           </div>
           <div className="flex items-center gap-1 shrink-0">
@@ -130,93 +136,89 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
           <span className="capitalize">{lead.source.replace('_', ' ')}</span>
           <span>{format(new Date(lead.created_at), "dd MMM yyyy", { locale: fr })}</span>
         </div>
-
-        {/* AI Summary banner (compact) */}
-        {hasAiAnalysis && (
-          <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
-            <div className="flex items-start gap-2">
-              <Sparkles className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                {lead.ai_summary && (
-                  <p className={`text-sm ${aiExpanded ? '' : 'line-clamp-2'}`}>{lead.ai_summary}</p>
-                )}
-                {aiExpanded && (
-                  <div className="mt-2 space-y-2 text-sm">
-                    {lead.sales_angle && (
-                      <div>
-                        <span className="text-xs uppercase tracking-wider text-muted-foreground">Angle</span>
-                        <p>{lead.sales_angle}</p>
-                      </div>
-                    )}
-                    {lead.next_action && (
-                      <div>
-                        <span className="text-xs uppercase tracking-wider text-muted-foreground">Prochaine action</span>
-                        <p>{lead.next_action}</p>
-                        {lead.next_action_date && (
-                          <p className="text-xs text-muted-foreground">
-                            {format(new Date(lead.next_action_date), "dd MMM yyyy à HH:mm", { locale: fr })}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                    {lead.notes && (
-                      <div>
-                        <span className="text-xs uppercase tracking-wider text-muted-foreground">Notes</span>
-                        <p className="whitespace-pre-line">{lead.notes}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 px-2 shrink-0"
-                onClick={() => setAiExpanded(!aiExpanded)}
-              >
-                {aiExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-              </Button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Tabs */}
       <Tabs defaultValue="overview" className="flex-1 flex flex-col min-h-0 mt-3">
-        <TabsList className="grid grid-cols-4 w-full">
+        <TabsList className="grid grid-cols-3 w-full">
           <TabsTrigger value="overview" className="text-xs gap-1">
             <LayoutGrid className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Vue</span>
+            <span className="hidden sm:inline">Détails</span>
           </TabsTrigger>
           <TabsTrigger value="followup" className="text-xs gap-1">
             <Smartphone className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Suivi</span>
+            <span className="hidden sm:inline">WhatsApp</span>
           </TabsTrigger>
           <TabsTrigger value="activities" className="text-xs gap-1">
             <Activity className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Activités</span>
-          </TabsTrigger>
-          <TabsTrigger value="ai-content" className="text-xs gap-1">
-            <Bot className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">IA</span>
           </TabsTrigger>
         </TabsList>
 
         <ScrollArea className="flex-1 mt-3">
           <div className="pr-3 pb-6">
             <TabsContent value="overview" className="mt-0 space-y-4">
+              {/* Message initial */}
               {lead.message && (
                 <div className="rounded-lg bg-muted/50 p-3 border-l-2 border-primary/40">
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Message initial</p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Message initial du lead</p>
                   <p className="text-sm italic">"{lead.message}"</p>
                 </div>
               )}
-              <NaturalLanguageInput leadId={lead.id} lead={lead} />
-              {!hasAiAnalysis && (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Analyse IA en cours ou non disponible...
-                </p>
+
+              {/* Analyse IA */}
+              {(lead.ai_summary || lead.sales_angle || lead.next_action) && (
+                <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+                  <h3 className="text-sm font-medium flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" /> Analyse IA
+                  </h3>
+                  {lead.ai_summary && (
+                    <div>
+                      <p className="text-xs uppercase tracking-wider text-muted-foreground">Résumé</p>
+                      <p className="text-sm mt-0.5">{lead.ai_summary}</p>
+                    </div>
+                  )}
+                  {lead.sales_angle && (
+                    <div>
+                      <p className="text-xs uppercase tracking-wider text-muted-foreground">Angle de vente</p>
+                      <p className="text-sm mt-0.5">{lead.sales_angle}</p>
+                    </div>
+                  )}
+                  {lead.next_action && (
+                    <div>
+                      <p className="text-xs uppercase tracking-wider text-muted-foreground">Prochaine action</p>
+                      <p className="text-sm mt-0.5">{lead.next_action}</p>
+                      {lead.next_action_date && (
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(lead.next_action_date), "dd MMM yyyy à HH:mm", { locale: fr })}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
+
+              {/* Notes éditables */}
+              <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium">Notes</h3>
+                  {notesDirty && (
+                    <Button size="sm" onClick={saveNotes} disabled={updateLead.isPending}>
+                      {updateLead.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Save className="h-3 w-3 mr-1" />Sauver</>}
+                    </Button>
+                  )}
+                </div>
+                <Textarea
+                  value={notesDraft}
+                  onChange={(e) => { setNotesDraft(e.target.value); setNotesDirty(true); }}
+                  placeholder="Ajoute tes notes sur ce lead..."
+                  rows={6}
+                  className="resize-none"
+                />
+              </div>
+
+              {/* Input langage naturel */}
+              <NaturalLanguageInput leadId={lead.id} lead={lead} />
             </TabsContent>
 
             <TabsContent value="followup" className="mt-0">
@@ -225,67 +227,6 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
 
             <TabsContent value="activities" className="mt-0">
               <LeadActivityTimeline leadId={lead.id} />
-            </TabsContent>
-
-            <TabsContent value="ai-content" className="mt-0 space-y-4">
-              <div className="rounded-xl border border-border bg-card p-4">
-                <h3 className="font-heading text-sm flex items-center gap-2 mb-3">
-                  <MessageCircle className="h-4 w-4 text-primary" />
-                  Messages préparés
-                </h3>
-                {messages.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Aucun message généré.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {messages.map(msg => (
-                      <div key={msg.id} className="rounded-lg border border-border bg-muted/30 p-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase">
-                            {msg.type === 'whatsapp' && <Smartphone className="h-3 w-3" />}
-                            {msg.type}
-                          </span>
-                          <button
-                            onClick={() => copyToClipboard(msg.content)}
-                            className="flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs text-primary hover:bg-primary/20 transition-colors"
-                          >
-                            <Copy className="h-3 w-3" /> Copier
-                          </button>
-                        </div>
-                        <p className="text-sm whitespace-pre-line">{msg.content}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {scripts.length > 0 && (
-                <div className="rounded-xl border border-border bg-card p-4">
-                  <h3 className="font-heading text-sm flex items-center gap-2 mb-3">
-                    <Phone className="h-4 w-4 text-primary" />
-                    Script d'appel
-                  </h3>
-                  {scripts.map(s => (
-                    <div key={s.id} className="space-y-3">
-                      <div className="rounded-lg border border-border bg-muted/30 p-3">
-                        <p className="text-sm whitespace-pre-line">{s.script}</p>
-                      </div>
-                      {s.objections?.length > 0 && (
-                        <div>
-                          <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Objections & Réponses</h4>
-                          <div className="space-y-2">
-                            {s.objections.map((o: any, i: number) => (
-                              <div key={i} className="rounded-lg border border-border bg-muted/30 p-3">
-                                <p className="text-xs font-medium text-lead-warm">❓ {o.objection}</p>
-                                <p className="mt-1 text-sm">→ {o.response}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
             </TabsContent>
           </div>
         </ScrollArea>
