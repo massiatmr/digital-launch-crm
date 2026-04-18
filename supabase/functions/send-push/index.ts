@@ -57,12 +57,12 @@ function createInfo(type: string, clientPublicKey: Uint8Array, serverPublicKey: 
 }
 
 async function hkdfExpand(ikm: Uint8Array, salt: Uint8Array, info: Uint8Array, length: number): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey("raw", ikm, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const saltKey = await crypto.subtle.importKey("raw", salt, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const prk = new Uint8Array(await crypto.subtle.sign("HMAC", saltKey, ikm));
-  const prkKey = await crypto.subtle.importKey("raw", prk, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const key = await crypto.subtle.importKey("raw", ikm as BufferSource, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const saltKey = await crypto.subtle.importKey("raw", salt as BufferSource, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const prk = new Uint8Array(await crypto.subtle.sign("HMAC", saltKey, ikm as BufferSource));
+  const prkKey = await crypto.subtle.importKey("raw", prk as BufferSource, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const infoWithCounter = concatBuffers(info, new Uint8Array([1]));
-  const derived = new Uint8Array(await crypto.subtle.sign("HMAC", prkKey, infoWithCounter));
+  const derived = new Uint8Array(await crypto.subtle.sign("HMAC", prkKey, infoWithCounter as BufferSource));
   return derived.slice(0, length);
 }
 
@@ -80,7 +80,7 @@ async function encryptPayload(
   const serverPublicKeyBytes = new Uint8Array(await crypto.subtle.exportKey("raw", serverKeys.publicKey));
 
   // Import client public key
-  const clientKey = await crypto.subtle.importKey("raw", clientPublicKey, { name: "ECDH", namedCurve: "P-256" }, false, []);
+  const clientKey = await crypto.subtle.importKey("raw", clientPublicKey as BufferSource, { name: "ECDH", namedCurve: "P-256" }, false, []);
 
   // ECDH shared secret
   const sharedSecret = new Uint8Array(
@@ -110,13 +110,29 @@ async function encryptPayload(
   padded.set(payloadBytes, 2 + paddingLength);
 
   // AES-GCM encrypt
-  const key = await crypto.subtle.importKey("raw", contentEncryptionKey, { name: "AES-GCM" }, false, ["encrypt"]);
-  const encrypted = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, key, padded));
+  const key = await crypto.subtle.importKey("raw", contentEncryptionKey as BufferSource, { name: "AES-GCM" }, false, ["encrypt"]);
+  const encrypted = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce as BufferSource }, key, padded as BufferSource));
 
   return { ciphertext: encrypted, salt, serverPublicKeyBytes };
 }
 
-async function createVapidAuthHeader(endpoint: string): Promise<{ authorization: string; cryptoKey: string }> {
+function getNormalizedVapidSubject(): string {
+  if (!VAPID_SUBJECT) {
+    return "mailto:contact@digitallaunch-llc.com";
+  }
+
+  if (VAPID_SUBJECT.startsWith("mailto:") || VAPID_SUBJECT.startsWith("https://")) {
+    return VAPID_SUBJECT;
+  }
+
+  if (VAPID_SUBJECT.includes("@")) {
+    return `mailto:${VAPID_SUBJECT}`;
+  }
+
+  return "mailto:contact@digitallaunch-llc.com";
+}
+
+async function createVapidAuthHeader(endpoint: string): Promise<{ jwt: string; publicKey: string }> {
   const url = new URL(endpoint);
   const audience = `${url.protocol}//${url.host}`;
   const expiration = Math.floor(Date.now() / 1000) + 12 * 60 * 60;
@@ -125,7 +141,6 @@ async function createVapidAuthHeader(endpoint: string): Promise<{ authorization:
   const privateKeyBytes = base64UrlDecode(VAPID_PRIVATE_KEY);
   const publicKeyBytes = base64UrlDecode(VAPID_PUBLIC_KEY);
 
-  // Import private key for signing
   const jwk = {
     kty: "EC",
     crv: "P-256",
@@ -136,10 +151,9 @@ async function createVapidAuthHeader(endpoint: string): Promise<{ authorization:
 
   const key = await crypto.subtle.importKey("jwk", jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
 
-  // Create JWT
   const header = base64UrlEncode(new TextEncoder().encode(JSON.stringify({ typ: "JWT", alg: "ES256" })));
   const body = base64UrlEncode(
-    new TextEncoder().encode(JSON.stringify({ aud: audience, exp: expiration, sub: VAPID_SUBJECT }))
+    new TextEncoder().encode(JSON.stringify({ aud: audience, exp: expiration, sub: getNormalizedVapidSubject() }))
   );
   const unsignedToken = `${header}.${body}`;
 
@@ -147,12 +161,10 @@ async function createVapidAuthHeader(endpoint: string): Promise<{ authorization:
     await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, new TextEncoder().encode(unsignedToken))
   );
 
-  // Convert DER signature to raw r||s (64 bytes)
   let rawSig: Uint8Array;
   if (signature.length === 64) {
     rawSig = signature;
   } else {
-    // DER decode
     let offset = 2;
     const rLen = signature[offset + 1];
     offset += 2;
@@ -171,8 +183,8 @@ async function createVapidAuthHeader(endpoint: string): Promise<{ authorization:
   const token = `${unsignedToken}.${base64UrlEncode(rawSig)}`;
 
   return {
-    authorization: `vapid t=${token}, k=${base64UrlEncode(publicKeyBytes)}`,
-    cryptoKey: `p256ecdsa=${base64UrlEncode(publicKeyBytes)}`,
+    jwt: token,
+    publicKey: base64UrlEncode(publicKeyBytes),
   };
 }
 
@@ -190,8 +202,8 @@ async function sendPushToEndpoint(
     headers: {
       "Content-Type": "application/octet-stream",
       "Content-Encoding": "aesgcm",
-      Authorization: vapid.authorization,
-      "Crypto-Key": `${vapid.cryptoKey};dh=${base64UrlEncode(serverPublicKeyBytes)}`,
+      Authorization: `WebPush ${vapid.jwt}`,
+      "Crypto-Key": `dh=${base64UrlEncode(serverPublicKeyBytes)};p256ecdsa=${vapid.publicKey}`,
       Encryption: `salt=${base64UrlEncode(salt)}`,
       TTL: "86400",
       Urgency: "high",
@@ -274,7 +286,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ sent, failed, expired_cleaned: expiredIds.length }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e) {
+  } catch (e: any) {
     console.error("send-push error:", e);
     return new Response(JSON.stringify({ error: e.message }), {
       status: 500,
