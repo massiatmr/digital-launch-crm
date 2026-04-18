@@ -1,22 +1,28 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useFollowupSettings, useUpdateFollowupSettings } from '@/hooks/useFollowupTasks';
 import { useWhatsAppTemplates } from '@/hooks/useWhatsAppTemplates';
+import { useCronStatus, useDueTasksCount, useRunFollowupNow } from '@/hooks/useFollowupCron';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Save, Bot, FlaskConical, Workflow, FileText, Sparkles, Settings as SettingsIcon, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Loader2, Save, Bot, FlaskConical, Workflow, FileText, Sparkles, Settings as SettingsIcon, AlertTriangle, CheckCircle2, Zap, PlayCircle, Clock } from 'lucide-react';
 import { STEPS, StepCard } from '@/components/automation/StepCard';
 import { StepEditorSheet } from '@/components/automation/StepEditorSheet';
 import { TemplatesManager } from '@/components/automation/TemplatesManager';
 import { cn } from '@/lib/utils';
+import { formatDistanceToNow } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 export default function SettingsAutomationPage() {
   const { data: settings, isLoading } = useFollowupSettings();
   const update = useUpdateFollowupSettings();
   const { data: templates = [] } = useWhatsAppTemplates();
+  const { data: cronStatus } = useCronStatus();
+  const { data: dueCount = 0 } = useDueTasksCount();
+  const runNow = useRunFollowupNow();
 
   const [form, setForm] = useState<any>(null);
   const [editingStep, setEditingStep] = useState<typeof STEPS[number] | null>(null);
