@@ -3,7 +3,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.99.1";
-import { importJWK, SignJWT } from "npm:jose@5.9.6";
 
 const VAPID_PUBLIC_KEY = Deno.env.get("VAPID_PUBLIC_KEY")!;
 const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY")!;
@@ -150,13 +149,38 @@ async function createVapidAuthHeader(endpoint: string): Promise<{ jwt: string; p
     d: base64UrlEncode(privateKeyBytes),
   };
 
-  const key = await importJWK(jwk, "ES256");
-  const token = await new SignJWT({})
-    .setProtectedHeader({ typ: "JWT", alg: "ES256" })
-    .setAudience(audience)
-    .setExpirationTime(expiration)
-    .setSubject(getNormalizedVapidSubject())
-    .sign(key);
+  const key = await crypto.subtle.importKey("jwk", jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+
+  const header = base64UrlEncode(new TextEncoder().encode(JSON.stringify({ typ: "JWT", alg: "ES256" })));
+  const body = base64UrlEncode(
+    new TextEncoder().encode(JSON.stringify({ aud: audience, exp: expiration, sub: getNormalizedVapidSubject() }))
+  );
+  const unsignedToken = `${header}.${body}`;
+
+  const signature = new Uint8Array(
+    await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, new TextEncoder().encode(unsignedToken))
+  );
+
+  let rawSig: Uint8Array;
+  if (signature.length === 64) {
+    rawSig = signature;
+  } else {
+    let offset = 2;
+    const rLen = signature[offset + 1];
+    offset += 2;
+    const r = signature.slice(offset, offset + rLen);
+    offset += rLen;
+    const sLen = signature[offset + 1];
+    offset += 2;
+    const s = signature.slice(offset, offset + sLen);
+    const rPad = r.length > 32 ? r.slice(r.length - 32) : r;
+    const sPad = s.length > 32 ? s.slice(s.length - 32) : s;
+    rawSig = new Uint8Array(64);
+    rawSig.set(rPad, 32 - rPad.length);
+    rawSig.set(sPad, 64 - sPad.length);
+  }
+
+  const token = `${unsignedToken}.${base64UrlEncode(rawSig)}`;
 
   return {
     jwt: token,
