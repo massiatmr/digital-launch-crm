@@ -8,7 +8,19 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Save, Bot, FlaskConical, Workflow, FileText, Sparkles, Settings as SettingsIcon, AlertTriangle, CheckCircle2, Zap, PlayCircle, Clock } from 'lucide-react';
+import { Loader2, Save, Bot, FlaskConical, Workflow, FileText, Sparkles, Settings as SettingsIcon, AlertTriangle, CheckCircle2, Zap, PlayCircle, Clock, Filter } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+
+const LEAD_SOURCES: { value: string; label: string }[] = [
+  { value: 'facebook', label: 'Facebook Lead Ads' },
+  { value: 'website', label: 'Site web' },
+  { value: 'google_sheets', label: 'Google Sheets' },
+  { value: 'organic_social', label: 'Réseaux organic' },
+  { value: 'recommendation', label: 'Recommendation' },
+  { value: 'google_my_business', label: 'Google My Business' },
+  { value: 'manual', label: 'Manuel' },
+  { value: 'other', label: 'Autre' },
+];
 import { STEPS, StepCard } from '@/components/automation/StepCard';
 import { StepEditorSheet } from '@/components/automation/StepEditorSheet';
 import { TemplatesManager } from '@/components/automation/TemplatesManager';
@@ -46,7 +58,15 @@ export default function SettingsAutomationPage() {
       template_followup_1_id: form.template_followup_1_id,
       template_followup_2_id: form.template_followup_2_id,
       template_last_followup_id: form.template_last_followup_id,
+      trigger_sources: form.trigger_sources,
+      trigger_only_new_status: form.trigger_only_new_status,
     } as any, { onSuccess: () => setDirty(false) });
+  };
+
+  const toggleSource = (src: string) => {
+    const current: string[] = form.trigger_sources || [];
+    const next = current.includes(src) ? current.filter((s) => s !== src) : [...current, src];
+    set({ trigger_sources: next });
   };
 
   const stats = useMemo(() => {
@@ -229,6 +249,60 @@ export default function SettingsAutomationPage() {
                 </p>
               </div>
               <Switch checked={form.is_enabled} onCheckedChange={(v) => set({ is_enabled: v })} />
+            </div>
+          </div>
+
+          {/* CONDITIONS DE DÉCLENCHEMENT */}
+          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+            <div>
+              <h2 className="font-heading text-base flex items-center gap-2">
+                <Filter className="h-4 w-4 text-primary" /> Conditions de déclenchement
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Quels leads doivent recevoir la séquence automatique ?
+              </p>
+            </div>
+
+            <div className="flex items-start justify-between gap-4 pt-2 border-t border-border">
+              <div>
+                <Label className="text-sm">Uniquement leads à l'étape "Nouveau"</Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Si désactivé, un lead créé directement en "Contacté" recevra aussi la séquence.
+                </p>
+              </div>
+              <Switch
+                checked={form.trigger_only_new_status ?? true}
+                onCheckedChange={(v) => set({ trigger_only_new_status: v })}
+              />
+            </div>
+
+            <div className="pt-2 border-t border-border">
+              <Label className="text-sm">Sources de leads autorisées</Label>
+              <p className="text-xs text-muted-foreground mt-1 mb-3">
+                Seuls les leads provenant de ces sources déclencheront la séquence.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {LEAD_SOURCES.map((src) => {
+                  const checked = (form.trigger_sources || []).includes(src.value);
+                  return (
+                    <label
+                      key={src.value}
+                      className={cn(
+                        'flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition-colors',
+                        checked ? 'border-primary/50 bg-primary/5' : 'border-border hover:bg-muted/30'
+                      )}
+                    >
+                      <Checkbox checked={checked} onCheckedChange={() => toggleSource(src.value)} />
+                      <span className="text-sm">{src.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              {(form.trigger_sources || []).length === 0 && (
+                <p className="text-xs text-yellow-400 mt-2 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" /> Aucune source sélectionnée → l'automatisation ne se déclenchera jamais.
+                </p>
+              )}
             </div>
           </div>
 
