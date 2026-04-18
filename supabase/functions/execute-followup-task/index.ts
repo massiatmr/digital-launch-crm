@@ -64,32 +64,44 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const isInternalCron = req.headers.get("x-internal-cron") === "1";
+    if (!authHeader && !isInternalCron) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
+    // Service-role client (used for cron + reading settings) and a per-user client (when invoked from UI)
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const supabase = isInternalCron
+      ? admin
+      : createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_ANON_KEY")!,
+          { global: { headers: { Authorization: authHeader! } } }
+        );
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-
-    const { task_id, custom_message } = await req.json();
+    const { task_id, custom_message, owner_id: bodyOwnerId } = await req.json();
     if (!task_id) return new Response(JSON.stringify({ error: "Missing task_id" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const { data: task, error: taskErr } = await supabase
+    let ownerId: string | null = null;
+    if (!isInternalCron) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      ownerId = user.id;
+    }
+
+    const { data: task, error: taskErr } = await admin
       .from("lead_followup_tasks").select("*").eq("id", task_id).maybeSingle();
 
     if (taskErr || !task) return new Response(JSON.stringify({ error: "Task not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    if (isInternalCron) ownerId = task.owner_id;
+    else if (task.owner_id !== ownerId) return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     if (task.status === 'sent' || task.status === 'cancelled') {
       return new Response(JSON.stringify({ error: `Task already ${task.status}` }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Charger settings (dry_run + mapping templates)
-    const { data: settings } = await supabase
-      .from("followup_automation_settings").select("*").eq("owner_id", user.id).maybeSingle();
+    const { data: settings } = await admin
+      .from("followup_automation_settings").select("*").eq("owner_id", ownerId).maybeSingle();
     const dryRun = settings?.dry_run !== false; // default true (sécurité)
 
     // Charger lead pour variables/contexte
