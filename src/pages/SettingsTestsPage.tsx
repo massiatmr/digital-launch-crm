@@ -400,9 +400,108 @@ export default function SettingsTestsPage() {
               <ResultBlock result={get('push')} />
             </CardContent>
           </Card>
+
+          {/* MOBILE PUSH TEST — Differé pour fermer l'app */}
+          <Card className="border-primary/30">
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Smartphone className="w-5 h-5 text-primary" />
+                    Test push mobile (app fermée)
+                  </CardTitle>
+                  <CardDescription>
+                    Déclenche depuis ton PC une notif différée. Tu as le temps de fermer l'app sur ton mobile pour vérifier qu'elle arrive bien en arrière-plan.
+                  </CardDescription>
+                </div>
+                <StatusBadge status={get('pushDelayed').status} />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 text-xs space-y-1">
+                <p className="font-medium">📋 Mode d'emploi :</p>
+                <ol className="text-muted-foreground space-y-0.5 ml-4 list-decimal">
+                  <li>Sur mobile : ouvre l'app PWA (écran d'accueil) et active les notifs</li>
+                  <li>Sur PC : choisis un délai puis clique sur "Lancer test différé"</li>
+                  <li>Sur mobile : ferme complètement l'app pendant le compte à rebours</li>
+                  <li>Vérifie que la notif arrive sur l'écran verrouillé</li>
+                </ol>
+              </div>
+
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <Label htmlFor="delay">Délai avant envoi (sec)</Label>
+                  <Input
+                    id="delay"
+                    type="number"
+                    min={3}
+                    max={120}
+                    value={delaySec}
+                    onChange={(e) => setDelaySec(Number(e.target.value) || 10)}
+                  />
+                </div>
+                <Button
+                  onClick={testPushDelayed}
+                  disabled={get('pushDelayed').status === 'running' || !user}
+                  className="shrink-0"
+                >
+                  {countdown !== null ? (
+                    <><Clock className="w-4 h-4 mr-2 animate-pulse" />{countdown}s</>
+                  ) : (
+                    <><Smartphone className="w-4 h-4 mr-2" />Lancer test différé</>
+                  )}
+                </Button>
+              </div>
+              <ResultBlock result={get('pushDelayed')} />
+            </CardContent>
+          </Card>
+
+          {/* DEVICES LIST */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Smartphone className="w-5 h-5" />
+                    Appareils enregistrés ({devices.length})
+                  </CardTitle>
+                  <CardDescription>
+                    Tous les appareils qui recevront tes notifications. Supprime les anciens si besoin.
+                  </CardDescription>
+                </div>
+                <Button size="sm" variant="ghost" onClick={loadDevices}>↻</Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {devices.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Aucun appareil. Active les notifications sur le mobile/PC à utiliser.
+                </p>
+              ) : (
+                devices.map((d) => {
+                  const dev = detectDevice(d.device_info);
+                  return (
+                    <div key={d.id} className="flex items-center justify-between p-3 rounded-lg bg-black/30 border border-white/5">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <span className="text-2xl">{dev.icon}</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium">{dev.label}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            Ajouté {new Date(d.created_at).toLocaleDateString('fr-FR')} · {d.device_info?.slice(0, 60)}…
+                          </p>
+                        </div>
+                      </div>
+                      <Button size="sm" variant="ghost" onClick={() => deleteDevice(d.id)}>
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </div>
+                  );
+                })
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
-        {/* INTÉGRATIONS */}
         <TabsContent value="integrations" className="space-y-4">
           <Card>
             <CardHeader>
