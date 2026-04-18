@@ -142,7 +142,26 @@ async function createVapidAuthHeader(endpoint: string): Promise<{ jwt: string; p
     await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, new TextEncoder().encode(unsignedToken) as BufferSource)
   );
 
-  const token = `${unsignedToken}.${base64UrlEncode(signature.length === 64 ? signature : signature)}`;
+  let rawSig: Uint8Array;
+  if (signature.length === 64) {
+    rawSig = signature;
+  } else {
+    let offset = 2;
+    const rLen = signature[offset + 1];
+    offset += 2;
+    const r = signature.slice(offset, offset + rLen);
+    offset += rLen;
+    const sLen = signature[offset + 1];
+    offset += 2;
+    const s = signature.slice(offset, offset + sLen);
+    const rPad = r.length > 32 ? r.slice(r.length - 32) : r;
+    const sPad = s.length > 32 ? s.slice(s.length - 32) : s;
+    rawSig = new Uint8Array(64);
+    rawSig.set(rPad, 32 - rPad.length);
+    rawSig.set(sPad, 64 - sPad.length);
+  }
+
+  const token = `${unsignedToken}.${base64UrlEncode(rawSig)}`;
 
   return {
     jwt: token,
