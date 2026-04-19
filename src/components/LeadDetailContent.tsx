@@ -180,7 +180,7 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
               </div>
 
               {/* Formulaire d'édition inline */}
-              <LeadEditForm lead={lead} onClose={() => {}} />
+              <LeadEditForm lead={lead} inline />
 
 
               {/* Message initial */}
