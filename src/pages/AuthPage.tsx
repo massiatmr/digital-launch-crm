@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
@@ -36,14 +36,19 @@ const testimonials = [
 ];
 
 export default function AuthPage() {
-  const { user, loading, signIn, signUp } = useAuth();
+  const { user, loading, authStatus, authError, clearAuthError, signIn, signUp } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  if (loading) {
+  useEffect(() => {
+    if (!authError) return;
+    toast.error(authError);
+  }, [authError]);
+
+  if (loading && authStatus === 'loading') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -107,6 +112,12 @@ export default function AuthPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            {authError ? (
+              <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-foreground">
+                {authError.includes('internet') ? 'Aucune connexion internet.' : 'Problème de connexion. Réessaie dans un instant.'}
+              </div>
+            ) : null}
+
             {/* Email */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -117,7 +128,10 @@ export default function AuthPage() {
                   type="email"
                   name="email"
                   value={email}
-                  onChange={e => setEmail(e.target.value)}
+                  onChange={e => {
+                    if (authError) clearAuthError();
+                    setEmail(e.target.value);
+                  }}
                   placeholder="votre@email.com"
                   className="w-full rounded-[10px] bg-transparent px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
                   autoComplete="email"
@@ -136,7 +150,10 @@ export default function AuthPage() {
                     type={showPassword ? 'text' : 'password'}
                     name="password"
                     value={password}
-                    onChange={e => setPassword(e.target.value)}
+                    onChange={e => {
+                      if (authError) clearAuthError();
+                      setPassword(e.target.value);
+                    }}
                     placeholder="••••••••"
                     className="w-full rounded-[10px] bg-transparent px-4 py-3 pr-12 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
                     autoComplete={isLogin ? 'current-password' : 'new-password'}
