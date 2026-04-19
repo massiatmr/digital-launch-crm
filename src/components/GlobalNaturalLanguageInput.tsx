@@ -608,7 +608,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
     proposal.notes_append && `Note ajoutée : "${proposal.notes_append}"`,
   ].filter(Boolean) as string[] : [];
 
-  const isPending = analyze.isPending || askingAi || creatingLead || isTranscribing;
+  const isPending = analyze.isPending || askingAi || creatingLead || isTranscribing || bookingLoading;
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
