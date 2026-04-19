@@ -259,13 +259,22 @@ export default function AuthPage() {
 
           {/* Toggle */}
           <p className="mt-8 text-center text-sm text-muted-foreground">
-            {isLogin ? "Pas encore de compte ?" : 'Déjà un compte ?'}{' '}
-            <button
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-primary hover:underline transition-colors font-medium"
-            >
-              {isLogin ? "Créer un compte" : 'Se connecter'}
-            </button>
+            {isLogin ? (
+              <>
+                Pas encore de compte ?{' '}
+                <span className="text-foreground/70">L'inscription se fait sur invitation uniquement.</span>
+              </>
+            ) : (
+              <>
+                Déjà un compte ?{' '}
+                <button
+                  onClick={() => setIsLogin(true)}
+                  className="text-primary hover:underline transition-colors font-medium"
+                >
+                  Se connecter
+                </button>
+              </>
+            )}
           </p>
         </div>
       </div>
