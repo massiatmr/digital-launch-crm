@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { Bot, Plug, FlaskConical, UserPlus, Building2, User, Bell, ShieldAlert } from 'lucide-react';
+import { Bot, Plug, FlaskConical, UserPlus, Building2, User, Bell, ShieldAlert, Trash2, History } from 'lucide-react';
 import SettingsAutomationPage from './SettingsAutomationPage';
 import SettingsIntegrationsPage from './SettingsIntegrationsPage';
 import SettingsTestsPage from './SettingsTestsPage';
@@ -7,6 +7,8 @@ import SettingsInvitationsPage from './SettingsInvitationsPage';
 import SettingsWorkspacesPage from './SettingsWorkspacesPage';
 import SettingsAccountPage from './SettingsAccountPage';
 import SettingsNotificationsPage from './SettingsNotificationsPage';
+import SettingsTrashPage from './SettingsTrashPage';
+import SettingsAuditPage from './SettingsAuditPage';
 import { useIsAdmin } from '@/hooks/useWorkspaceFeatures';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,11 +24,13 @@ type Section = {
 };
 
 const SECTIONS: Section[] = [
-  { key: 'account', label: 'Mon compte', icon: User, description: 'Profil, identité légale, sécurité', group: 'Personnel', Component: SettingsAccountPage },
+  { key: 'account', label: 'Mon compte', icon: User, description: 'Profil, identité légale, sécurité, sauvegarde', group: 'Personnel', Component: SettingsAccountPage },
   { key: 'notifications', label: 'Notifications', icon: Bell, description: 'Push, emails, appareils', group: 'Personnel', Component: SettingsNotificationsPage },
   { key: 'workspaces', label: 'Espaces de travail', icon: Building2, description: 'Membres, modules, branding', group: 'Workspace', Component: SettingsWorkspacesPage },
   { key: 'automation', label: 'Automatisation', icon: Bot, description: 'Séquences, IA, templates', group: 'Workspace', Component: SettingsAutomationPage },
   { key: 'integrations', label: 'Intégrations', icon: Plug, description: 'WhatsApp, Meta, Google Calendar', group: 'Workspace', Component: SettingsIntegrationsPage },
+  { key: 'trash', label: 'Corbeille', icon: Trash2, description: 'Restaurer les éléments supprimés (30 jours)', group: 'Workspace', Component: SettingsTrashPage },
+  { key: 'audit', label: 'Journal d\'audit', icon: History, description: 'Historique complet des suppressions', group: 'Système', adminOnly: true, Component: SettingsAuditPage },
   { key: 'tests', label: 'Tests système', icon: FlaskConical, description: 'Diagnostic des envois', group: 'Système', adminOnly: true, Component: SettingsTestsPage },
   { key: 'invitations', label: 'Invitations', icon: UserPlus, description: 'Gestion globale des invitations', group: 'Système', adminOnly: true, Component: SettingsInvitationsPage },
 ];

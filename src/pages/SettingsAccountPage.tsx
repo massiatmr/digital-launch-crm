@@ -10,7 +10,8 @@ import { useOwnerProfile, useUpdateOwnerProfile } from '@/hooks/useOwnerProfile'
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { User, Building, Mail, Lock, AlertTriangle, LogOut } from 'lucide-react';
+import { User, Building, Mail, Lock, AlertTriangle, LogOut, Download, ShieldCheck } from 'lucide-react';
+import { useWorkspaces } from '@/hooks/useWorkspaces';
 
 export default function SettingsAccountPage() {
   const { user, signOut } = useAuth();
@@ -208,6 +209,9 @@ export default function SettingsAccountPage() {
         </CardContent>
       </Card>
 
+      {/* Sauvegarde / Export */}
+      <ExportBackupCard />
+
       {/* Danger zone */}
       <Card className="border-destructive/40">
         <CardHeader>
@@ -238,5 +242,63 @@ export default function SettingsAccountPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function ExportBackupCard() {
+  const { currentWorkspace } = useWorkspaces();
+  const [loading, setLoading] = useState(false);
+
+  const handleExport = async () => {
+    if (!currentWorkspace) return toast.error('Aucun espace sélectionné');
+    setLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Non authentifié');
+
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/export-workspace`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ workspace_id: currentWorkspace.id }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Erreur ${res.status}`);
+      }
+      const blob = await res.blob();
+      const dlUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = dlUrl;
+      a.download = `backup-${currentWorkspace.company_name || 'workspace'}-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(dlUrl);
+      toast.success('Sauvegarde téléchargée');
+    } catch (e: any) {
+      toast.error(e.message || 'Erreur lors de l\'export');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" />Sauvegarde de mes données</CardTitle>
+        <CardDescription>
+          Télécharge un instantané JSON complet de ton espace (leads, clients, offres, factures, contrats, automations).
+          Garde-le précieusement : c'est ta meilleure assurance contre toute perte de données.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button onClick={handleExport} disabled={loading || !currentWorkspace} className="gap-2">
+          <Download className="h-4 w-4" />
+          {loading ? 'Préparation…' : `Exporter "${currentWorkspace?.company_name || ''}"`}
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
