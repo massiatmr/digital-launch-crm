@@ -11,6 +11,9 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import type { AuthError, Session, User } from '@supabase/supabase-js';
 
+const AUTH_REQUEST_TIMEOUT_MS = 10000;
+const AUTH_STORAGE_KEY = 'sb-rvangzupebrajhhhvewu-auth-token';
+
 type AuthContextValue = {
   user: User | null;
   session: Session | null;
@@ -22,12 +25,49 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+function createTimeoutError(): AuthError {
+  return {
+    name: 'AuthTimeoutError',
+    message: "Le service d'authentification ne répond pas pour le moment. Réessayez dans un instant.",
+    status: 504,
+  } as AuthError;
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs = AUTH_REQUEST_TIMEOUT_MS): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(createTimeoutError()), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function clearStoredAuthSession() {
+  try {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+  } catch (error) {
+    console.error('Unable to clear stored auth session', error);
+  }
+}
+
 async function restoreSessionWithRetry() {
   try {
-    return await supabase.auth.getSession();
-  } catch {
+    return await withTimeout(supabase.auth.getSession());
+  } catch (error) {
     await new Promise((resolve) => setTimeout(resolve, 150));
-    return await supabase.auth.getSession();
+
+    try {
+      return await withTimeout(supabase.auth.getSession());
+    } catch {
+      clearStoredAuthSession();
+      throw error;
+    }
   }
 }
 
@@ -71,22 +111,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signUp = useCallback(async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
+    const { error } = await withTimeout(supabase.auth.signUp({
       email,
       password,
       options: {
         emailRedirectTo: window.location.origin,
       },
-    });
+    }));
     return { error };
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await withTimeout(supabase.auth.signInWithPassword({ email, password }));
     return { error };
   }, []);
 
   const signOut = useCallback(async () => {
+    clearStoredAuthSession();
     await supabase.auth.signOut();
   }, []);
 
