@@ -281,6 +281,10 @@ export function GlobalNaturalLanguageInput({ onDone }: { onDone?: () => void }) 
   const [creatingLead, setCreatingLead] = useState(false);
   const [voiceMode, setVoiceMode] = useState(false);
   const [detectedLeadName, setDetectedLeadName] = useState<string | null>(null);
+  const [bookingIntent, setBookingIntent] = useState<any | null>(null);
+  const [bookingSlots, setBookingSlots] = useState<string[] | null>(null);
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const { user } = useAuth();
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
