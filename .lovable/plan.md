@@ -1,71 +1,83 @@
+## Refonte de la page Paramètres
 
+Actuellement, la page Settings a 5 onglets: Espaces, Automatisation, Intégrations, Tests, Invitations. Il manque une vraie section **"Mon Compte"** (profil perso, sécurité, notifications) et la structure mélange admin global / réglages workspace / config personnelle.
 
-## Problèmes identifiés dans le flow actuel
+## Nouvelle structure ( onglets, regroupés par scope)
 
-1. **Double création workspace pour les invités** : le trigger `handle_new_user` crée TOUJOURS un workspace "Mon espace" à chaque signup, même quand l'utilisateur est invité. Résultat : un invité se retrouve avec 2 workspaces et passe par l'onboarding alors qu'il rejoint juste une boîte existante.
+```text
+👤 PERSONNEL          🏢 WORKSPACE              
+├ Mon compte 
+Espaces        ├                                
+└ Notifications
+Invitations.         ├ Automatisation           
+                     └ Intégrations
+                      Espaces
+```
 
-2. **Consume invitation cassé avec confirmation email** : `consume_workspace_invitation` est appelé immédiatement après `signUp()`, mais avec confirmation email obligatoire `getUser()` renvoie null → invitation perdue. Quand l'user clique sur le lien email, il revient sans `?invite=` dans l'URL → atterrit dans le mauvais workspace.
+### 1. **Mon compte** (NOUVEAU — onglet par défaut)
 
-3. **OnboardingGuard force tout le monde** : même les invités qui rejoignent un workspace déjà configuré doivent compléter le wizard.
+Infos perso de l'utilisateur connecté, indépendantes du workspace.
 
-4. **"Mot de passe oublié" inactif** : bouton présent mais sans handler, pas de page `/reset-password`.
+- **Profil** : email (lecture seule), nom complet (`owner_profiles.legal_name`), téléphone, avatar/logo perso
+- **Identité légale** (utilisée pour factures/contrats) : `company_name`, `siret`, `vat_number`, `address`
+- **Branding email** : `email_sender_name`, `email_signature`, `brand_color`
+- **Sécurité** :
+  - Changer le mot de passe (`supabase.auth.updateUser({ password })`)
+  - Changer l'email (avec re-confirmation)
+  - Bouton "Déconnecter toutes les sessions"
+  - Bouton "Supprimer mon compte" (danger zone, avec confirm)
+- Sauvegarde via `useUpdateOwnerProfile` (déjà existant)
 
-5. **Google OAuth inactif** : bouton présent mais sans handler.
+### 2. **Notifications** (NOUVEAU)
 
-6. **Email d'invitation manuel** : aujourd'hui l'admin doit copier-coller le lien à la main, aucun email n'est envoyé.
+- Toggle push web (réutilise `EnablePushButton` + `usePushNotifications`)
+- Statut PWA : installée / à installer (réutilise `PwaInstallGuide`)
+- Préférences emails : nouveau lead, nouveau RDV, signature reçue (toggles → champs sur `owner_profiles` ou nouvelle table `notification_preferences`)
+- Liste des appareils connectés (push subscriptions actives) avec bouton "Révoquer"
 
-## Plan
+### 3. **Espaces de travail** (existant, conservé)
 
-### A. Fixer `handle_new_user` (migration)
-Refonte du trigger SQL :
-- Toujours créer `owner_profiles` (paramètres légaux/perso individuels)
-- **Ne créer un workspace par défaut QUE si aucune invitation valide n'existe pour cet email**
-- Stocker `invite_token` dans `raw_user_meta_data` au signup pour que le trigger sache
+Liste workspaces, création, membres, modules. **Ajouts** :
 
-### B. Auto-consume invitation après confirmation email (migration)
-- Au `signUp` : passer `options.data: { invite_token }` → stocké dans user_metadata
-- Nouveau trigger `on_auth_user_confirmed` (sur `auth.users` UPDATE de `email_confirmed_at`) qui appelle `consume_workspace_invitation` automatiquement avec le token en metadata
-- Robuste : peu importe quand l'user clique sur le lien email, l'invitation est consumée
+- Champ "Email de notification du workspace" (`workspaces.notification_email`) éditable par owner
+- Édition `company_name` / `slug` / `logo_url` du workspace courant (pas seulement à la création)
 
-### C. OnboardingGuard intelligent
-Si l'user appartient à un workspace **dont il n'est pas le créateur** → bypass le wizard, redirect direct sur `/`. Le wizard ne sert qu'aux créateurs de workspace.
+### 4. **Automatisation** (existant, conservé)
 
-### D. AuthPage améliorée
-- **Mot de passe oublié** : modal email → `resetPasswordForEmail()` avec `redirectTo: /reset-password`
-- **Google OAuth** : `signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + '/auth' + (inviteToken ? '?invite=...' : '') } })`
-- Persistance du `invite` token dans `localStorage` (récupéré post-confirmation email si l'user revient sans le token dans l'URL)
-- Si déjà connecté + `?invite=` → consume direct + switch sur le workspace rejoint
-- Message clair après signup : "Vérifie ton email puis reviens te connecter"
+Inchangé — déjà workspace-scoped depuis le dernier patch.
 
-### E. Page `/reset-password` (nouvelle, publique)
-Détecte le hash `#type=recovery` → formulaire nouveau password → `supabase.auth.updateUser({ password })` → redirect `/`.
+### 5. **Intégrations** (existant, conservé)
 
-### F. Email d'invitation transactionnel
-- Nouveau template `workspace-invitation` (React Email, sobre, avec nom du workspace + bouton CTA)
-- `send-invitation` edge function envoie automatiquement l'email via `send-transactional-email` à l'invité
-- L'admin copie plus de lien à la main
+Inchangé — Meta/WhatsApp/Google Calendar.
 
-### G. UX globale
-- Switch automatique sur le workspace rejoint après consume (côté client, post-login)
-- Toast clair : "Tu as rejoint [Workspace] avec succès"
+### 6. **Tests** + **7. Invitations** (admin only, fusionnés visuellement)
+
+Onglet "Système" qui n'apparaît QUE si `useIsAdmin()` retourne true. Contient sous-sections Tests + Invitations globales.
+
+## UX
+
+- Layout sidebar verticale à gauche (au lieu des tabs horizontales actuelles) sur desktop, plus lisible avec 6 sections. Sur mobile : Select dropdown en haut.
+- Header de chaque section : icône + titre + courte description
+- Section "danger zone" en bas de Mon compte avec bordure destructive
+- Toast confirmation systématique sur save
 
 ## Fichiers touchés
 
-| Fichier | Action |
-|---|---|
-| Migration SQL | Refonte `handle_new_user`, ajout trigger `on_auth_user_confirmed`, fonction `consume_invitation_from_metadata` |
-| `src/pages/AuthPage.tsx` | Google OAuth, reset password modal, persistance invite, déjà-loggé+invite |
-| `src/pages/ResetPasswordPage.tsx` | NOUVEAU |
-| `src/components/OnboardingGuard.tsx` | Skip wizard si membre d'un workspace non créé par soi |
-| `src/App.tsx` | Route `/reset-password` |
-| `supabase/functions/send-invitation/index.ts` | Envoi email transactionnel après création |
-| `supabase/functions/_shared/transactional-email-templates/workspace-invitation.tsx` | NOUVEAU template |
-| `supabase/functions/_shared/transactional-email-templates/registry.ts` | Enregistrer le template |
+
+| Fichier                                   | Action                                                                                   |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `src/pages/SettingsPage.tsx`              | Refonte layout : sidebar verticale, nouvelles routes                                     |
+| `src/pages/SettingsAccountPage.tsx`       | **NOUVEAU** — profil, identité, sécurité                                                 |
+| `src/pages/SettingsNotificationsPage.tsx` | **NOUVEAU** — push, emails, devices                                                      |
+| `src/pages/SettingsWorkspacesPage.tsx`    | Ajout édition workspace (nom/slug/logo/notification_email)                               |
+| `src/App.tsx`                             | Routes `/settings/account`, `/settings/notifications`                                    |
+| `src/components/AppSidebar.tsx`           | Lien "Paramètres" pointe vers `/settings/account` par défaut                             |
+| Migration SQL                             | Ajout `notification_preferences` JSONB sur `owner_profiles` (nouveau lead/RDV/signature) |
+
 
 ## Comportement final
 
-- **Inscription publique normale** : signup → email confirmation → login → wizard onboarding (créer son workspace) → app
-- **Invité par admin** : reçoit email avec CTA → clic → `/auth?invite=TOKEN` → signup OU login (Google/email) → email confirmation auto-consume l'invitation → arrive directement dans le workspace rejoint, pas de wizard
-- **Mot de passe oublié** : flow complet fonctionnel
-- **Google OAuth** : login/signup en 1 clic, compatible invitations
-
+- Clic sur "Paramètres" → arrive sur **Mon compte** (le plus utile au quotidien)
+- 6 sections claires, regroupées par scope (perso / workspace / admin)
+- Plus besoin de chercher où changer son mot de passe ou activer les notifications
+- Édition complète du workspace (pas seulement à la création)
