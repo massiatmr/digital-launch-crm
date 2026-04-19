@@ -113,9 +113,11 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
     >
       <div className="flex items-center justify-between">
         <h3 className="font-heading text-base">Modifier le lead</h3>
-        <Button type="button" variant="ghost" size="icon" onClick={onClose}>
-          <X className="h-4 w-4" />
-        </Button>
+        {onClose && !inline && (
+          <Button type="button" variant="ghost" size="icon" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
