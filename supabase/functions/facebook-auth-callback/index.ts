@@ -55,9 +55,8 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // 4. Upsert per workspace (or legacy if no workspace)
+    // 4. Upsert pages per workspace (or legacy if no workspace)
     for (const p of pages) {
-      // Find existing row for this scope+page_id
       const query = supabase.from("meta_pages").select("id").eq("page_id", p.id);
       const scoped = workspace_id
         ? query.eq("workspace_id", workspace_id)
@@ -80,7 +79,72 @@ Deno.serve(async (req) => {
       }
     }
 
-    return Response.redirect(`${redirectBase}?fb=connected&count=${pages.length}`, 302);
+    // 5. Detect WhatsApp Business Accounts and phone numbers
+    let waNumbersFound = 0;
+    try {
+      // Get businesses owned by user
+      const bizRes = await fetch(
+        `https://graph.facebook.com/v21.0/me/businesses?fields=id,name&access_token=${userToken}`,
+      );
+      const bizJson = await bizRes.json();
+      const businesses = bizJson.data || [];
+
+      for (const biz of businesses) {
+        // Get owned WABAs for each business
+        const wabaRes = await fetch(
+          `https://graph.facebook.com/v21.0/${biz.id}/owned_whatsapp_business_accounts?fields=id,name&access_token=${userToken}`,
+        );
+        const wabaJson = await wabaRes.json();
+        const wabas = wabaJson.data || [];
+
+        for (const waba of wabas) {
+          // Get phone numbers for each WABA
+          const phonesRes = await fetch(
+            `https://graph.facebook.com/v21.0/${waba.id}/phone_numbers?fields=id,display_phone_number,verified_name&access_token=${userToken}`,
+          );
+          const phonesJson = await phonesRes.json();
+          const phones = phonesJson.data || [];
+
+          for (const ph of phones) {
+            waNumbersFound++;
+            // Check if config already exists for this phone
+            const existQ = supabase
+              .from("whatsapp_config")
+              .select("id, is_active")
+              .eq("phone_number_id", ph.id);
+            const existScoped = workspace_id
+              ? existQ.eq("workspace_id", workspace_id)
+              : existQ.eq("owner_id", userId).is("workspace_id", null);
+            const { data: existCfg } = await existScoped.maybeSingle();
+
+            const waPayload = {
+              owner_id: userId,
+              workspace_id,
+              phone_number_id: ph.id,
+              business_account_id: waba.id,
+              access_token: userToken,
+              display_phone_number: ph.display_phone_number || "",
+              verified_name: ph.verified_name || waba.name || "",
+              // Don't auto-activate; let user choose which number to activate
+              is_active: existCfg?.is_active ?? false,
+            };
+
+            if (existCfg) {
+              await supabase.from("whatsapp_config").update(waPayload).eq("id", existCfg.id);
+            } else {
+              await supabase.from("whatsapp_config").insert(waPayload);
+            }
+          }
+        }
+      }
+    } catch (waErr) {
+      console.error("[fb-callback] WA detection error", waErr);
+    }
+
+    return Response.redirect(
+      `${redirectBase}?fb=connected&count=${pages.length}&wa=${waNumbersFound}`,
+      302,
+    );
   } catch (err) {
     console.error("[fb-callback]", err);
     return Response.redirect(`${redirectBase}?fb=error&reason=internal`, 302);
