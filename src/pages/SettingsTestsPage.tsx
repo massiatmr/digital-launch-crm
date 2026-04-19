@@ -268,6 +268,28 @@ export default function SettingsTestsPage() {
     }
   };
 
+  // === Test séquence accélérée sur lead ===
+  const runSeqTest = async () => {
+    if (!seqLeadId) return toast.error('Sélectionne un lead');
+    setSeqStep('sending');
+    setLastError(null);
+    setLastResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('test-followup-sequence', {
+        body: { lead_id: seqLeadId },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      setSeqStep('sent');
+      setLastResult(JSON.stringify(data, null, 2));
+      toast.success(`⚡ ${data.steps_created} tâches créées (durée totale: ${data.total_duration_seconds}s)`);
+    } catch (e) {
+      setLastError((e as Error).message);
+      setSeqStep('error');
+      toast.error('Échec : ' + (e as Error).message);
+    }
+  };
+
   return (
     <div className="space-y-4 max-w-2xl">
       {inPreview && (
