@@ -142,16 +142,23 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Récupère le nom du workspace pour contextualiser l'email
+    // Récupère le workspace : nom + email de notification
     let workspaceName: string | null = null;
+    let workspaceEmail: string | null = null;
     if (lead.workspace_id) {
       const { data: ws } = await supabase
         .from("workspaces")
-        .select("company_name")
+        .select("company_name, notification_email, email")
         .eq("id", lead.workspace_id)
         .maybeSingle();
       workspaceName = ws?.company_name || null;
+      workspaceEmail = (ws?.notification_email || ws?.email || "").trim() || null;
     }
+
+    // Destinataires : admin global TOUJOURS + workspace si différent
+    const recipients = Array.from(new Set(
+      [NOTIFY_EMAIL, workspaceEmail].filter((e): e is string => !!e && e.toLowerCase() !== "")
+    ));
 
     const leadUrl = `${APP_BASE_URL}/leads/${lead.id}`;
     const sourceLabel = sourceLabels[lead.source] || lead.source || "Inconnue";
