@@ -314,22 +314,49 @@ export default function SettingsAutomationPage() {
 
             <div className="pt-2 border-t border-border">
               <Label className="text-sm flex items-center gap-2">
-                <RefreshCw className="h-3.5 w-3.5" /> Délai d'inactivité avant relance
+                <RefreshCw className="h-3.5 w-3.5" /> Délai d'inactivité avant relance auto
               </Label>
               <p className="text-xs text-muted-foreground mt-1 mb-2">
-                Si le lead a répondu puis ne dit plus rien pendant ce temps, une tâche "Relancer conversation" est créée.
+                Si la conversation est silencieuse (peu importe qui a parlé en dernier) pendant ce délai, dans la fenêtre 24h WhatsApp, une tâche de relance IA est créée. Idéal pour rattraper un lead qui a répondu puis disparu.
               </p>
-              <Select
-                value={String(form.inactivity_threshold_hours ?? 12)}
-                onValueChange={(v) => set({ inactivity_threshold_hours: parseInt(v, 10) })}
-              >
-                <SelectTrigger className="w-full sm:w-60"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="6">6 heures</SelectItem>
-                  <SelectItem value="12">12 heures (recommandé)</SelectItem>
-                  <SelectItem value="18">18 heures</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  className="w-32"
+                  value={(() => {
+                    const h = form.inactivity_threshold_hours ?? 12;
+                    return h < 1 ? Math.round(h * 60) : h;
+                  })()}
+                  onChange={(e) => {
+                    const n = Math.max(1, parseInt(e.target.value, 10) || 1);
+                    const isMinutes = (form.inactivity_threshold_hours ?? 12) < 1;
+                    set({ inactivity_threshold_hours: isMinutes ? n / 60 : n });
+                  }}
+                />
+                <Select
+                  value={(form.inactivity_threshold_hours ?? 12) < 1 ? 'minutes' : 'hours'}
+                  onValueChange={(unit) => {
+                    const cur = form.inactivity_threshold_hours ?? 12;
+                    if (unit === 'minutes') {
+                      const mins = cur < 1 ? Math.round(cur * 60) : cur * 60;
+                      set({ inactivity_threshold_hours: mins / 60 });
+                    } else {
+                      const h = cur < 1 ? Math.max(1, Math.round(cur * 60 / 60)) : cur;
+                      set({ inactivity_threshold_hours: h });
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="minutes">Minutes</SelectItem>
+                    <SelectItem value="hours">Heures</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                💡 Astuce test : mets <strong>2 minutes</strong> pour voir la tâche apparaître très vite.
+              </p>
             </div>
 
             <div className="flex items-start justify-between gap-4 pt-3 border-t border-border">
