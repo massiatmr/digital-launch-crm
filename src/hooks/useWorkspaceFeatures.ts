@@ -2,9 +2,9 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentWorkspaceId } from './useWorkspaces';
 
-export type FeatureKey = 'bookings' | 'whatsapp' | 'facebook' | 'offers' | 'conversations';
+export type FeatureKey = 'bookings' | 'whatsapp' | 'facebook' | 'offers' | 'conversations' | 'clients';
 
-const ALL_FEATURES: FeatureKey[] = ['bookings', 'whatsapp', 'facebook', 'offers', 'conversations'];
+const ALL_FEATURES: FeatureKey[] = ['bookings', 'whatsapp', 'facebook', 'offers', 'conversations', 'clients'];
 
 export function useWorkspaceFeatures(workspaceId?: string | null) {
   const currentId = useCurrentWorkspaceId();
@@ -19,7 +19,7 @@ export function useWorkspaceFeatures(workspaceId?: string | null) {
         .eq('workspace_id', wsId);
       if (error) throw error;
       const map: Record<FeatureKey, boolean> = {
-        bookings: true, whatsapp: true, facebook: true, offers: true, conversations: true,
+        bookings: true, whatsapp: true, facebook: true, offers: true, conversations: true, clients: true,
       };
       for (const row of (data || []) as any[]) {
         if (ALL_FEATURES.includes(row.feature_key)) {
@@ -31,7 +31,7 @@ export function useWorkspaceFeatures(workspaceId?: string | null) {
   });
 
   const features = query.data ?? {
-    bookings: true, whatsapp: true, facebook: true, offers: true, conversations: true,
+    bookings: true, whatsapp: true, facebook: true, offers: true, conversations: true, clients: true,
   };
 
   return { features, isLoading: query.isLoading, isEnabled: (k: FeatureKey) => features[k] };

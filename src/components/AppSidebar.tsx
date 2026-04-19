@@ -17,7 +17,7 @@ const links: LinkDef[] = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/', icon: Kanban, label: 'Pipeline' },
   { to: '/conversations', icon: MessageCircle, label: 'Conversations', feature: 'conversations' },
-  { to: '/clients', icon: UserCheck, label: 'Clients' },
+  { to: '/clients', icon: UserCheck, label: 'Clients', feature: 'clients' },
   { to: '/reminders', icon: Bell, label: 'Tâches' },
   { to: '/offers', icon: Package, label: 'Offres', feature: 'offers' },
   { to: '/bookings', icon: CalendarCheck, label: 'Rendez-vous', feature: 'bookings' },
