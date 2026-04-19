@@ -46,6 +46,14 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Une invitation DOIT toujours cibler un workspace (sinon l'invité se retrouve isolé)
+    if (!workspaceId) {
+      return new Response(JSON.stringify({ error: "workspace_id requis : choisis l'espace à rejoindre" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Authorization: either global admin OR owner of target workspace
     let allowed = false;
     const { data: roleRow } = await admin
