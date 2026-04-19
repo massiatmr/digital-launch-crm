@@ -36,12 +36,29 @@ export default function SettingsTestsPage() {
   const [lastError, setLastError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(0);
   const inPreview = useMemo(() => isPreviewEnvironment(), []);
+  const [diag, setDiag] = useState<{ permission: string; subscriptionId: string | null; optedIn: boolean; swReady: boolean }>({
+    permission: 'unknown',
+    subscriptionId: null,
+    optedIn: false,
+    swReady: false,
+  });
 
   useEffect(() => {
-    setPermission(getOneSignalPermission() || (typeof Notification !== 'undefined' && Notification.permission === 'granted'));
-    const t = setInterval(() => {
+    const refresh = async () => {
       setPermission(getOneSignalPermission() || (typeof Notification !== 'undefined' && Notification.permission === 'granted'));
-    }, 1500);
+      try {
+        const OneSignal = (window as any).OneSignal;
+        const subId = OneSignal?.User?.PushSubscription?.id ?? null;
+        const optedIn = Boolean(OneSignal?.User?.PushSubscription?.optedIn);
+        const perm = typeof Notification !== 'undefined' ? Notification.permission : 'unknown';
+        const reg = await navigator.serviceWorker?.getRegistration();
+        setDiag({ permission: perm, subscriptionId: subId, optedIn, swReady: Boolean(reg?.active) });
+      } catch {
+        // ignore
+      }
+    };
+    refresh();
+    const t = setInterval(refresh, 1500);
     return () => clearInterval(t);
   }, []);
 
