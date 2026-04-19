@@ -249,6 +249,43 @@ Extrais le MAXIMUM d'informations structurées et réponds avec ce JSON exact :
   "notes": "TOUT ce qui ne rentre dans AUCUN champ ci-dessus. Prix, détails de projet, remarques, contexte additionnel. Ne perds aucune information.",
   "ai_summary": "résumé court du lead en 1-2 phrases"
 }`;
+    } else if (type === "booking_intent") {
+      const nowIso = new Date().toISOString();
+      systemPrompt = `Tu es un assistant CRM qui détecte les intentions de prise de rendez-vous en français.
+
+L'utilisateur va décrire un RDV en langage naturel (vocal ou texte). Tu dois :
+1. Détecter si c'est UNE INTENTION DE RDV (oui/non)
+2. Extraire la date, l'heure, le nom du contact, son téléphone, son email si mentionnés
+3. Détecter le sous-type :
+   - "check" → l'utilisateur veut juste VOIR les créneaux dispos ("quels créneaux dispo demain ?", "qu'est-ce que j'ai libre vendredi ?")
+   - "book" → l'utilisateur veut RÉSERVER un créneau ("RDV avec Jean demain 14h", "bloque-moi mardi 11h avec Marie")
+
+DATE/HEURE ACTUELLE : ${nowIso} (timezone Europe/Paris)
+
+RÈGLES DE DATE :
+- "demain" = J+1, "après-demain" = J+2, "lundi/mardi/..." = prochain jour de semaine
+- "dans X jours" = calcule à partir de MAINTENANT
+- "la semaine prochaine" = lundi prochain
+- Format date strict : "YYYY-MM-DD"
+- Format heure strict : "HH:mm" (ex "14:00", "11:30"). Créneaux valides : 11:00 → 15:30 toutes les 15min.
+- Si l'heure est imprécise ("matin" → "11:00", "midi" → "12:00", "aprem" → "14:00", "fin d'aprem" → "15:00")
+
+Réponds UNIQUEMENT avec un JSON valide (pas de markdown).`;
+
+      userPrompt = `Phrase de l'utilisateur : "${lead?.new_note || ''}"
+
+Réponds avec ce JSON :
+{
+  "is_booking_intent": true ou false,
+  "subtype": "check" ou "book" ou null,
+  "date": "YYYY-MM-DD" ou null,
+  "time_slot": "HH:mm" ou null,
+  "contact_name": "nom du contact ou null",
+  "contact_phone": "téléphone ou null",
+  "contact_email": "email ou null",
+  "notes": "contexte / raison du RDV ou null",
+  "human_summary": "phrase courte pour confirmer à l'utilisateur (ex: 'RDV avec Jean Dupont demain 14h')"
+}`;
     } else if (type === "pipeline_question") {
       systemPrompt = `Tu es un assistant CRM expert. L'utilisateur te pose une question sur sa pipeline de vente. Tu as accès aux données résumées de sa pipeline.
 
