@@ -525,6 +525,70 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
 
   const handleCorrect = () => { setShowDialog(false); setProposal(null); };
 
+  // === Booking helpers ===
+  const resetBooking = () => { setBookingIntent(null); setBookingSlots(null); };
+
+  const confirmBooking = async (timeSlot: string) => {
+    if (!bookingIntent || !user?.id) return;
+    setBookingLoading(true);
+    try {
+      // Trouver lead existant ou créer
+      let leadMatch: DbLead | null = selectedLead;
+      if (!leadMatch && bookingIntent.contact_name) {
+        leadMatch = fuzzyMatchLead(bookingIntent.contact_name, leads);
+      }
+
+      // Trouver une offre par défaut (lead.offer_id ou première active)
+      let offerId: string | null = leadMatch?.offer_id || null;
+      let contactEmail = bookingIntent.contact_email || leadMatch?.email || '';
+      let contactPhone = bookingIntent.contact_phone || leadMatch?.phone || '';
+      let contactName = leadMatch?.name || bookingIntent.contact_name || 'RDV sans nom';
+
+      if (!offerId) {
+        const { data: offers } = await supabase
+          .from('offers')
+          .select('id')
+          .eq('is_active', true)
+          .eq('owner_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        offerId = offers?.[0]?.id || null;
+      }
+      if (!offerId) {
+        toast.error("Aucune offre active trouvée. Crée une offre avant de réserver.");
+        setBookingLoading(false);
+        return;
+      }
+      if (!contactEmail) contactEmail = `rdv-${Date.now()}@placeholder.local`;
+      if (!contactPhone) contactPhone = '+33000000000';
+
+      const { data, error } = await supabase.functions.invoke('handle-booking', {
+        body: {
+          name: contactName,
+          email: contactEmail,
+          phone: contactPhone,
+          booking_date: bookingIntent.date,
+          time_slot: timeSlot,
+          offer_id: offerId,
+          notes: bookingIntent.notes || `Créé via assistant IA — "${note}"`,
+          owner_id: user.id,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(`✅ RDV créé : ${contactName} le ${bookingIntent.date} à ${timeSlot}${data?.meet_link ? ' (Meet créé)' : ''}`);
+      setNote('');
+      resetBooking();
+      onDone?.();
+    } catch (e) {
+      console.error(e);
+      toast.error('Échec création RDV : ' + (e as Error).message);
+    } finally {
+      setBookingLoading(false);
+    }
+  };
+
+
   const SHOW_STATUS_LABELS: Record<string, string> = {
     pending: 'En attente', show: 'Présent', noshow: 'Absent',
   };
