@@ -38,6 +38,9 @@ Deno.serve(async (req) => {
       });
     }
 
+    const body = await req.json().catch(() => ({}));
+    const workspace_id = (body.workspace_id as string | undefined) || "";
+
     const redirectUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/facebook-auth-callback`;
     const scopes = [
       "pages_show_list",
@@ -47,10 +50,13 @@ Deno.serve(async (req) => {
       "pages_manage_ads",
     ].join(",");
 
+    // Encode user_id and workspace_id together in state
+    const state = `${user.id}|${workspace_id}`;
+
     const url = new URL("https://www.facebook.com/v21.0/dialog/oauth");
     url.searchParams.set("client_id", appId);
     url.searchParams.set("redirect_uri", redirectUri);
-    url.searchParams.set("state", user.id);
+    url.searchParams.set("state", state);
     url.searchParams.set("scope", scopes);
     url.searchParams.set("response_type", "code");
 

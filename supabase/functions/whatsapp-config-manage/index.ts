@@ -1,4 +1,4 @@
-// Manage current user's WhatsApp Cloud API config
+// Manage current workspace's WhatsApp Cloud API config
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -38,13 +38,27 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const action = body.action as string;
+    const workspace_id = (body.workspace_id as string | undefined) || null;
+
+    // Verify workspace membership when provided
+    if (workspace_id) {
+      const { data: isMember } = await admin.rpc("is_workspace_member", {
+        _workspace_id: workspace_id,
+        _user_id: user.id,
+      });
+      if (!isMember) return json({ error: "Not a member of this workspace" }, 403);
+    }
+
+    // Helper: build the scoping filter (workspace if provided, else owner-only legacy rows)
+    const applyScope = (q: any) =>
+      workspace_id
+        ? q.eq("workspace_id", workspace_id)
+        : q.eq("owner_id", user.id).is("workspace_id", null);
 
     if (action === "get") {
-      const { data, error } = await admin
-        .from("whatsapp_config")
-        .select("*")
-        .eq("owner_id", user.id)
-        .maybeSingle();
+      const { data, error } = await applyScope(
+        admin.from("whatsapp_config").select("*"),
+      ).maybeSingle();
       if (error) return json({ error: error.message }, 500);
       return json({ config: data });
     }
@@ -64,15 +78,13 @@ Deno.serve(async (req) => {
         return json({ error: "Token ou phone_number_id invalide", details: phoneData }, 400);
       }
 
-      // Upsert
-      const { data: existing } = await admin
-        .from("whatsapp_config")
-        .select("id, verify_token")
-        .eq("owner_id", user.id)
-        .maybeSingle();
+      const { data: existing } = await applyScope(
+        admin.from("whatsapp_config").select("id"),
+      ).maybeSingle();
 
       const payload = {
         owner_id: user.id,
+        workspace_id,
         phone_number_id,
         business_account_id,
         access_token,
@@ -87,27 +99,23 @@ Deno.serve(async (req) => {
         const { error } = await admin
           .from("whatsapp_config")
           .update(payload)
-          .eq("owner_id", user.id);
+          .eq("id", existing.id);
         if (error) return json({ error: error.message }, 500);
       } else {
         const { error } = await admin.from("whatsapp_config").insert(payload);
         if (error) return json({ error: error.message }, 500);
       }
 
-      const { data: fresh } = await admin
-        .from("whatsapp_config")
-        .select("*")
-        .eq("owner_id", user.id)
-        .single();
+      const { data: fresh } = await applyScope(
+        admin.from("whatsapp_config").select("*"),
+      ).maybeSingle();
       return json({ ok: true, config: fresh });
     }
 
     if (action === "subscribe_webhook") {
-      const { data: cfg } = await admin
-        .from("whatsapp_config")
-        .select("*")
-        .eq("owner_id", user.id)
-        .maybeSingle();
+      const { data: cfg } = await applyScope(
+        admin.from("whatsapp_config").select("*"),
+      ).maybeSingle();
       if (!cfg) return json({ error: "Config WhatsApp introuvable" }, 404);
 
       const r = await fetch(
@@ -120,24 +128,18 @@ Deno.serve(async (req) => {
       await admin
         .from("whatsapp_config")
         .update({ webhook_subscribed: true })
-        .eq("owner_id", user.id);
+        .eq("id", cfg.id);
       return json({ ok: true, details: data });
     }
 
     if (action === "test_send") {
       const { to, template_name, language_code, text } = body;
       if (!to) return json({ error: "Numéro destinataire requis (format E.164 ex 33612345678)" }, 400);
-      const { data: cfg } = await admin
-        .from("whatsapp_config")
-        .select("*")
-        .eq("owner_id", user.id)
-        .maybeSingle();
+      const { data: cfg } = await applyScope(
+        admin.from("whatsapp_config").select("*"),
+      ).maybeSingle();
       if (!cfg) return json({ error: "Config WhatsApp introuvable" }, 404);
 
-      // 3 modes :
-      // - text (libre, fonctionne uniquement si destinataire t'a écrit dans les dernières 24h)
-      // - template personnalisé (name + language)
-      // - défaut: hello_world (uniquement numéros de test publics Meta)
       let payload: Record<string, unknown>;
       if (text) {
         payload = {
@@ -187,25 +189,24 @@ Deno.serve(async (req) => {
     }
 
     if (action === "delete") {
-      const { error } = await admin
-        .from("whatsapp_config")
-        .delete()
-        .eq("owner_id", user.id);
+      const { data: cfg } = await applyScope(
+        admin.from("whatsapp_config").select("id"),
+      ).maybeSingle();
+      if (!cfg) return json({ ok: true });
+      const { error } = await admin.from("whatsapp_config").delete().eq("id", cfg.id);
       if (error) return json({ error: error.message }, 500);
       return json({ ok: true });
     }
 
     if (action === "toggle_active") {
-      const { data: cfg } = await admin
-        .from("whatsapp_config")
-        .select("is_active")
-        .eq("owner_id", user.id)
-        .maybeSingle();
+      const { data: cfg } = await applyScope(
+        admin.from("whatsapp_config").select("id, is_active"),
+      ).maybeSingle();
       if (!cfg) return json({ error: "Config introuvable" }, 404);
       const { error } = await admin
         .from("whatsapp_config")
         .update({ is_active: !cfg.is_active })
-        .eq("owner_id", user.id);
+        .eq("id", cfg.id);
       if (error) return json({ error: error.message }, 500);
       return json({ ok: true, is_active: !cfg.is_active });
     }
