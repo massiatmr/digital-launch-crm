@@ -182,13 +182,17 @@ export function useDeleteOffer() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('offers').delete().eq('id', id);
+      const { error } = await supabase
+        .from('offers')
+        .update({ deleted_at: new Date().toISOString() } as any)
+        .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['offers'] });
-      toast.success('Offre supprimée');
+      toast.success('Déplacé vers la corbeille');
     },
+    onError: (e: any) => toast.error(e.message),
   });
 }
 

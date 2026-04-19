@@ -208,12 +208,18 @@ export function useDeleteLead() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('leads').delete().eq('id', id);
+      // Soft-delete : déplace vers la corbeille (récupérable 30j)
+      const { error } = await supabase
+        .from('leads')
+        .update({ deleted_at: new Date().toISOString() } as any)
+        .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast.success('Déplacé vers la corbeille');
     },
+    onError: (e: any) => toast.error(e.message),
   });
 }
 
