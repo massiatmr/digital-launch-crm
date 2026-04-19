@@ -1,69 +1,84 @@
 
-L'utilisateur demande si on peut basculer les notifs vers une solution externe (ex: OneSignal) au lieu de gérer les Web Push nous-mêmes via VAPID/`send-push`.
 
-## Réponse courte : oui, et c'est une bonne idée
+## Plan : transformer le CRM en outil multi-tenant (sur invitation)
 
-Le système Web Push actuel (VAPID + `send-push` + `push_subscriptions`) est fragile sur iOS (PWA obligatoire, Safari capricieux, headers Apple stricts → on a déjà eu `BadJwtToken`, `BadWebPushTopic`). OneSignal abstrait tout ça.
+**Objectif** : permettre à plusieurs owners d'utiliser le CRM, chacun avec son branding, ses configs et ses pages d'offres isolées. Accès par invitation uniquement.
 
-## Options possibles
+### 1. Système d'invitations
 
-**OneSignal (recommandé)**
-- Gratuit jusqu'à 10k abonnés mobile web
-- SDK web qui gère la subscription, les permissions, le service worker, et le push iOS PWA
-- API REST simple côté serveur : `POST /notifications` avec `external_user_id` → ils s'occupent du routing multi-device
-- Dashboard avec logs de delivery natifs
+Nouvelle table `invitations` (email, token, invited_by, expires_at, used_at).
+- Page `/auth` : signup désactivé par défaut, accessible uniquement via lien `/auth?invite=<token>`
+- Page admin `/settings/invitations` (visible uniquement à toi via une table `app_admins`) pour générer/révoquer des invites
+- Edge function `send-invitation` qui génère le token et envoie l'email d'invite (via SMTP existant)
 
-**Alternatives**
-- **Pushover** : ultra simple, mais payant ($5 one-time par plateforme user) et orienté notifs perso
-- **Firebase Cloud Messaging (FCM)** : gratuit et robuste, mais setup plus lourd (Firebase project, config iOS PWA quand même nécessaire)
-- **Novu** : open-source, multi-canal (push/email/SMS), plus complexe
+### 2. Profil owner (branding + config entreprise)
 
-## Plan proposé : OneSignal
+Nouvelle table `owner_profiles` (un par user) avec :
+- `company_name`, `legal_name`, `siret`, `vat_number`, `address`, `email`, `phone`
+- `logo_url` (upload Storage), `signature_url`
+- `slug` unique (pour les URLs publiques d'offres → `/o/:slug/:offerSlug`)
+- `brand_color`, `email_sender_name`, `email_signature`
 
-### 1. Setup OneSignal
-- Créer compte OneSignal + app "Web Push"
-- Récupérer **App ID** (public) et **REST API Key** (secret)
-- Configurer le site (URL preview + URL prod)
+Migration des PDFs (`generateContractPDF`, `generateInvoicePDF`) et du logo (`logoBase64`) pour lire dynamiquement depuis `owner_profiles` au lieu du hardcode "Digital Launch LLC".
 
-### 2. Frontend
-- Installer `react-onesignal`
-- Init dans `App.tsx` avec l'App ID
-- Au login : `OneSignal.login(user.id)` → lie le device à l'`external_user_id`
-- Remplacer `usePushNotifications` (bouton "Activer notifs") par `OneSignal.Notifications.requestPermission()`
-- Service worker OneSignal remplace `/service-worker.js` (ou cohabite)
+### 3. Wizard d'onboarding (3-4 étapes après signup)
 
-### 3. Backend (edge functions)
-- Nouvelle fonction `send-onesignal-notification` qui appelle :
-  ```
-  POST https://api.onesignal.com/notifications
-  Headers: Authorization: Key {REST_API_KEY}
-  Body: { app_id, include_aliases: { external_id: [user_id] }, headings, contents, url }
-  ```
-- Modifier `whatsapp-webhook` et `check-due-reminders` pour appeler `send-onesignal-notification` au lieu de `send-push`
-- Garder `send-push` désactivé/supprimé
+Nouvelle route `/onboarding` (forcée tant que `owner_profiles.completed = false`) :
+1. **Entreprise** : nom, logo, infos légales, slug
+2. **Première offre** : nom, prix, description (crée une `offers` row)
+3. **Connexions** (optionnelles, skippables) : WhatsApp Cloud, Meta Lead Ads, Google Calendar
+4. **Démo** : checkbox "Pré-remplir avec données démo" → seed 3 leads + 1 client + 2 bookings d'exemple via une edge function `seed-demo-data`
 
-### 4. Cleanup (optionnel après validation)
-- Supprimer table `push_subscriptions`, `push_delivery_logs`
-- Supprimer secrets VAPID
-- Supprimer `usePushNotifications`, `EnablePushButton` (remplacés par OneSignal UI)
+### 4. Isolation multi-tenant
 
-## Secrets nécessaires
-- `ONESIGNAL_APP_ID` (public, peut être dans `.env`)
-- `ONESIGNAL_REST_API_KEY` (secret edge function)
+**Slug par owner pour pages publiques** :
+- Routes publiques actuelles `/offers/:slug/page` → migrer vers `/o/:ownerSlug/:offerSlug` pour éviter les collisions
+- RLS `offers` côté anon : filtrer par `owner_slug` correspondant à l'URL
+- Garder rétrocompat si possible (redirect)
 
-## Ce que tu dois faire de ton côté
-1. Créer compte OneSignal et app Web Push
-2. Me donner l'App ID + REST API Key
+**Configs déjà isolées par `owner_id`** : `whatsapp_config`, `meta_pages`, `google_tokens`, `followup_automation_settings`, `whatsapp_templates` → juste valider end-to-end qu'un nouvel owner peut tout configurer sans collision.
 
-## Avantages vs actuel
-- ✅ iOS PWA fonctionne sans bricoler les headers VAPID
-- ✅ Dashboard OneSignal pour debug (pas besoin de `SettingsTestsPage` pour les push)
-- ✅ Pas de gestion de subscription/expiration côté serveur
-- ✅ Multi-device automatique via `external_user_id`
+**Templates emails par owner** : ajouter `email_sender_name` + `email_signature` dans `owner_profiles`, lire dans `send-transactional-email` pour personnaliser le From et le footer.
 
-## Inconvénients
-- Dépendance externe (mais gratuit < 10k users)
-- Service worker OneSignal peut entrer en conflit avec ton SW PWA actuel (à valider)
+### 5. Sécurité (admin role)
 
-## Question avant de partir
-Tu confirmes **OneSignal**, ou tu veux comparer avec **FCM (Firebase)** d'abord ?
+Pour l'écran d'invitations admin :
+- Table `user_roles` (id, user_id, role enum 'admin'|'user') + fonction `has_role(uuid, app_role)` security definer
+- Toi seul es admin (insert manuel de ta row)
+- RLS sur `invitations` : admin only
+
+### 6. Adaptations UI
+
+- Garde sur `App.tsx` : si user authentifié sans `owner_profiles.completed` → redirect `/onboarding`
+- Settings : nouvelle section "Mon entreprise" pour éditer le profil après onboarding
+- Sidebar : afficher `owner_profiles.company_name` + logo en haut au lieu du logo Digital Launch fixe
+
+### Diagramme
+
+```text
+Invite email
+   ↓
+/auth?invite=<token>  → signup
+   ↓
+/onboarding (wizard 4 étapes)
+   ↓ (crée owner_profiles + offer + optionnellement seed démo)
+/  (pipeline)
+   ↓
+Pages publiques: /o/<owner_slug>/<offer_slug>
+PDFs & emails: branding lu depuis owner_profiles
+```
+
+### Détails techniques
+
+- **Migrations SQL** : `invitations`, `owner_profiles`, `user_roles`, ajout `owner_slug` index, fonction `has_role`, RLS associées
+- **Edge functions nouvelles** : `send-invitation`, `seed-demo-data`, `accept-invitation` (valide token, crée user)
+- **Edge functions modifiées** : `send-transactional-email` (lire branding owner), `handle-booking` (URL publique avec owner_slug)
+- **Code client** : nouveau composant `OnboardingWizard`, nouveau hook `useOwnerProfile`, refactor `logoBase64`/`signatureBase64` → fetch dynamique, refactor PDFs
+- **À noter** : les emails transactionnels personnalisés ne marcheront pleinement qu'une fois le DNS configuré (bloqueur connu) — le code sera prêt mais les envois peuvent rester bloqués jusqu'au DNS
+
+### Découpage suggéré (3 itérations)
+
+1. **Fondations** : tables (`invitations`, `owner_profiles`, `user_roles`), wizard onboarding minimal, garde de redirection — sans démo data ni branding PDF
+2. **Branding & isolation** : refactor PDFs/logo dynamiques, slug owner sur pages publiques, templates emails personnalisés
+3. **Invitations & démo** : page admin `/settings/invitations`, edge function `send-invitation`, `seed-demo-data`
+
