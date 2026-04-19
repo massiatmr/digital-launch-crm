@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import logo from '@/assets/logo.webp';
 
 const GoogleIcon = () => (
@@ -37,7 +38,11 @@ const testimonials = [
 
 export default function AuthPage() {
   const { user, loading, authStatus, authError, clearAuthError, signIn, signUp } = useAuth();
-  const [isLogin, setIsLogin] = useState(true);
+  const [searchParams] = useSearchParams();
+  const inviteToken = searchParams.get('invite');
+  const [inviteEmail, setInviteEmail] = useState<string | null>(null);
+  const [inviteValid, setInviteValid] = useState<boolean | null>(null);
+  const [isLogin, setIsLogin] = useState(!inviteToken);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -49,6 +54,22 @@ export default function AuthPage() {
     lastAuthErrorRef.current = authError;
     toast.error(authError);
   }, [authError]);
+
+  useEffect(() => {
+    if (!inviteToken) return;
+    (async () => {
+      const { data } = await supabase.rpc('get_invitation_by_token', { p_token: inviteToken });
+      const info = data as { valid?: boolean; email?: string } | null;
+      if (info?.valid && info.email) {
+        setInviteValid(true);
+        setInviteEmail(info.email);
+        setEmail(info.email);
+        setIsLogin(false);
+      } else {
+        setInviteValid(false);
+      }
+    })();
+  }, [inviteToken]);
 
   if (loading && authStatus === 'loading') {
     return (
@@ -66,6 +87,10 @@ export default function AuthPage() {
       toast.error('Email et mot de passe requis');
       return;
     }
+    if (!isLogin && inviteToken && inviteEmail && email.trim().toLowerCase() !== inviteEmail.toLowerCase()) {
+      toast.error("L'email doit correspondre à celui de l'invitation");
+      return;
+    }
     setSubmitting(true);
     try {
       const { error } = isLogin
@@ -79,6 +104,13 @@ export default function AuthPage() {
           toast.error(error.message);
         }
       } else if (!isLogin) {
+        // Consume invite if present
+        if (inviteToken) {
+          const { data: { user: newUser } } = await supabase.auth.getUser();
+          if (newUser) {
+            await supabase.rpc('consume_invitation', { p_token: inviteToken, p_user_id: newUser.id });
+          }
+        }
         toast.success('Compte créé ! Vérifiez votre email pour confirmer.');
       }
     } finally {
@@ -110,6 +142,17 @@ export default function AuthPage() {
                 : 'Rejoignez la plateforme et commencez à convertir'}
             </p>
           </div>
+
+          {inviteToken && inviteValid === false && (
+            <div className="mb-4 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm">
+              Ce lien d'invitation est invalide ou expiré. Demande un nouveau lien à ton administrateur.
+            </div>
+          )}
+          {inviteToken && inviteValid && (
+            <div className="mb-4 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-sm">
+              Invitation valide pour <span className="font-semibold">{inviteEmail}</span>. Crée ton mot de passe pour activer ton compte.
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {authError ? (
@@ -216,13 +259,22 @@ export default function AuthPage() {
 
           {/* Toggle */}
           <p className="mt-8 text-center text-sm text-muted-foreground">
-            {isLogin ? "Pas encore de compte ?" : 'Déjà un compte ?'}{' '}
-            <button
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-primary hover:underline transition-colors font-medium"
-            >
-              {isLogin ? "Créer un compte" : 'Se connecter'}
-            </button>
+            {isLogin ? (
+              <>
+                Pas encore de compte ?{' '}
+                <span className="text-foreground/70">L'inscription se fait sur invitation uniquement.</span>
+              </>
+            ) : (
+              <>
+                Déjà un compte ?{' '}
+                <button
+                  onClick={() => setIsLogin(true)}
+                  className="text-primary hover:underline transition-colors font-medium"
+                >
+                  Se connecter
+                </button>
+              </>
+            )}
           </p>
         </div>
       </div>

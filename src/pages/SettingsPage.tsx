@@ -1,12 +1,13 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Bot, Plug, FlaskConical } from 'lucide-react';
+import { Bot, Plug, FlaskConical, UserPlus } from 'lucide-react';
 import SettingsAutomationPage from './SettingsAutomationPage';
 import SettingsIntegrationsPage from './SettingsIntegrationsPage';
 import SettingsTestsPage from './SettingsTestsPage';
+import SettingsInvitationsPage from './SettingsInvitationsPage';
 import { PwaInstallGuide } from '@/components/PwaInstallGuide';
 
-const VALID = ['automation', 'integrations', 'tests'] as const;
+const VALID = ['automation', 'integrations', 'tests', 'invitations'] as const;
 type Tab = (typeof VALID)[number];
 
 export default function SettingsPage() {
@@ -24,7 +25,7 @@ export default function SettingsPage() {
       <PwaInstallGuide />
 
       <Tabs value={current} onValueChange={(v) => navigate(`/settings/${v}`)}>
-        <TabsList className="grid w-full grid-cols-3 max-w-md h-auto">
+        <TabsList className="grid w-full grid-cols-4 max-w-2xl h-auto">
           <TabsTrigger value="automation" className="gap-1.5 sm:gap-2 px-2 py-2 text-xs sm:text-sm">
             <Bot className="h-4 w-4 shrink-0" />
             <span className="hidden xs:inline sm:inline">Automatisation</span>
@@ -39,6 +40,11 @@ export default function SettingsPage() {
             <FlaskConical className="h-4 w-4 shrink-0" />
             Tests
           </TabsTrigger>
+          <TabsTrigger value="invitations" className="gap-1.5 sm:gap-2 px-2 py-2 text-xs sm:text-sm">
+            <UserPlus className="h-4 w-4 shrink-0" />
+            <span className="hidden xs:inline sm:inline">Invitations</span>
+            <span className="xs:hidden sm:hidden">Invit.</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="automation" className="mt-4 sm:mt-6">
@@ -49,6 +55,9 @@ export default function SettingsPage() {
         </TabsContent>
         <TabsContent value="tests" className="mt-4 sm:mt-6">
           <SettingsTestsPage />
+        </TabsContent>
+        <TabsContent value="invitations" className="mt-4 sm:mt-6">
+          <SettingsInvitationsPage />
         </TabsContent>
       </Tabs>
     </div>
