@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_log: {
+        Row: {
+          action: string
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          snapshot: Json
+          user_id: string | null
+          workspace_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          snapshot: Json
+          user_id?: string | null
+          workspace_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          snapshot?: Json
+          user_id?: string | null
+          workspace_id?: string | null
+        }
+        Relationships: []
+      }
       booking_emails: {
         Row: {
           booking_id: string
@@ -56,6 +89,7 @@ export type Database = {
         Row: {
           booking_date: string
           created_at: string
+          deleted_at: string | null
           email: string
           google_event_id: string | null
           id: string
@@ -73,6 +107,7 @@ export type Database = {
         Insert: {
           booking_date: string
           created_at?: string
+          deleted_at?: string | null
           email: string
           google_event_id?: string | null
           id?: string
@@ -90,6 +125,7 @@ export type Database = {
         Update: {
           booking_date?: string
           created_at?: string
+          deleted_at?: string | null
           email?: string
           google_event_id?: string | null
           id?: string
@@ -273,6 +309,7 @@ export type Database = {
           billing_info: Json | null
           company_name: string | null
           created_at: string
+          deleted_at: string | null
           email: string | null
           id: string
           name: string
@@ -292,6 +329,7 @@ export type Database = {
           billing_info?: Json | null
           company_name?: string | null
           created_at?: string
+          deleted_at?: string | null
           email?: string | null
           id?: string
           name: string
@@ -311,6 +349,7 @@ export type Database = {
           billing_info?: Json | null
           company_name?: string | null
           created_at?: string
+          deleted_at?: string | null
           email?: string | null
           id?: string
           name?: string
@@ -348,6 +387,7 @@ export type Database = {
           client_id: string
           contract_data: Json
           created_at: string
+          deleted_at: string | null
           expires_at: string
           id: string
           owner_id: string
@@ -364,6 +404,7 @@ export type Database = {
           client_id: string
           contract_data?: Json
           created_at?: string
+          deleted_at?: string | null
           expires_at?: string
           id?: string
           owner_id?: string
@@ -380,6 +421,7 @@ export type Database = {
           client_id?: string
           contract_data?: Json
           created_at?: string
+          deleted_at?: string | null
           expires_at?: string
           id?: string
           owner_id?: string
@@ -805,6 +847,7 @@ export type Database = {
           client_id: string
           created_at: string
           currency: string
+          deleted_at: string | null
           due_date: string | null
           id: string
           invoice_data: Json
@@ -823,6 +866,7 @@ export type Database = {
           client_id: string
           created_at?: string
           currency?: string
+          deleted_at?: string | null
           due_date?: string | null
           id?: string
           invoice_data?: Json
@@ -841,6 +885,7 @@ export type Database = {
           client_id?: string
           created_at?: string
           currency?: string
+          deleted_at?: string | null
           due_date?: string | null
           id?: string
           invoice_data?: Json
@@ -1035,6 +1080,7 @@ export type Database = {
           ai_summary: string | null
           company_name: string | null
           created_at: string
+          deleted_at: string | null
           email: string | null
           first_contacted_at: string | null
           id: string
@@ -1060,6 +1106,7 @@ export type Database = {
           ai_summary?: string | null
           company_name?: string | null
           created_at?: string
+          deleted_at?: string | null
           email?: string | null
           first_contacted_at?: string | null
           id?: string
@@ -1085,6 +1132,7 @@ export type Database = {
           ai_summary?: string | null
           company_name?: string | null
           created_at?: string
+          deleted_at?: string | null
           email?: string | null
           first_contacted_at?: string | null
           id?: string
@@ -1227,6 +1275,7 @@ export type Database = {
         Row: {
           cover_image_url: string | null
           created_at: string
+          deleted_at: string | null
           description: string | null
           features: Json | null
           id: string
@@ -1242,6 +1291,7 @@ export type Database = {
         Insert: {
           cover_image_url?: string | null
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           features?: Json | null
           id?: string
@@ -1257,6 +1307,7 @@ export type Database = {
         Update: {
           cover_image_url?: string | null
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           features?: Json | null
           id?: string
@@ -1847,6 +1898,7 @@ export type Database = {
           company_name: string
           created_at: string
           created_by: string | null
+          deleted_at: string | null
           email: string | null
           email_sender_name: string | null
           email_signature: string | null
@@ -1868,6 +1920,7 @@ export type Database = {
           company_name?: string
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           email?: string | null
           email_sender_name?: string | null
           email_signature?: string | null
@@ -1889,6 +1942,7 @@ export type Database = {
           company_name?: string
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           email?: string | null
           email_sender_name?: string | null
           email_signature?: string | null
@@ -1965,6 +2019,7 @@ export type Database = {
         }
         Returns: number
       }
+      purge_soft_deleted_records: { Args: never; Returns: Json }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {
@@ -1977,6 +2032,7 @@ export type Database = {
         Args: { _user_id: string; _workspace_id: string }
         Returns: boolean
       }
+      restore_from_snapshot: { Args: { p_audit_id: string }; Returns: Json }
       save_onboarding_by_token: {
         Args: { p_completed?: boolean; p_responses: Json; p_token: string }
         Returns: undefined
