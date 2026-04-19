@@ -762,6 +762,8 @@ export type Database = {
           token: string
           used_at: string | null
           used_by: string | null
+          workspace_id: string | null
+          workspace_role: Database["public"]["Enums"]["workspace_role"]
         }
         Insert: {
           created_at?: string
@@ -772,6 +774,8 @@ export type Database = {
           token?: string
           used_at?: string | null
           used_by?: string | null
+          workspace_id?: string | null
+          workspace_role?: Database["public"]["Enums"]["workspace_role"]
         }
         Update: {
           created_at?: string
@@ -782,8 +786,18 @@ export type Database = {
           token?: string
           used_at?: string | null
           used_by?: string | null
+          workspace_id?: string | null
+          workspace_role?: Database["public"]["Enums"]["workspace_role"]
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "invitations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       invoices: {
         Row: {
@@ -1859,6 +1873,10 @@ export type Database = {
       consume_invitation: {
         Args: { p_token: string; p_user_id: string }
         Returns: boolean
+      }
+      consume_workspace_invitation: {
+        Args: { p_token: string; p_user_id: string }
+        Returns: Json
       }
       delete_email: {
         Args: { message_id: number; queue_name: string }
