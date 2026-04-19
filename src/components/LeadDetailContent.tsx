@@ -60,84 +60,99 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
 
   return (
     <div className="flex h-[calc(100vh-80px)] flex-col">
-      {/* Sticky Header */}
-      <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur-sm pb-3">
-        <div className="flex items-start justify-between gap-2">
+      {/* Compact Header */}
+      <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur-sm pb-2">
+        <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="font-heading text-xl truncate">{lead.name}</h2>
+            <div className="flex items-center gap-2 min-w-0">
+              <h2 className="font-heading text-lg truncate">{lead.name}</h2>
               <LeadScoreBadge score={lead.score} />
-              <LeadStatusBadge status={lead.status} />
             </div>
-            {lead.company_name && (
-              <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-                <Building2 className="h-3 w-3" />{lead.company_name}
-              </p>
-            )}
+            <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+              <LeadStatusBadge status={lead.status} />
+              {lead.company_name && (
+                <span className="flex items-center gap-1 truncate">
+                  <Building2 className="h-3 w-3" />{lead.company_name}
+                </span>
+              )}
+              <span className="capitalize">· {lead.source.replace('_', ' ')}</span>
+              <span>· {format(new Date(lead.created_at), "dd MMM", { locale: fr })}</span>
+            </div>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            <ShowStatusToggle leadId={lead.id} currentStatus={lead.show_status} size="md" />
-            <Button variant="ghost" size="icon" onClick={() => setEditing(true)} title="Éditer">
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" title="Supprimer">
-                  <Trash2 className="h-4 w-4" />
+            <ShowStatusToggle leadId={lead.id} currentStatus={lead.show_status} size="sm" />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
                 </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Supprimer ce lead ?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Cette action est irréversible. Toutes les données associées à {lead.name} seront supprimées.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Annuler</AlertDialogCancel>
-                  <AlertDialogAction
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    onClick={() => {
-                      deleteLead.mutate(lead.id, {
-                        onSuccess: () => {
-                          toast.success('Lead supprimé');
-                          navigate('/leads');
-                        },
-                        onError: () => toast.error('Erreur lors de la suppression'),
-                      });
-                    }}
-                  >
-                    Supprimer
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                {lead.phone && (
+                  <DropdownMenuItem asChild>
+                    <a href={toWhatsAppUrl(lead.phone)} target="_blank" rel="noopener noreferrer" className="cursor-pointer">
+                      <Smartphone className="h-4 w-4 mr-2" />WhatsApp
+                      <ExternalLink className="h-3 w-3 ml-auto" />
+                    </a>
+                  </DropdownMenuItem>
+                )}
+                {lead.phone && (
+                  <DropdownMenuItem asChild>
+                    <a href={`tel:${lead.phone}`} className="cursor-pointer">
+                      <Phone className="h-4 w-4 mr-2" />{formatPhoneDisplay(lead.phone)}
+                    </a>
+                  </DropdownMenuItem>
+                )}
+                {lead.email && (
+                  <DropdownMenuItem asChild>
+                    <a href={`mailto:${lead.email}`} className="cursor-pointer">
+                      <Mail className="h-4 w-4 mr-2" /><span className="truncate">{lead.email}</span>
+                    </a>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setEditing(true)}>
+                  <Pencil className="h-4 w-4 mr-2" />Modifier
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />Supprimer
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
-
-        {/* Contact line */}
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-          {lead.phone && (
-            <a
-              href={toWhatsAppUrl(lead.phone)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-primary hover:underline"
-            >
-              <Phone className="h-3 w-3" />
-              {formatPhoneDisplay(lead.phone)}
-              <ExternalLink className="h-2.5 w-2.5" />
-            </a>
-          )}
-          {lead.email && (
-            <span className="flex items-center gap-1 truncate max-w-[200px]">
-              <Mail className="h-3 w-3" />{lead.email}
-            </span>
-          )}
-          <span className="capitalize">{lead.source.replace('_', ' ')}</span>
-          <span>{format(new Date(lead.created_at), "dd MMM yyyy", { locale: fr })}</span>
-        </div>
       </div>
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce lead ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. Toutes les données associées à {lead.name} seront supprimées.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                deleteLead.mutate(lead.id, {
+                  onSuccess: () => {
+                    toast.success('Lead supprimé');
+                    navigate('/leads');
+                  },
+                  onError: () => toast.error('Erreur lors de la suppression'),
+                });
+              }}
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Tabs */}
       <Tabs defaultValue="overview" className="flex-1 flex flex-col min-h-0 mt-3">
