@@ -395,6 +395,39 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
     }
 
     // Action mode
+    // === 0. Détection intention RDV (check / book) ===
+    try {
+      const { data: intent } = await supabase.functions.invoke('ai-lead-analysis', {
+        body: { type: 'booking_intent', lead: { new_note: note } },
+      });
+      if (intent?.is_booking_intent && intent?.date) {
+        setBookingLoading(true);
+        // Toujours check les dispos d'abord
+        const { data: avail } = await supabase.functions.invoke('check-availability', {
+          body: { owner_id: user?.id, date: intent.date },
+        });
+        const slots: string[] = avail?.slots || [];
+        setBookingSlots(slots);
+        setBookingIntent(intent);
+        setBookingLoading(false);
+        if (intent.subtype === 'check' || !intent.time_slot) {
+          // Juste afficher les créneaux
+          return;
+        }
+        // Sous-type "book" + créneau précis : vérifier qu'il est dispo
+        if (!slots.includes(intent.time_slot)) {
+          toast.error(`Créneau ${intent.time_slot} indisponible le ${intent.date}. Voici les autres dispos.`);
+          return;
+        }
+        // Créneau OK → on attend confirmation via le dialog booking
+        return;
+      }
+    } catch (err) {
+      // Si l'IA n'arrive pas à détecter, on continue le flow normal
+      console.warn('booking_intent failed', err);
+      setBookingLoading(false);
+    }
+
     if (!selectedLead) {
       setCreatingLead(true);
       try {
