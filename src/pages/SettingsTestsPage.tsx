@@ -46,6 +46,9 @@ export default function SettingsTestsPage() {
   const [emailStep, setEmailStep] = useState<Step>('idle');
   const [aiStep, setAiStep] = useState<Step>('idle');
   const [cronStep, setCronStep] = useState<Step>('idle');
+  const [seqStep, setSeqStep] = useState<Step>('idle');
+  const [seqLeadId, setSeqLeadId] = useState('');
+  const [leads, setLeads] = useState<{ id: string; name: string; phone: string | null }[]>([]);
   const [lastError, setLastError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(0);
@@ -59,6 +62,12 @@ export default function SettingsTestsPage() {
     optedIn: false,
     swReady: false,
   });
+
+  // Load leads for sequence test selector
+  useEffect(() => {
+    supabase.from('leads').select('id, name, phone').order('created_at', { ascending: false }).limit(20)
+      .then(({ data }) => setLeads(data ?? []));
+  }, []);
 
   useEffect(() => {
     if (user?.email && !emailTo) setEmailTo(user.email);
