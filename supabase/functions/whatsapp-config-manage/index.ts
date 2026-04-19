@@ -241,20 +241,32 @@ Deno.serve(async (req) => {
     }
 
     if (action === "delete") {
-      const { data: cfg } = await applyScope(
-        admin.from("whatsapp_config").select("id"),
-      ).maybeSingle();
-      if (!cfg) return json({ ok: true });
-      const { error } = await admin.from("whatsapp_config").delete().eq("id", cfg.id);
+      const { phone_number_id } = body;
+      let targetId: string | null = null;
+      if (phone_number_id) {
+        const { data: cfg } = await applyScope(
+          admin.from("whatsapp_config").select("id").eq("phone_number_id", phone_number_id),
+        ).maybeSingle();
+        targetId = cfg?.id ?? null;
+      } else {
+        const cfg = await getActiveConfig();
+        targetId = cfg?.id ?? null;
+      }
+      if (!targetId) return json({ ok: true });
+      const { error } = await admin.from("whatsapp_config").delete().eq("id", targetId);
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
+    }
+
+    if (action === "delete_all") {
+      const { error } = await applyScope(admin.from("whatsapp_config").delete());
       if (error) return json({ error: error.message }, 500);
       return json({ ok: true });
     }
 
     if (action === "toggle_active") {
-      const { data: cfg } = await applyScope(
-        admin.from("whatsapp_config").select("id, is_active"),
-      ).maybeSingle();
-      if (!cfg) return json({ error: "Config introuvable" }, 404);
+      const cfg = await getActiveConfig();
+      if (!cfg) return json({ error: "Aucun numéro actif" }, 404);
       const { error } = await admin
         .from("whatsapp_config")
         .update({ is_active: !cfg.is_active })
