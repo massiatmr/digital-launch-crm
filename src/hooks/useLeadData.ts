@@ -71,9 +71,9 @@ export function useLeads() {
   return useQuery({
     queryKey: ['leads', wsId],
     queryFn: async () => {
-      let q = supabase.from('leads').select('*').order('created_at', { ascending: false });
-      if (wsId) q = q.eq('workspace_id' as any, wsId);
-      const { data, error } = await q;
+      let q: any = supabase.from('leads').select('*');
+      if (wsId) q = q.eq('workspace_id', wsId);
+      const { data, error } = await q.order('created_at', { ascending: false });
       if (error) throw error;
       return data as DbLead[];
     },
@@ -296,9 +296,9 @@ export function useReminders() {
   return useQuery({
     queryKey: ['reminders', wsId],
     queryFn: async () => {
-      let q = supabase.from('reminders').select('*, leads(name)').order('due_date', { ascending: true });
-      if (wsId) q = q.eq('workspace_id' as any, wsId);
-      const { data, error } = await q;
+      let q: any = supabase.from('reminders').select('*, leads(name)');
+      if (wsId) q = q.eq('workspace_id', wsId);
+      const { data, error } = await q.order('due_date', { ascending: true });
       if (error) throw error;
       return data as DbReminder[];
     },
