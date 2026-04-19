@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/AppLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { AuthProvider } from "@/hooks/useAuth";
 import Dashboard from "@/pages/Dashboard";
 import LeadDetailPage from "@/pages/LeadDetailPage";
 import RemindersPage from "@/pages/RemindersPage";
@@ -30,40 +31,42 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Sonner />
-      <BrowserRouter>
-        <ScrollRestoration />
-        <OneSignalInit />
-        <Routes>
-          <Route path="/auth" element={<AuthPage />} />
-          <Route path="/offers/:slug/page" element={<PublicOfferPage />} />
-          <Route path="/unsubscribe" element={<UnsubscribePage />} />
-          <Route path="/sign/:token" element={<PublicSignaturePage />} />
-          <Route path="/invoice/:token" element={<PublicInvoicePage />} />
-          <Route path="/onboarding/website" element={<OnboardingFormPage />} />
-          <Route path="/onboarding/ads" element={<OnboardingFormPage />} />
-          <Route element={<ProtectedRoute />}>
-            <Route element={<AppLayout />}>
-              <Route path="/" element={<PipelinePage />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/leads/:id" element={<LeadDetailPage />} />
-              <Route path="/clients" element={<ClientsPage />} />
-              <Route path="/clients/:id" element={<ClientDetailPage />} />
-              <Route path="/offers" element={<OffersPage />} />
-              <Route path="/offers/:id" element={<OfferDetailPage />} />
-              <Route path="/bookings" element={<BookingsPage />} />
-              <Route path="/conversations" element={<ConversationsPage />} />
-              <Route path="/reminders" element={<RemindersPage />} />
-              <Route path="/import" element={<ImportPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/settings/:tab" element={<SettingsPage />} />
+    <AuthProvider>
+      <TooltipProvider>
+        <Sonner />
+        <BrowserRouter>
+          <ScrollRestoration />
+          <OneSignalInit />
+          <Routes>
+            <Route path="/auth" element={<AuthPage />} />
+            <Route path="/offers/:slug/page" element={<PublicOfferPage />} />
+            <Route path="/unsubscribe" element={<UnsubscribePage />} />
+            <Route path="/sign/:token" element={<PublicSignaturePage />} />
+            <Route path="/invoice/:token" element={<PublicInvoicePage />} />
+            <Route path="/onboarding/website" element={<OnboardingFormPage />} />
+            <Route path="/onboarding/ads" element={<OnboardingFormPage />} />
+            <Route element={<ProtectedRoute />}>
+              <Route element={<AppLayout />}>
+                <Route path="/" element={<PipelinePage />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/leads/:id" element={<LeadDetailPage />} />
+                <Route path="/clients" element={<ClientsPage />} />
+                <Route path="/clients/:id" element={<ClientDetailPage />} />
+                <Route path="/offers" element={<OffersPage />} />
+                <Route path="/offers/:id" element={<OfferDetailPage />} />
+                <Route path="/bookings" element={<BookingsPage />} />
+                <Route path="/conversations" element={<ConversationsPage />} />
+                <Route path="/reminders" element={<RemindersPage />} />
+                <Route path="/import" element={<ImportPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/settings/:tab" element={<SettingsPage />} />
+              </Route>
             </Route>
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 
