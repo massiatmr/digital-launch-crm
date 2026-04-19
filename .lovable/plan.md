@@ -1,69 +1,115 @@
+# Transformer le CRM en plateforme multi-tenant SaaS
 
-L'utilisateur demande si on peut basculer les notifs vers une solution externe (ex: OneSignal) au lieu de gérer les Web Push nous-mêmes via VAPID/`send-push`.
+Objectif : passer d'un CRM mono-utilisateur (toi seul) à une plateforme où tu gères plusieurs entreprises clientes, chacune avec ses propres users, rôles, page Facebook et WhatsApp.
 
-## Réponse courte : oui, et c'est une bonne idée
+## Architecture multi-tenant
 
-Le système Web Push actuel (VAPID + `send-push` + `push_subscriptions`) est fragile sur iOS (PWA obligatoire, Safari capricieux, headers Apple stricts → on a déjà eu `BadJwtToken`, `BadWebPushTopic`). OneSignal abstrait tout ça.
+**Modèle : Organisations (workspaces)**
 
-## Options possibles
+- Une `organization` = une entreprise cliente
+- Chaque user appartient à une ou plusieurs organisations via `organization_members` avec un rôle
+- Toutes les données métier (leads, clients, offers, bookings, whatsapp_config, meta_pages, followups…) sont scopées par `organization_id` au lieu de `owner_id`
+- Toi = `super_admin` global, accès à toutes les organisations + console admin
 
-**OneSignal (recommandé)**
-- Gratuit jusqu'à 10k abonnés mobile web
-- SDK web qui gère la subscription, les permissions, le service worker, et le push iOS PWA
-- API REST simple côté serveur : `POST /notifications` avec `external_user_id` → ils s'occupent du routing multi-device
-- Dashboard avec logs de delivery natifs
+```text
+super_admin (toi)
+   └── organizations (entreprises clientes)
+         ├── members (users avec rôles)
+         ├── leads, clients, offers, bookings…
+         ├── whatsapp_config (1 par org)
+         ├── meta_pages (FB pages de l'org)
+         └── followup_sequence_steps
+```
 
-**Alternatives**
-- **Pushover** : ultra simple, mais payant ($5 one-time par plateforme user) et orienté notifs perso
-- **Firebase Cloud Messaging (FCM)** : gratuit et robuste, mais setup plus lourd (Firebase project, config iOS PWA quand même nécessaire)
-- **Novu** : open-source, multi-canal (push/email/SMS), plus complexe
+## Rôles
 
-## Plan proposé : OneSignal
+- `super_admin` — toi, accès global + console `/admin`
+- `owner` — propriétaire de l'org cliente (gère membres, intégrations, facturation)
+- `admin` — gère leads/clients/automations
+- `member` — utilise le CRM (leads, conversations, RDV) sans toucher aux réglages
+- `viewer` — lecture seule
 
-### 1. Setup OneSignal
-- Créer compte OneSignal + app "Web Push"
-- Récupérer **App ID** (public) et **REST API Key** (secret)
-- Configurer le site (URL preview + URL prod)
+Stockés dans `organization_members(user_id, organization_id, role)` — **jamais** sur `profiles`. Fonction `has_org_role(user, org, role)` `SECURITY DEFINER` pour les RLS (évite la récursion).
 
-### 2. Frontend
-- Installer `react-onesignal`
-- Init dans `App.tsx` avec l'App ID
-- Au login : `OneSignal.login(user.id)` → lie le device à l'`external_user_id`
-- Remplacer `usePushNotifications` (bouton "Activer notifs") par `OneSignal.Notifications.requestPermission()`
-- Service worker OneSignal remplace `/service-worker.js` (ou cohabite)
+## Plan d'implémentation
 
-### 3. Backend (edge functions)
-- Nouvelle fonction `send-onesignal-notification` qui appelle :
-  ```
-  POST https://api.onesignal.com/notifications
-  Headers: Authorization: Key {REST_API_KEY}
-  Body: { app_id, include_aliases: { external_id: [user_id] }, headings, contents, url }
-  ```
-- Modifier `whatsapp-webhook` et `check-due-reminders` pour appeler `send-onesignal-notification` au lieu de `send-push`
-- Garder `send-push` désactivé/supprimé
+### 1. Base de données
 
-### 4. Cleanup (optionnel après validation)
-- Supprimer table `push_subscriptions`, `push_delivery_logs`
-- Supprimer secrets VAPID
-- Supprimer `usePushNotifications`, `EnablePushButton` (remplacés par OneSignal UI)
+- Nouvelles tables : `organizations`, `organization_members`, `organization_invitations`
+- Enum `org_role` + enum global `app_role` (avec `super_admin`) + table `user_roles`
+- Ajouter `organization_id` à toutes les tables métier (leads, clients, offers, bookings, whatsapp_config, meta_pages, whatsapp_templates, whatsapp_messages, followup_*, lead_followup_tasks, reminders, generated_invoices, generated_contracts, client_resources, client_activities, onboarding_responses, lead_activities, push_subscriptions…)
+- Backfill : créer une org "Digital Launch" avec toi comme `owner`, copier `organization_id` partout depuis `owner_id`
+- Garder `owner_id` (créateur de l'enregistrement) mais l'isolation se fait sur `organization_id`
+- Réécriture complète des RLS via `has_org_role()` + restrictions selon le rôle pour write/delete/settings
 
-## Secrets nécessaires
-- `ONESIGNAL_APP_ID` (public, peut être dans `.env`)
-- `ONESIGNAL_REST_API_KEY` (secret edge function)
+### 2. Auth & contexte org côté front
 
-## Ce que tu dois faire de ton côté
-1. Créer compte OneSignal et app Web Push
-2. Me donner l'App ID + REST API Key
+- Table `profiles` avec `active_organization_id`
+- Hook `useOrganization()` : liste des orgs du user + org active + switch
+- Hook `useRole()` : rôle dans l'org active
+- `<OrgGuard requiredRole="admin">` pour protéger des sections
+- Sélecteur d'organisation en haut de la sidebar (et mobile nav)
+- Tous les hooks data (`useLeadData`, `useClientData`, `useOfferData`…) filtrent automatiquement sur l'org active
 
-## Avantages vs actuel
-- ✅ iOS PWA fonctionne sans bricoler les headers VAPID
-- ✅ Dashboard OneSignal pour debug (pas besoin de `SettingsTestsPage` pour les push)
-- ✅ Pas de gestion de subscription/expiration côté serveur
-- ✅ Multi-device automatique via `external_user_id`
+### 3. Console super-admin (`/admin`)
 
-## Inconvénients
-- Dépendance externe (mais gratuit < 10k users)
-- Service worker OneSignal peut entrer en conflit avec ton SW PWA actuel (à valider)
+- Visible uniquement si `super_admin`
+- Liste de toutes les organisations (recherche, statut actif/suspendu, dernière activité, volume leads)
+- Création d'une org cliente : nom + email owner → invitation par magic link
+- Détail org : membres, intégrations connectées (FB/WA), suspendre/réactiver
+- "Voir comme" : switcher temporairement sur l'org pour debug
 
-## Question avant de partir
-Tu confirmes **OneSignal**, ou tu veux comparer avec **FCM (Firebase)** d'abord ?
+### 4. Gestion des membres (`/settings/team`)
+
+- Pour `owner`/`admin` de l'org
+- Liste des membres avec rôle, dernière connexion
+- Inviter par email (token + magic link → rejoint l'org au signup/login)
+- Changer rôle / retirer membre
+- Table `organization_invitations(email, organization_id, role, token, expires_at)`
+
+### 5. Intégrations par org
+
+- **WhatsApp** : `whatsapp_config` devient 1 par org. UI inchangée, scope = org active
+- **Facebook** : `meta_pages` liées à l'org. Le callback `facebook-auth-callback` encode l'org dans le `state` (`${user_id}:${org_id}`)
+- **Webhooks publics** (whatsapp/facebook) : routent vers la bonne org via `phone_number_id` / `page_id` → `organization_id`
+- **Edge functions** (`send-whatsapp-message`, `whatsapp-webhook`, `facebook-webhook`, `process-followup-tasks`, `detect-inactive-conversations`, `handle-booking`, `notify-new-lead`…) : remplacer `owner_id = X` par `organization_id = X`, en récupérant l'org via le lead/config concerné
+
+### 6. UI
+
+- Sélecteur d'org en haut de sidebar + mobile nav (badge "Admin" si super_admin)
+- Badge rôle dans l'avatar user
+- Masquer/désactiver actions selon rôle (ex : `viewer` ne peut pas créer de lead, `member` ne peut pas modifier `whatsapp_config`)
+- Nouvelles pages : `/settings/team` et `/admin` (super_admin only)
+- Dashboard adapté à l'org courante
+
+### 7. Facturation/plans (phase 2 — optionnel)
+
+- Champ `plan` sur `organizations` + limites (nb leads/mois, nb membres)
+
+## Points d'attention techniques
+
+- **Migration sans casse** : créer l'org "Digital Launch" et backfill toutes les tables avec son `id` à partir de `owner_id = ton user_id`, puis activer les nouvelles RLS
+- **RLS** : utiliser `has_org_role()` `SECURITY DEFINER` pour éviter la récursion infinie
+- **Webhooks publics** : pas de JWT, ils résolvent l'org via les identifiants Meta — bien sécuriser (jamais d'exposition cross-org)
+- **Edge functions JWT** : extraire `organization_id` depuis un header custom `x-organization-id` ou depuis `profiles.active_organization_id`
+- **Realtime** : channels filtrés par `organization_id`
+- **OneSignal** : tag `organization_id` pour cibler les notifs
+
+## Ordre de réalisation
+
+1. Migration DB (orgs, members, roles, `organization_id` partout, backfill)
+2. RLS réécrites avec `has_org_role`
+3. Hooks `useOrganization` / `useRole` + sélecteur d'org dans la sidebar
+4. Mise à jour de tous les hooks data pour filtrer sur l'org active
+5. Page `/settings/team` (invitations + gestion membres)
+6. Console super-admin `/admin`
+7. Mise à jour des edge functions (webhooks + automations) pour scope par org
+8. UI : masquage selon rôle, badges, restrictions
+9. Tests end-to-end multi-tenant
+
+## Quelques questions avant de coder
+
+1. **Multi-org par user** : 1 user = 1 org (plus simple). et le superadmin à accès à tous
+2. **Création des comptes clients** : tu crées l'org + invites l'owner par email depuis `/admin`, ou tu veux aussi un signup public auto-validé ?
+3. **Set de rôles** : plus simple (juste `owner` / `member`) ?
+4. **Intégrations** : chaque org connecte sa propre page FB et son propre WhatsApp Business 
