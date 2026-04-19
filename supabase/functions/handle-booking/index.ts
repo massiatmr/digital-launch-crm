@@ -314,15 +314,15 @@ Deno.serve(async (req) => {
          <p style="font-size:14px;color:#1a1a2e;margin:0 0 8px"><a href="${meetLink}" style="color:#7c3aed">${meetLink}</a></p>`
       : "";
 
-    // Push to owner
+    // Push to owner via OneSignal
     try {
-      await supabase.functions.invoke("send-push", {
+      await supabase.functions.invoke("send-onesignal-notification", {
         body: {
           user_id: owner_id,
           title: `📅 Nouveau RDV — ${name}`,
           body: `${booking_date} à ${time_slot} • ${offerName}`,
           url: `/bookings`,
-          tag: `new-booking-${bookingId}`,
+          tag: `new-booking-${bookingId}`.slice(0, 32),
         },
       });
     } catch (e) {
