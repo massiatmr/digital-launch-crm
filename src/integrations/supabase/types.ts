@@ -672,6 +672,39 @@ export type Database = {
         }
         Relationships: []
       }
+      invitations: {
+        Row: {
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string | null
+          token: string
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          token?: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          token?: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           amount: number
@@ -1080,6 +1113,69 @@ export type Database = {
         }
         Relationships: []
       }
+      owner_profiles: {
+        Row: {
+          address: string | null
+          brand_color: string | null
+          company_name: string
+          created_at: string
+          email: string | null
+          email_sender_name: string | null
+          email_signature: string | null
+          id: string
+          legal_name: string | null
+          logo_url: string | null
+          onboarding_completed: boolean
+          phone: string | null
+          signature_url: string | null
+          siret: string | null
+          slug: string | null
+          updated_at: string
+          user_id: string
+          vat_number: string | null
+        }
+        Insert: {
+          address?: string | null
+          brand_color?: string | null
+          company_name?: string
+          created_at?: string
+          email?: string | null
+          email_sender_name?: string | null
+          email_signature?: string | null
+          id?: string
+          legal_name?: string | null
+          logo_url?: string | null
+          onboarding_completed?: boolean
+          phone?: string | null
+          signature_url?: string | null
+          siret?: string | null
+          slug?: string | null
+          updated_at?: string
+          user_id: string
+          vat_number?: string | null
+        }
+        Update: {
+          address?: string | null
+          brand_color?: string | null
+          company_name?: string
+          created_at?: string
+          email?: string | null
+          email_sender_name?: string | null
+          email_signature?: string | null
+          id?: string
+          legal_name?: string | null
+          logo_url?: string | null
+          onboarding_completed?: boolean
+          phone?: string | null
+          signature_url?: string | null
+          siret?: string | null
+          slug?: string | null
+          updated_at?: string
+          user_id?: string
+          vat_number?: string | null
+        }
+        Relationships: []
+      }
       push_delivery_logs: {
         Row: {
           body_preview: string | null
@@ -1282,6 +1378,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       whatsapp_config: {
         Row: {
           access_token: string
@@ -1440,6 +1557,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      consume_invitation: {
+        Args: { p_token: string; p_user_id: string }
+        Returns: boolean
+      }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
@@ -1449,8 +1570,16 @@ export type Database = {
         Returns: number
       }
       get_followup_cron_status: { Args: never; Returns: Json }
+      get_invitation_by_token: { Args: { p_token: string }; Returns: Json }
       get_invoice_by_token: { Args: { p_token: string }; Returns: Json }
       get_onboarding_by_token: { Args: { p_token: string }; Returns: Json }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       mark_overdue_invoices: { Args: never; Returns: undefined }
       move_to_dlq: {
         Args: {
@@ -1482,6 +1611,7 @@ export type Database = {
         | "note"
         | "relance"
         | "meeting"
+      app_role: "admin" | "user"
       booking_email_type:
         | "confirmation"
         | "24h_before"
@@ -1679,6 +1809,7 @@ export const Constants = {
         "relance",
         "meeting",
       ],
+      app_role: ["admin", "user"],
       booking_email_type: [
         "confirmation",
         "24h_before",
