@@ -169,9 +169,6 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
                   )}
                 </div>
                 <div className="flex gap-2 pt-2 border-t border-border/50">
-                  <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => setEditing(true)}>
-                    <Pencil className="h-3.5 w-3.5" />Modifier
-                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"
