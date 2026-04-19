@@ -474,6 +474,7 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
             status: "new" as any,
             score: "cold" as any,
             owner_id: effectiveOwnerId,
+            workspace_id: effectiveWorkspaceId,
             message: `Lead Facebook Ads – ${mapped.name ?? "Nouveau lead"}`,
           };
 
