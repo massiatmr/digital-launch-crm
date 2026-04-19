@@ -396,12 +396,21 @@ export function useApplyProposal() {
         await supabase.from('leads').update(updates).eq('id', lead.id);
       }
 
-      if (proposal.next_action && proposal.next_action_date) {
-        await supabase.from('reminders').insert({
+      // Créer un rappel si une action est suggérée (avec fallback de date à demain 9h)
+      if (proposal.next_action) {
+        let dueDate = proposal.next_action_date;
+        if (!dueDate) {
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          tomorrow.setHours(9, 0, 0, 0);
+          dueDate = tomorrow.toISOString();
+        }
+        const { error: remErr } = await supabase.from('reminders').insert({
           lead_id: lead.id,
           action: proposal.next_action,
-          due_date: proposal.next_action_date,
-        });
+          due_date: dueDate,
+        } as any);
+        if (remErr) console.error('Reminder insert error:', remErr);
       }
     },
     onSuccess: () => {
