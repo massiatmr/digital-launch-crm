@@ -2,9 +2,9 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentWorkspaceId } from './useWorkspaces';
 
-export type FeatureKey = 'bookings' | 'whatsapp' | 'facebook' | 'offers' | 'conversations';
+export type FeatureKey = 'bookings' | 'whatsapp' | 'facebook' | 'offers' | 'conversations' | 'clients';
 
-const ALL_FEATURES: FeatureKey[] = ['bookings', 'whatsapp', 'facebook', 'offers', 'conversations'];
+const ALL_FEATURES: FeatureKey[] = ['bookings', 'whatsapp', 'facebook', 'offers', 'conversations', 'clients'];
 
 export function useWorkspaceFeatures(workspaceId?: string | null) {
   const currentId = useCurrentWorkspaceId();
