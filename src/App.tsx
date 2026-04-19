@@ -4,6 +4,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/AppLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { OnboardingGuard } from "@/components/OnboardingGuard";
+import OnboardingWizardPage from "@/pages/OnboardingWizardPage";
 import { AuthProvider } from "@/hooks/useAuth";
 import Dashboard from "@/pages/Dashboard";
 import LeadDetailPage from "@/pages/LeadDetailPage";
@@ -46,6 +48,8 @@ const App = () => (
             <Route path="/onboarding/website" element={<OnboardingFormPage />} />
             <Route path="/onboarding/ads" element={<OnboardingFormPage />} />
             <Route element={<ProtectedRoute />}>
+              <Route path="/onboarding" element={<OnboardingWizardPage />} />
+              <Route element={<OnboardingGuard />}>
               <Route element={<AppLayout />}>
                 <Route path="/" element={<PipelinePage />} />
                 <Route path="/dashboard" element={<Dashboard />} />
@@ -60,6 +64,7 @@ const App = () => (
                 <Route path="/import" element={<ImportPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/settings/:tab" element={<SettingsPage />} />
+              </Route>
               </Route>
             </Route>
             <Route path="*" element={<NotFound />} />
