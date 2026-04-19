@@ -26,7 +26,7 @@ export function AppLayout() {
           <Outlet />
         </main>
         {isMobile && <MobileBottomNav />}
-        <AiFloatingButton />
+        {!isMobile && <AiFloatingButton />}
       </div>
     </SidebarContext.Provider>
   );
