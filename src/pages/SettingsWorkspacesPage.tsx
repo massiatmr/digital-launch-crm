@@ -72,6 +72,59 @@ function FeatureToggles({ workspaceId, isAdmin }: { workspaceId: string; isAdmin
   );
 }
 
+function WorkspaceEditor({ workspace, canManage }: { workspace: any; canManage: boolean }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({
+    company_name: workspace.company_name || '',
+    slug: workspace.slug || '',
+    logo_url: workspace.logo_url || '',
+    notification_email: workspace.notification_email || '',
+  });
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const { error } = await (supabase.from('workspaces' as any) as any)
+        .update(form)
+        .eq('id', workspace.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['workspaces'] });
+      toast.success('Espace mis à jour');
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  if (!canManage) return null;
+
+  return (
+    <div className="space-y-2 pt-3 border-t border-border/40">
+      <div className="text-xs font-semibold text-muted-foreground">Édition</div>
+      <div className="grid gap-2">
+        <div>
+          <Label className="text-xs">Nom</Label>
+          <Input className="h-8 text-sm" value={form.company_name} onChange={(e) => setForm({ ...form, company_name: e.target.value })} />
+        </div>
+        <div>
+          <Label className="text-xs">Slug</Label>
+          <Input className="h-8 text-sm" value={form.slug} onChange={(e) => setForm({ ...form, slug: slugify(e.target.value) })} />
+        </div>
+        <div>
+          <Label className="text-xs">Logo URL</Label>
+          <Input className="h-8 text-sm" value={form.logo_url} onChange={(e) => setForm({ ...form, logo_url: e.target.value })} placeholder="https://..." />
+        </div>
+        <div>
+          <Label className="text-xs">Email de notification du workspace</Label>
+          <Input className="h-8 text-sm" type="email" value={form.notification_email} onChange={(e) => setForm({ ...form, notification_email: e.target.value })} placeholder="contact@workspace.com" />
+        </div>
+      </div>
+      <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending} className="w-full">
+        {save.isPending ? 'Enregistrement…' : 'Enregistrer'}
+      </Button>
+    </div>
+  );
+}
+
 function MembersList({ workspaceId, currentUserId, canManage }: { workspaceId: string; currentUserId: string; canManage: boolean }) {
   const { data: members, isLoading } = useWorkspaceMembers(workspaceId);
   const remove = useRemoveMember();
@@ -234,6 +287,7 @@ export default function SettingsWorkspacesPage() {
                   )}
                 </div>
                 {user && <MembersList workspaceId={w.id} currentUserId={user.id} canManage={canManage} />}
+                <WorkspaceEditor workspace={w} canManage={canManage} />
                 <FeatureToggles workspaceId={w.id} isAdmin={isAdmin} />
               </CardContent>
             </Card>

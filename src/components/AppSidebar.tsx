@@ -21,7 +21,7 @@ const links: LinkDef[] = [
   { to: '/reminders', icon: Bell, label: 'Tâches' },
   { to: '/offers', icon: Package, label: 'Offres', feature: 'offers' },
   { to: '/bookings', icon: CalendarCheck, label: 'Rendez-vous', feature: 'bookings' },
-  { to: '/settings', icon: Settings, label: 'Paramètres' },
+  { to: '/settings/account', icon: Settings, label: 'Paramètres' },
 ];
 
 export function AppSidebar() {
@@ -73,7 +73,8 @@ export function AppSidebar() {
 
       <nav className="flex-1 space-y-0.5 px-2 py-4">
         {visibleLinks.map(({ to, icon: Icon, label }) => {
-          const active = location.pathname === to || (to !== '/' && location.pathname.startsWith(to));
+          const navTo = to === '/settings/account' ? '/settings' : to;
+          const active = location.pathname === to || (navTo !== '/' && location.pathname.startsWith(navTo));
           return (
             <NavLink
               key={to}
