@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/hooks/useAuth';
 
 interface Invitation {
@@ -15,14 +16,24 @@ interface Invitation {
   used_at: string | null;
   expires_at: string;
   created_at: string;
+  workspace_id: string | null;
+  workspace_role: 'owner' | 'member';
+}
+
+interface WorkspaceLite {
+  id: string;
+  company_name: string;
 }
 
 export default function SettingsInvitationsPage() {
   const { user } = useAuth();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [invites, setInvites] = useState<Invitation[]>([]);
+  const [workspaces, setWorkspaces] = useState<WorkspaceLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState('');
+  const [workspaceId, setWorkspaceId] = useState<string>('');
+  const [role, setRole] = useState<'member' | 'owner'>('member');
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -35,7 +46,9 @@ export default function SettingsInvitationsPage() {
         .eq('role', 'admin')
         .maybeSingle();
       setIsAdmin(!!data);
-      if (data) await load();
+      if (data) {
+        await Promise.all([load(), loadWorkspaces()]);
+      }
       setLoading(false);
     })();
   }, [user]);
@@ -46,14 +59,30 @@ export default function SettingsInvitationsPage() {
       .select('*')
       .order('created_at', { ascending: false });
     if (error) toast.error(error.message);
-    setInvites(data || []);
+    setInvites((data as Invitation[]) || []);
+  };
+
+  const loadWorkspaces = async () => {
+    const { data, error } = await supabase
+      .from('workspaces')
+      .select('id, company_name')
+      .order('created_at', { ascending: true });
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setWorkspaces((data as WorkspaceLite[]) || []);
   };
 
   const create = async () => {
     if (!email.trim()) return;
+    if (!workspaceId) {
+      toast.error("Choisis un espace de travail à rejoindre");
+      return;
+    }
     setCreating(true);
     const { data, error } = await supabase.functions.invoke('send-invitation', {
-      body: { email: email.trim() },
+      body: { email: email.trim(), workspace_id: workspaceId, workspace_role: role },
     });
     setCreating(false);
     if (error) {
@@ -62,7 +91,7 @@ export default function SettingsInvitationsPage() {
     }
     if ((data as any)?.url) {
       await navigator.clipboard.writeText((data as any).url).catch(() => {});
-      toast.success('Invitation créée et lien copié');
+      toast.success('Invitation créée — email envoyé et lien copié');
     }
     setEmail('');
     await load();
@@ -85,6 +114,9 @@ export default function SettingsInvitationsPage() {
     toast.success('Lien copié');
   };
 
+  const wsName = (id: string | null) =>
+    id ? workspaces.find((w) => w.id === id)?.company_name || '—' : 'Aucun';
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -104,28 +136,47 @@ export default function SettingsInvitationsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold">Invitations</h2>
+        <h2 className="text-lg font-semibold">Invitations globales</h2>
         <p className="text-sm text-muted-foreground">
-          Crée des liens d'invitation pour donner accès à de nouveaux owners. Chaque owner aura son propre CRM isolé.
+          Invite quelqu'un à rejoindre un espace de travail existant. La personne reçoit un email avec un lien d'accès direct.
         </p>
       </div>
 
-      <Card className="p-4">
-        <div className="flex flex-col sm:flex-row gap-2">
+      <Card className="p-4 space-y-3">
+        <div className="grid gap-3 sm:grid-cols-[1fr,minmax(200px,1fr),140px,auto]">
           <Input
             type="email"
-            placeholder="email@client.com"
+            placeholder="email@destinataire.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && create()}
           />
-          <Button onClick={create} disabled={creating || !email.trim()}>
+          <Select value={workspaceId} onValueChange={setWorkspaceId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Espace de travail" />
+            </SelectTrigger>
+            <SelectContent>
+              {workspaces.map((w) => (
+                <SelectItem key={w.id} value={w.id}>{w.company_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={role} onValueChange={(v) => setRole(v as 'member' | 'owner')}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="member">Membre</SelectItem>
+              <SelectItem value="owner">Propriétaire</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button onClick={create} disabled={creating || !email.trim() || !workspaceId}>
             {creating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
-            Créer une invitation
+            Inviter
           </Button>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          Le lien sera copié automatiquement dans le presse-papier (valable 14 jours).
+        <p className="text-xs text-muted-foreground">
+          Lien valable 14 jours. La personne accède directement à l'espace sélectionné, sans passer par l'onboarding.
         </p>
       </Card>
 
@@ -142,7 +193,7 @@ export default function SettingsInvitationsPage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium truncate">{inv.email}</p>
                   <p className="text-[11px] text-muted-foreground">
-                    Créé le {new Date(inv.created_at).toLocaleDateString()} • Expire le {new Date(inv.expires_at).toLocaleDateString()}
+                    → {wsName(inv.workspace_id)} ({inv.workspace_role}) • Expire le {new Date(inv.expires_at).toLocaleDateString()}
                   </p>
                 </div>
                 {used ? (
