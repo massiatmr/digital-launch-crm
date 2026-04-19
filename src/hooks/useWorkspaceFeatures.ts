@@ -31,7 +31,7 @@ export function useWorkspaceFeatures(workspaceId?: string | null) {
   });
 
   const features = query.data ?? {
-    bookings: true, whatsapp: true, facebook: true, offers: true, conversations: true,
+    bookings: true, whatsapp: true, facebook: true, offers: true, conversations: true, clients: true,
   };
 
   return { features, isLoading: query.isLoading, isEnabled: (k: FeatureKey) => features[k] };
