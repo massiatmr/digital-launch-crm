@@ -161,16 +161,29 @@ export function useMarkLeadReplied() {
   });
 }
 
+import { useCurrentWorkspaceId } from '@/hooks/useWorkspaces';
+
 export function useFollowupSettings() {
+  const workspaceId = useCurrentWorkspaceId();
   return useQuery({
-    queryKey: ['followup-settings'],
+    queryKey: ['followup-settings', workspaceId],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
+      // Try workspace-scoped first
+      if (workspaceId) {
+        const { data } = await supabase
+          .from('followup_automation_settings').select('*').eq('workspace_id', workspaceId).maybeSingle();
+        if (data) return data;
+        const { data: created } = await supabase
+          .from('followup_automation_settings')
+          .insert({ owner_id: user.id, workspace_id: workspaceId } as any).select('*').maybeSingle();
+        return created;
+      }
+      // Legacy : owner-only
       const { data } = await supabase
-        .from('followup_automation_settings').select('*').eq('owner_id', user.id).maybeSingle();
+        .from('followup_automation_settings').select('*').eq('owner_id', user.id).is('workspace_id', null).maybeSingle();
       if (data) return data;
-      // Create default
       const { data: created } = await supabase
         .from('followup_automation_settings')
         .insert({ owner_id: user.id } as any).select('*').maybeSingle();
@@ -181,12 +194,19 @@ export function useFollowupSettings() {
 
 export function useUpdateFollowupSettings() {
   const qc = useQueryClient();
+  const workspaceId = useCurrentWorkspaceId();
   return useMutation({
     mutationFn: async (patch: Record<string, any>) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Non authentifié');
-      const { error } = await (supabase.from('followup_automation_settings').update(patch as any)).eq('owner_id', user.id);
-      if (error) throw error;
+      let q = supabase.from('followup_automation_settings').update(patch as any);
+      if (workspaceId) {
+        const { error } = await q.eq('workspace_id', workspaceId);
+        if (error) throw error;
+      } else {
+        const { error } = await q.eq('owner_id', user.id).is('workspace_id', null);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       toast.success('Réglages sauvegardés');

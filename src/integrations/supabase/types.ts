@@ -1850,6 +1850,7 @@ export type Database = {
           id: string
           legal_name: string | null
           logo_url: string | null
+          notification_email: string | null
           onboarding_completed: boolean
           phone: string | null
           signature_url: string | null
@@ -1870,6 +1871,7 @@ export type Database = {
           id?: string
           legal_name?: string | null
           logo_url?: string | null
+          notification_email?: string | null
           onboarding_completed?: boolean
           phone?: string | null
           signature_url?: string | null
@@ -1890,6 +1892,7 @@ export type Database = {
           id?: string
           legal_name?: string | null
           logo_url?: string | null
+          notification_email?: string | null
           onboarding_completed?: boolean
           phone?: string | null
           signature_url?: string | null

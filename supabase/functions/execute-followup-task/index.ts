@@ -112,15 +112,24 @@ Deno.serve(async (req) => {
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Charger settings (dry_run + mapping templates)
-    const { data: settings } = await admin
-      .from("followup_automation_settings").select("*").eq("owner_id", ownerId).maybeSingle();
-    const dryRun = settings?.dry_run !== false; // default true (sécurité)
-
-    // Charger lead pour variables/contexte
+    // Charger lead pour variables/contexte (avant settings → on a besoin de workspace_id)
     const { data: lead } = await supabase
       .from("leads").select("*").eq("id", task.lead_id).maybeSingle();
     if (!lead) return new Response(JSON.stringify({ error: "Lead not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    // Charger settings (dry_run + mapping templates) — par workspace si possible, fallback owner legacy
+    let settings: any = null;
+    if (lead.workspace_id) {
+      const { data } = await admin
+        .from("followup_automation_settings").select("*").eq("workspace_id", lead.workspace_id).maybeSingle();
+      settings = data;
+    }
+    if (!settings) {
+      const { data } = await admin
+        .from("followup_automation_settings").select("*").eq("owner_id", ownerId).is("workspace_id", null).maybeSingle();
+      settings = data;
+    }
+    const dryRun = settings?.dry_run !== false; // default true (sécurité)
 
     // Helper : récupère la config WhatsApp ACTIVE scopée au workspace du lead
     // (sinon fallback sur l'owner_id si lead sans workspace — legacy)

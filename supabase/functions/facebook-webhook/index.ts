@@ -218,15 +218,16 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
     });
 
     for (const [entryIndex, entry] of (body.entry ?? []).entries()) {
-      // Resolve page-specific access token + owner from meta_pages table
+      // Resolve page-specific access token + owner + workspace from meta_pages table
       let effectiveToken = accessToken;
       let effectiveOwnerId = ownerId;
+      let effectiveWorkspaceId: string | null = null;
       const pageId = entry?.id ? String(entry.id) : null;
 
       if (pageId) {
         const { data: metaPage } = await supabase
           .from("meta_pages")
-          .select("owner_id, page_access_token, is_active")
+          .select("owner_id, page_access_token, is_active, workspace_id")
           .eq("page_id", pageId)
           .maybeSingle();
 
@@ -237,7 +238,8 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
           }
           effectiveToken = metaPage.page_access_token;
           effectiveOwnerId = metaPage.owner_id;
-          logInfo(requestId, "Resolved page from meta_pages", { pageId, owner: effectiveOwnerId });
+          effectiveWorkspaceId = metaPage.workspace_id ?? null;
+          logInfo(requestId, "Resolved page from meta_pages", { pageId, owner: effectiveOwnerId, workspace: effectiveWorkspaceId });
         } else {
           logInfo(requestId, "Page not in meta_pages — using env fallback", { pageId });
         }
@@ -472,6 +474,7 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
             status: "new" as any,
             score: "cold" as any,
             owner_id: effectiveOwnerId,
+            workspace_id: effectiveWorkspaceId,
             message: `Lead Facebook Ads – ${mapped.name ?? "Nouveau lead"}`,
           };
 

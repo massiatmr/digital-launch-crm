@@ -38,14 +38,26 @@ Deno.serve(async (req) => {
     const { lead_id, task_type } = await req.json();
     if (!lead_id || !task_type) return new Response(JSON.stringify({ error: "Missing lead_id or task_type" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const [{ data: lead }, { data: settings }, { data: history }, { data: offer }] = await Promise.all([
-      supabase.from("leads").select("*").eq("id", lead_id).maybeSingle(),
-      supabase.from("followup_automation_settings").select("*").eq("owner_id", ownerId).maybeSingle(),
+    const { data: lead } = await supabase.from("leads").select("*").eq("id", lead_id).maybeSingle();
+    if (!lead) return new Response(JSON.stringify({ error: "Lead not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    // Settings : par workspace si dispo, sinon legacy par owner
+    let settings: any = null;
+    if (lead.workspace_id) {
+      const { data } = await supabase.from("followup_automation_settings").select("*").eq("workspace_id", lead.workspace_id).maybeSingle();
+      settings = data;
+    }
+    if (!settings) {
+      const { data } = await supabase.from("followup_automation_settings").select("*").eq("owner_id", ownerId).is("workspace_id", null).maybeSingle();
+      settings = data;
+    }
+
+    const [{ data: history }, { data: offer }] = await Promise.all([
       supabase.from("whatsapp_messages").select("direction,content,sent_at").eq("lead_id", lead_id).order("sent_at", { ascending: true }).limit(20),
       supabase.from("leads").select("offer_id, offers(name, description, price)").eq("id", lead_id).maybeSingle(),
     ]);
 
-    if (!lead) return new Response(JSON.stringify({ error: "Lead not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    // (lead already loaded above)
 
     const offerInfo = (offer as any)?.offers
       ? `Offre proposée: ${(offer as any).offers.name} — ${(offer as any).offers.description ?? ''} ${(offer as any).offers.price ? `(${(offer as any).offers.price})` : ''}`

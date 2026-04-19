@@ -51,12 +51,18 @@ Deno.serve(async (req) => {
       const window24hCutoff = new Date(now.getTime() - 24 * 3600 * 1000);
 
       // Récupère les états de conversation engagés (au moins 1 inbound) et non clos
-      const { data: states } = await admin
+      // Scope : par workspace si dispo (settings.workspace_id), sinon par owner legacy
+      let stateQuery = admin
         .from("lead_conversation_state")
-        .select("lead_id, owner_id, state, last_inbound_at, last_outbound_at")
-        .eq("owner_id", s.owner_id)
+        .select("lead_id, owner_id, state, last_inbound_at, last_outbound_at, workspace_id")
         .not("last_inbound_at", "is", null)
         .not("state", "in", "(BOOKED,CLOSED)");
+      if (s.workspace_id) {
+        stateQuery = stateQuery.eq("workspace_id", s.workspace_id);
+      } else {
+        stateQuery = stateQuery.eq("owner_id", s.owner_id).is("workspace_id", null);
+      }
+      const { data: states } = await stateQuery;
 
       for (const st of states ?? []) {
         const lastIn = st.last_inbound_at ? new Date(st.last_inbound_at) : null;
