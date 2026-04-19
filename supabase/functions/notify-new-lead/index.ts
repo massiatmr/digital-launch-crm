@@ -182,17 +182,17 @@ Deno.serve(async (req) => {
       results.push = { error: e instanceof Error ? e.message : String(e) };
     }
 
-    // ---- 2) Email via SMTP
+    // ---- 2) Email via SMTP (admin global + workspace si défini)
     try {
       const emailRes = await supabase.functions.invoke("send-smtp-email", {
         body: {
-          to: NOTIFY_EMAIL,
+          to: recipients,
           subject: `${wsPrefix}Nouveau lead — ${lead.name}${titleSuffix}`,
           html: buildEmailHtml(lead, leadUrl, sourceLabel, workspaceName),
           replyTo: lead.email || undefined,
         },
       });
-      results.email = emailRes.data ?? { error: emailRes.error?.message };
+      results.email = { recipients, ...(emailRes.data ?? { error: emailRes.error?.message }) };
     } catch (e) {
       results.email = { error: e instanceof Error ? e.message : String(e) };
     }
