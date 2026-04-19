@@ -50,10 +50,11 @@ const showStatuses = [
 
 interface LeadEditFormProps {
   lead: DbLead;
-  onClose: () => void;
+  onClose?: () => void;
+  inline?: boolean;
 }
 
-export function LeadEditForm({ lead, onClose }: LeadEditFormProps) {
+export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProps) {
   const updateLead = useUpdateLead();
   const [showLostDialog, setShowLostDialog] = useState(false);
   const [form, setForm] = useState({
