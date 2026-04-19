@@ -25,11 +25,14 @@ async function call(action: string, payload: Record<string, unknown> = {}) {
   return data;
 }
 
+import { useCurrentWorkspaceId } from "@/hooks/useWorkspaces";
+
 export function useWhatsAppTemplates() {
+  const workspaceId = useCurrentWorkspaceId();
   return useQuery({
-    queryKey: ["wa-templates"],
+    queryKey: ["wa-templates", workspaceId],
     queryFn: async () => {
-      const data = await call("list");
+      const data = await call("list", { workspace_id: workspaceId });
       return (data?.templates || []) as WhatsAppTemplate[];
     },
   });
