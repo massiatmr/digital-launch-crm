@@ -1,23 +1,28 @@
 ---
 name: WhatsApp followup automation
-description: Système complet de relances WhatsApp + IA + détection inactivité + escalade appel manuel + bascule template 24h
+description: Système complet de relances WhatsApp + IA + détection inactivité + escalade appel manuel + bascule template 24h + séquence dynamique éditable + test accéléré
 type: feature
 ---
-Couche additive (n'altère pas pipeline/leads). Tables: `lead_followup_tasks`, `whatsapp_messages`, `lead_conversation_state`, `followup_automation_settings` (+ colonnes `trigger_sources`, `trigger_only_new_status`, `inactivity_threshold_hours` défaut 12, `enable_call_escalation` défaut true, `enable_24h_template_switch` défaut true, `template_reactivation_id`).
+Couche additive (n'altère pas pipeline/leads). Tables: `lead_followup_tasks`, `whatsapp_messages`, `lead_conversation_state`, `followup_automation_settings`, **`followup_sequence_steps`** (NEW : séquence dynamique éditable par owner).
 
-**Task types** : `initial_message`, `followup_1`, `followup_2`, `last_followup`, `qualification`, `propose_meeting`, `reactivation` (silence après réponse), `template_24h` (bascule auto fenêtre fermée), `manual_call` (action humaine, pas d'envoi auto).
+**Table `followup_sequence_steps`** : `step_order`, `task_type`, `delay_value` + `delay_unit` (minutes|hours|days), `template_id`, `label`, `is_enabled`. Migration auto des 4 étapes historiques.
+
+**Task types** : `initial_message`, `followup_1`, `followup_2`, `last_followup`, `qualification`, `propose_meeting`, `reactivation`, `template_24h`, `manual_call`. Tous sélectionnables comme étape custom.
 
 **Triggers SQL** :
-- `create_followup_sequence_for_lead` (AFTER INSERT leads) génère 6 tâches selon filtres (auto+source+status).
+- `create_followup_sequence_for_lead` (AFTER INSERT leads) **itère désormais `followup_sequence_steps`** (au lieu des 4 délais figés). Respecte filtres source/status/is_enabled.
 - `handle_inbound_whatsapp` annule relances futures dès qu'inbound arrive et bascule QUALIFIED.
 
 **Edge functions** :
 - `generate-followup-message` (Gemini Flash via Lovable AI)
-- `execute-followup-task` (1 tâche, supporte template Meta + texte libre dans fenêtre 24h, skip `manual_call`)
+- `execute-followup-task` (1 tâche, supporte template Meta + texte libre fenêtre 24h, skip `manual_call`)
 - `process-followup-tasks` (batch via pg_cron chaque minute)
-- `detect-inactive-conversations` (pg_cron toutes les 15 min) : crée `reactivation` si silence > seuil, `template_24h` si fenêtre fermée + template configuré, `manual_call` si lead chaud + 2 relances OU lead engagé silencieux 24h+. Push notif owner via OneSignal + insert dans `reminders`.
+- `detect-inactive-conversations` (pg_cron toutes les 15 min) : crée `reactivation`, `template_24h`, `manual_call` selon contexte. Push notif owner via OneSignal.
 - `preview-template-message`
+- **`test-followup-sequence`** (NEW) : déclenche TOUTE la séquence d'un owner sur un lead choisi avec délais ÷60 (minutes→secondes, heures→minutes, jours→heures, min 5s entre étapes). Annule les tâches existantes du lead avant.
 
-**UI** `/settings/automation` : 4 onglets (Séquence / Templates / Brief IA / Réglages). Onglet Réglages contient 4 cartes : Mode test, Activation auto, Conditions de déclenchement (status+sources), **Relances humaines & fenêtre 24h** (délai inactivité, escalade appel toggle, bascule template 24h + sélecteur template). Composant `FollowupTimeline` sur fiche lead affiche tous types y compris reactivation/template_24h/manual_call.
+**UI `/settings/automation`** : 4 onglets. Onglet **Séquence** = `SequenceEditor` dynamique : ajout/suppression/réordonnancement (↑↓), label éditable inline, switch enable, sélecteur valeur+unité, sélecteur template (ou IA texte libre). Hooks dans `src/hooks/useSequenceSteps.ts` (`useSequenceSteps`, `useUpsertSequenceStep`, `useDeleteSequenceStep`, `useReorderSequenceSteps`).
 
-**WhatsApp Meta branché** : envoi templates + texte libre fenêtre 24h opérationnel (config dans `whatsapp_config`).
+**UI `/settings/tests`** : carte "Test séquence accélérée" avec sélecteur de lead (20 derniers) + bouton qui invoke `test-followup-sequence`.
+
+**WhatsApp Meta branché** : envoi templates + texte libre fenêtre 24h opérationnel (`whatsapp_config`).
