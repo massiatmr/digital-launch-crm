@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react';
 import { useOwnerProfile } from '@/hooks/useOwnerProfile';
 import { useAuth } from '@/hooks/useAuth';
 import { useWorkspaces } from '@/hooks/useWorkspaces';
+import { NoWorkspaceState } from './NoWorkspaceState';
 
 export function OnboardingGuard() {
   const { user } = useAuth();
@@ -17,9 +18,17 @@ export function OnboardingGuard() {
     );
   }
 
+  // Aucune appartenance à un workspace : afficher un état clair, pas un écran vide
+  if (!workspaces || workspaces.length === 0) {
+    if (!profile?.onboarding_completed) {
+      return <Navigate to="/onboarding" replace />;
+    }
+    return <NoWorkspaceState />;
+  }
+
   // Si l'utilisateur appartient à AU MOINS un workspace qu'il n'a PAS créé
   // (= invité dans un workspace existant), bypass le wizard.
-  const isInvitedMember = workspaces?.some(
+  const isInvitedMember = workspaces.some(
     (w: any) => w.created_by && w.created_by !== user?.id
   );
 
