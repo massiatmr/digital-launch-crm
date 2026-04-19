@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -134,6 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const authRequestInFlightRef = useRef(false);
 
   const clearAuthError = useCallback(() => {
     setAuthError(null);
@@ -148,6 +150,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
 
+       if (nextSession?.user) {
+        void supabase.auth.startAutoRefresh();
+      } else {
+        void supabase.auth.stopAutoRefresh();
+      }
+
       if (nextSession?.user) {
         setAuthError(null);
       }
@@ -160,6 +168,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       applySession(nextSession);
     });
+
+    void supabase.auth.stopAutoRefresh();
 
     restoreSessionWithRetry()
       .then(({ data: { session: restoredSession } }) => {
@@ -184,6 +194,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signUp = useCallback(async (email: string, password: string) => {
+    if (authRequestInFlightRef.current) {
+      return { error: normalizeAuthError(new Error('Une requête de connexion est déjà en cours.')) };
+    }
+
+    authRequestInFlightRef.current = true;
     setAuthError(null);
 
     try {
@@ -218,10 +233,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setLoading(false);
       return { error: normalized };
+    } finally {
+      authRequestInFlightRef.current = false;
     }
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
+    if (authRequestInFlightRef.current) {
+      return { error: normalizeAuthError(new Error('Une requête de connexion est déjà en cours.')) };
+    }
+
+    authRequestInFlightRef.current = true;
     setAuthError(null);
 
     try {
@@ -254,6 +276,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setLoading(false);
       return { error: normalized };
+    } finally {
+      authRequestInFlightRef.current = false;
     }
   }, []);
 
