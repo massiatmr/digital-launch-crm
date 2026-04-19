@@ -37,9 +37,16 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
   const deleteLead = useDeleteLead();
   const updateLead = useUpdateLead();
 
+  // Sépare bloc IA (auto-généré) et notes manuelles
+  const AI_BLOCK_REGEX = /<!-- AI_NOTES_START -->([\s\S]*?)<!-- AI_NOTES_END -->/;
+  const fullNotes = lead?.notes ?? '';
+  const aiMatch = fullNotes.match(AI_BLOCK_REGEX);
+  const aiNotesBlock = aiMatch ? aiMatch[1].trim() : '';
+  const manualNotes = fullNotes.replace(AI_BLOCK_REGEX, '').trim();
+
   useEffect(() => {
-    if (lead && !notesDirty) setNotesDraft(lead.notes ?? '');
-  }, [lead?.notes, notesDirty]);
+    if (lead && !notesDirty) setNotesDraft(manualNotes);
+  }, [manualNotes, notesDirty]);
 
   if (isLoading) {
     return (
@@ -54,7 +61,11 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
   }
 
   const saveNotes = async () => {
-    await updateLead.mutateAsync({ id: lead.id, notes: notesDraft });
+    // Recompose : notes manuelles + bloc IA préservé
+    const recomposed = aiMatch
+      ? (notesDraft.trim() ? notesDraft.trim() + '\n\n' : '') + aiMatch[0]
+      : notesDraft;
+    await updateLead.mutateAsync({ id: lead.id, notes: recomposed });
     setNotesDirty(false);
     toast.success('Notes sauvegardées');
   };
