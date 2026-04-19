@@ -38,7 +38,6 @@ export default function SettingsAutomationPage() {
   const runNow = useRunFollowupNow();
 
   const [form, setForm] = useState<any>(null);
-  const [editingStep, setEditingStep] = useState<typeof STEPS[number] | null>(null);
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => { if (settings && !form) setForm(settings); }, [settings, form]);

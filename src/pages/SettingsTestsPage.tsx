@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Bell, BellOff, Send, Clock, CheckCircle2, XCircle, Loader2, MessageCircle, AlertTriangle, ExternalLink, Mail, Brain, Zap, MessageSquare } from 'lucide-react';
+import { Bell, BellOff, Send, Clock, CheckCircle2, XCircle, Loader2, MessageCircle, AlertTriangle, ExternalLink, Mail, Brain, Zap, MessageSquare, Workflow } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { requestOneSignalPermission, getOneSignalPermission } from '@/hooks/useOneSignal';
