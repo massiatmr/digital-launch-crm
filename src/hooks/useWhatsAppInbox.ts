@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useCurrentWorkspaceId } from './useWorkspaces';
 
 const LS_KEY = 'wa-inbox-lastSeen';
 
@@ -24,6 +25,7 @@ export type InboxItem = {
 export function useWhatsAppInbox() {
   const qc = useQueryClient();
   const [seenVersion, setSeenVersion] = useState(0);
+  const wsId = useCurrentWorkspaceId();
 
   // Realtime: any new wa message → refetch
   useEffect(() => {
@@ -37,13 +39,14 @@ export function useWhatsAppInbox() {
   }, [qc]);
 
   const query = useQuery({
-    queryKey: ['wa-inbox'],
+    queryKey: ['wa-inbox', wsId],
+    enabled: !!wsId,
     queryFn: async (): Promise<InboxItem[]> => {
-      const { data: msgs, error } = await supabase
+      let q: any = supabase
         .from('whatsapp_messages')
-        .select('id, lead_id, content, sent_at, direction')
-        .order('sent_at', { ascending: false })
-        .limit(500);
+        .select('id, lead_id, content, sent_at, direction, workspace_id');
+      if (wsId) q = q.eq('workspace_id', wsId);
+      const { data: msgs, error } = await q.order('sent_at', { ascending: false }).limit(500);
       if (error) throw error;
 
       const byLead = new Map<string, any>();

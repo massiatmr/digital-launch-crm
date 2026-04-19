@@ -6,19 +6,21 @@ import logoIcon from '@/assets/logo-icon.webp';
 import { useSidebarState } from './AppLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useWhatsAppInbox } from '@/hooks/useWhatsAppInbox';
+import { useWorkspaceFeatures, type FeatureKey } from '@/hooks/useWorkspaceFeatures';
 import { useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { GlobalNaturalLanguageInput } from './GlobalNaturalLanguageInput';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 
-const links = [
+type LinkDef = { to: string; icon: any; label: string; feature?: FeatureKey };
+const links: LinkDef[] = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/', icon: Kanban, label: 'Pipeline' },
-  { to: '/conversations', icon: MessageCircle, label: 'Conversations' },
+  { to: '/conversations', icon: MessageCircle, label: 'Conversations', feature: 'conversations' },
   { to: '/clients', icon: UserCheck, label: 'Clients' },
   { to: '/reminders', icon: Bell, label: 'Tâches' },
-  { to: '/offers', icon: Package, label: 'Offres' },
-  { to: '/bookings', icon: CalendarCheck, label: 'Rendez-vous' },
+  { to: '/offers', icon: Package, label: 'Offres', feature: 'offers' },
+  { to: '/bookings', icon: CalendarCheck, label: 'Rendez-vous', feature: 'bookings' },
   { to: '/settings', icon: Settings, label: 'Paramètres' },
 ];
 
@@ -27,7 +29,9 @@ export function AppSidebar() {
   const { collapsed, setCollapsed } = useSidebarState();
   const { signOut } = useAuth();
   const { unreadCount } = useWhatsAppInbox();
+  const { isEnabled } = useWorkspaceFeatures();
   const [aiOpen, setAiOpen] = useState(false);
+  const visibleLinks = links.filter((l) => !l.feature || isEnabled(l.feature));
 
   return (
     <aside
@@ -68,7 +72,7 @@ export function AppSidebar() {
       </div>
 
       <nav className="flex-1 space-y-0.5 px-2 py-4">
-        {links.map(({ to, icon: Icon, label }) => {
+        {visibleLinks.map(({ to, icon: Icon, label }) => {
           const active = location.pathname === to || (to !== '/' && location.pathname.startsWith(to));
           return (
             <NavLink

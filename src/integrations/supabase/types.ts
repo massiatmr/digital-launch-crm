@@ -1770,6 +1770,41 @@ export type Database = {
           },
         ]
       }
+      workspace_features: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          feature_key: string
+          id: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          feature_key: string
+          id?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          feature_key?: string
+          id?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_features_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspace_members: {
         Row: {
           created_at: string
@@ -1905,6 +1940,15 @@ export type Database = {
         Args: { _user_id: string; _workspace_id: string }
         Returns: boolean
       }
+      list_workspace_members: {
+        Args: { _workspace_id: string }
+        Returns: {
+          created_at: string
+          email: string
+          role: Database["public"]["Enums"]["workspace_role"]
+          user_id: string
+        }[]
+      }
       mark_overdue_invoices: { Args: never; Returns: undefined }
       move_to_dlq: {
         Args: {
@@ -1923,9 +1967,21 @@ export type Database = {
           read_ct: number
         }[]
       }
+      remove_workspace_member: {
+        Args: { _user_id: string; _workspace_id: string }
+        Returns: boolean
+      }
       save_onboarding_by_token: {
         Args: { p_completed?: boolean; p_responses: Json; p_token: string }
         Returns: undefined
+      }
+      update_workspace_member_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["workspace_role"]
+          _user_id: string
+          _workspace_id: string
+        }
+        Returns: boolean
       }
       user_workspace_ids: { Args: { _user_id: string }; Returns: string[] }
     }

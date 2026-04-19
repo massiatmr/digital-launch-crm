@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/AppLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { OnboardingGuard } from "@/components/OnboardingGuard";
+import { FeatureGuard } from "@/components/FeatureGuard";
 import OnboardingWizardPage from "@/pages/OnboardingWizardPage";
 import { AuthProvider } from "@/hooks/useAuth";
 import { WorkspaceProvider } from "@/hooks/useWorkspaces";
@@ -53,6 +54,7 @@ const App = () => (
               <Route path="/onboarding" element={<OnboardingWizardPage />} />
               <Route element={<OnboardingGuard />}>
               <Route element={<AppLayout />}>
+                <Route element={<FeatureGuard />}>
                 <Route path="/" element={<PipelinePage />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/leads/:id" element={<LeadDetailPage />} />
@@ -66,6 +68,7 @@ const App = () => (
                 <Route path="/import" element={<ImportPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/settings/:tab" element={<SettingsPage />} />
+                </Route>
               </Route>
               </Route>
             </Route>
