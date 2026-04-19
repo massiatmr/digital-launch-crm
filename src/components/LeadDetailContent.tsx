@@ -228,7 +228,7 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
               )}
 
               {/* Notes éditables */}
-              <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+              <div className="rounded-xl border border-border bg-card p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-medium">Notes</h3>
                   {notesDirty && (
@@ -237,14 +237,34 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
                     </Button>
                   )}
                 </div>
-                <Textarea
-                  value={notesDraft}
-                  onChange={(e) => { setNotesDraft(e.target.value); setNotesDirty(true); }}
-                  placeholder="Ajoute tes notes sur ce lead..."
-                  rows={6}
-                  className="resize-none"
-                />
+
+                {/* Bloc Notes IA (auto-généré depuis WhatsApp) */}
+                {aiNotesBlock && (
+                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+                    <div className="flex items-center gap-1.5 mb-2 text-xs font-medium text-primary">
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Préparation d'appel par l'IA
+                    </div>
+                    <div className="prose prose-sm prose-invert max-w-none text-sm [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 [&_ul]:my-1 [&_li]:my-0.5">
+                      <ReactMarkdown>{aiNotesBlock}</ReactMarkdown>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  {aiNotesBlock && (
+                    <p className="text-xs text-muted-foreground mb-1">Mes notes manuelles</p>
+                  )}
+                  <Textarea
+                    value={notesDraft}
+                    onChange={(e) => { setNotesDraft(e.target.value); setNotesDirty(true); }}
+                    placeholder="Ajoute tes notes sur ce lead..."
+                    rows={5}
+                    className="resize-none"
+                  />
+                </div>
               </div>
+
 
               {/* Input langage naturel */}
               <NaturalLanguageInput leadId={lead.id} lead={lead} />
