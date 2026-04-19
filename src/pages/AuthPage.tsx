@@ -66,9 +66,13 @@ export default function AuthPage() {
         : await signUp(email, password);
 
       if (error) {
-        toast.error(error.message === 'Invalid login credentials'
-          ? 'Email ou mot de passe incorrect'
-          : error.message);
+        toast.error(
+          error.message === 'Invalid login credentials'
+            ? 'Email ou mot de passe incorrect'
+            : error.status === 504
+              ? "Le service de connexion est temporairement indisponible. Réessaie dans quelques instants."
+              : error.message,
+        );
       } else if (!isLogin) {
         toast.success('Compte créé ! Vérifiez votre email pour confirmer.');
       }
