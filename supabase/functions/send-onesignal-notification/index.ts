@@ -1,3 +1,5 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.99.1";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -6,6 +8,8 @@ const corsHeaders = {
 const ONESIGNAL_APP_ID = "46f7498d-e02a-4ee9-bbc6-28f0ec0d7aea";
 const APP_BASE_URL = "https://digital-launch-crm.lovable.app";
 const ONESIGNAL_REST_API_KEY = Deno.env.get("ONESIGNAL_REST_API_KEY")!;
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 interface Payload {
   user_id: string;
@@ -25,6 +29,8 @@ interface ApiResponse {
     final_url?: string;
     error_stage?: string;
     provider_status?: number;
+    targeting_method?: string;
+    subscription_count?: number;
   };
 }
 
@@ -33,6 +39,28 @@ function respond(payload: ApiResponse) {
     status: 200,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+async function getSubscriptionIds(userId: string) {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return [] as string[];
+
+  const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const { data, error } = await admin
+    .from("push_subscriptions")
+    .select("endpoint, status")
+    .eq("user_id", userId)
+    .like("endpoint", "onesignal:%")
+    .limit(20);
+
+  if (error) {
+    console.error("push_subscriptions lookup error:", error);
+    return [];
+  }
+
+  return (data ?? [])
+    .filter((row: any) => row?.status !== "inactive")
+    .map((row: any) => String(row.endpoint || "").replace(/^onesignal:/, ""))
+    .filter(Boolean);
 }
 
 Deno.serve(async (req) => {
@@ -64,13 +92,19 @@ Deno.serve(async (req) => {
         : `${APP_BASE_URL}${url.startsWith("/") ? url : `/${url}`}`;
     }
 
+    const subscriptionIds = await getSubscriptionIds(user_id);
     const notifPayload: Record<string, unknown> = {
       app_id: ONESIGNAL_APP_ID,
-      include_aliases: { external_id: [user_id] },
-      target_channel: "push",
       headings: { en: title, fr: title },
       contents: { en: body, fr: body },
+      target_channel: "push",
     };
+
+    if (subscriptionIds.length > 0) {
+      notifPayload.include_subscription_ids = subscriptionIds;
+    } else {
+      notifPayload.include_aliases = { external_id: [user_id] };
+    }
 
     if (absoluteUrl) {
       notifPayload.web_url = absoluteUrl;
@@ -94,19 +128,22 @@ Deno.serve(async (req) => {
 
     const hasProviderErrors = Boolean((json as any)?.errors);
     const hasNotificationId = Boolean((json as any)?.id);
+    const targetingMethod = subscriptionIds.length > 0 ? "subscription_ids" : "external_id";
 
     if (!res.ok || hasProviderErrors || !hasNotificationId) {
       return respond({
         ok: false,
         error: "onesignal_error",
-        hint: hasProviderErrors
-          ? "Aucun appareil OneSignal n'est lié à cet utilisateur pour le moment"
-          : "Notification non acceptée par le provider",
+        hint: subscriptionIds.length > 0
+          ? "Des appareils ont bien été trouvés, mais OneSignal a refusé l'envoi"
+          : "Aucun appareil OneSignal n'est lié à cet utilisateur pour le moment",
         details: json,
         diagnostics: {
           final_url: absoluteUrl,
           error_stage: "provider_request",
           provider_status: res.status,
+          targeting_method: targetingMethod,
+          subscription_count: subscriptionIds.length,
         },
       });
     }
@@ -117,6 +154,8 @@ Deno.serve(async (req) => {
       diagnostics: {
         final_url: absoluteUrl,
         provider_status: res.status,
+        targeting_method: targetingMethod,
+        subscription_count: subscriptionIds.length,
       },
     });
   } catch (e) {
