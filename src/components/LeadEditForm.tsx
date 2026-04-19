@@ -208,7 +208,9 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
       </div>
 
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
+        {onClose && !inline && (
+          <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
+        )}
         <Button type="submit" disabled={updateLead.isPending}>
           {updateLead.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
           Enregistrer
