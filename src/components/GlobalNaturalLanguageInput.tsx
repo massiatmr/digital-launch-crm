@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { Send, Sparkles, Mic, MicOff, Check, X, RotateCcw, Search, MessageSquare, Zap, UserPlus, Copy, Trash2, Loader2 } from 'lucide-react';
+import { Send, Sparkles, Mic, MicOff, Check, X, RotateCcw, Search, MessageSquare, Zap, UserPlus, Copy, Trash2, Loader2, Calendar } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 import { AudioVisualizer } from '@/components/AudioVisualizer';
 import { toast } from 'sonner';
 import { useLeads, useAnalyzeNote, useApplyProposal, useCreateLead, AiProposal, DbLead } from '@/hooks/useLeadData';
