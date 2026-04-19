@@ -22,8 +22,8 @@ const LEAD_SOURCES: { value: string; label: string }[] = [
   { value: 'manual', label: 'Manuel' },
   { value: 'other', label: 'Autre' },
 ];
-import { STEPS, StepCard } from '@/components/automation/StepCard';
-import { StepEditorSheet } from '@/components/automation/StepEditorSheet';
+import { STEPS } from '@/components/automation/StepCard';
+import { SequenceEditor } from '@/components/automation/SequenceEditor';
 import { TemplatesManager } from '@/components/automation/TemplatesManager';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -146,38 +146,18 @@ export default function SettingsAutomationPage() {
         {/* TAB: SÉQUENCE */}
         <TabsContent value="sequence" className="mt-6 space-y-4">
           <div className="rounded-xl border border-border bg-card p-5">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <h2 className="font-heading text-base">Parcours du lead</h2>
-                <p className="text-xs text-muted-foreground">Clique une étape pour modifier son délai et son template.</p>
-              </div>
-            </div>
-
             {/* Start indicator */}
-            <div className="flex flex-col items-center mb-2">
+            <div className="flex flex-col items-center mb-3">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/15 text-primary text-xs font-medium">
                 🆕 Nouveau lead créé
               </span>
               <div className="h-4 w-px bg-border mt-1" />
             </div>
 
-            <div className="space-y-0">
-              {STEPS.map((step, i) => (
-                <StepCard
-                  key={step.key}
-                  step={step}
-                  index={i}
-                  template={templates.find((t) => t.id === form[step.key]) || null}
-                  delay={form[step.delayKey] || 0}
-                  isLast={i === STEPS.length - 1}
-                  dryRun={form.dry_run}
-                  onClick={() => setEditingStep(step)}
-                />
-              ))}
-            </div>
+            <SequenceEditor />
 
             {/* End indicator */}
-            <div className="flex flex-col items-center mt-2">
+            <div className="flex flex-col items-center mt-4">
               <div className="h-4 w-px bg-border" />
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted text-muted-foreground text-xs">
                 💤 Lead marqué froid si aucune réponse
@@ -491,19 +471,6 @@ export default function SettingsAutomationPage() {
         </div>
       )}
 
-      {/* STEP EDITOR */}
-      <StepEditorSheet
-        open={!!editingStep}
-        onOpenChange={(v) => !v && setEditingStep(null)}
-        step={editingStep}
-        templates={templates}
-        currentTemplateId={editingStep ? form[editingStep.key] : null}
-        currentDelay={editingStep ? form[editingStep.delayKey] || 0 : 0}
-        onSave={({ templateId, delay }) => {
-          if (!editingStep) return;
-          set({ [editingStep.key]: templateId, [editingStep.delayKey]: delay });
-        }}
-      />
     </div>
   );
 }
