@@ -1,19 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Navigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import logo from '@/assets/logo.webp';
 
-const GoogleIcon = () => (
-  <svg className="h-5 w-5" viewBox="0 0 24 24">
-    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
-    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-  </svg>
-);
+const INVITE_STORAGE_KEY = 'pending_invite_token';
 
 const testimonials = [
   {
@@ -38,8 +31,19 @@ const testimonials = [
 
 export default function AuthPage() {
   const { user, loading, authStatus, authError, clearAuthError, signIn, signUp } = useAuth();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const inviteToken = searchParams.get('invite');
+
+  // Récupération du token invite depuis URL OU localStorage (post email-confirm)
+  const urlInvite = searchParams.get('invite');
+  const [inviteToken] = useState<string | null>(() => {
+    if (urlInvite) {
+      try { localStorage.setItem(INVITE_STORAGE_KEY, urlInvite); } catch {}
+      return urlInvite;
+    }
+    try { return localStorage.getItem(INVITE_STORAGE_KEY); } catch { return null; }
+  });
+
   const [inviteEmail, setInviteEmail] = useState<string | null>(null);
   const [inviteValid, setInviteValid] = useState<boolean | null>(null);
   const [isLogin, setIsLogin] = useState(!inviteToken);
@@ -47,7 +51,11 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetSubmitting, setResetSubmitting] = useState(false);
   const lastAuthErrorRef = useRef<string | null>(null);
+  const consumedRef = useRef(false);
 
   useEffect(() => {
     if (!authError || lastAuthErrorRef.current === authError) return;
@@ -63,13 +71,36 @@ export default function AuthPage() {
       if (info?.valid && info.email) {
         setInviteValid(true);
         setInviteEmail(info.email);
-        setEmail(info.email);
+        setEmail((prev) => prev || info.email!);
         setIsLogin(false);
       } else {
         setInviteValid(false);
+        try { localStorage.removeItem(INVITE_STORAGE_KEY); } catch {}
       }
     })();
   }, [inviteToken]);
+
+  // Cas : déjà connecté + invite présent → consume direct + redirect
+  useEffect(() => {
+    if (!user || !inviteToken || consumedRef.current) return;
+    consumedRef.current = true;
+    (async () => {
+      const { data, error } = await (supabase.rpc as any)(
+        'consume_workspace_invitation',
+        { p_token: inviteToken, p_user_id: user.id }
+      );
+      try { localStorage.removeItem(INVITE_STORAGE_KEY); } catch {}
+      if (error || !data?.success) {
+        toast.error("Invitation invalide ou expirée");
+      } else {
+        toast.success("Tu as rejoint l'espace avec succès");
+        if (data.workspace_id) {
+          try { localStorage.setItem('current_workspace_id', data.workspace_id); } catch {}
+        }
+      }
+      navigate('/', { replace: true });
+    })();
+  }, [user, inviteToken, navigate]);
 
   if (loading && authStatus === 'loading') {
     return (
@@ -79,7 +110,7 @@ export default function AuthPage() {
     );
   }
 
-  if (user) return <Navigate to="/" replace />;
+  if (user && !inviteToken) return <Navigate to="/" replace />;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -93,9 +124,12 @@ export default function AuthPage() {
     }
     setSubmitting(true);
     try {
+      // Pour les signups, attache le token invite dans les metadata
+      // → trigger DB auto-confirme l'email + auto-consume après confirmation
+      const signUpExtra = inviteToken ? { data: { invite_token: inviteToken } } : undefined;
       const { error } = isLogin
         ? await signIn(email, password)
-        : await signUp(email, password);
+        : await (signUp as any)(email, password, signUpExtra);
 
       if (error) {
         if (error.message === 'Invalid login credentials') {
@@ -104,21 +138,47 @@ export default function AuthPage() {
           toast.error(error.message);
         }
       } else if (!isLogin) {
-        // Consume invite if present
+        // Tentative best-effort de consume immédiat (cas auto-confirm email)
         if (inviteToken) {
           const { data: { user: newUser } } = await supabase.auth.getUser();
           if (newUser) {
-            // Try workspace-aware consume first; falls back to legacy consume_invitation
-            const { error: rpcErr } = await (supabase.rpc as any)('consume_workspace_invitation', { p_token: inviteToken, p_user_id: newUser.id });
-            if (rpcErr) {
-              await supabase.rpc('consume_invitation', { p_token: inviteToken, p_user_id: newUser.id });
-            }
+            await (supabase.rpc as any)('consume_workspace_invitation', {
+              p_token: inviteToken,
+              p_user_id: newUser.id,
+            });
+            try { localStorage.removeItem(INVITE_STORAGE_KEY); } catch {}
           }
         }
-        toast.success('Compte créé ! Vérifiez votre email pour confirmer.');
+        if (inviteToken) {
+          toast.success("Compte créé. Tu rejoins l'espace…");
+        } else {
+          toast.success('Compte créé ! Vérifie ton email pour confirmer.');
+        }
+      } else if (isLogin && inviteToken) {
+        // login avec invite → useEffect ci-dessus s'occupe du consume
       }
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetEmail.trim()) return;
+    setResetSubmitting(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success('Email envoyé ! Vérifie ta boîte mail.');
+        setResetOpen(false);
+        setResetEmail('');
+      }
+    } finally {
+      setResetSubmitting(false);
     }
   };
 
@@ -154,7 +214,8 @@ export default function AuthPage() {
           )}
           {inviteToken && inviteValid && (
             <div className="mb-4 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-sm">
-              Invitation valide pour <span className="font-semibold">{inviteEmail}</span>. Crée ton mot de passe pour activer ton compte.
+              Invitation valide pour <span className="font-semibold">{inviteEmail}</span>.
+              {' '}Crée ton mot de passe pour activer ton compte (accès immédiat, sans confirmation email).
             </div>
           )}
 
@@ -165,7 +226,6 @@ export default function AuthPage() {
               </div>
             ) : null}
 
-            {/* Email */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Adresse email
@@ -186,7 +246,6 @@ export default function AuthPage() {
               </div>
             </div>
 
-            {/* Password */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Mot de passe
@@ -216,7 +275,6 @@ export default function AuthPage() {
               </div>
             </div>
 
-            {/* Remember + Reset */}
             {isLogin && (
               <div className="flex items-center justify-between text-xs">
                 <label className="flex items-center gap-2 text-muted-foreground cursor-pointer">
@@ -225,6 +283,7 @@ export default function AuthPage() {
                 </label>
                 <button
                   type="button"
+                  onClick={() => { setResetEmail(email); setResetOpen(true); }}
                   className="text-primary hover:underline transition-colors"
                 >
                   Mot de passe oublié ?
@@ -232,36 +291,16 @@ export default function AuthPage() {
               </div>
             )}
 
-            {/* Submit */}
             <button
               type="submit"
               disabled={submitting}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/25 hover:bg-primary/90 transition-all disabled:opacity-50"
             >
-              {submitting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : null}
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {submitting ? 'Chargement...' : isLogin ? 'Se connecter' : 'Créer mon compte'}
             </button>
           </form>
 
-          {/* Divider */}
-          <div className="my-6 flex items-center gap-3">
-            <div className="h-px flex-1 bg-border/50" />
-            <span className="text-xs text-muted-foreground">Ou continuer avec</span>
-            <div className="h-px flex-1 bg-border/50" />
-          </div>
-
-          {/* Google */}
-          <button
-            type="button"
-            className="flex w-full items-center justify-center gap-3 rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm px-4 py-3 text-sm font-medium text-foreground hover:bg-card transition-all"
-          >
-            <GoogleIcon />
-            Continuer avec Google
-          </button>
-
-          {/* Toggle */}
           <p className="mt-8 text-center text-sm text-muted-foreground">
             {isLogin ? (
               <>
@@ -300,7 +339,6 @@ export default function AuthPage() {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/40 to-background/20" />
 
-        {/* Testimonials */}
         <div className="relative z-10 flex flex-col gap-4 p-10 max-w-lg">
           {testimonials.map((t, i) => (
             <div
@@ -325,6 +363,53 @@ export default function AuthPage() {
           ))}
         </div>
       </div>
+
+      {/* Reset password modal */}
+      {resetOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm px-4"
+          onClick={() => setResetOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 className="font-heading text-xl mb-2">Réinitialiser le mot de passe</h2>
+            <p className="text-sm text-muted-foreground mb-5">
+              Entre ton email, on t'envoie un lien pour choisir un nouveau mot de passe.
+            </p>
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div className="rounded-xl border border-border/50 bg-card/50 p-0.5">
+                <input
+                  type="email"
+                  required
+                  value={resetEmail}
+                  onChange={e => setResetEmail(e.target.value)}
+                  placeholder="votre@email.com"
+                  className="w-full rounded-[10px] bg-transparent px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setResetOpen(false)}
+                  className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-medium hover:bg-muted/50 transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={resetSubmitting}
+                  className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  {resetSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Envoyer
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

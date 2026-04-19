@@ -23,7 +23,7 @@ type AuthContextValue = {
   loading: boolean;
   authStatus: AuthStatus;
   authError: string | null;
-  signUp: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  signUp: (email: string, password: string, extra?: { data?: Record<string, any> }) => Promise<{ error: AuthError | null }>;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
   clearAuthError: () => void;
@@ -193,7 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signUp = useCallback(async (email: string, password: string) => {
+  const signUp = useCallback(async (email: string, password: string, extra?: { data?: Record<string, any> }) => {
     if (authRequestInFlightRef.current) {
       return { error: normalizeAuthError(new Error('Une requête de connexion est déjà en cours.')) };
     }
@@ -207,6 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
         options: {
           emailRedirectTo: window.location.origin,
+          ...(extra?.data ? { data: extra.data } : {}),
         },
       }));
 

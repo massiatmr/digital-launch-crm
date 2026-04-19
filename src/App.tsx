@@ -27,6 +27,7 @@ import ClientDetailPage from "@/pages/ClientDetailPage";
 import OnboardingFormPage from "@/pages/OnboardingFormPage";
 import SettingsPage from "@/pages/SettingsPage";
 import ConversationsPage from "@/pages/ConversationsPage";
+import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import NotFound from "@/pages/NotFound";
 import ScrollRestoration from "@/components/ScrollRestoration";
 import { OneSignalInit } from "@/components/OneSignalInit";
@@ -44,6 +45,7 @@ const App = () => (
           <OneSignalInit />
           <Routes>
             <Route path="/auth" element={<AuthPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/offers/:slug/page" element={<PublicOfferPage />} />
             <Route path="/unsubscribe" element={<UnsubscribePage />} />
             <Route path="/sign/:token" element={<PublicSignaturePage />} />
