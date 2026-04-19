@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Bell, BellOff, Send, Clock, CheckCircle2, XCircle, Loader2, MessageCircle, AlertTriangle, ExternalLink } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Bell, BellOff, Send, Clock, CheckCircle2, XCircle, Loader2, MessageCircle, AlertTriangle, ExternalLink, Mail, Brain, Zap, MessageSquare } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { requestOneSignalPermission, getOneSignalPermission } from '@/hooks/useOneSignal';
@@ -27,14 +29,29 @@ function isPreviewEnvironment() {
   return isPreviewHost || isInIframe;
 }
 
+function StepIcon({ s }: { s: Step }) {
+  if (s === 'sending') return <Loader2 className="h-4 w-4 animate-spin" />;
+  if (s === 'sent') return <CheckCircle2 className="h-4 w-4 text-primary" />;
+  if (s === 'error') return <XCircle className="h-4 w-4 text-destructive" />;
+  return null;
+}
+
 export default function SettingsTestsPage() {
   const { user } = useAuth();
   const [permission, setPermission] = useState(false);
   const [step, setStep] = useState<Step>('idle');
   const [delayedStep, setDelayedStep] = useState<Step>('idle');
-  const [waStep, setWaStep] = useState<Step>('idle');
+  const [waSimStep, setWaSimStep] = useState<Step>('idle');
+  const [waRealStep, setWaRealStep] = useState<Step>('idle');
+  const [emailStep, setEmailStep] = useState<Step>('idle');
+  const [aiStep, setAiStep] = useState<Step>('idle');
+  const [cronStep, setCronStep] = useState<Step>('idle');
   const [lastError, setLastError] = useState<string | null>(null);
+  const [lastResult, setLastResult] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(0);
+  const [waPhone, setWaPhone] = useState('');
+  const [waMessage, setWaMessage] = useState('Test depuis le CRM ✅');
+  const [emailTo, setEmailTo] = useState(user?.email ?? '');
   const inPreview = useMemo(() => isPreviewEnvironment(), []);
   const [diag, setDiag] = useState<{ permission: string; subscriptionId: string | null; optedIn: boolean; swReady: boolean }>({
     permission: 'unknown',
@@ -42,6 +59,10 @@ export default function SettingsTestsPage() {
     optedIn: false,
     swReady: false,
   });
+
+  useEffect(() => {
+    if (user?.email && !emailTo) setEmailTo(user.email);
+  }, [user, emailTo]);
 
   useEffect(() => {
     const refresh = async () => {
@@ -86,15 +107,11 @@ export default function SettingsTestsPage() {
     setter: (s: Step) => void,
     payload: { title: string; body: string; url: string; tag: string }
   ) => {
-    if (!user) {
-      toast.error('Non connecté');
-      return;
-    }
+    if (!user) return toast.error('Non connecté');
     if (inPreview) {
-      setLastError('Le preview Lovable ne peut pas lier cet appareil à OneSignal. Ouvre la version publiée puis active les notifications là-bas.');
+      setLastError('Le preview Lovable ne peut pas lier cet appareil à OneSignal. Ouvre la version publiée.');
       setter('error');
-      toast.error('Teste sur la version publiée, pas dans le preview');
-      return;
+      return toast.error('Teste sur la version publiée');
     }
     setter('sending');
     setLastError(null);
@@ -104,56 +121,142 @@ export default function SettingsTestsPage() {
       });
       if (error) throw new Error(error.message);
       if (data?.ok === false || data?.error) {
-        const message = data?.hint
-          ? `${data.error} — ${data.hint}`
-          : data?.error || JSON.stringify(data);
-        throw new Error(message);
+        throw new Error(data?.hint ? `${data.error} — ${data.hint}` : data?.error || JSON.stringify(data));
       }
       setter('sent');
-      toast.success('Notif envoyée — regarde ton écran 🔔');
+      toast.success('Notif envoyée 🔔');
     } catch (e) {
-      const msg = (e as Error).message;
-      setLastError(msg);
+      setLastError((e as Error).message);
       setter('error');
-      toast.error('Échec : ' + msg);
+      toast.error('Échec : ' + (e as Error).message);
     }
   };
 
-  const sendNow = () =>
-    sendNotification(setStep, {
-      title: '✅ Test instantané',
-      body: 'Si tu vois cette notif, OneSignal marche parfaitement.',
-      url: '/settings/tests',
-      tag: 'test-now',
-    });
-
+  const sendNow = () => sendNotification(setStep, { title: '✅ Test instantané', body: 'OneSignal marche.', url: '/settings/tests', tag: 'test-now' });
   const sendDelayed = async () => {
     setDelayedStep('sending');
     setCountdown(20);
-    toast.info('Tu as 20s pour fermer/minimiser l\'app…');
-    setTimeout(() => {
-      sendNotification(setDelayedStep, {
-        title: '⏰ Test différé',
-        body: 'Notif reçue alors que l\'app était fermée. Clique pour revenir.',
-        url: '/settings/tests',
-        tag: 'test-delay',
+    toast.info('Tu as 20s pour fermer/minimiser…');
+    setTimeout(() => sendNotification(setDelayedStep, { title: '⏰ Test différé', body: 'App fermée OK', url: '/settings/tests', tag: 'test-delay' }), 20_000);
+  };
+  const sendWaSim = () => sendNotification(setWaSimStep, { title: '💬 Test WhatsApp (simulation)', body: 'Salut ! Je suis intéressé.', url: '/conversations?highlight=1', tag: 'test-wa' });
+
+  // === Test WhatsApp réel via Meta API ===
+  const sendWaReal = async () => {
+    if (!waPhone.trim() || !waMessage.trim()) return toast.error('Numéro + message requis');
+    setWaRealStep('sending');
+    setLastError(null);
+    setLastResult(null);
+    try {
+      // On a besoin d'un lead_id valide. On va chercher (ou créer) un lead "TEST" pour ce numéro.
+      const { data: existing } = await supabase
+        .from('leads')
+        .select('id')
+        .eq('phone', waPhone.trim())
+        .maybeSingle();
+      let leadId = existing?.id;
+      if (!leadId) {
+        const { data: newLead, error: insErr } = await supabase
+          .from('leads')
+          .insert({ name: 'TEST WhatsApp', phone: waPhone.trim(), source: 'manual' })
+          .select('id')
+          .single();
+        if (insErr) throw insErr;
+        leadId = newLead.id;
+      }
+      const { data, error } = await supabase.functions.invoke('send-whatsapp-message', {
+        body: { lead_id: leadId, message: waMessage },
       });
-    }, 20_000);
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      setWaRealStep('sent');
+      setLastResult(JSON.stringify(data, null, 2));
+      toast.success(data?.dry_run ? '🟡 Dry-run (active l\'envoi réel dans Settings)' : '✅ WhatsApp envoyé via Meta API');
+    } catch (e) {
+      setLastError((e as Error).message);
+      setWaRealStep('error');
+      toast.error('Échec : ' + (e as Error).message);
+    }
   };
 
-  const sendWaTest = () =>
-    sendNotification(setWaStep, {
-      title: '💬 Test WhatsApp (simulation)',
-      body: 'Salut ! Je suis intéressé par votre offre.',
-      url: '/conversations?highlight=1',
-      tag: 'test-wa',
-    });
+  // === Test email transactionnel ===
+  const sendEmail = async () => {
+    if (!emailTo.trim()) return toast.error('Email destinataire requis');
+    setEmailStep('sending');
+    setLastError(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-transactional-email', {
+        body: {
+          to: emailTo.trim(),
+          template: 'booking-confirmation',
+          subject: '✅ Test email depuis le CRM',
+          data: {
+            name: 'Test',
+            booking_date: new Date().toLocaleDateString('fr-FR'),
+            time_slot: '14:00',
+            offer_name: 'Test Offer',
+          },
+        },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      setEmailStep('sent');
+      setLastResult(JSON.stringify(data, null, 2));
+      toast.success('📧 Email envoyé (vérifie ta boîte + spam)');
+    } catch (e) {
+      setLastError((e as Error).message);
+      setEmailStep('error');
+      toast.error('Échec : ' + (e as Error).message);
+    }
+  };
 
-  const StepIcon = ({ s }: { s: Step }) => {
-    if (s === 'sending') return <Loader2 className="h-4 w-4 animate-spin" />;
-    if (s === 'sent') return <CheckCircle2 className="h-4 w-4 text-primary" />;
-    if (s === 'error') return <XCircle className="h-4 w-4 text-destructive" />;
-    return null;
+  // === Test IA (analyse lead bidon) ===
+  const sendAi = async () => {
+    setAiStep('sending');
+    setLastError(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-lead-analysis', {
+        body: {
+          mode: 'analyze',
+          lead: {
+            name: 'Jean Dupont (test)',
+            company_name: 'Déménagements Express',
+            message: 'Bonjour, je cherche un site web pour ma boîte de déménagement, urgent svp',
+            source: 'facebook',
+          },
+        },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      setAiStep('sent');
+      setLastResult(JSON.stringify(data, null, 2));
+      toast.success('🧠 IA OK — voir résultat ci-dessous');
+    } catch (e) {
+      setLastError((e as Error).message);
+      setAiStep('error');
+      toast.error('Échec : ' + (e as Error).message);
+    }
+  };
+
+  // === Test cron follow-up (déclenche manuellement) ===
+  const sendCron = async () => {
+    setCronStep('sending');
+    setLastError(null);
+    try {
+      const [a, b] = await Promise.all([
+        supabase.functions.invoke('detect-inactive-conversations', { body: {} }),
+        supabase.functions.invoke('process-followup-tasks', { body: {} }),
+      ]);
+      if (a.error) throw new Error('detect: ' + a.error.message);
+      if (b.error) throw new Error('process: ' + b.error.message);
+      setCronStep('sent');
+      setLastResult(JSON.stringify({ detect: a.data, process: b.data }, null, 2));
+      toast.success('⚡ Crons exécutés manuellement');
+    } catch (e) {
+      setLastError((e as Error).message);
+      setCronStep('error');
+      toast.error('Échec : ' + (e as Error).message);
+    }
   };
 
   return (
@@ -162,15 +265,14 @@ export default function SettingsTestsPage() {
         <Card className="border-destructive/40 bg-destructive/5">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base text-destructive">
-              <AlertTriangle className="h-4 w-4" /> Test impossible dans le preview
+              <AlertTriangle className="h-4 w-4" /> Notifs push : test impossible dans le preview
             </CardTitle>
             <CardDescription>
-              Les logs backend montrent actuellement `invalid_aliases` : aucun appareil OneSignal n'est lié à ton user, donc aucune notif ne peut partir.
-              Le preview Lovable n'enregistre pas correctement OneSignal. Il faut activer les notifs sur la version publiée.
+              Les autres tests (WhatsApp, email, IA, cron) fonctionnent dans le preview. Seules les notifs push nécessitent la version publiée.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button asChild className="gap-2">
+            <Button asChild variant="outline" size="sm" className="gap-2">
               <a href={PUBLISHED_URL} target="_blank" rel="noreferrer">
                 Ouvrir la version publiée <ExternalLink className="h-4 w-4" />
               </a>
@@ -183,112 +285,140 @@ export default function SettingsTestsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">Diagnostic OneSignal (live)</CardTitle>
-          <CardDescription>État réel du SDK sur cet appareil. Subscription ID = appareil enregistré côté OneSignal.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-1 text-xs font-mono">
           <div>permission: <span className={diag.permission === 'granted' ? 'text-primary' : 'text-destructive'}>{diag.permission}</span></div>
-          <div>service worker actif: <span className={diag.swReady ? 'text-primary' : 'text-destructive'}>{String(diag.swReady)}</span></div>
+          <div>service worker: <span className={diag.swReady ? 'text-primary' : 'text-destructive'}>{String(diag.swReady)}</span></div>
           <div>optedIn: <span className={diag.optedIn ? 'text-primary' : 'text-muted-foreground'}>{String(diag.optedIn)}</span></div>
           <div className="break-all">subscriptionId: <span className={diag.subscriptionId ? 'text-primary' : 'text-destructive'}>{diag.subscriptionId ?? 'null'}</span></div>
           <div>user_id: <span className="text-muted-foreground">{user?.id ?? 'non connecté'}</span></div>
         </CardContent>
       </Card>
 
-      {/* STEP 1 — Activation */}
+      {/* === NOTIFICATIONS PUSH === */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">1</span>
-            Activer les notifications
+            <Bell className="h-4 w-4 text-primary" /> Notifications push
           </CardTitle>
-          <CardDescription>
-            Autorise les notifs sur cet appareil/navigateur. À refaire sur chaque appareil (Mac, iPhone, etc.).
-          </CardDescription>
+          <CardDescription>Activation + 3 tests de notif.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           {permission ? (
-            <div className="flex items-center gap-2 text-sm">
-              <Badge className="bg-primary/20 text-primary border-primary/40">
-                <CheckCircle2 className="h-3 w-3 mr-1" /> Activées sur cet appareil
-              </Badge>
-            </div>
+            <Badge className="bg-primary/20 text-primary border-primary/40">
+              <CheckCircle2 className="h-3 w-3 mr-1" /> Activées sur cet appareil
+            </Badge>
           ) : (
-            <Button onClick={enable} className="gap-2">
-              <Bell className="h-4 w-4" /> Activer maintenant
+            <Button onClick={enable} size="sm" className="gap-2">
+              <Bell className="h-4 w-4" /> Activer
             </Button>
           )}
-        </CardContent>
-      </Card>
-
-      {/* STEP 2 — Test direct */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">2</span>
-            Test instantané
-          </CardTitle>
-          <CardDescription>
-            Envoie une notif maintenant. Elle doit s'afficher sur tous tes appareils où les notifs sont activées.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Button onClick={sendNow} disabled={!permission || step === 'sending'} className="gap-2">
-            <Send className="h-4 w-4" /> Envoyer maintenant
-            <StepIcon s={step} />
-          </Button>
-          {!permission && (
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <BellOff className="h-3 w-3" /> Active d'abord les notifs (étape 1)
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* STEP 3 — Test différé (app fermée) */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">3</span>
-            Test app fermée / arrière-plan
-          </CardTitle>
-          <CardDescription>
-            Programme une notif dans 20s. Ferme/minimise l'app pendant ce temps pour vérifier qu'elle arrive même quand l'app n'est pas ouverte.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Button onClick={sendDelayed} disabled={!permission || delayedStep === 'sending'} variant="outline" className="gap-2">
-            <Clock className="h-4 w-4" />
-            {countdown > 0 ? `Envoi dans ${countdown}s…` : 'Programmer dans 20s'}
-            <StepIcon s={delayedStep} />
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={sendNow} disabled={!permission || step === 'sending'} size="sm" className="gap-2">
+              <Send className="h-3 w-3" /> Test instantané <StepIcon s={step} />
+            </Button>
+            <Button onClick={sendDelayed} disabled={!permission || delayedStep === 'sending'} size="sm" variant="outline" className="gap-2">
+              <Clock className="h-3 w-3" /> {countdown > 0 ? `${countdown}s…` : 'Test différé 20s'} <StepIcon s={delayedStep} />
+            </Button>
+            <Button onClick={sendWaSim} disabled={!permission || waSimStep === 'sending'} size="sm" variant="outline" className="gap-2">
+              <MessageCircle className="h-3 w-3" /> Simu WA <StepIcon s={waSimStep} />
+            </Button>
+          </div>
           {countdown > 0 && (
             <p className="text-xs text-primary flex items-center gap-1">
-              <AlertTriangle className="h-3 w-3" /> Ferme ou minimise l'app maintenant !
+              <AlertTriangle className="h-3 w-3" /> Ferme/minimise l'app !
             </p>
           )}
         </CardContent>
       </Card>
 
-      {/* STEP 4 — Test WhatsApp simulation */}
+      {/* === WHATSAPP RÉEL === */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">4</span>
-            Simuler une notif WhatsApp
+            <MessageSquare className="h-4 w-4 text-primary" /> Envoi WhatsApp réel (Meta API)
           </CardTitle>
           <CardDescription>
-            Envoie une notif type "nouveau message". En cliquant dessus, tu seras redirigé vers /conversations.
+            Crée un lead "TEST" si besoin et envoie un vrai message via ta config WhatsApp Cloud. Si dry-run actif, aucun message ne part.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-2">
+            <Label htmlFor="wa-phone" className="text-xs">Numéro (format E.164, ex: +33612345678)</Label>
+            <Input id="wa-phone" value={waPhone} onChange={(e) => setWaPhone(e.target.value)} placeholder="+33612345678" />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="wa-msg" className="text-xs">Message</Label>
+            <Input id="wa-msg" value={waMessage} onChange={(e) => setWaMessage(e.target.value)} />
+          </div>
+          <Button onClick={sendWaReal} disabled={waRealStep === 'sending'} size="sm" className="gap-2">
+            <Send className="h-3 w-3" /> Envoyer WhatsApp <StepIcon s={waRealStep} />
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* === EMAIL === */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Mail className="h-4 w-4 text-primary" /> Email transactionnel
+          </CardTitle>
+          <CardDescription>Envoie un email de test (template booking-confirmation).</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-2">
+            <Label htmlFor="email-to" className="text-xs">Destinataire</Label>
+            <Input id="email-to" type="email" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder="toi@exemple.com" />
+          </div>
+          <Button onClick={sendEmail} disabled={emailStep === 'sending'} size="sm" className="gap-2">
+            <Send className="h-3 w-3" /> Envoyer email <StepIcon s={emailStep} />
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* === IA === */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Brain className="h-4 w-4 text-primary" /> Analyse IA (Lovable AI Gateway)
+          </CardTitle>
+          <CardDescription>Lance une analyse Gemini sur un lead bidon pour vérifier que la clé fonctionne.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={sendAi} disabled={aiStep === 'sending'} size="sm" className="gap-2">
+            <Brain className="h-3 w-3" /> Tester l'IA <StepIcon s={aiStep} />
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* === CRON === */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Zap className="h-4 w-4 text-primary" /> Crons follow-up WhatsApp
+          </CardTitle>
+          <CardDescription>
+            Exécute manuellement <code className="text-xs">detect-inactive-conversations</code> + <code className="text-xs">process-followup-tasks</code>.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button onClick={sendWaTest} disabled={!permission || waStep === 'sending'} variant="outline" className="gap-2">
-            <MessageCircle className="h-4 w-4" /> Simuler message WhatsApp
-            <StepIcon s={waStep} />
+          <Button onClick={sendCron} disabled={cronStep === 'sending'} size="sm" className="gap-2">
+            <Zap className="h-3 w-3" /> Lancer les crons maintenant <StepIcon s={cronStep} />
           </Button>
         </CardContent>
       </Card>
 
-      {/* Erreur globale */}
+      {/* Résultat / erreur */}
+      {lastResult && (
+        <Card className="bg-muted/30">
+          <CardHeader>
+            <CardTitle className="text-sm">Dernier résultat</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <pre className="text-xs font-mono whitespace-pre-wrap break-all max-h-64 overflow-auto">{lastResult}</pre>
+          </CardContent>
+        </Card>
+      )}
       {lastError && (
         <Card className="border-destructive/40 bg-destructive/5">
           <CardHeader>
@@ -301,19 +431,6 @@ export default function SettingsTestsPage() {
           </CardContent>
         </Card>
       )}
-
-      {/* Aide */}
-      <Card className="bg-muted/30">
-        <CardContent className="pt-6 space-y-2 text-xs text-muted-foreground">
-          <p className="font-medium text-foreground">💡 Conseils si les notifs n'arrivent pas :</p>
-          <ul className="list-disc pl-5 space-y-1">
-            <li><strong>iPhone</strong> : l'app doit être installée sur l'écran d'accueil (PWA), iOS 16.4+, et les notifs autorisées dans Réglages → Notifications.</li>
-            <li><strong>Mac/Chrome</strong> : vérifie que les notifs ne sont pas bloquées dans Préférences Système → Notifications → Chrome.</li>
-            <li><strong>Safari</strong> : nécessite que le site soit ajouté à l'écran d'accueil/dock.</li>
-            <li>Une fois activé sur un appareil, tu reçois automatiquement les vraies notifs WhatsApp et rappels.</li>
-          </ul>
-        </CardContent>
-      </Card>
     </div>
   );
 }
