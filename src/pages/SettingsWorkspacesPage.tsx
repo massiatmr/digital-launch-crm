@@ -75,12 +75,15 @@ function FeatureToggles({ workspaceId, isAdmin }: { workspaceId: string; isAdmin
 
 function WorkspaceEditor({ workspace, canManage }: { workspace: any; canManage: boolean }) {
   const qc = useQueryClient();
+  const { refetch, switchWorkspace, workspaces } = useWorkspaces();
   const [form, setForm] = useState({
     company_name: workspace.company_name || '',
     slug: workspace.slug || '',
     logo_url: workspace.logo_url || '',
     notification_email: workspace.notification_email || '',
   });
+  const [confirmName, setConfirmName] = useState('');
+  const [impact, setImpact] = useState<{ leads: number; clients: number; offers: number; invoices: number } | null>(null);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -96,7 +99,39 @@ function WorkspaceEditor({ workspace, canManage }: { workspace: any; canManage: 
     onError: (e: any) => toast.error(e.message),
   });
 
+  const loadImpact = async () => {
+    const tables = ['leads', 'clients', 'offers', 'invoices'] as const;
+    const counts: any = {};
+    for (const t of tables) {
+      const { count } = await (supabase.from(t as any) as any)
+        .select('id', { count: 'exact', head: true })
+        .eq('workspace_id', workspace.id);
+      counts[t] = count || 0;
+    }
+    setImpact(counts);
+  };
+
+  const softDelete = useMutation({
+    mutationFn: async () => {
+      const { error } = await (supabase.from('workspaces' as any) as any)
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', workspace.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Espace déplacé vers la corbeille (récupérable 30 jours)');
+      // Switch vers un autre workspace si on supprime le courant
+      const other = workspaces.find((w) => w.id !== workspace.id);
+      if (other) switchWorkspace(other.id);
+      refetch();
+      qc.invalidateQueries({ queryKey: ['workspaces'] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   if (!canManage) return null;
+
+  const nameOk = confirmName.trim() === (workspace.company_name || '').trim();
 
   return (
     <div className="space-y-2 pt-3 border-t border-border/40">
@@ -122,6 +157,54 @@ function WorkspaceEditor({ workspace, canManage }: { workspace: any; canManage: 
       <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending} className="w-full">
         {save.isPending ? 'Enregistrement…' : 'Enregistrer'}
       </Button>
+
+      {/* Suppression sécurisée */}
+      <AlertDialog onOpenChange={(o) => { if (o) loadImpact(); else { setConfirmName(''); setImpact(null); } }}>
+        <AlertDialogTrigger asChild>
+          <Button size="sm" variant="ghost" className="w-full text-destructive gap-1.5 mt-2">
+            <Trash2 className="h-3.5 w-3.5" /> Supprimer cet espace
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" /> Supprimer "{workspace.company_name}" ?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm">
+                <p>L'espace sera déplacé vers la <strong>corbeille pendant 30 jours</strong>, puis purgé automatiquement.
+                Pendant ce délai, tu peux le restaurer depuis Paramètres → Corbeille.</p>
+                {impact && (
+                  <div className="rounded-md bg-muted/50 p-2 text-xs">
+                    <div className="font-semibold mb-1">Impact :</div>
+                    <ul className="space-y-0.5">
+                      <li>• {impact.leads} prospect(s)</li>
+                      <li>• {impact.clients} client(s)</li>
+                      <li>• {impact.offers} offre(s)</li>
+                      <li>• {impact.invoices} facture(s)</li>
+                    </ul>
+                    <div className="mt-2 text-muted-foreground">Ces données restent intactes en base pendant la période de récupération.</div>
+                  </div>
+                )}
+                <div>
+                  Pour confirmer, tape exactement le nom : <strong className="text-foreground">{workspace.company_name}</strong>
+                  <Input className="mt-2" value={confirmName} onChange={(e) => setConfirmName(e.target.value)} placeholder={workspace.company_name} />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!nameOk || softDelete.isPending}
+              onClick={() => softDelete.mutate()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Déplacer vers la corbeille
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
