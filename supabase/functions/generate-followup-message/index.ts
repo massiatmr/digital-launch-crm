@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
       supabase.from("leads").select("offer_id, offers(name, description, price)").eq("id", lead_id).maybeSingle(),
     ]);
 
-    if (!lead) return new Response(JSON.stringify({ error: "Lead not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    // (lead already loaded above)
 
     const offerInfo = (offer as any)?.offers
       ? `Offre proposée: ${(offer as any).offers.name} — ${(offer as any).offers.description ?? ''} ${(offer as any).offers.price ? `(${(offer as any).offers.price})` : ''}`
