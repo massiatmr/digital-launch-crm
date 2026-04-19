@@ -14,6 +14,7 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { ShowStatusToggle } from '@/components/ShowStatusToggle';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
+import ReactMarkdown from 'react-markdown';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
