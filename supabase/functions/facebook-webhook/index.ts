@@ -367,11 +367,15 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
         let existingLead: LeadLookupResult | null = null;
 
         if (email) {
-          const { data, error } = await supabase
+          let q = supabase
             .from("leads")
             .select("id, notes")
             .eq("owner_id", effectiveOwnerId)
-            .maybeSingle();
+            .eq("email", email);
+          q = effectiveWorkspaceId
+            ? q.eq("workspace_id", effectiveWorkspaceId)
+            : q.is("workspace_id", null);
+          const { data, error } = await q.maybeSingle();
 
           if (error) {
             logError(requestId, "Lead lookup by email failed", {
@@ -391,11 +395,15 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
         }
 
         if (!existingLead && phone) {
-          const { data, error } = await supabase
+          let q = supabase
             .from("leads")
             .select("id, notes")
             .eq("owner_id", effectiveOwnerId)
-            .maybeSingle();
+            .eq("phone", phone);
+          q = effectiveWorkspaceId
+            ? q.eq("workspace_id", effectiveWorkspaceId)
+            : q.is("workspace_id", null);
+          const { data, error } = await q.maybeSingle();
 
           if (error) {
             logError(requestId, "Lead lookup by phone failed", {
