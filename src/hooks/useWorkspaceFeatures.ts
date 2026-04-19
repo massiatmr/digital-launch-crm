@@ -19,7 +19,7 @@ export function useWorkspaceFeatures(workspaceId?: string | null) {
         .eq('workspace_id', wsId);
       if (error) throw error;
       const map: Record<FeatureKey, boolean> = {
-        bookings: true, whatsapp: true, facebook: true, offers: true, conversations: true,
+        bookings: true, whatsapp: true, facebook: true, offers: true, conversations: true, clients: true,
       };
       for (const row of (data || []) as any[]) {
         if (ALL_FEATURES.includes(row.feature_key)) {
