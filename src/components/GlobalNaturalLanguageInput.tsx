@@ -980,6 +980,68 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Booking dialog */}
+      <Dialog open={!!bookingIntent} onOpenChange={(o) => !o && resetBooking()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-primary" />
+              {bookingIntent?.subtype === 'check' ? 'Créneaux disponibles' : 'Confirmer le rendez-vous'}
+            </DialogTitle>
+            <DialogDescription>
+              {bookingIntent?.human_summary || `Le ${bookingIntent?.date}`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            {bookingLoading && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Vérification des dispos…
+              </div>
+            )}
+
+            {bookingSlots && bookingSlots.length === 0 && (
+              <p className="text-sm text-destructive">Aucun créneau disponible ce jour.</p>
+            )}
+
+            {bookingSlots && bookingSlots.length > 0 && (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Clique sur un créneau pour {bookingIntent?.subtype === 'check' ? 'le réserver' : 'confirmer'} :
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {bookingSlots.map((s) => (
+                    <Button
+                      key={s}
+                      size="sm"
+                      variant={bookingIntent?.time_slot === s ? 'default' : 'outline'}
+                      disabled={bookingLoading}
+                      onClick={() => confirmBooking(s)}
+                    >
+                      {s}
+                    </Button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {bookingIntent?.contact_name && (
+              <div className="rounded-lg bg-muted/30 p-3 text-xs space-y-1">
+                <div><span className="text-muted-foreground">Contact : </span>{bookingIntent.contact_name}</div>
+                {bookingIntent.contact_phone && <div><span className="text-muted-foreground">Tél : </span>{bookingIntent.contact_phone}</div>}
+                {bookingIntent.contact_email && <div><span className="text-muted-foreground">Email : </span>{bookingIntent.contact_email}</div>}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={resetBooking} disabled={bookingLoading}>
+              Fermer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
