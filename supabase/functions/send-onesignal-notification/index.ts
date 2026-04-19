@@ -121,16 +121,12 @@ Deno.serve(async (req) => {
     if (absoluteUrl) basePayload.web_url = absoluteUrl;
     if (tag) basePayload.web_push_topic = tag;
 
-    const attempts: Array<{ method: "external_id" | "subscription_ids"; payload: Record<string, unknown> }> = [
-      { method: "external_id", payload: { ...basePayload, include_aliases: { external_id: [user_id] } } },
-    ];
-
-    if (subscriptionIds.length > 0) {
-      attempts.push({
-        method: "subscription_ids",
-        payload: { ...basePayload, include_subscription_ids: subscriptionIds },
-      });
-    }
+    // Préférer subscription_ids quand on les a (ciblage exact, pas de doublon).
+    // Fallback sur external_id seulement si on n'a aucun device en base.
+    const attempts: Array<{ method: "external_id" | "subscription_ids"; payload: Record<string, unknown> }> =
+      subscriptionIds.length > 0
+        ? [{ method: "subscription_ids", payload: { ...basePayload, include_subscription_ids: subscriptionIds } }]
+        : [{ method: "external_id", payload: { ...basePayload, include_aliases: { external_id: [user_id] } } }];
 
     let lastJson: unknown = null;
     let lastStatus = 0;
