@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
@@ -42,9 +42,11 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const lastAuthErrorRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!authError) return;
+    if (!authError || lastAuthErrorRef.current === authError) return;
+    lastAuthErrorRef.current = authError;
     toast.error(authError);
   }, [authError]);
 
@@ -71,13 +73,11 @@ export default function AuthPage() {
         : await signUp(email, password);
 
       if (error) {
-        toast.error(
-          error.message === 'Invalid login credentials'
-            ? 'Email ou mot de passe incorrect'
-            : error.status === 504
-              ? "Le service de connexion est temporairement indisponible. Réessaie dans quelques instants."
-              : error.message,
-        );
+        if (error.message === 'Invalid login credentials') {
+          toast.error('Email ou mot de passe incorrect');
+        } else if (error.status && error.status < 500) {
+          toast.error(error.message);
+        }
       } else if (!isLogin) {
         toast.success('Compte créé ! Vérifiez votre email pour confirmer.');
       }
