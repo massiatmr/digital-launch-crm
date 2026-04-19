@@ -179,6 +179,9 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
                 </div>
               </div>
 
+              {/* Formulaire d'édition inline */}
+              <LeadEditForm lead={lead} onClose={() => {}} />
+
 
               {/* Message initial */}
               {lead.message && (
