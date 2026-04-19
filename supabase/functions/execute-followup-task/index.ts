@@ -122,6 +122,27 @@ Deno.serve(async (req) => {
       .from("leads").select("*").eq("id", task.lead_id).maybeSingle();
     if (!lead) return new Response(JSON.stringify({ error: "Lead not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+    // Helper : récupère la config WhatsApp ACTIVE scopée au workspace du lead
+    // (sinon fallback sur l'owner_id si lead sans workspace — legacy)
+    const getActiveWaConfig = async () => {
+      if (lead.workspace_id) {
+        const { data } = await admin
+          .from("whatsapp_config")
+          .select("*")
+          .eq("workspace_id", lead.workspace_id)
+          .eq("is_active", true)
+          .maybeSingle();
+        return data;
+      }
+      const { data } = await admin
+        .from("whatsapp_config")
+        .select("*")
+        .eq("owner_id", ownerId)
+        .is("workspace_id", null)
+        .maybeSingle();
+      return data;
+    };
+
     // Déterminer si un template est mappé pour ce type de tâche
     const tplField = templateKey(task.task_type);
     const tplId = tplField && settings ? (settings as any)[tplField] : null;
@@ -152,8 +173,7 @@ Deno.serve(async (req) => {
       aiGenerated = template.variables_count > 0;
 
       if (!dryRun) {
-        const { data: config } = await admin
-          .from("whatsapp_config").select("*").eq("owner_id", ownerId).maybeSingle();
+        const config = await getActiveWaConfig();
         if (!config) {
           errorMessage = "WhatsApp non configuré";
           logStatus = "failed";
@@ -224,8 +244,7 @@ Deno.serve(async (req) => {
           errorMessage = "Aucun template mappé et fenêtre 24h fermée — Meta refuse le texte libre. Mappe un template ou attends une réponse du lead.";
         } else {
           // Envoi texte libre autorisé
-          const { data: config } = await admin
-            .from("whatsapp_config").select("*").eq("owner_id", ownerId).maybeSingle();
+          const config = await getActiveWaConfig();
           if (!config) {
             errorMessage = "WhatsApp non configuré";
             logStatus = "failed";
