@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Bell, BellOff, Send, Clock, CheckCircle2, XCircle, Loader2, MessageCircle, AlertTriangle, ExternalLink, Mail, Brain, Zap, MessageSquare } from 'lucide-react';
+import { Bell, BellOff, Send, Clock, CheckCircle2, XCircle, Loader2, MessageCircle, AlertTriangle, ExternalLink, Mail, Brain, Zap, MessageSquare, Workflow } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { requestOneSignalPermission, getOneSignalPermission } from '@/hooks/useOneSignal';
@@ -46,6 +46,9 @@ export default function SettingsTestsPage() {
   const [emailStep, setEmailStep] = useState<Step>('idle');
   const [aiStep, setAiStep] = useState<Step>('idle');
   const [cronStep, setCronStep] = useState<Step>('idle');
+  const [seqStep, setSeqStep] = useState<Step>('idle');
+  const [seqLeadId, setSeqLeadId] = useState('');
+  const [leads, setLeads] = useState<{ id: string; name: string; phone: string | null }[]>([]);
   const [lastError, setLastError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(0);
@@ -59,6 +62,12 @@ export default function SettingsTestsPage() {
     optedIn: false,
     swReady: false,
   });
+
+  // Load leads for sequence test selector
+  useEffect(() => {
+    supabase.from('leads').select('id, name, phone').order('created_at', { ascending: false }).limit(20)
+      .then(({ data }) => setLeads(data ?? []));
+  }, []);
 
   useEffect(() => {
     if (user?.email && !emailTo) setEmailTo(user.email);
@@ -259,6 +268,28 @@ export default function SettingsTestsPage() {
     }
   };
 
+  // === Test séquence accélérée sur lead ===
+  const runSeqTest = async () => {
+    if (!seqLeadId) return toast.error('Sélectionne un lead');
+    setSeqStep('sending');
+    setLastError(null);
+    setLastResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('test-followup-sequence', {
+        body: { lead_id: seqLeadId },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      setSeqStep('sent');
+      setLastResult(JSON.stringify(data, null, 2));
+      toast.success(`⚡ ${data.steps_created} tâches créées (durée totale: ${data.total_duration_seconds}s)`);
+    } catch (e) {
+      setLastError((e as Error).message);
+      setSeqStep('error');
+      toast.error('Échec : ' + (e as Error).message);
+    }
+  };
+
   return (
     <div className="space-y-4 max-w-2xl">
       {inPreview && (
@@ -405,6 +436,41 @@ export default function SettingsTestsPage() {
           <Button onClick={sendCron} disabled={cronStep === 'sending'} size="sm" className="gap-2">
             <Zap className="h-3 w-3" /> Lancer les crons maintenant <StepIcon s={cronStep} />
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* === SÉQUENCE ACCÉLÉRÉE === */}
+      <Card className="border-primary/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Workflow className="h-4 w-4 text-primary" /> Test séquence accélérée
+          </CardTitle>
+          <CardDescription>
+            Déclenche TOUTE ta séquence sur un lead choisi, mais avec délais ÷60 (minutes→sec, heures→min). Idéal pour voir le déroulé complet en quelques minutes.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-2">
+            <Label className="text-xs">Lead à utiliser pour le test</Label>
+            <select
+              value={seqLeadId}
+              onChange={(e) => setSeqLeadId(e.target.value)}
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="">— Choisir un lead —</option>
+              {leads.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name} {l.phone ? `(${l.phone})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <Button onClick={runSeqTest} disabled={seqStep === 'sending' || !seqLeadId} size="sm" className="gap-2">
+            <Zap className="h-3 w-3" /> Lancer la séquence accélérée <StepIcon s={seqStep} />
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            ⚠️ Si le mode test (dry-run) est désactivé dans <code>/settings/automation</code>, des messages WhatsApp réels seront envoyés au lead choisi !
+          </p>
         </CardContent>
       </Card>
 

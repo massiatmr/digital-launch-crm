@@ -557,6 +557,56 @@ export type Database = {
           },
         ]
       }
+      followup_sequence_steps: {
+        Row: {
+          created_at: string
+          delay_unit: string
+          delay_value: number
+          id: string
+          is_enabled: boolean
+          label: string
+          owner_id: string
+          step_order: number
+          task_type: Database["public"]["Enums"]["followup_task_type"]
+          template_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          delay_unit?: string
+          delay_value?: number
+          id?: string
+          is_enabled?: boolean
+          label?: string
+          owner_id?: string
+          step_order: number
+          task_type?: Database["public"]["Enums"]["followup_task_type"]
+          template_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          delay_unit?: string
+          delay_value?: number
+          id?: string
+          is_enabled?: boolean
+          label?: string
+          owner_id?: string
+          step_order?: number
+          task_type?: Database["public"]["Enums"]["followup_task_type"]
+          template_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "followup_sequence_steps_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       generated_messages: {
         Row: {
           content: string
