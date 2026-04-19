@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Kanban, Bell, MoreHorizontal, LogOut, Package, CalendarCheck, UserCheck, MessageCircle, Settings } from 'lucide-react';
+import { Kanban, Bell, MoreHorizontal, LogOut, LayoutDashboard, Package, CalendarCheck, UserCheck, MessageCircle, Settings, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import {
@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/sheet';
 import { useAuth } from '@/hooks/useAuth';
 import { useWhatsAppInbox } from '@/hooks/useWhatsAppInbox';
+import { GlobalNaturalLanguageInput } from './GlobalNaturalLanguageInput';
 
 const mainLinks = [
   { to: '/', icon: Kanban, label: 'Pipeline' },
@@ -28,6 +29,7 @@ const moreLinks = [
 export function MobileBottomNav() {
   const location = useLocation();
   const [showMore, setShowMore] = useState(false);
+  const [showAi, setShowAi] = useState(false);
   const { signOut } = useAuth();
   const { unreadCount } = useWhatsAppInbox();
 
@@ -35,7 +37,7 @@ export function MobileBottomNav() {
     <>
       <nav className="fixed bottom-0 inset-x-0 z-50 border-t border-border bg-card/95 backdrop-blur-md safe-area-pb h-16">
         <div className="flex items-center justify-around px-1 py-1.5">
-          {mainLinks.map(({ to, icon: Icon, label }) => {
+          {mainLinks.slice(0, 2).map(({ to, icon: Icon, label }) => {
             const active = location.pathname === to || (to !== '/' && location.pathname.startsWith(to));
             const showBadge = to === '/conversations' && unreadCount > 0;
             return (
@@ -57,6 +59,36 @@ export function MobileBottomNav() {
               </NavLink>
             );
           })}
+
+          {/* Bouton IA centré */}
+          <button
+            onClick={() => setShowAi(true)}
+            className="flex flex-col items-center justify-center flex-1 min-w-0"
+            aria-label="Assistant IA"
+          >
+            <span className="flex items-center justify-center h-11 w-11 -mt-4 rounded-full gradient-primary text-white shadow-[0_4px_16px_hsl(var(--primary)/0.45)]">
+              <Sparkles className="h-5 w-5" />
+            </span>
+            <span className="text-[10px] text-muted-foreground mt-0.5">IA</span>
+          </button>
+
+          {mainLinks.slice(2).map(({ to, icon: Icon, label }) => {
+            const active = location.pathname === to || (to !== '/' && location.pathname.startsWith(to));
+            return (
+              <NavLink
+                key={to}
+                to={to}
+                className={cn(
+                  'relative flex flex-col items-center gap-0.5 rounded-lg px-2 py-1.5 text-[10px] transition-colors flex-1 min-w-0',
+                  active ? 'text-primary' : 'text-muted-foreground'
+                )}
+              >
+                <Icon className="h-5 w-5 shrink-0" />
+                <span className="truncate max-w-full">{label}</span>
+              </NavLink>
+            );
+          })}
+
           <button
             onClick={() => setShowMore(true)}
             className={cn(
@@ -68,6 +100,20 @@ export function MobileBottomNav() {
           </button>
         </div>
       </nav>
+
+      <Sheet open={showAi} onOpenChange={setShowAi}>
+        <SheetContent side="bottom" className="rounded-t-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              Assistant IA
+            </SheetTitle>
+          </SheetHeader>
+          <div className="py-2">
+            <GlobalNaturalLanguageInput onDone={() => setShowAi(false)} />
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <Sheet open={showMore} onOpenChange={setShowMore}>
         <SheetContent side="bottom" className="rounded-t-2xl">
