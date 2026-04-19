@@ -1,13 +1,17 @@
 import { useEffect } from 'react';
 import OneSignal from 'react-onesignal';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
 const ONESIGNAL_APP_ID = '46f7498d-e02a-4ee9-bbc6-28f0ec0d7aea';
 const SAFARI_WEB_ID = 'web.onesignal.auto.1b1338f0-ae7a-49c0-a5a1-0112be9b9bea';
+const DEVICE_ID_KEY = 'dlcrm_device_id';
 
 let initPromise: Promise<void> | null = null;
 let clickHandlerBound = false;
+let subscriptionListenerBound = false;
+let activeUserId: string | null = null;
 
 function isPreviewIframe() {
   try {
@@ -22,6 +26,93 @@ function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function getOrCreateDeviceId(): string {
+  if (typeof window === 'undefined') return '';
+  let id = localStorage.getItem(DEVICE_ID_KEY);
+  if (!id) {
+    id = crypto.randomUUID?.() ?? `dev-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem(DEVICE_ID_KEY, id);
+  }
+  return id;
+}
+
+function detectPlatform(ua: string): string {
+  if (/iphone|ipad|ipod/i.test(ua)) return 'iOS';
+  if (/android/i.test(ua)) return 'Android';
+  if (/macintosh/i.test(ua)) return 'macOS';
+  if (/windows/i.test(ua)) return 'Windows';
+  if (/linux/i.test(ua)) return 'Linux';
+  return 'Web';
+}
+
+function detectBrowser(ua: string): string {
+  if (/edg\//i.test(ua)) return 'Edge';
+  if (/chrome\//i.test(ua) && !/edg\//i.test(ua)) return 'Chrome';
+  if (/safari\//i.test(ua) && !/chrome\//i.test(ua)) return 'Safari';
+  if (/firefox\//i.test(ua)) return 'Firefox';
+  return 'Other';
+}
+
+function isStandalonePWA(): boolean {
+  if (typeof window === 'undefined') return false;
+  // @ts-ignore iOS
+  if (window.navigator.standalone === true) return true;
+  return window.matchMedia?.('(display-mode: standalone)').matches ?? false;
+}
+
+async function persistOneSignalSubscription(userId: string, subscriptionId: string) {
+  if (!subscriptionId) return false;
+
+  const ua = navigator.userAgent || '';
+  const platform = detectPlatform(ua);
+  const browser = detectBrowser(ua);
+  const standalone = isStandalonePWA();
+  const deviceId = getOrCreateDeviceId();
+  const label = `${platform} · ${browser}${standalone ? ' (PWA)' : ''}`;
+
+  const payload = {
+    user_id: userId,
+    endpoint: `onesignal:${subscriptionId}`,
+    keys_p256dh: 'onesignal',
+    keys_auth: 'onesignal',
+    device_info: ua.slice(0, 200),
+    device_id: deviceId,
+    device_label: label,
+    platform,
+    browser,
+    is_standalone: standalone,
+    last_seen_at: new Date().toISOString(),
+    status: 'active',
+    last_success_at: new Date().toISOString(),
+    last_error: null,
+  } as any;
+
+  const { error } = await supabase
+    .from('push_subscriptions')
+    .upsert(payload, { onConflict: 'endpoint' });
+
+  if (error) {
+    console.error('OneSignal subscription sync error', error);
+    return false;
+  }
+
+  return true;
+}
+
+async function ensureSubscriptionListener() {
+  if (subscriptionListenerBound) return;
+  try {
+    (OneSignal as any).User?.PushSubscription?.addEventListener?.('change', async (event: any) => {
+      const subscriptionId = event?.current?.id;
+      if (!activeUserId || !subscriptionId) return;
+      await persistOneSignalSubscription(activeUserId, subscriptionId);
+    });
+    subscriptionListenerBound = true;
+  } catch (e) {
+    console.warn('OneSignal subscription listener bind failed', e);
+  }
+}
+
 async function initOnce() {
   if (initPromise) return initPromise;
   if (isPreviewIframe()) return;
@@ -33,6 +124,7 @@ async function initOnce() {
     serviceWorkerPath: '/OneSignalSDKWorker.js',
     serviceWorkerParam: { scope: '/' },
     notifyButton: { enable: false },
+    autoResubscribe: true,
   } as any).catch((e: unknown) => {
     console.error('OneSignal init error', e);
     initPromise = null;
@@ -44,7 +136,9 @@ async function initOnce() {
 export async function ensureOneSignalLinked(userId?: string | null): Promise<boolean> {
   if (isPreviewIframe() || !userId) return false;
 
+  activeUserId = userId;
   await initOnce();
+  await ensureSubscriptionListener();
 
   try {
     await OneSignal.login(userId);
@@ -52,18 +146,28 @@ export async function ensureOneSignalLinked(userId?: string | null): Promise<boo
     console.error('OneSignal login error', e);
   }
 
-  for (let i = 0; i < 10; i++) {
+  try {
+    if (OneSignal.Notifications?.permission === true) {
+      await (OneSignal as any).User?.PushSubscription?.optIn?.();
+    }
+  } catch (e) {
+    console.warn('OneSignal optIn error', e);
+  }
+
+  for (let i = 0; i < 12; i++) {
     try {
       const permissionGranted = OneSignal.Notifications?.permission === true;
-      const subscriptionId = (OneSignal as any)?.User?.PushSubscription?.id;
-      const optedIn = (OneSignal as any)?.User?.PushSubscription?.optedIn;
-      if (permissionGranted && (subscriptionId || optedIn)) {
-        return true;
+      const subscriptionId = (OneSignal as any)?.User?.PushSubscription?.id as string | null;
+      const optedIn = Boolean((OneSignal as any)?.User?.PushSubscription?.optedIn);
+
+      if (permissionGranted && subscriptionId) {
+        await persistOneSignalSubscription(userId, subscriptionId);
+        if (optedIn || i >= 2) return true;
       }
     } catch {
       // ignore transient SDK state
     }
-    await wait(400);
+    await wait(500);
   }
 
   return false;
@@ -103,9 +207,12 @@ export function useOneSignal() {
         }
       }
 
+      await ensureSubscriptionListener();
+
       if (!user) return;
       await ensureOneSignalLinked(user.id);
     })();
+
     return () => {
       cancelled = true;
     };
@@ -114,6 +221,7 @@ export function useOneSignal() {
   useEffect(() => {
     if (isPreviewIframe()) return;
     if (!user) {
+      activeUserId = null;
       OneSignal.logout?.().catch(() => {});
     }
   }, [user]);
@@ -122,11 +230,25 @@ export function useOneSignal() {
 export async function requestOneSignalPermission(userId?: string | null): Promise<boolean> {
   if (isPreviewIframe()) return false;
   await initOnce();
+  await ensureSubscriptionListener();
+
   try {
+    if (userId) {
+      activeUserId = userId;
+      await OneSignal.login(userId);
+    }
+
     await OneSignal.Notifications.requestPermission();
     const granted = OneSignal.Notifications.permission === true;
     if (!granted) return false;
-    return await ensureOneSignalLinked(userId ?? null);
+
+    try {
+      await (OneSignal as any).User?.PushSubscription?.optIn?.();
+    } catch (e) {
+      console.warn('OneSignal optIn after permission error', e);
+    }
+
+    return await ensureOneSignalLinked(userId ?? activeUserId);
   } catch (e) {
     console.error('OneSignal permission error', e);
     return false;
