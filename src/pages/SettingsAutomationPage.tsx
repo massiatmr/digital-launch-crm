@@ -8,8 +8,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Save, Bot, FlaskConical, Workflow, FileText, Sparkles, Settings as SettingsIcon, AlertTriangle, CheckCircle2, Zap, PlayCircle, Clock, Filter } from 'lucide-react';
+import { Loader2, Save, Bot, FlaskConical, Workflow, FileText, Sparkles, Settings as SettingsIcon, AlertTriangle, CheckCircle2, Zap, PlayCircle, Clock, Filter, Phone, RefreshCw } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const LEAD_SOURCES: { value: string; label: string }[] = [
   { value: 'facebook', label: 'Facebook Lead Ads' },
@@ -60,6 +61,10 @@ export default function SettingsAutomationPage() {
       template_last_followup_id: form.template_last_followup_id,
       trigger_sources: form.trigger_sources,
       trigger_only_new_status: form.trigger_only_new_status,
+      inactivity_threshold_hours: form.inactivity_threshold_hours,
+      enable_call_escalation: form.enable_call_escalation,
+      enable_24h_template_switch: form.enable_24h_template_switch,
+      template_reactivation_id: form.template_reactivation_id,
     } as any, { onSuccess: () => setDirty(false) });
   };
 
@@ -313,6 +318,93 @@ export default function SettingsAutomationPage() {
                 <p className="text-xs text-yellow-400 mt-2 flex items-center gap-1">
                   <AlertTriangle className="h-3 w-3" /> Aucune source sélectionnée → l'automatisation ne se déclenchera jamais.
                 </p>
+              )}
+            </div>
+          </div>
+
+          {/* RELANCES HUMAINES & FENÊTRE 24H */}
+          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+            <div>
+              <h2 className="font-heading text-base flex items-center gap-2">
+                <Phone className="h-4 w-4 text-primary" /> Relances humaines & fenêtre 24h
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Détecte les conversations inactives et escalade vers un appel quand nécessaire.
+              </p>
+            </div>
+
+            <div className="pt-2 border-t border-border">
+              <Label className="text-sm flex items-center gap-2">
+                <RefreshCw className="h-3.5 w-3.5" /> Délai d'inactivité avant relance
+              </Label>
+              <p className="text-xs text-muted-foreground mt-1 mb-2">
+                Si le lead a répondu puis ne dit plus rien pendant ce temps, une tâche "Relancer conversation" est créée.
+              </p>
+              <Select
+                value={String(form.inactivity_threshold_hours ?? 12)}
+                onValueChange={(v) => set({ inactivity_threshold_hours: parseInt(v, 10) })}
+              >
+                <SelectTrigger className="w-full sm:w-60"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="6">6 heures</SelectItem>
+                  <SelectItem value="12">12 heures (recommandé)</SelectItem>
+                  <SelectItem value="18">18 heures</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-start justify-between gap-4 pt-3 border-t border-border">
+              <div>
+                <Label className="text-sm">Escalade vers appel manuel</Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Crée une tâche d'appel + notif push si lead chaud sans réponse après 2 relances, ou lead engagé silencieux 24h+.
+                </p>
+              </div>
+              <Switch
+                checked={form.enable_call_escalation ?? true}
+                onCheckedChange={(v) => set({ enable_call_escalation: v })}
+              />
+            </div>
+
+            <div className="pt-3 border-t border-border space-y-3">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <Label className="text-sm">Bascule template après 24h</Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Quand la fenêtre WhatsApp est fermée (24h sans inbound), envoie automatiquement un template "reprise".
+                  </p>
+                </div>
+                <Switch
+                  checked={form.enable_24h_template_switch ?? true}
+                  onCheckedChange={(v) => set({ enable_24h_template_switch: v })}
+                />
+              </div>
+
+              {form.enable_24h_template_switch && (
+                <div>
+                  <Label className="text-sm">Template de reprise (utility/marketing approuvé)</Label>
+                  <Select
+                    value={form.template_reactivation_id ?? 'none'}
+                    onValueChange={(v) => set({ template_reactivation_id: v === 'none' ? null : v })}
+                  >
+                    <SelectTrigger className="w-full mt-1">
+                      <SelectValue placeholder="Choisir un template…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— Aucun (la bascule sera ignorée)</SelectItem>
+                      {templates.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name} ({t.language})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!form.template_reactivation_id && (
+                    <p className="text-xs text-yellow-400 mt-1 flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" /> Sans template, la bascule 24h ne fait rien.
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           </div>

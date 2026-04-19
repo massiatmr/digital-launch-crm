@@ -24,9 +24,13 @@ function templateKey(taskType: string): string | null {
     case "followup_1": return "template_followup_1_id";
     case "followup_2": return "template_followup_2_id";
     case "last_followup": return "template_last_followup_id";
+    case "template_24h": return "template_reactivation_id";
     default: return null;
   }
 }
+
+// Tâches qui ne déclenchent PAS d'envoi auto (action humaine requise)
+const HUMAN_TASK_TYPES = new Set(["manual_call"]);
 
 async function generateVariablesWithAI(template: any, lead: any, apiKey: string): Promise<string[]> {
   if (template.variables_count === 0) return [];
@@ -97,6 +101,15 @@ Deno.serve(async (req) => {
 
     if (task.status === 'sent' || task.status === 'cancelled') {
       return new Response(JSON.stringify({ error: `Task already ${task.status}` }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // Tâches manuelles (appel) : ne rien envoyer, juste marquer comme "à faire"
+    if (HUMAN_TASK_TYPES.has(task.task_type)) {
+      return new Response(JSON.stringify({
+        ok: true,
+        skipped: true,
+        reason: "Tâche humaine — aucun envoi automatique. Action requise dans le CRM.",
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Charger settings (dry_run + mapping templates)

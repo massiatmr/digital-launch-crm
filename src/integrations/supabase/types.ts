@@ -453,8 +453,11 @@ export type Database = {
           ai_model: string
           created_at: string
           dry_run: boolean
+          enable_24h_template_switch: boolean
+          enable_call_escalation: boolean
           followup_1_delay_hours: number
           followup_2_delay_hours: number
+          inactivity_threshold_hours: number
           initial_delay_minutes: number
           is_enabled: boolean
           last_followup_delay_hours: number
@@ -463,6 +466,7 @@ export type Database = {
           template_followup_2_id: string | null
           template_initial_id: string | null
           template_last_followup_id: string | null
+          template_reactivation_id: string | null
           trigger_only_new_status: boolean
           trigger_sources: Database["public"]["Enums"]["lead_source"][]
           updated_at: string
@@ -473,8 +477,11 @@ export type Database = {
           ai_model?: string
           created_at?: string
           dry_run?: boolean
+          enable_24h_template_switch?: boolean
+          enable_call_escalation?: boolean
           followup_1_delay_hours?: number
           followup_2_delay_hours?: number
+          inactivity_threshold_hours?: number
           initial_delay_minutes?: number
           is_enabled?: boolean
           last_followup_delay_hours?: number
@@ -483,6 +490,7 @@ export type Database = {
           template_followup_2_id?: string | null
           template_initial_id?: string | null
           template_last_followup_id?: string | null
+          template_reactivation_id?: string | null
           trigger_only_new_status?: boolean
           trigger_sources?: Database["public"]["Enums"]["lead_source"][]
           updated_at?: string
@@ -493,8 +501,11 @@ export type Database = {
           ai_model?: string
           created_at?: string
           dry_run?: boolean
+          enable_24h_template_switch?: boolean
+          enable_call_escalation?: boolean
           followup_1_delay_hours?: number
           followup_2_delay_hours?: number
+          inactivity_threshold_hours?: number
           initial_delay_minutes?: number
           is_enabled?: boolean
           last_followup_delay_hours?: number
@@ -503,6 +514,7 @@ export type Database = {
           template_followup_2_id?: string | null
           template_initial_id?: string | null
           template_last_followup_id?: string | null
+          template_reactivation_id?: string | null
           trigger_only_new_status?: boolean
           trigger_sources?: Database["public"]["Enums"]["lead_source"][]
           updated_at?: string
@@ -532,6 +544,13 @@ export type Database = {
           {
             foreignKeyName: "followup_automation_settings_template_last_followup_id_fkey"
             columns: ["template_last_followup_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "followup_automation_settings_template_reactivation_id_fkey"
+            columns: ["template_reactivation_id"]
             isOneToOne: false
             referencedRelation: "whatsapp_templates"
             referencedColumns: ["id"]
@@ -1450,6 +1469,9 @@ export type Database = {
         | "last_followup"
         | "qualification"
         | "propose_meeting"
+        | "reactivation"
+        | "manual_call"
+        | "template_24h"
       lead_score: "hot" | "warm" | "cold"
       lead_source:
         | "facebook"
@@ -1648,6 +1670,9 @@ export const Constants = {
         "last_followup",
         "qualification",
         "propose_meeting",
+        "reactivation",
+        "manual_call",
+        "template_24h",
       ],
       lead_score: ["hot", "warm", "cold"],
       lead_source: [
