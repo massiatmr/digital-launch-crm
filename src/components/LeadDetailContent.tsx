@@ -92,50 +92,7 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
               <span>· {format(new Date(lead.created_at), "dd MMM", { locale: fr })}</span>
             </div>
           </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <ShowStatusToggle leadId={lead.id} currentStatus={lead.show_status} size="sm" />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                {lead.phone && (
-                  <DropdownMenuItem asChild>
-                    <a href={toWhatsAppUrl(lead.phone)} target="_blank" rel="noopener noreferrer" className="cursor-pointer">
-                      <Smartphone className="h-4 w-4 mr-2" />WhatsApp
-                      <ExternalLink className="h-3 w-3 ml-auto" />
-                    </a>
-                  </DropdownMenuItem>
-                )}
-                {lead.phone && (
-                  <DropdownMenuItem asChild>
-                    <a href={`tel:${lead.phone}`} className="cursor-pointer">
-                      <Phone className="h-4 w-4 mr-2" />{formatPhoneDisplay(lead.phone)}
-                    </a>
-                  </DropdownMenuItem>
-                )}
-                {lead.email && (
-                  <DropdownMenuItem asChild>
-                    <a href={`mailto:${lead.email}`} className="cursor-pointer">
-                      <Mail className="h-4 w-4 mr-2" /><span className="truncate">{lead.email}</span>
-                    </a>
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setEditing(true)}>
-                  <Pencil className="h-4 w-4 mr-2" />Modifier
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onClick={() => setConfirmDelete(true)}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />Supprimer
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          <ShowStatusToggle leadId={lead.id} currentStatus={lead.show_status} size="sm" />
         </div>
       </div>
 
