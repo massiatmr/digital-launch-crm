@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from './useAuth';
+import { useCurrentWorkspaceId } from './useWorkspaces';
 
 export type DbLead = {
   id: string;
@@ -65,18 +66,18 @@ export type DbReminder = {
 
 export function useLeads() {
   const { user, loading } = useAuth();
+  const wsId = useCurrentWorkspaceId();
 
   return useQuery({
-    queryKey: ['leads'],
+    queryKey: ['leads', wsId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('leads')
-        .select('*')
-        .order('created_at', { ascending: false });
+      let q: any = supabase.from('leads').select('*');
+      if (wsId) q = q.eq('workspace_id', wsId);
+      const { data, error } = await q.order('created_at', { ascending: false });
       if (error) throw error;
       return data as DbLead[];
     },
-    enabled: !loading && !!user,
+    enabled: !loading && !!user && !!wsId,
   });
 }
 
@@ -99,6 +100,7 @@ export function useLead(id: string | undefined) {
 
 export function useCreateLead() {
   const queryClient = useQueryClient();
+  const wsId = useCurrentWorkspaceId();
   return useMutation({
     mutationFn: async (lead: { name: string; email: string; phone: string; message: string; source: string; company_name?: string }) => {
       // First insert the lead
@@ -111,7 +113,8 @@ export function useCreateLead() {
           message: lead.message, 
           source: lead.source as any,
           company_name: lead.company_name || '',
-        })
+          ...(wsId ? { workspace_id: wsId } : {}),
+        } as any)
         .select()
         .single();
       if (error) throw error;
@@ -289,16 +292,17 @@ export function useAllScripts() {
 // ========== REMINDERS ==========
 
 export function useReminders() {
+  const wsId = useCurrentWorkspaceId();
   return useQuery({
-    queryKey: ['reminders'],
+    queryKey: ['reminders', wsId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('reminders')
-        .select('*, leads(name)')
-        .order('due_date', { ascending: true });
+      let q: any = supabase.from('reminders').select('*, leads(name)');
+      if (wsId) q = q.eq('workspace_id', wsId);
+      const { data, error } = await q.order('due_date', { ascending: true });
       if (error) throw error;
       return data as DbReminder[];
     },
+    enabled: !!wsId,
   });
 }
 

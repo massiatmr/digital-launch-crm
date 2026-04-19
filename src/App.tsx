@@ -7,6 +7,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { OnboardingGuard } from "@/components/OnboardingGuard";
 import OnboardingWizardPage from "@/pages/OnboardingWizardPage";
 import { AuthProvider } from "@/hooks/useAuth";
+import { WorkspaceProvider } from "@/hooks/useWorkspaces";
 import Dashboard from "@/pages/Dashboard";
 import LeadDetailPage from "@/pages/LeadDetailPage";
 import RemindersPage from "@/pages/RemindersPage";
@@ -34,6 +35,7 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
+      <WorkspaceProvider>
       <TooltipProvider>
         <Sonner />
         <BrowserRouter>
@@ -71,6 +73,7 @@ const App = () => (
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
+      </WorkspaceProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

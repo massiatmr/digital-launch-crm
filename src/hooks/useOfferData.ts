@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from './useAuth';
+import { useCurrentWorkspaceId } from './useWorkspaces';
 
 export type DbOffer = {
   id: string;
@@ -73,18 +74,18 @@ function slugify(text: string): string {
 
 export function useOffers() {
   const { user, loading } = useAuth();
+  const wsId = useCurrentWorkspaceId();
 
   return useQuery({
-    queryKey: ['offers'],
+    queryKey: ['offers', wsId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('offers')
-        .select('*')
-        .order('created_at', { ascending: false });
+      let q: any = supabase.from('offers').select('*');
+      if (wsId) q = q.eq('workspace_id', wsId);
+      const { data, error } = await q.order('created_at', { ascending: false });
       if (error) throw error;
       return data as DbOffer[];
     },
-    enabled: !loading && !!user,
+    enabled: !loading && !!user && !!wsId,
   });
 }
 
@@ -125,6 +126,7 @@ export function useOfferBySlug(slug: string | undefined) {
 
 export function useCreateOffer() {
   const queryClient = useQueryClient();
+  const wsId = useCurrentWorkspaceId();
   return useMutation({
     mutationFn: async (offer: { name: string; description?: string; price?: string; niche?: string; features?: any[] }) => {
       const slug = slugify(offer.name);
@@ -137,6 +139,7 @@ export function useCreateOffer() {
           price: offer.price || '',
           niche: offer.niche || '',
           features: offer.features || [],
+          ...(wsId ? { workspace_id: wsId } : {}),
         } as any)
         .select()
         .single();
@@ -224,16 +227,17 @@ export function useUpdateOfferPage() {
 // ========== BOOKINGS ==========
 
 export function useBookings() {
+  const wsId = useCurrentWorkspaceId();
   return useQuery({
-    queryKey: ['bookings'],
+    queryKey: ['bookings', wsId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('*, offers(name), leads(show_status)')
-        .order('booking_date', { ascending: true });
+      let q: any = supabase.from('bookings').select('*, offers(name), leads(show_status)');
+      if (wsId) q = q.eq('workspace_id', wsId);
+      const { data, error } = await q.order('booking_date', { ascending: true });
       if (error) throw error;
       return data as DbBooking[];
     },
+    enabled: !!wsId,
   });
 }
 

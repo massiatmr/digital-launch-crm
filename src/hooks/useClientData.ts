@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useCurrentWorkspaceId } from './useWorkspaces';
 
 export type ClientStatus = 'nouveau' | 'signe' | 'onboarding_envoye' | 'onboarding_complete' | 'en_preparation' | 'en_cours' | 'actif';
 
@@ -67,13 +68,14 @@ const CLIENT_STATUS_LABELS: Record<ClientStatus, string> = {
 export const getStatusLabel = (s: ClientStatus) => CLIENT_STATUS_LABELS[s] || s;
 
 export function useClients() {
+  const wsId = useCurrentWorkspaceId();
   return useQuery({
-    queryKey: ['clients'],
+    queryKey: ['clients', wsId],
+    enabled: !!wsId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('clients')
-        .select('*, offers(name)')
-        .order('created_at', { ascending: false });
+      let q: any = supabase.from('clients').select('*, offers(name)');
+      if (wsId) q = q.eq('workspace_id', wsId);
+      const { data, error } = await q.order('created_at', { ascending: false });
       if (error) throw error;
       return data as (DbClient & { offers: { name: string } | null })[];
     },
@@ -98,9 +100,11 @@ export function useClient(id: string | undefined) {
 
 export function useCreateClient() {
   const qc = useQueryClient();
+  const wsId = useCurrentWorkspaceId();
   return useMutation({
     mutationFn: async (client: Partial<DbClient>) => {
-      const { data, error } = await supabase.from('clients').insert(client as any).select().single();
+      const payload: any = { ...client, ...(wsId ? { workspace_id: wsId } : {}) };
+      const { data, error } = await supabase.from('clients').insert(payload).select().single();
       if (error) throw error;
       return data;
     },
