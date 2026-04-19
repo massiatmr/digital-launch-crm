@@ -34,23 +34,11 @@ Deno.serve(async (req) => {
 
     const admin = createClient(supabaseUrl, serviceKey);
 
-    // Verify caller is admin
-    const { data: roleRow } = await admin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .eq("role", "admin")
-      .maybeSingle();
-
-    if (!roleRow) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const body = await req.json().catch(() => ({}));
     const email = String(body.email || "").trim().toLowerCase();
+    const workspaceId: string | null = body.workspace_id || null;
+    const workspaceRole: "owner" | "member" = body.workspace_role === "owner" ? "owner" : "member";
+
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return new Response(JSON.stringify({ error: "Email invalide" }), {
         status: 400,
@@ -58,11 +46,41 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Create invitation
+    // Authorization: either global admin OR owner of target workspace
+    let allowed = false;
+    const { data: roleRow } = await admin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "admin")
+      .maybeSingle();
+    if (roleRow) allowed = true;
+
+    if (!allowed && workspaceId) {
+      const { data: isOwner } = await admin.rpc("is_workspace_owner", {
+        _workspace_id: workspaceId,
+        _user_id: user.id,
+      });
+      if (isOwner === true) allowed = true;
+    }
+
+    if (!allowed) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const insertPayload: Record<string, unknown> = { email, invited_by: user.id };
+    if (workspaceId) {
+      insertPayload.workspace_id = workspaceId;
+      insertPayload.workspace_role = workspaceRole;
+    }
+
     const { data: invite, error: insertErr } = await admin
       .from("invitations")
-      .insert({ email, invited_by: user.id })
-      .select("token, expires_at")
+      .insert(insertPayload)
+      .select("token, expires_at, workspace_id, workspace_role")
       .single();
 
     if (insertErr || !invite) {
@@ -76,7 +94,14 @@ Deno.serve(async (req) => {
     const url = `${origin}/auth?invite=${invite.token}`;
 
     return new Response(
-      JSON.stringify({ success: true, url, token: invite.token, expires_at: invite.expires_at }),
+      JSON.stringify({
+        success: true,
+        url,
+        token: invite.token,
+        expires_at: invite.expires_at,
+        workspace_id: invite.workspace_id,
+        workspace_role: invite.workspace_role,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {

@@ -108,7 +108,11 @@ export default function AuthPage() {
         if (inviteToken) {
           const { data: { user: newUser } } = await supabase.auth.getUser();
           if (newUser) {
-            await supabase.rpc('consume_invitation', { p_token: inviteToken, p_user_id: newUser.id });
+            // Try workspace-aware consume first; falls back to legacy consume_invitation
+            const { error: rpcErr } = await (supabase.rpc as any)('consume_workspace_invitation', { p_token: inviteToken, p_user_id: newUser.id });
+            if (rpcErr) {
+              await supabase.rpc('consume_invitation', { p_token: inviteToken, p_user_id: newUser.id });
+            }
           }
         }
         toast.success('Compte créé ! Vérifiez votre email pour confirmer.');
