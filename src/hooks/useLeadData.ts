@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useAuth } from './useAuth';
 
 export type DbLead = {
   id: string;
@@ -63,6 +64,8 @@ export type DbReminder = {
 // ========== LEADS ==========
 
 export function useLeads() {
+  const { user, loading } = useAuth();
+
   return useQuery({
     queryKey: ['leads'],
     queryFn: async () => {
@@ -73,6 +76,7 @@ export function useLeads() {
       if (error) throw error;
       return data as DbLead[];
     },
+    enabled: !loading && !!user,
   });
 }
 
