@@ -160,6 +160,12 @@ export default function SettingsIntegrationsPage() {
         <p className="text-muted-foreground mt-1">
           Connectez vos comptes externes pour automatiser la collecte de leads.
         </p>
+        {currentWorkspace && (
+          <div className="mt-3 inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm">
+            <span className="text-muted-foreground">Espace configuré :</span>
+            <span className="font-semibold">{currentWorkspace.company_name}</span>
+          </div>
+        )}
       </div>
 
       {/* ============== WHATSAPP CLOUD API ============== */}
