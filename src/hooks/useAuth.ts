@@ -11,16 +11,21 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import type { AuthError, Session, User } from '@supabase/supabase-js';
 
-const AUTH_REQUEST_TIMEOUT_MS = 10000;
+const AUTH_REQUEST_TIMEOUT_MS = 8000;
 const AUTH_STORAGE_KEY = 'sb-rvangzupebrajhhhvewu-auth-token';
+
+type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated' | 'error';
 
 type AuthContextValue = {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  authStatus: AuthStatus;
+  authError: string | null;
   signUp: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
+  clearAuthError: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -31,6 +36,50 @@ function createTimeoutError(): AuthError {
     message: "Le service d'authentification ne répond pas pour le moment. Réessayez dans un instant.",
     status: 504,
   } as AuthError;
+}
+
+function createOfflineError(): AuthError {
+  return {
+    name: 'OfflineAuthError',
+    message: 'Aucune connexion internet. Vérifiez votre réseau puis réessayez.',
+    status: 0,
+  } as AuthError;
+}
+
+function normalizeAuthError(error: unknown): AuthError {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return createOfflineError();
+  }
+
+  if (error && typeof error === 'object' && 'message' in error) {
+    return error as AuthError;
+  }
+
+  if (error instanceof Error && error.name === 'AbortError') {
+    return createTimeoutError();
+  }
+
+  return {
+    name: 'AuthUnknownError',
+    message: 'Problème de connexion. Réessayez dans un instant.',
+    status: 500,
+  } as AuthError;
+}
+
+function isRetryableAuthError(error: AuthError) {
+  return !error.status || error.status >= 500 || error.name === 'OfflineAuthError' || error.name === 'AuthTimeoutError';
+}
+
+function logAuthError(scope: string, error: unknown) {
+  const normalized = normalizeAuthError(error);
+
+  console.error(`[auth] ${scope}`, {
+    status: normalized.status ?? null,
+    message: normalized.message,
+    error,
+  });
+
+  return normalized;
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs = AUTH_REQUEST_TIMEOUT_MS): Promise<T> {
@@ -56,6 +105,16 @@ function clearStoredAuthSession() {
   }
 }
 
+async function clearInvalidSession() {
+  clearStoredAuthSession();
+
+  try {
+    await supabase.auth.signOut({ scope: 'local' });
+  } catch (error) {
+    console.warn('[auth] local session cleanup failed', error);
+  }
+}
+
 async function restoreSessionWithRetry() {
   try {
     return await withTimeout(supabase.auth.getSession());
@@ -64,9 +123,8 @@ async function restoreSessionWithRetry() {
 
     try {
       return await withTimeout(supabase.auth.getSession());
-    } catch {
-      clearStoredAuthSession();
-      throw error;
+    } catch (retryError) {
+      throw normalizeAuthError(retryError ?? error);
     }
   }
 }
@@ -75,33 +133,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const clearAuthError = useCallback(() => {
+    setAuthError(null);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
 
+    const applySession = (nextSession: Session | null) => {
+      if (!mounted) return;
+
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+
+      if (nextSession?.user) {
+        setAuthError(null);
+      }
+
+      setLoading(false);
+    };
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (!mounted) return;
-      setSession(nextSession);
-      setUser(nextSession?.user ?? null);
-      setLoading(false);
+      applySession(nextSession);
     });
 
     restoreSessionWithRetry()
       .then(({ data: { session: restoredSession } }) => {
-        if (!mounted) return;
-        setSession(restoredSession);
-        setUser(restoredSession?.user ?? null);
+        applySession(restoredSession);
       })
-      .catch((error) => {
-        console.error('Auth session restore failed', error);
+      .catch(async (error) => {
+        const normalized = logAuthError('session restore failed', error);
+        await clearInvalidSession();
+
         if (!mounted) return;
+
         setSession(null);
         setUser(null);
-      })
-      .finally(() => {
-        if (mounted) setLoading(false);
+        setAuthError(normalized.message);
+        setLoading(false);
       });
 
     return () => {
@@ -111,29 +184,105 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signUp = useCallback(async (email: string, password: string) => {
-    const { error } = await withTimeout(supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: window.location.origin,
-      },
-    }));
-    return { error };
+    setAuthError(null);
+
+    try {
+      const { error } = await withTimeout(supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: window.location.origin,
+        },
+      }));
+
+      if (error) {
+        const normalized = logAuthError('sign up failed', error);
+
+        if (isRetryableAuthError(normalized)) {
+          setAuthError(normalized.message);
+        }
+
+        return { error: normalized };
+      }
+
+      return { error: null };
+    } catch (error) {
+      const normalized = logAuthError('sign up failed', error);
+
+      if (isRetryableAuthError(normalized)) {
+        await clearInvalidSession();
+        setSession(null);
+        setUser(null);
+        setAuthError(normalized.message);
+      }
+
+      setLoading(false);
+      return { error: normalized };
+    }
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const { error } = await withTimeout(supabase.auth.signInWithPassword({ email, password }));
-    return { error };
+    setAuthError(null);
+
+    try {
+      const { error } = await withTimeout(supabase.auth.signInWithPassword({ email, password }));
+
+      if (error) {
+        const normalized = logAuthError('sign in failed', error);
+
+        if (isRetryableAuthError(normalized)) {
+          await clearInvalidSession();
+          setSession(null);
+          setUser(null);
+          setAuthError(normalized.message);
+        }
+
+        setLoading(false);
+        return { error: normalized };
+      }
+
+      return { error: null };
+    } catch (error) {
+      const normalized = logAuthError('sign in failed', error);
+
+      if (isRetryableAuthError(normalized)) {
+        await clearInvalidSession();
+        setSession(null);
+        setUser(null);
+        setAuthError(normalized.message);
+      }
+
+      setLoading(false);
+      return { error: normalized };
+    }
   }, []);
 
   const signOut = useCallback(async () => {
     clearStoredAuthSession();
-    await supabase.auth.signOut();
+
+    setSession(null);
+    setUser(null);
+    setAuthError(null);
+    setLoading(false);
+
+    try {
+      await withTimeout(supabase.auth.signOut(), 4000);
+    } catch (error) {
+      logAuthError('sign out failed', error);
+      await clearInvalidSession();
+    }
   }, []);
 
+  const authStatus = useMemo<AuthStatus>(() => {
+    if (loading) return 'loading';
+    if (user) return 'authenticated';
+    if (authError) return 'error';
+    return 'unauthenticated';
+  }, [loading, user, authError]);
+
   const value = useMemo<AuthContextValue>(
-    () => ({ user, session, loading, signUp, signIn, signOut }),
-    [user, session, loading, signUp, signIn, signOut],
+    () => ({ user, session, loading, authStatus, authError, signUp, signIn, signOut, clearAuthError }),
+    [user, session, loading, authStatus, authError, signUp, signIn, signOut, clearAuthError],
   );
 
   return createElement(AuthContext.Provider, { value }, children);
