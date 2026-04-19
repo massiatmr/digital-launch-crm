@@ -439,6 +439,41 @@ export default function SettingsTestsPage() {
         </CardContent>
       </Card>
 
+      {/* === SÉQUENCE ACCÉLÉRÉE === */}
+      <Card className="border-primary/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Workflow className="h-4 w-4 text-primary" /> Test séquence accélérée
+          </CardTitle>
+          <CardDescription>
+            Déclenche TOUTE ta séquence sur un lead choisi, mais avec délais ÷60 (minutes→sec, heures→min). Idéal pour voir le déroulé complet en quelques minutes.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-2">
+            <Label className="text-xs">Lead à utiliser pour le test</Label>
+            <select
+              value={seqLeadId}
+              onChange={(e) => setSeqLeadId(e.target.value)}
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="">— Choisir un lead —</option>
+              {leads.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name} {l.phone ? `(${l.phone})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <Button onClick={runSeqTest} disabled={seqStep === 'sending' || !seqLeadId} size="sm" className="gap-2">
+            <Zap className="h-3 w-3" /> Lancer la séquence accélérée <StepIcon s={seqStep} />
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            ⚠️ Si le mode test (dry-run) est désactivé dans <code>/settings/automation</code>, des messages WhatsApp réels seront envoyés au lead choisi !
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Résultat / erreur */}
       {lastResult && (
         <Card className="bg-muted/30">
