@@ -7,7 +7,7 @@ import { useWorkspaces } from '@/hooks/useWorkspaces';
 export function OnboardingGuard() {
   const { user } = useAuth();
   const { data: profile, isLoading } = useOwnerProfile();
-  const { workspaces, loading: wsLoading } = useWorkspaces();
+  const { workspaces, isLoading: wsLoading } = useWorkspaces();
 
   if (isLoading || wsLoading) {
     return (
