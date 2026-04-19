@@ -40,8 +40,9 @@ export function useWhatsAppTemplates() {
 
 export function useSyncTemplates() {
   const qc = useQueryClient();
+  const workspaceId = useCurrentWorkspaceId();
   return useMutation({
-    mutationFn: async () => call("sync"),
+    mutationFn: async () => call("sync", { workspace_id: workspaceId }),
     onSuccess: (data) => {
       toast({ title: "Synchronisation OK", description: `${data?.count ?? 0} templates importés` });
       qc.invalidateQueries({ queryKey: ["wa-templates"] });
@@ -52,9 +53,10 @@ export function useSyncTemplates() {
 
 export function useCreateLocalTemplate() {
   const qc = useQueryClient();
+  const workspaceId = useCurrentWorkspaceId();
   return useMutation({
     mutationFn: async (payload: { name: string; language: string; body_text: string; category?: string }) =>
-      call("create_local", payload),
+      call("create_local", { ...payload, workspace_id: workspaceId }),
     onSuccess: () => {
       toast({ title: "Template créé" });
       qc.invalidateQueries({ queryKey: ["wa-templates"] });
@@ -65,9 +67,10 @@ export function useCreateLocalTemplate() {
 
 export function useUpdateTemplate() {
   const qc = useQueryClient();
+  const workspaceId = useCurrentWorkspaceId();
   return useMutation({
     mutationFn: async (payload: { id: string; body_text?: string; name?: string; language?: string; category?: string }) =>
-      call("update", payload),
+      call("update", { ...payload, workspace_id: workspaceId }),
     onSuccess: () => {
       toast({ title: "Template mis à jour" });
       qc.invalidateQueries({ queryKey: ["wa-templates"] });
@@ -78,8 +81,9 @@ export function useUpdateTemplate() {
 
 export function useDeleteTemplate() {
   const qc = useQueryClient();
+  const workspaceId = useCurrentWorkspaceId();
   return useMutation({
-    mutationFn: async (id: string) => call("delete", { id }),
+    mutationFn: async (id: string) => call("delete", { id, workspace_id: workspaceId }),
     onSuccess: () => {
       toast({ title: "Template supprimé" });
       qc.invalidateQueries({ queryKey: ["wa-templates"] });
