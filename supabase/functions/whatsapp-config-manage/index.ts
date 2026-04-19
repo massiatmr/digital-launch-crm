@@ -55,11 +55,67 @@ Deno.serve(async (req) => {
         ? q.eq("workspace_id", workspace_id)
         : q.eq("owner_id", user.id).is("workspace_id", null);
 
-    if (action === "get") {
+    // Get the active config (used for sending). Used by most actions.
+    const getActiveConfig = async () => {
+      const { data } = await applyScope(
+        admin.from("whatsapp_config").select("*").eq("is_active", true),
+      ).maybeSingle();
+      return data;
+    };
+
+    if (action === "list_numbers") {
+      // Return all WA numbers detected for this workspace (multi-number support)
       const { data, error } = await applyScope(
         admin.from("whatsapp_config").select("*"),
-      ).maybeSingle();
+      ).order("created_at", { ascending: true });
       if (error) return json({ error: error.message }, 500);
+      return json({ numbers: data || [] });
+    }
+
+    if (action === "activate_number") {
+      const { phone_number_id } = body;
+      if (!phone_number_id) return json({ error: "phone_number_id requis" }, 400);
+      // Deactivate all others in this scope
+      await applyScope(admin.from("whatsapp_config").update({ is_active: false }));
+      // Activate the chosen one
+      const { data: target } = await applyScope(
+        admin.from("whatsapp_config").select("id").eq("phone_number_id", phone_number_id),
+      ).maybeSingle();
+      if (!target) return json({ error: "Numéro introuvable" }, 404);
+      const { error } = await admin
+        .from("whatsapp_config")
+        .update({ is_active: true })
+        .eq("id", target.id);
+      if (error) return json({ error: error.message }, 500);
+
+      // Auto-subscribe webhook
+      const { data: cfg } = await admin
+        .from("whatsapp_config")
+        .select("*")
+        .eq("id", target.id)
+        .maybeSingle();
+      if (cfg) {
+        try {
+          const r = await fetch(
+            `${GRAPH}/${cfg.business_account_id}/subscribed_apps?access_token=${cfg.access_token}`,
+            { method: "POST" },
+          );
+          if (r.ok) {
+            await admin
+              .from("whatsapp_config")
+              .update({ webhook_subscribed: true })
+              .eq("id", target.id);
+          }
+        } catch (_e) {
+          // Non-blocking
+        }
+      }
+      return json({ ok: true });
+    }
+
+    if (action === "get") {
+      // Returns the active config for this workspace (legacy compatibility)
+      const data = await getActiveConfig();
       return json({ config: data });
     }
 
