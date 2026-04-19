@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
               },
               body: JSON.stringify({
                 user_id: cfg.owner_id,
-                title: `💬 ${lead.name}`,
+                title: `💬 WhatsApp CRM — ${lead.name}`,
                 body: content.slice(0, 140),
                 url: `/conversations?lead=${lead.id}&highlight=1`,
                 tag: `wa-${lead.id}`.slice(0, 32),
