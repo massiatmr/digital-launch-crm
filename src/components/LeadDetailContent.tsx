@@ -144,6 +144,48 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
         <ScrollArea className="flex-1 mt-3">
           <div className="pr-3 pb-6">
             <TabsContent value="overview" className="mt-0 space-y-4">
+              {/* Contact + actions directes */}
+              <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  {lead.phone && (
+                    <Button asChild variant="outline" size="sm" className="gap-1.5">
+                      <a href={toWhatsAppUrl(lead.phone)} target="_blank" rel="noopener noreferrer">
+                        <Smartphone className="h-3.5 w-3.5" />WhatsApp
+                      </a>
+                    </Button>
+                  )}
+                  {lead.phone && (
+                    <Button asChild variant="outline" size="sm" className="gap-1.5">
+                      <a href={`tel:${lead.phone}`}>
+                        <Phone className="h-3.5 w-3.5" />{formatPhoneDisplay(lead.phone)}
+                      </a>
+                    </Button>
+                  )}
+                  {lead.email && (
+                    <Button asChild variant="outline" size="sm" className="gap-1.5 max-w-full">
+                      <a href={`mailto:${lead.email}`} className="truncate">
+                        <Mail className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">{lead.email}</span>
+                      </a>
+                    </Button>
+                  )}
+                </div>
+                <div className="flex gap-2 pt-2 border-t border-border/50">
+                  <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => setEditing(true)}>
+                    <Pencil className="h-3.5 w-3.5" />Modifier
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => setConfirmDelete(true)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />Supprimer
+                  </Button>
+                </div>
+              </div>
+
+
               {/* Message initial */}
               {lead.message && (
                 <div className="rounded-lg bg-muted/50 p-3 border-l-2 border-primary/40">
