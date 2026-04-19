@@ -63,6 +63,24 @@ async function getSubscriptionIds(userId: string) {
     .filter(Boolean);
 }
 
+async function sendToOneSignal(payload: Record<string, unknown>) {
+  const res = await fetch("https://api.onesignal.com/notifications?c=push", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Key ${ONESIGNAL_REST_API_KEY}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json = await res.json();
+  return { res, json };
+}
+
+function hasAcceptedNotification(json: any) {
+  return Boolean(json?.id) && !json?.errors;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -93,68 +111,64 @@ Deno.serve(async (req) => {
     }
 
     const subscriptionIds = await getSubscriptionIds(user_id);
-    const notifPayload: Record<string, unknown> = {
+    const basePayload: Record<string, unknown> = {
       app_id: ONESIGNAL_APP_ID,
       headings: { en: title, fr: title },
       contents: { en: body, fr: body },
       target_channel: "push",
     };
 
+    if (absoluteUrl) basePayload.web_url = absoluteUrl;
+    if (tag) basePayload.web_push_topic = tag;
+
+    const attempts: Array<{ method: "external_id" | "subscription_ids"; payload: Record<string, unknown> }> = [
+      { method: "external_id", payload: { ...basePayload, include_aliases: { external_id: [user_id] } } },
+    ];
+
     if (subscriptionIds.length > 0) {
-      notifPayload.include_subscription_ids = subscriptionIds;
-    } else {
-      notifPayload.include_aliases = { external_id: [user_id] };
-    }
-
-    if (absoluteUrl) {
-      notifPayload.web_url = absoluteUrl;
-    }
-
-    if (tag) {
-      notifPayload.web_push_topic = tag;
-    }
-
-    const res = await fetch("https://api.onesignal.com/notifications", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Key ${ONESIGNAL_REST_API_KEY}`,
-      },
-      body: JSON.stringify(notifPayload),
-    });
-
-    const json = await res.json();
-    console.log("OneSignal response:", res.status, JSON.stringify(json));
-
-    const hasProviderErrors = Boolean((json as any)?.errors);
-    const hasNotificationId = Boolean((json as any)?.id);
-    const targetingMethod = subscriptionIds.length > 0 ? "subscription_ids" : "external_id";
-
-    if (!res.ok || hasProviderErrors || !hasNotificationId) {
-      return respond({
-        ok: false,
-        error: "onesignal_error",
-        hint: subscriptionIds.length > 0
-          ? "Des appareils ont bien été trouvés, mais OneSignal a refusé l'envoi"
-          : "Aucun appareil OneSignal n'est lié à cet utilisateur pour le moment",
-        details: json,
-        diagnostics: {
-          final_url: absoluteUrl,
-          error_stage: "provider_request",
-          provider_status: res.status,
-          targeting_method: targetingMethod,
-          subscription_count: subscriptionIds.length,
-        },
+      attempts.push({
+        method: "subscription_ids",
+        payload: { ...basePayload, include_subscription_ids: subscriptionIds },
       });
     }
 
+    let lastJson: unknown = null;
+    let lastStatus = 0;
+    let lastMethod: "external_id" | "subscription_ids" = subscriptionIds.length > 0 ? "subscription_ids" : "external_id";
+
+    for (const attempt of attempts) {
+      const { res, json } = await sendToOneSignal(attempt.payload);
+      console.log(`OneSignal response (${attempt.method}):`, res.status, JSON.stringify(json));
+      lastJson = json;
+      lastStatus = res.status;
+      lastMethod = attempt.method;
+
+      if (res.ok && hasAcceptedNotification(json)) {
+        return respond({
+          ok: true,
+          result: json,
+          diagnostics: {
+            final_url: absoluteUrl,
+            provider_status: res.status,
+            targeting_method: attempt.method,
+            subscription_count: subscriptionIds.length,
+          },
+        });
+      }
+    }
+
     return respond({
-      ok: true,
-      result: json,
+      ok: false,
+      error: "onesignal_error",
+      hint: subscriptionIds.length > 0
+        ? "Appareil détecté, mais OneSignal a refusé l'envoi avec les deux méthodes de ciblage"
+        : "Aucun appareil OneSignal n'est lié à cet utilisateur pour le moment",
+      details: lastJson,
       diagnostics: {
         final_url: absoluteUrl,
-        provider_status: res.status,
-        targeting_method: targetingMethod,
+        error_stage: "provider_request",
+        provider_status: lastStatus,
+        targeting_method: lastMethod,
         subscription_count: subscriptionIds.length,
       },
     });
