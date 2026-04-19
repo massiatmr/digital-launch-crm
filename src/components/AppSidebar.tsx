@@ -9,6 +9,7 @@ import { useWhatsAppInbox } from '@/hooks/useWhatsAppInbox';
 import { useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { GlobalNaturalLanguageInput } from './GlobalNaturalLanguageInput';
+import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 
 const links = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -46,8 +47,13 @@ export function AppSidebar() {
         )}
       </div>
 
-      {/* Bouton Assistant IA */}
+      {/* Workspace switcher */}
       <div className="px-2 pt-3">
+        <WorkspaceSwitcher collapsed={collapsed} />
+      </div>
+
+      {/* Bouton Assistant IA */}
+      <div className="px-2 pt-2">
         <button
           onClick={() => setAiOpen(true)}
           title={collapsed ? 'Assistant IA' : undefined}
