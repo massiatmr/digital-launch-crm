@@ -29,6 +29,7 @@ import {
 
 export function LeadDetailContent({ leadId }: { leadId: string }) {
   const [editing, setEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
   const [notesDirty, setNotesDirty] = useState(false);
   const navigate = useNavigate();
