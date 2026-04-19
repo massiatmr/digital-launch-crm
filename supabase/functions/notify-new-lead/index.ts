@@ -127,9 +127,10 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    // Récupère TOUS les champs du lead (pour inclure tous les détails du formulaire)
     const { data: lead, error: leadErr } = await supabase
       .from("leads")
-      .select("id, name, email, phone, company_name, source, message, owner_id")
+      .select("*")
       .eq("id", lead_id)
       .maybeSingle();
 
@@ -141,9 +142,21 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Récupère le nom du workspace pour contextualiser l'email
+    let workspaceName: string | null = null;
+    if (lead.workspace_id) {
+      const { data: ws } = await supabase
+        .from("workspaces")
+        .select("company_name")
+        .eq("id", lead.workspace_id)
+        .maybeSingle();
+      workspaceName = ws?.company_name || null;
+    }
+
     const leadUrl = `${APP_BASE_URL}/leads/${lead.id}`;
     const sourceLabel = sourceLabels[lead.source] || lead.source || "Inconnue";
     const titleSuffix = lead.company_name ? ` (${lead.company_name})` : "";
+    const wsPrefix = workspaceName ? `[${workspaceName}] ` : "";
     const results: Record<string, unknown> = {};
 
     // ---- 1) Push
@@ -151,7 +164,7 @@ Deno.serve(async (req) => {
       const pushRes = await supabase.functions.invoke("send-onesignal-notification", {
         body: {
           user_id: lead.owner_id,
-          title: `🔥 Nouveau lead — ${lead.name}${titleSuffix}`,
+          title: `${wsPrefix}Nouveau lead — ${lead.name}${titleSuffix}`,
           body: `${sourceLabel} • ${lead.phone || lead.email || "pas de contact"}`,
           url: `/leads/${lead.id}`,
           tag: `new-lead-${lead.id}`,
@@ -167,8 +180,8 @@ Deno.serve(async (req) => {
       const emailRes = await supabase.functions.invoke("send-smtp-email", {
         body: {
           to: NOTIFY_EMAIL,
-          subject: `🔥 Nouveau lead — ${lead.name}${titleSuffix}`,
-          html: buildEmailHtml(lead, leadUrl, sourceLabel),
+          subject: `${wsPrefix}Nouveau lead — ${lead.name}${titleSuffix}`,
+          html: buildEmailHtml(lead, leadUrl, sourceLabel, workspaceName),
           replyTo: lead.email || undefined,
         },
       });
