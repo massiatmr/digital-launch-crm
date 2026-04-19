@@ -14,8 +14,11 @@ const TYPE_LABEL: Record<string, string> = {
   followup_1: 'Relance 1 (24h)',
   followup_2: 'Relance 2 (48h)',
   last_followup: 'Dernière relance (72h)',
-  qualification: 'Qualification',
+  qualification: 'Qualification IA',
   propose_meeting: 'Proposer un RDV',
+  reactivation: '🔄 Relancer (silence)',
+  template_24h: '📨 Template reprise (24h+)',
+  manual_call: '📞 Appel manuel (prioritaire)',
 };
 
 const STATUS_META: Record<string, { label: string; icon: any; className: string }> = {
