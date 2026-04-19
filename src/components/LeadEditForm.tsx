@@ -50,10 +50,11 @@ const showStatuses = [
 
 interface LeadEditFormProps {
   lead: DbLead;
-  onClose: () => void;
+  onClose?: () => void;
+  inline?: boolean;
 }
 
-export function LeadEditForm({ lead, onClose }: LeadEditFormProps) {
+export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProps) {
   const updateLead = useUpdateLead();
   const [showLostDialog, setShowLostDialog] = useState(false);
   const [form, setForm] = useState({
@@ -96,7 +97,7 @@ export function LeadEditForm({ lead, onClose }: LeadEditFormProps) {
     try {
       await updateLead.mutateAsync({ id: lead.id, ...form });
       toast.success('Lead mis à jour !');
-      onClose();
+      onClose?.();
     } catch {
       toast.error('Erreur lors de la mise à jour');
     }
@@ -112,9 +113,11 @@ export function LeadEditForm({ lead, onClose }: LeadEditFormProps) {
     >
       <div className="flex items-center justify-between">
         <h3 className="font-heading text-base">Modifier le lead</h3>
-        <Button type="button" variant="ghost" size="icon" onClick={onClose}>
-          <X className="h-4 w-4" />
-        </Button>
+        {onClose && !inline && (
+          <Button type="button" variant="ghost" size="icon" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -205,7 +208,9 @@ export function LeadEditForm({ lead, onClose }: LeadEditFormProps) {
       </div>
 
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
+        {onClose && !inline && (
+          <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
+        )}
         <Button type="submit" disabled={updateLead.isPending}>
           {updateLead.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
           Enregistrer

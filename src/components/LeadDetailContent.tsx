@@ -8,10 +8,9 @@ import { LeadActivityTimeline } from '@/components/LeadActivityTimeline';
 import { LeadEditForm } from '@/components/LeadEditForm';
 import { FollowupTimeline } from '@/components/FollowupTimeline';
 import {
-  Mail, Phone, Smartphone, Loader2, ExternalLink,
-  Pencil, Trash2, Sparkles, Activity, LayoutGrid, Building2, Save, MoreVertical,
+  Mail, Phone, Smartphone, Loader2,
+  Trash2, Sparkles, Activity, LayoutGrid, Building2, Save,
 } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { ShowStatusToggle } from '@/components/ShowStatusToggle';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
 import ReactMarkdown from 'react-markdown';
@@ -22,14 +21,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 
 export function LeadDetailContent({ leadId }: { leadId: string }) {
-  const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
   const [notesDirty, setNotesDirty] = useState(false);
@@ -171,9 +168,6 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
                   )}
                 </div>
                 <div className="flex gap-2 pt-2 border-t border-border/50">
-                  <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => setEditing(true)}>
-                    <Pencil className="h-3.5 w-3.5" />Modifier
-                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -184,6 +178,9 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
                   </Button>
                 </div>
               </div>
+
+              {/* Formulaire d'édition inline */}
+              <LeadEditForm lead={lead} inline />
 
 
               {/* Message initial */}
@@ -280,17 +277,6 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
         </ScrollArea>
       </Tabs>
 
-      {/* Edit mode in sub-Sheet */}
-      <Sheet open={editing} onOpenChange={setEditing}>
-        <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>Modifier le lead</SheetTitle>
-          </SheetHeader>
-          <div className="mt-4">
-            <LeadEditForm lead={lead} onClose={() => setEditing(false)} />
-          </div>
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }
