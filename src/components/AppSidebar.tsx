@@ -1,11 +1,14 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Kanban, Bell, PanelLeftClose, PanelLeft, LogOut, Package, CalendarCheck, UserCheck, Settings, MessageCircle } from 'lucide-react';
+import { LayoutDashboard, Kanban, Bell, PanelLeftClose, PanelLeft, LogOut, Package, CalendarCheck, UserCheck, Settings, MessageCircle, Sparkles } from 'lucide-react';
 import logo from '@/assets/logo.webp';
 import logoIcon from '@/assets/logo-icon.webp';
 import { useSidebarState } from './AppLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useWhatsAppInbox } from '@/hooks/useWhatsAppInbox';
+import { useState } from 'react';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { GlobalNaturalLanguageInput } from './GlobalNaturalLanguageInput';
 
 const links = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -23,6 +26,7 @@ export function AppSidebar() {
   const { collapsed, setCollapsed } = useSidebarState();
   const { signOut } = useAuth();
   const { unreadCount } = useWhatsAppInbox();
+  const [aiOpen, setAiOpen] = useState(false);
 
   return (
     <aside
@@ -42,6 +46,21 @@ export function AppSidebar() {
         )}
       </div>
 
+      {/* Bouton Assistant IA */}
+      <div className="px-2 pt-3">
+        <button
+          onClick={() => setAiOpen(true)}
+          title={collapsed ? 'Assistant IA' : undefined}
+          className={cn(
+            'group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-white transition-all duration-200 gradient-primary shadow-[0_4px_16px_hsl(var(--primary)/0.35)] hover:shadow-[0_6px_24px_hsl(var(--primary)/0.5)]',
+            collapsed && 'justify-center px-0'
+          )}
+        >
+          <Sparkles className="h-[18px] w-[18px] shrink-0" />
+          {!collapsed && <span className="flex-1 text-left">Assistant IA</span>}
+        </button>
+      </div>
+
       <nav className="flex-1 space-y-0.5 px-2 py-4">
         {links.map(({ to, icon: Icon, label }) => {
           const active = location.pathname === to || (to !== '/' && location.pathname.startsWith(to));
@@ -58,7 +77,6 @@ export function AppSidebar() {
                   : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
               )}
             >
-              {/* Active indicator bar */}
               {active && (
                 <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-primary" />
               )}
@@ -100,6 +118,20 @@ export function AppSidebar() {
           {!collapsed && 'Réduire'}
         </button>
       </div>
+
+      <Sheet open={aiOpen} onOpenChange={setAiOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto custom-scrollbar">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              Assistant IA
+            </SheetTitle>
+          </SheetHeader>
+          <div className="py-4">
+            <GlobalNaturalLanguageInput onDone={() => setAiOpen(false)} />
+          </div>
+        </SheetContent>
+      </Sheet>
     </aside>
   );
 }

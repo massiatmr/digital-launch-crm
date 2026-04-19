@@ -1,7 +1,6 @@
 import { Outlet } from 'react-router-dom';
 import { AppSidebar } from './AppSidebar';
 import { MobileBottomNav } from './MobileBottomNav';
-import { AiFloatingButton } from './AiFloatingButton';
 import { EnablePushButton } from './EnablePushButton';
 import { createContext, useContext, useState } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -26,8 +25,8 @@ export function AppLayout() {
           <Outlet />
         </main>
         {isMobile && <MobileBottomNav />}
-        {!isMobile && <AiFloatingButton />}
       </div>
     </SidebarContext.Provider>
   );
 }
+
