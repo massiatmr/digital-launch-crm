@@ -48,6 +48,9 @@ Deno.serve(async (req) => {
       "pages_manage_metadata",
       "leads_retrieval",
       "pages_manage_ads",
+      "whatsapp_business_management",
+      "whatsapp_business_messaging",
+      "business_management",
     ].join(",");
 
     // Encode user_id and workspace_id together in state
