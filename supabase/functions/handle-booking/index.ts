@@ -306,7 +306,7 @@ Deno.serve(async (req) => {
 
     // 7. Notify the owner (push + email via SMTP)
     const APP_BASE_URL = "https://digital-launch-crm.lovable.app";
-    const OWNER_NOTIFY_EMAIL = "contact@digitallaunch-llc.com";
+    const ADMIN_NOTIFY_EMAIL = "contact@digitallaunch-llc.com";
     const bookingUrl = `${APP_BASE_URL}/bookings`;
     const titleSuffix = offerName ? ` — ${offerName}` : "";
     const meetRow = meetLink
@@ -314,12 +314,36 @@ Deno.serve(async (req) => {
          <p style="font-size:14px;color:#1a1a2e;margin:0 0 8px"><a href="${meetLink}" style="color:#7c3aed">${meetLink}</a></p>`
       : "";
 
+    // Résoudre workspace pour préfixer + envoyer aussi à l'email du workspace
+    let workspaceName: string | null = null;
+    let workspaceEmail: string | null = null;
+    {
+      const { data: leadRow } = await supabase
+        .from("leads")
+        .select("workspace_id")
+        .eq("id", leadId)
+        .maybeSingle();
+      if (leadRow?.workspace_id) {
+        const { data: ws } = await supabase
+          .from("workspaces")
+          .select("company_name, notification_email, email")
+          .eq("id", leadRow.workspace_id)
+          .maybeSingle();
+        workspaceName = ws?.company_name || null;
+        workspaceEmail = (ws?.notification_email || ws?.email || "").trim() || null;
+      }
+    }
+    const wsPrefix = workspaceName ? `[${workspaceName}] ` : "";
+    const recipients = Array.from(new Set(
+      [ADMIN_NOTIFY_EMAIL, workspaceEmail].filter((e): e is string => !!e)
+    ));
+
     // Push to owner via OneSignal
     try {
       await supabase.functions.invoke("send-onesignal-notification", {
         body: {
           user_id: owner_id,
-          title: `📅 Nouveau RDV — ${name}`,
+          title: `📅 ${wsPrefix}Nouveau RDV — ${name}`,
           body: `${booking_date} à ${time_slot} • ${offerName}`,
           url: `/bookings`,
           tag: `new-booking-${bookingId}`.slice(0, 32),
@@ -329,30 +353,31 @@ Deno.serve(async (req) => {
       console.error("Owner push failed:", e);
     }
 
-    // Email to owner via SMTP
+    // Email to admin + workspace via SMTP
     try {
       const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"></head>
 <body style="background:#fff;font-family:'Plus Jakarta Sans',Arial,sans-serif;margin:0;padding:0">
   <div style="max-width:520px;margin:0 auto;padding:30px 25px">
-    <h1 style="font-size:24px;font-weight:700;color:#1a1a2e;margin:0 0 16px">📅 Nouveau RDV réservé${titleSuffix}</h1>
+    <h1 style="font-size:22px;font-weight:700;color:#111827;margin:0 0 6px">📅 Nouveau RDV${titleSuffix}</h1>
+    ${workspaceName ? `<div style="font-size:13px;color:#6b7280;margin:0 0 16px">Espace : ${workspaceName}</div>` : ""}
     <p style="font-size:15px;color:#444;line-height:1.6;margin:0 0 16px">
       Un prospect vient de prendre rendez-vous via une de tes pages.
     </p>
-    <div style="background:#f4f0ff;border-radius:12px;padding:20px 24px;margin:20px 0;border-left:4px solid #7c3aed">
-      <p style="font-size:12px;color:#7c3aed;font-weight:600;margin:8px 0 2px;text-transform:uppercase;letter-spacing:0.5px">👤 Nom</p>
-      <p style="font-size:16px;color:#1a1a2e;font-weight:600;margin:0 0 8px">${name}</p>
-      <p style="font-size:12px;color:#7c3aed;font-weight:600;margin:8px 0 2px;text-transform:uppercase;letter-spacing:0.5px">✉️ Email</p>
-      <p style="font-size:16px;color:#1a1a2e;font-weight:600;margin:0 0 8px">${email}</p>
-      <p style="font-size:12px;color:#7c3aed;font-weight:600;margin:8px 0 2px;text-transform:uppercase;letter-spacing:0.5px">📱 Téléphone</p>
-      <p style="font-size:16px;color:#1a1a2e;font-weight:600;margin:0 0 8px">${phone}</p>
-      <p style="font-size:12px;color:#7c3aed;font-weight:600;margin:8px 0 2px;text-transform:uppercase;letter-spacing:0.5px">🗓 Créneau</p>
-      <p style="font-size:16px;color:#1a1a2e;font-weight:600;margin:0 0 8px">${booking_date} à ${time_slot}</p>
-      <p style="font-size:12px;color:#7c3aed;font-weight:600;margin:8px 0 2px;text-transform:uppercase;letter-spacing:0.5px">🎯 Offre</p>
-      <p style="font-size:16px;color:#1a1a2e;font-weight:600;margin:0 0 8px">${offerName}</p>
+    <div style="background:#f9fafb;border-radius:8px;padding:18px 22px;margin:18px 0;border-left:3px solid #d1d5db">
+      <p style="font-size:12px;color:#6b7280;font-weight:500;margin:8px 0 2px">Nom</p>
+      <p style="font-size:15px;color:#111827;font-weight:600;margin:0 0 8px">${name}</p>
+      <p style="font-size:12px;color:#6b7280;font-weight:500;margin:8px 0 2px">Email</p>
+      <p style="font-size:15px;color:#111827;margin:0 0 8px">${email}</p>
+      <p style="font-size:12px;color:#6b7280;font-weight:500;margin:8px 0 2px">Téléphone</p>
+      <p style="font-size:15px;color:#111827;margin:0 0 8px">${phone}</p>
+      <p style="font-size:12px;color:#6b7280;font-weight:500;margin:8px 0 2px">Créneau</p>
+      <p style="font-size:15px;color:#111827;margin:0 0 8px">${booking_date} à ${time_slot}</p>
+      <p style="font-size:12px;color:#6b7280;font-weight:500;margin:8px 0 2px">Offre</p>
+      <p style="font-size:15px;color:#111827;margin:0 0 8px">${offerName}</p>
       ${meetRow}
     </div>
-    <div style="text-align:center;margin:25px 0">
-      <a href="${bookingUrl}" style="background:#7c3aed;color:#fff;padding:14px 28px;border-radius:8px;font-size:15px;font-weight:600;text-decoration:none;display:inline-block">
+    <div style="margin:25px 0">
+      <a href="${bookingUrl}" style="background:#111827;color:#fff;padding:12px 24px;border-radius:6px;font-size:14px;font-weight:500;text-decoration:none;display:inline-block">
         Voir dans le CRM
       </a>
     </div>
@@ -360,8 +385,8 @@ Deno.serve(async (req) => {
 </body></html>`;
       await supabase.functions.invoke("send-smtp-email", {
         body: {
-          to: OWNER_NOTIFY_EMAIL,
-          subject: `📅 Nouveau RDV — ${name} (${booking_date} ${time_slot})`,
+          to: recipients,
+          subject: `📅 ${wsPrefix}Nouveau RDV — ${name} (${booking_date} ${time_slot})`,
           html,
           replyTo: email,
         },
