@@ -287,6 +287,7 @@ export default function SettingsWorkspacesPage() {
                   )}
                 </div>
                 {user && <MembersList workspaceId={w.id} currentUserId={user.id} canManage={canManage} />}
+                <WorkspaceEditor workspace={w} canManage={canManage} />
                 <FeatureToggles workspaceId={w.id} isAdmin={isAdmin} />
               </CardContent>
             </Card>
