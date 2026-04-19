@@ -169,10 +169,8 @@ Deno.serve(async (req) => {
     }
 
     if (action === "subscribe_webhook") {
-      const { data: cfg } = await applyScope(
-        admin.from("whatsapp_config").select("*"),
-      ).maybeSingle();
-      if (!cfg) return json({ error: "Config WhatsApp introuvable" }, 404);
+      const cfg = await getActiveConfig();
+      if (!cfg) return json({ error: "Aucun numéro WhatsApp actif" }, 404);
 
       const r = await fetch(
         `${GRAPH}/${cfg.business_account_id}/subscribed_apps?access_token=${cfg.access_token}`,
@@ -191,10 +189,8 @@ Deno.serve(async (req) => {
     if (action === "test_send") {
       const { to, template_name, language_code, text } = body;
       if (!to) return json({ error: "Numéro destinataire requis (format E.164 ex 33612345678)" }, 400);
-      const { data: cfg } = await applyScope(
-        admin.from("whatsapp_config").select("*"),
-      ).maybeSingle();
-      if (!cfg) return json({ error: "Config WhatsApp introuvable" }, 404);
+      const cfg = await getActiveConfig();
+      if (!cfg) return json({ error: "Aucun numéro WhatsApp actif" }, 404);
 
       let payload: Record<string, unknown>;
       if (text) {
