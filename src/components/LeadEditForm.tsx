@@ -97,7 +97,7 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
     try {
       await updateLead.mutateAsync({ id: lead.id, ...form });
       toast.success('Lead mis à jour !');
-      onClose();
+      onClose?.();
     } catch {
       toast.error('Erreur lors de la mise à jour');
     }
