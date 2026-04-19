@@ -86,7 +86,12 @@ export default function SettingsTestsPage() {
         body: { user_id: user.id, ...payload },
       });
       if (error) throw new Error(error.message);
-      if (data?.error) throw new Error(data?.hint ? `${data.error} — ${data.hint}` : JSON.stringify(data));
+      if (data?.ok === false || data?.error) {
+        const message = data?.hint
+          ? `${data.error} — ${data.hint}`
+          : data?.error || JSON.stringify(data);
+        throw new Error(message);
+      }
       setter('sent');
       toast.success('Notif envoyée — regarde ton écran 🔔');
     } catch (e) {
