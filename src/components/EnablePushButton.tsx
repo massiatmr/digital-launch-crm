@@ -3,8 +3,10 @@ import { Bell, BellOff, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { requestOneSignalPermission, getOneSignalPermission } from '@/hooks/useOneSignal';
+import { useAuth } from '@/hooks/useAuth';
 
 export function EnablePushButton() {
+  const { user } = useAuth();
   const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
   const [supported, setSupported] = useState(true);
@@ -24,10 +26,10 @@ export function EnablePushButton() {
   const handleClick = async () => {
     setLoading(true);
     try {
-      const ok = await requestOneSignalPermission();
+      const ok = await requestOneSignalPermission(user?.id);
       if (ok) {
         setEnabled(true);
-        toast.success('Notifications activées');
+        toast.success('Notifications activées et appareil lié');
       } else {
         toast.error('Permission refusée ou appareil non lié');
       }
