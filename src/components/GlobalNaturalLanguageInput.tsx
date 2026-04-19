@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { Send, Sparkles, Mic, MicOff, Check, X, RotateCcw, Search, MessageSquare, Zap, UserPlus, Copy, Trash2, Loader2 } from 'lucide-react';
+import { Send, Sparkles, Mic, MicOff, Check, X, RotateCcw, Search, MessageSquare, Zap, UserPlus, Copy, Trash2, Loader2, Calendar } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 import { AudioVisualizer } from '@/components/AudioVisualizer';
 import { toast } from 'sonner';
 import { useLeads, useAnalyzeNote, useApplyProposal, useCreateLead, AiProposal, DbLead } from '@/hooks/useLeadData';
@@ -280,6 +281,10 @@ export function GlobalNaturalLanguageInput({ onDone }: { onDone?: () => void }) 
   const [creatingLead, setCreatingLead] = useState(false);
   const [voiceMode, setVoiceMode] = useState(false);
   const [detectedLeadName, setDetectedLeadName] = useState<string | null>(null);
+  const [bookingIntent, setBookingIntent] = useState<any | null>(null);
+  const [bookingSlots, setBookingSlots] = useState<string[] | null>(null);
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const { user } = useAuth();
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -390,6 +395,39 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
     }
 
     // Action mode
+    // === 0. Détection intention RDV (check / book) ===
+    try {
+      const { data: intent } = await supabase.functions.invoke('ai-lead-analysis', {
+        body: { type: 'booking_intent', lead: { new_note: note } },
+      });
+      if (intent?.is_booking_intent && intent?.date) {
+        setBookingLoading(true);
+        // Toujours check les dispos d'abord
+        const { data: avail } = await supabase.functions.invoke('check-availability', {
+          body: { owner_id: user?.id, date: intent.date },
+        });
+        const slots: string[] = avail?.slots || [];
+        setBookingSlots(slots);
+        setBookingIntent(intent);
+        setBookingLoading(false);
+        if (intent.subtype === 'check' || !intent.time_slot) {
+          // Juste afficher les créneaux
+          return;
+        }
+        // Sous-type "book" + créneau précis : vérifier qu'il est dispo
+        if (!slots.includes(intent.time_slot)) {
+          toast.error(`Créneau ${intent.time_slot} indisponible le ${intent.date}. Voici les autres dispos.`);
+          return;
+        }
+        // Créneau OK → on attend confirmation via le dialog booking
+        return;
+      }
+    } catch (err) {
+      // Si l'IA n'arrive pas à détecter, on continue le flow normal
+      console.warn('booking_intent failed', err);
+      setBookingLoading(false);
+    }
+
     if (!selectedLead) {
       setCreatingLead(true);
       try {
@@ -487,6 +525,70 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
 
   const handleCorrect = () => { setShowDialog(false); setProposal(null); };
 
+  // === Booking helpers ===
+  const resetBooking = () => { setBookingIntent(null); setBookingSlots(null); };
+
+  const confirmBooking = async (timeSlot: string) => {
+    if (!bookingIntent || !user?.id) return;
+    setBookingLoading(true);
+    try {
+      // Trouver lead existant ou créer
+      let leadMatch: DbLead | null = selectedLead;
+      if (!leadMatch && bookingIntent.contact_name) {
+        leadMatch = fuzzyMatchLead(bookingIntent.contact_name, leads);
+      }
+
+      // Trouver une offre par défaut (lead.offer_id ou première active)
+      let offerId: string | null = leadMatch?.offer_id || null;
+      let contactEmail = bookingIntent.contact_email || leadMatch?.email || '';
+      let contactPhone = bookingIntent.contact_phone || leadMatch?.phone || '';
+      let contactName = leadMatch?.name || bookingIntent.contact_name || 'RDV sans nom';
+
+      if (!offerId) {
+        const { data: offers } = await supabase
+          .from('offers')
+          .select('id')
+          .eq('is_active', true)
+          .eq('owner_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        offerId = offers?.[0]?.id || null;
+      }
+      if (!offerId) {
+        toast.error("Aucune offre active trouvée. Crée une offre avant de réserver.");
+        setBookingLoading(false);
+        return;
+      }
+      if (!contactEmail) contactEmail = `rdv-${Date.now()}@placeholder.local`;
+      if (!contactPhone) contactPhone = '+33000000000';
+
+      const { data, error } = await supabase.functions.invoke('handle-booking', {
+        body: {
+          name: contactName,
+          email: contactEmail,
+          phone: contactPhone,
+          booking_date: bookingIntent.date,
+          time_slot: timeSlot,
+          offer_id: offerId,
+          notes: bookingIntent.notes || `Créé via assistant IA — "${note}"`,
+          owner_id: user.id,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(`✅ RDV créé : ${contactName} le ${bookingIntent.date} à ${timeSlot}${data?.meet_link ? ' (Meet créé)' : ''}`);
+      setNote('');
+      resetBooking();
+      onDone?.();
+    } catch (e) {
+      console.error(e);
+      toast.error('Échec création RDV : ' + (e as Error).message);
+    } finally {
+      setBookingLoading(false);
+    }
+  };
+
+
   const SHOW_STATUS_LABELS: Record<string, string> = {
     pending: 'En attente', show: 'Présent', noshow: 'Absent',
   };
@@ -506,7 +608,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
     proposal.notes_append && `Note ajoutée : "${proposal.notes_append}"`,
   ].filter(Boolean) as string[] : [];
 
-  const isPending = analyze.isPending || askingAi || creatingLead || isTranscribing;
+  const isPending = analyze.isPending || askingAi || creatingLead || isTranscribing || bookingLoading;
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -874,6 +976,68 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
                 <Check className="h-4 w-4 mr-1" />
               )}
               Valider
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Booking dialog */}
+      <Dialog open={!!bookingIntent} onOpenChange={(o) => !o && resetBooking()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-primary" />
+              {bookingIntent?.subtype === 'check' ? 'Créneaux disponibles' : 'Confirmer le rendez-vous'}
+            </DialogTitle>
+            <DialogDescription>
+              {bookingIntent?.human_summary || `Le ${bookingIntent?.date}`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            {bookingLoading && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Vérification des dispos…
+              </div>
+            )}
+
+            {bookingSlots && bookingSlots.length === 0 && (
+              <p className="text-sm text-destructive">Aucun créneau disponible ce jour.</p>
+            )}
+
+            {bookingSlots && bookingSlots.length > 0 && (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Clique sur un créneau pour {bookingIntent?.subtype === 'check' ? 'le réserver' : 'confirmer'} :
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {bookingSlots.map((s) => (
+                    <Button
+                      key={s}
+                      size="sm"
+                      variant={bookingIntent?.time_slot === s ? 'default' : 'outline'}
+                      disabled={bookingLoading}
+                      onClick={() => confirmBooking(s)}
+                    >
+                      {s}
+                    </Button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {bookingIntent?.contact_name && (
+              <div className="rounded-lg bg-muted/30 p-3 text-xs space-y-1">
+                <div><span className="text-muted-foreground">Contact : </span>{bookingIntent.contact_name}</div>
+                {bookingIntent.contact_phone && <div><span className="text-muted-foreground">Tél : </span>{bookingIntent.contact_phone}</div>}
+                {bookingIntent.contact_email && <div><span className="text-muted-foreground">Email : </span>{bookingIntent.contact_email}</div>}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={resetBooking} disabled={bookingLoading}>
+              Fermer
             </Button>
           </DialogFooter>
         </DialogContent>
