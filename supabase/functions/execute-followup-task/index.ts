@@ -122,6 +122,27 @@ Deno.serve(async (req) => {
       .from("leads").select("*").eq("id", task.lead_id).maybeSingle();
     if (!lead) return new Response(JSON.stringify({ error: "Lead not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+    // Helper : récupère la config WhatsApp ACTIVE scopée au workspace du lead
+    // (sinon fallback sur l'owner_id si lead sans workspace — legacy)
+    const getActiveWaConfig = async () => {
+      if (lead.workspace_id) {
+        const { data } = await admin
+          .from("whatsapp_config")
+          .select("*")
+          .eq("workspace_id", lead.workspace_id)
+          .eq("is_active", true)
+          .maybeSingle();
+        return data;
+      }
+      const { data } = await admin
+        .from("whatsapp_config")
+        .select("*")
+        .eq("owner_id", ownerId)
+        .is("workspace_id", null)
+        .maybeSingle();
+      return data;
+    };
+
     // Déterminer si un template est mappé pour ce type de tâche
     const tplField = templateKey(task.task_type);
     const tplId = tplField && settings ? (settings as any)[tplField] : null;
