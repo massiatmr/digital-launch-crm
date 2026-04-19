@@ -18,6 +18,10 @@ function isPreviewIframe() {
   return false;
 }
 
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function initOnce() {
   if (initPromise) return initPromise;
   if (isPreviewIframe()) return;
@@ -26,13 +30,43 @@ async function initOnce() {
     appId: ONESIGNAL_APP_ID,
     safari_web_id: SAFARI_WEB_ID,
     allowLocalhostAsSecureOrigin: true,
-    serviceWorkerPath: 'OneSignalSDKWorker.js',
+    serviceWorkerPath: '/OneSignalSDKWorker.js',
+    serviceWorkerParam: { scope: '/' },
+    notifyButton: { enable: false },
   } as any).catch((e: unknown) => {
     console.error('OneSignal init error', e);
     initPromise = null;
   });
 
   return initPromise;
+}
+
+export async function ensureOneSignalLinked(userId?: string | null): Promise<boolean> {
+  if (isPreviewIframe() || !userId) return false;
+
+  await initOnce();
+
+  try {
+    await OneSignal.login(userId);
+  } catch (e) {
+    console.error('OneSignal login error', e);
+  }
+
+  for (let i = 0; i < 10; i++) {
+    try {
+      const permissionGranted = OneSignal.Notifications?.permission === true;
+      const subscriptionId = (OneSignal as any)?.User?.PushSubscription?.id;
+      const optedIn = (OneSignal as any)?.User?.PushSubscription?.optedIn;
+      if (permissionGranted && (subscriptionId || optedIn)) {
+        return true;
+      }
+    } catch {
+      // ignore transient SDK state
+    }
+    await wait(400);
+  }
+
+  return false;
 }
 
 export function useOneSignal() {
@@ -46,7 +80,6 @@ export function useOneSignal() {
       await initOnce();
       if (cancelled) return;
 
-      // Bind click handler once → SPA navigation instead of full reload
       if (!clickHandlerBound) {
         try {
           OneSignal.Notifications.addEventListener('click', (event: any) => {
@@ -71,11 +104,7 @@ export function useOneSignal() {
       }
 
       if (!user) return;
-      try {
-        await OneSignal.login(user.id);
-      } catch (e) {
-        console.error('OneSignal login error', e);
-      }
+      await ensureOneSignalLinked(user.id);
     })();
     return () => {
       cancelled = true;
@@ -90,12 +119,14 @@ export function useOneSignal() {
   }, [user]);
 }
 
-export async function requestOneSignalPermission(): Promise<boolean> {
+export async function requestOneSignalPermission(userId?: string | null): Promise<boolean> {
   if (isPreviewIframe()) return false;
   await initOnce();
   try {
     await OneSignal.Notifications.requestPermission();
-    return OneSignal.Notifications.permission === true;
+    const granted = OneSignal.Notifications.permission === true;
+    if (!granted) return false;
+    return await ensureOneSignalLinked(userId ?? null);
   } catch (e) {
     console.error('OneSignal permission error', e);
     return false;

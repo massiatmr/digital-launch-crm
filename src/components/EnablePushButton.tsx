@@ -29,7 +29,7 @@ export function EnablePushButton() {
         setEnabled(true);
         toast.success('Notifications activées');
       } else {
-        toast.error('Permission refusée ou bloquée');
+        toast.error('Permission refusée ou appareil non lié');
       }
     } finally {
       setLoading(false);
