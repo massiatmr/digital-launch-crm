@@ -74,7 +74,7 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
   return (
     <div className="flex h-[calc(100vh-80px)] flex-col">
       {/* Compact Header */}
-      <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur-sm pb-2">
+      <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur-sm pb-2 pr-12">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 min-w-0">
