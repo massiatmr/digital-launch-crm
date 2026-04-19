@@ -9,8 +9,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Building2, Plus, Check, Users } from 'lucide-react';
+import { Building2, Plus, Check, Users, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
+import { InviteMemberDialog } from '@/components/InviteMemberDialog';
 
 const slugify = (s: string) =>
   s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -128,11 +129,22 @@ export default function SettingsWorkspacesPage() {
               <CardContent className="space-y-2 text-sm">
                 {w.slug && <div className="text-muted-foreground">Slug : <code className="text-xs">{w.slug}</code></div>}
                 {w.role && <div className="text-muted-foreground capitalize">Rôle : {w.role}</div>}
-                <div className="flex gap-2 pt-2">
+                <div className="flex flex-wrap gap-2 pt-2">
                   {!isCurrent && (
                     <Button size="sm" variant="outline" onClick={() => switchWorkspace(w.id)}>
                       Basculer
                     </Button>
+                  )}
+                  {w.role === 'owner' && (
+                    <InviteMemberDialog
+                      workspaceId={w.id}
+                      workspaceName={w.company_name || 'Espace'}
+                      trigger={
+                        <Button size="sm" variant="outline" className="gap-1.5">
+                          <UserPlus className="h-3.5 w-3.5" /> Inviter
+                        </Button>
+                      }
+                    />
                   )}
                 </div>
               </CardContent>
