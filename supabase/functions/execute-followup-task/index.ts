@@ -261,6 +261,11 @@ Deno.serve(async (req) => {
       error_message: errorMessage,
     } as any).eq("id", task_id);
 
+    // Au premier outbound réussi (sent ou dry_run), basculer le lead "new" → "contacted"
+    if ((logStatus === "sent" || logStatus === "dry_run") && lead.status === "new") {
+      await admin.from("leads").update({ status: "contacted" } as any).eq("id", task.lead_id);
+    }
+
     return new Response(JSON.stringify({ success: logStatus !== "failed", message: messageContent, dry_run: dryRun, status: logStatus }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error("execute-followup-task error", e);
