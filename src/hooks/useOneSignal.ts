@@ -8,13 +8,19 @@ const ONESIGNAL_APP_ID = '46f7498d-e02a-4ee9-bbc6-28f0ec0d7aea';
 const SAFARI_WEB_ID = 'web.onesignal.auto.1b1338f0-ae7a-49c0-a5a1-0112be9b9bea';
 const DEVICE_ID_KEY = 'dlcrm_device_id';
 
-let initPromise: Promise<void> | null = null;
-let clickHandlerBound = false;
-let subscriptionListenerBound = false;
-let activeUserId: string | null = null;
+declare global {
+  interface Window {
+    __onesignal_initialized?: boolean;
+    __onesignal_click_bound?: boolean;
+    __onesignal_sub_listener_bound?: boolean;
+    __onesignal_init_promise?: Promise<void>;
+    __onesignal_active_user_id?: string | null;
+  }
+}
 
 function isPreviewIframe() {
   try {
+    if (typeof window === 'undefined') return true;
     if (window.self !== window.top) return true;
   } catch {
     return true;
@@ -99,25 +105,31 @@ async function persistOneSignalSubscription(userId: string, subscriptionId: stri
   return true;
 }
 
-async function ensureSubscriptionListener() {
-  if (subscriptionListenerBound) return;
+function ensureSubscriptionListener() {
+  if (typeof window === 'undefined') return;
+  if (window.__onesignal_sub_listener_bound) return;
   try {
     (OneSignal as any).User?.PushSubscription?.addEventListener?.('change', async (event: any) => {
       const subscriptionId = event?.current?.id;
-      if (!activeUserId || !subscriptionId) return;
-      await persistOneSignalSubscription(activeUserId, subscriptionId);
+      const userId = window.__onesignal_active_user_id;
+      if (!userId || !subscriptionId) return;
+      await persistOneSignalSubscription(userId, subscriptionId);
     });
-    subscriptionListenerBound = true;
+    window.__onesignal_sub_listener_bound = true;
   } catch (e) {
     console.warn('OneSignal subscription listener bind failed', e);
   }
 }
 
-async function initOnce() {
-  if (initPromise) return initPromise;
+async function initOnce(): Promise<void> {
+  if (typeof window === 'undefined') return;
   if (isPreviewIframe()) return;
+  if (window.__onesignal_init_promise) return window.__onesignal_init_promise;
+  if (window.__onesignal_initialized) return;
 
-  initPromise = OneSignal.init({
+  window.__onesignal_initialized = true;
+
+  window.__onesignal_init_promise = OneSignal.init({
     appId: ONESIGNAL_APP_ID,
     safari_web_id: SAFARI_WEB_ID,
     allowLocalhostAsSecureOrigin: true,
@@ -128,31 +140,37 @@ async function initOnce() {
     autoResubscribe: true,
   } as any).catch((e: unknown) => {
     console.error('OneSignal init error', e);
-    initPromise = null;
+    // Allow retry if init really failed (network etc.)
+    window.__onesignal_initialized = false;
+    window.__onesignal_init_promise = undefined;
   });
 
-  return initPromise;
+  return window.__onesignal_init_promise;
+}
+
+function getCurrentExternalId(): string | null {
+  try {
+    return ((OneSignal as any)?.User?.externalId as string | null) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function ensureOneSignalLinked(userId?: string | null): Promise<boolean> {
   if (isPreviewIframe() || !userId) return false;
 
-  activeUserId = userId;
+  window.__onesignal_active_user_id = userId;
   await initOnce();
-  await ensureSubscriptionListener();
+  ensureSubscriptionListener();
 
+  // Only call login if not already linked to this user — avoids LoginManager churn
   try {
-    await OneSignal.login(userId);
-  } catch (e) {
-    console.error('OneSignal login error', e);
-  }
-
-  try {
-    if (OneSignal.Notifications?.permission === true) {
-      await (OneSignal as any).User?.PushSubscription?.optIn?.();
+    const currentExternalId = getCurrentExternalId();
+    if (currentExternalId !== userId) {
+      await OneSignal.login(userId);
     }
   } catch (e) {
-    console.warn('OneSignal optIn error', e);
+    console.error('OneSignal login error', e);
   }
 
   for (let i = 0; i < 12; i++) {
@@ -185,7 +203,7 @@ export function useOneSignal() {
       await initOnce();
       if (cancelled) return;
 
-      if (!clickHandlerBound) {
+      if (!window.__onesignal_click_bound) {
         try {
           OneSignal.Notifications.addEventListener('click', (event: any) => {
             const url: string | undefined = event?.notification?.launchURL || event?.notification?.url;
@@ -202,13 +220,13 @@ export function useOneSignal() {
             }
             window.location.href = url;
           });
-          clickHandlerBound = true;
+          window.__onesignal_click_bound = true;
         } catch (e) {
           console.warn('OneSignal click handler bind failed', e);
         }
       }
 
-      await ensureSubscriptionListener();
+      ensureSubscriptionListener();
 
       if (!user) return;
       await ensureOneSignalLinked(user.id);
@@ -217,39 +235,42 @@ export function useOneSignal() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, navigate]);
+    // NOTE: intentionally NOT depending on `user` to avoid re-init/logout churn.
+    // Linking on user change is handled by the dedicated effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigate]);
 
+  // Re-link when user changes — but NEVER call OneSignal.logout() automatically.
+  // Auto-logout was causing LoginManager errors and lost subscriptions.
   useEffect(() => {
     if (isPreviewIframe()) return;
     if (!user) {
-      activeUserId = null;
-      OneSignal.logout?.().catch(() => {});
+      window.__onesignal_active_user_id = null;
+      return;
     }
-  }, [user]);
+    ensureOneSignalLinked(user.id).catch(() => {});
+  }, [user?.id]);
 }
 
 export async function requestOneSignalPermission(userId?: string | null): Promise<boolean> {
   if (isPreviewIframe()) return false;
   await initOnce();
-  await ensureSubscriptionListener();
+  ensureSubscriptionListener();
 
   try {
     if (userId) {
-      activeUserId = userId;
-      await OneSignal.login(userId);
+      window.__onesignal_active_user_id = userId;
+      const currentExternalId = getCurrentExternalId();
+      if (currentExternalId !== userId) {
+        await OneSignal.login(userId);
+      }
     }
 
     await OneSignal.Notifications.requestPermission();
     const granted = OneSignal.Notifications.permission === true;
     if (!granted) return false;
 
-    try {
-      await (OneSignal as any).User?.PushSubscription?.optIn?.();
-    } catch (e) {
-      console.warn('OneSignal optIn after permission error', e);
-    }
-
-    return await ensureOneSignalLinked(userId ?? activeUserId);
+    return await ensureOneSignalLinked(userId ?? window.__onesignal_active_user_id ?? null);
   } catch (e) {
     console.error('OneSignal permission error', e);
     return false;
@@ -261,5 +282,18 @@ export function getOneSignalPermission(): boolean {
     return OneSignal.Notifications?.permission === true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Explicit logout — call ONLY when the user manually switches accounts.
+ * Never wire this to React lifecycle, auth listeners, or unmount.
+ */
+export async function explicitOneSignalLogout(): Promise<void> {
+  try {
+    window.__onesignal_active_user_id = null;
+    await OneSignal.logout?.();
+  } catch (e) {
+    console.warn('OneSignal explicit logout error', e);
   }
 }
