@@ -61,18 +61,14 @@ Deno.serve(async (req) => {
     }
 
     if (action === "sync") {
-      // Récupérer la config WhatsApp
-      const { data: config } = await admin
-        .from("whatsapp_config")
-        .select("*")
-        .eq("owner_id", user.id)
-        .maybeSingle();
+      // Récupérer la config WhatsApp scopée au workspace si fourni
+      let cfgQ = admin.from("whatsapp_config").select("*").eq("is_active", true);
+      cfgQ = workspaceId ? cfgQ.eq("workspace_id", workspaceId) : cfgQ.eq("owner_id", user.id).is("workspace_id", null);
+      const { data: config } = await cfgQ.maybeSingle();
       if (!config) return json({ error: "WhatsApp non configuré" }, 400);
 
       const url = `${GRAPH}/${config.business_account_id}/message_templates?limit=100`;
-      const resp = await fetch(url, {
-        headers: { Authorization: `Bearer ${config.access_token}` },
-      });
+      const resp = await fetch(url, { headers: { Authorization: `Bearer ${config.access_token}` } });
       const data = await resp.json();
       if (!resp.ok) return json({ error: "Erreur Meta API", details: data }, 400);
 
@@ -86,6 +82,7 @@ Deno.serve(async (req) => {
           .from("whatsapp_templates")
           .upsert({
             owner_id: user.id,
+            workspace_id: workspaceId,
             name: t.name,
             language: t.language,
             category: t.category,
@@ -108,6 +105,7 @@ Deno.serve(async (req) => {
         .from("whatsapp_templates")
         .insert({
           owner_id: user.id,
+          workspace_id: workspaceId,
           name,
           language: language || "fr",
           category: category || "MARKETING",
@@ -133,13 +131,9 @@ Deno.serve(async (req) => {
       if (name !== undefined) patch.name = name;
       if (language !== undefined) patch.language = language;
       if (category !== undefined) patch.category = category;
-      const { data, error } = await admin
-        .from("whatsapp_templates")
-        .update(patch)
-        .eq("id", id)
-        .eq("owner_id", user.id)
-        .select()
-        .single();
+      let q = admin.from("whatsapp_templates").update(patch).eq("id", id);
+      q = scopeQuery(q);
+      const { data, error } = await q.select().single();
       if (error) return json({ error: error.message }, 500);
       return json({ template: data });
     }
@@ -147,11 +141,9 @@ Deno.serve(async (req) => {
     if (action === "delete") {
       const { id } = body;
       if (!id) return json({ error: "id requis" }, 400);
-      const { error } = await admin
-        .from("whatsapp_templates")
-        .delete()
-        .eq("id", id)
-        .eq("owner_id", user.id);
+      let q = admin.from("whatsapp_templates").delete().eq("id", id);
+      q = scopeQuery(q);
+      const { error } = await q;
       if (error) return json({ error: error.message }, 500);
       return json({ success: true });
     }
