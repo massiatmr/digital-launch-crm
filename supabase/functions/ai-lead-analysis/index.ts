@@ -172,9 +172,22 @@ Réponds avec ce JSON exact:
   "objections": [{"objection": "...", "response": "..."}]
 }`;
     } else if (type === "natural_language_update") {
+      const nowIso = new Date().toISOString();
       systemPrompt = `Tu es un assistant CRM intelligent. L'utilisateur va te donner une note en langage naturel à propos d'un lead. Tu dois interpréter cette note et extraire les mises à jour CRM pour TOUS les champs concernés.
 
 ${LEAD_FIELDS_DESCRIPTION}
+
+DATE/HEURE ACTUELLE : ${nowIso}
+
+RÈGLES SPÉCIALES POUR LES TÂCHES / RAPPELS :
+- Si l'utilisateur demande de créer une tâche, un rappel, une relance, un suivi, un appel, un RDV, un follow-up à une date/heure ("demain", "lundi", "dans 2h", "à 14h", "vendredi 10h", "la semaine prochaine"...) :
+  → REMPLIS OBLIGATOIREMENT next_action (ce qu'il faut faire) ET next_action_date (date ISO 8601 calculée depuis MAINTENANT)
+- "demain" = J+1 à 09:00 par défaut, "demain matin" = J+1 09:00, "demain aprem" = J+1 14:00
+- "lundi/mardi/..." = prochain jour de semaine à 09:00 sauf heure précisée
+- "dans X jours/heures" = calcule à partir de MAINTENANT
+- "la semaine prochaine" = lundi prochain à 09:00
+- Si aucune date n'est donnée mais qu'une action est demandée : mets next_action_date à demain 09:00 par défaut
+- next_action_date DOIT TOUJOURS être au format ISO 8601 complet (ex: "2026-04-20T09:00:00.000Z")
 
 Réponds UNIQUEMENT avec un JSON valide (pas de markdown, pas de backticks).`;
 
