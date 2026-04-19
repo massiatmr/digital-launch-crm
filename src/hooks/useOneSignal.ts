@@ -15,6 +15,8 @@ declare global {
     __onesignal_sub_listener_bound?: boolean;
     __onesignal_init_promise?: Promise<void>;
     __onesignal_active_user_id?: string | null;
+    __onesignal_last_synced_endpoint?: string;
+    __onesignal_sync_inflight?: Promise<boolean> | null;
   }
 }
 
@@ -69,40 +71,91 @@ function isStandalonePWA(): boolean {
 async function persistOneSignalSubscription(userId: string, subscriptionId: string) {
   if (!subscriptionId) return false;
 
-  const ua = navigator.userAgent || '';
-  const platform = detectPlatform(ua);
-  const browser = detectBrowser(ua);
-  const standalone = isStandalonePWA();
-  const deviceId = getOrCreateDeviceId();
-  const label = `${platform} · ${browser}${standalone ? ' (PWA)' : ''}`;
+  const endpoint = `onesignal:${subscriptionId}`;
 
-  const payload = {
-    user_id: userId,
-    endpoint: `onesignal:${subscriptionId}`,
-    keys_p256dh: 'onesignal',
-    keys_auth: 'onesignal',
-    device_info: ua.slice(0, 200),
-    device_id: deviceId,
-    device_label: label,
-    platform,
-    browser,
-    is_standalone: standalone,
-    last_seen_at: new Date().toISOString(),
-    status: 'active',
-    last_success_at: new Date().toISOString(),
-    last_error: null,
-  } as any;
-
-  const { error } = await supabase
-    .from('push_subscriptions')
-    .upsert(payload, { onConflict: 'endpoint' });
-
-  if (error) {
-    console.error('OneSignal subscription sync error', error);
-    return false;
+  // In-memory dedupe: skip if we just synced this exact endpoint in this session.
+  if (typeof window !== 'undefined' && window.__onesignal_last_synced_endpoint === endpoint) {
+    return true;
+  }
+  // Coalesce concurrent calls for the same endpoint
+  if (typeof window !== 'undefined' && window.__onesignal_sync_inflight) {
+    return window.__onesignal_sync_inflight;
   }
 
-  return true;
+  const run = (async (): Promise<boolean> => {
+    const ua = navigator.userAgent || '';
+    const platform = detectPlatform(ua);
+    const browser = detectBrowser(ua);
+    const standalone = isStandalonePWA();
+    const deviceId = getOrCreateDeviceId();
+    const label = `${platform} · ${browser}${standalone ? ' (PWA)' : ''}`;
+
+    const payload = {
+      user_id: userId,
+      endpoint,
+      keys_p256dh: 'onesignal',
+      keys_auth: 'onesignal',
+      device_info: ua.slice(0, 200),
+      device_id: deviceId,
+      device_label: label,
+      platform,
+      browser,
+      is_standalone: standalone,
+      last_seen_at: new Date().toISOString(),
+      status: 'active',
+      last_success_at: new Date().toISOString(),
+      last_error: null,
+    } as any;
+
+    // Guard against the (user_id, device_id) unique index:
+    // remove any stale row for this device that points to a different endpoint.
+    try {
+      await supabase
+        .from('push_subscriptions')
+        .delete()
+        .eq('user_id', userId)
+        .eq('device_id', deviceId)
+        .neq('endpoint', endpoint);
+    } catch (cleanupErr) {
+      console.warn('Push subscription cleanup skipped', cleanupErr);
+    }
+
+    let { error } = await supabase
+      .from('push_subscriptions')
+      .upsert(payload, { onConflict: 'endpoint' });
+
+    // Fallback: if a residual conflict on (user_id, device_id) still occurs (race),
+    // update the existing row in place by (user_id, device_id).
+    if (error && (error.code === '23505' || /duplicate key/i.test(error.message || ''))) {
+      const { error: updateErr } = await supabase
+        .from('push_subscriptions')
+        .update(payload)
+        .eq('user_id', userId)
+        .eq('device_id', deviceId);
+      error = updateErr ?? null;
+    }
+
+    if (error) {
+      console.error('OneSignal subscription sync error', error);
+      return false;
+    }
+
+    if (typeof window !== 'undefined') {
+      window.__onesignal_last_synced_endpoint = endpoint;
+    }
+    return true;
+  })();
+
+  if (typeof window !== 'undefined') {
+    window.__onesignal_sync_inflight = run;
+    run.finally(() => {
+      if (window.__onesignal_sync_inflight === run) {
+        window.__onesignal_sync_inflight = null;
+      }
+    });
+  }
+
+  return run;
 }
 
 function ensureSubscriptionListener() {
