@@ -173,8 +173,7 @@ Deno.serve(async (req) => {
       aiGenerated = template.variables_count > 0;
 
       if (!dryRun) {
-        const { data: config } = await admin
-          .from("whatsapp_config").select("*").eq("owner_id", ownerId).maybeSingle();
+        const config = await getActiveWaConfig();
         if (!config) {
           errorMessage = "WhatsApp non configuré";
           logStatus = "failed";
@@ -245,8 +244,7 @@ Deno.serve(async (req) => {
           errorMessage = "Aucun template mappé et fenêtre 24h fermée — Meta refuse le texte libre. Mappe un template ou attends une réponse du lead.";
         } else {
           // Envoi texte libre autorisé
-          const { data: config } = await admin
-            .from("whatsapp_config").select("*").eq("owner_id", ownerId).maybeSingle();
+          const config = await getActiveWaConfig();
           if (!config) {
             errorMessage = "WhatsApp non configuré";
             logStatus = "failed";

@@ -50,7 +50,14 @@ Deno.serve(async (req) => {
     let logStatus = dryRun ? "dry_run" : "sent";
 
     if (!dryRun) {
-      const { data: config } = await admin.from("whatsapp_config").select("*").eq("owner_id", user.id).maybeSingle();
+      // Scoper la config WhatsApp au workspace du lead (pas l'owner courant)
+      let configQuery = admin.from("whatsapp_config").select("*").eq("is_active", true);
+      if (lead.workspace_id) {
+        configQuery = configQuery.eq("workspace_id", lead.workspace_id);
+      } else {
+        configQuery = configQuery.eq("owner_id", lead.owner_id).is("workspace_id", null);
+      }
+      const { data: config } = await configQuery.maybeSingle();
       if (!config) {
         errorMessage = "WhatsApp non configuré";
         logStatus = "failed";
