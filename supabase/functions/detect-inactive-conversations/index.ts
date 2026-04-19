@@ -74,10 +74,14 @@ Deno.serve(async (req) => {
         if (!lead) continue;
 
         // === CAS 1 : conversation inactive (silence > seuil, dans fenêtre 24h) ===
+        // Déclenchée si : on a engagé (au moins 1 inbound) ET silence > seuil ET fenêtre 24h pas expirée
+        // On couvre 2 sous-cas :
+        //  a) dernier msg = nous → le lead n'a pas répondu à notre dernière question
+        //  b) dernier msg = lead → on n'a pas relancé après sa réponse
+        const lastIsOutbound = (lastOut?.getTime() ?? 0) >= (lastIn?.getTime() ?? 0);
         if (
           lastActivity < inactivityCutoff &&
-          lastActivity > window24hCutoff &&
-          lastIn && lastIn > (lastOut ?? new Date(0)) === false // dernier message = nous, lead n'a pas répondu
+          lastActivity > window24hCutoff
         ) {
           // Vérifie qu'on n'a pas déjà une tâche active
           const { data: existing } = await admin
