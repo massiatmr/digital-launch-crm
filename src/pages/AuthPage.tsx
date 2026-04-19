@@ -143,6 +143,17 @@ export default function AuthPage() {
             </p>
           </div>
 
+          {inviteToken && inviteValid === false && (
+            <div className="mb-4 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm">
+              Ce lien d'invitation est invalide ou expiré. Demande un nouveau lien à ton administrateur.
+            </div>
+          )}
+          {inviteToken && inviteValid && (
+            <div className="mb-4 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-sm">
+              Invitation valide pour <span className="font-semibold">{inviteEmail}</span>. Crée ton mot de passe pour activer ton compte.
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-5">
             {authError ? (
               <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-foreground">
