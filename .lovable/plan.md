@@ -1,84 +1,56 @@
 
 
-## Plan : transformer le CRM en outil multi-tenant (sur invitation)
+L'user veut que les owners de workspace puissent connecter leur Facebook + WhatsApp **sans créer leur propre app Meta**. Donc on utilise UNE SEULE app Meta (la mienne, déjà configurée via `FB_APP_ID`/`FB_APP_SECRET`) et chaque owner fait juste un OAuth login → on récupère ses pages + WhatsApp Business Accounts automatiquement.
 
-**Objectif** : permettre à plusieurs owners d'utiliser le CRM, chacun avec son branding, ses configs et ses pages d'offres isolées. Accès par invitation uniquement.
+État actuel :
+- Facebook OAuth est déjà en place (`facebook-auth-init` + `facebook-auth-callback`) avec scopes pages → ✅ marche déjà pour les pages
+- WhatsApp est en mode "manuel" : l'user doit copier-coller `phone_number_id`, `business_account_id`, `access_token` depuis sa propre app Meta → ❌ à remplacer par OAuth Embedded Signup
 
-### 1. Système d'invitations
+## Plan
 
-Nouvelle table `invitations` (email, token, invited_by, expires_at, used_at).
-- Page `/auth` : signup désactivé par défaut, accessible uniquement via lien `/auth?invite=<token>`
-- Page admin `/settings/invitations` (visible uniquement à toi via une table `app_admins`) pour générer/révoquer des invites
-- Edge function `send-invitation` qui génère le token et envoie l'email d'invite (via SMTP existant)
+### 1. Facebook : étendre l'OAuth existant
+Ajouter les scopes WhatsApp + Instagram + business management au flow OAuth existant pour tout faire en 1 connexion :
+- `whatsapp_business_management`
+- `whatsapp_business_messaging`
+- `business_management`
 
-### 2. Profil owner (branding + config entreprise)
+Améliorer `facebook-auth-callback` : après récupération du user token, **aussi** récupérer les WhatsApp Business Accounts (`/me/businesses` → `owned_whatsapp_business_accounts` → `phone_numbers`) et les enregistrer automatiquement dans `whatsapp_config` scopés au workspace.
 
-Nouvelle table `owner_profiles` (un par user) avec :
-- `company_name`, `legal_name`, `siret`, `vat_number`, `address`, `email`, `phone`
-- `logo_url` (upload Storage), `signature_url`
-- `slug` unique (pour les URLs publiques d'offres → `/o/:slug/:offerSlug`)
-- `brand_color`, `email_sender_name`, `email_signature`
+### 2. WhatsApp : flow simplifié "Embedded Signup"
+Remplacer le formulaire manuel actuel (phone_number_id / business_account_id / access_token) par :
+- **Bouton unique "Connecter WhatsApp avec Facebook"** → lance le même OAuth Facebook avec scopes WA
+- Le callback détecte les WABA disponibles, les sauvegarde et permet à l'user de choisir le numéro à activer
+- Auto-subscribe au webhook après sélection
 
-Migration des PDFs (`generateContractPDF`, `generateInvoicePDF`) et du logo (`logoBase64`) pour lire dynamiquement depuis `owner_profiles` au lieu du hardcode "Digital Launch LLC".
+Si plusieurs numéros disponibles → écran de sélection. Sinon auto-config.
 
-### 3. Wizard d'onboarding (3-4 étapes après signup)
+### 3. UI `/settings/integrations`
+- **Carte Facebook** : 1 bouton "Connecter Meta" (pages + WA en une fois)
+- **Carte WhatsApp** : 
+  - Si pas connecté → message "Connecte Meta d'abord" + bouton vers la carte Facebook
+  - Si connecté → liste des numéros WA détectés avec toggle activer/désactiver, status webhook, test send
+  - Plus de champs manuels (gardés en fallback "mode avancé" repliable)
 
-Nouvelle route `/onboarding` (forcée tant que `owner_profiles.completed = false`) :
-1. **Entreprise** : nom, logo, infos légales, slug
-2. **Première offre** : nom, prix, description (crée une `offers` row)
-3. **Connexions** (optionnelles, skippables) : WhatsApp Cloud, Meta Lead Ads, Google Calendar
-4. **Démo** : checkbox "Pré-remplir avec données démo" → seed 3 leads + 1 client + 2 bookings d'exemple via une edge function `seed-demo-data`
+### 4. Edge functions à modifier
+- `facebook-auth-init` : ajouter les scopes WhatsApp
+- `facebook-auth-callback` : après pages, fetch WABA + phone numbers → upsert dans `whatsapp_config` (workspace-scoped, plusieurs lignes possibles)
+- `whatsapp-config-manage` : nouvelle action `list_detected_numbers` (renvoie tous les numéros détectés du workspace), action `activate_number` (set `is_active=true` + subscribe webhook)
 
-### 4. Isolation multi-tenant
+### 5. DB
+Le schema actuel a `whatsapp_config` avec unique `workspace_id` → il faut **lever cette contrainte** pour permettre plusieurs numéros par workspace, et ajouter un champ `is_primary` ou utiliser `is_active` pour distinguer le numéro courant utilisé pour l'envoi.
 
-**Slug par owner pour pages publiques** :
-- Routes publiques actuelles `/offers/:slug/page` → migrer vers `/o/:ownerSlug/:offerSlug` pour éviter les collisions
-- RLS `offers` côté anon : filtrer par `owner_slug` correspondant à l'URL
-- Garder rétrocompat si possible (redirect)
+Migration : drop unique `whatsapp_config_workspace_id_unique`, recréer unique sur `(workspace_id, phone_number_id)`.
 
-**Configs déjà isolées par `owner_id`** : `whatsapp_config`, `meta_pages`, `google_tokens`, `followup_automation_settings`, `whatsapp_templates` → juste valider end-to-end qu'un nouvel owner peut tout configurer sans collision.
+### 6. Prérequis Meta côté toi (admin)
+Pour que ça marche pour TOUT le monde sans App Review, ton app Meta doit être en mode :
+- **Live mode** + **Advanced Access** approuvé pour : `pages_show_list`, `pages_manage_metadata`, `leads_retrieval`, `whatsapp_business_management`, `whatsapp_business_messaging`
+- Sinon → seuls les users ajoutés en testeurs/devs sur l'app pourront connecter
 
-**Templates emails par owner** : ajouter `email_sender_name` + `email_signature` dans `owner_profiles`, lire dans `send-transactional-email` pour personnaliser le From et le footer.
+Note : tant que l'App Review WhatsApp n'est pas approuvée, seuls toi + comptes ajoutés comme testeurs pourront connecter WA. Pour Facebook Pages c'est probablement déjà ok.
 
-### 5. Sécurité (admin role)
-
-Pour l'écran d'invitations admin :
-- Table `user_roles` (id, user_id, role enum 'admin'|'user') + fonction `has_role(uuid, app_role)` security definer
-- Toi seul es admin (insert manuel de ta row)
-- RLS sur `invitations` : admin only
-
-### 6. Adaptations UI
-
-- Garde sur `App.tsx` : si user authentifié sans `owner_profiles.completed` → redirect `/onboarding`
-- Settings : nouvelle section "Mon entreprise" pour éditer le profil après onboarding
-- Sidebar : afficher `owner_profiles.company_name` + logo en haut au lieu du logo Digital Launch fixe
-
-### Diagramme
-
-```text
-Invite email
-   ↓
-/auth?invite=<token>  → signup
-   ↓
-/onboarding (wizard 4 étapes)
-   ↓ (crée owner_profiles + offer + optionnellement seed démo)
-/  (pipeline)
-   ↓
-Pages publiques: /o/<owner_slug>/<offer_slug>
-PDFs & emails: branding lu depuis owner_profiles
-```
-
-### Détails techniques
-
-- **Migrations SQL** : `invitations`, `owner_profiles`, `user_roles`, ajout `owner_slug` index, fonction `has_role`, RLS associées
-- **Edge functions nouvelles** : `send-invitation`, `seed-demo-data`, `accept-invitation` (valide token, crée user)
-- **Edge functions modifiées** : `send-transactional-email` (lire branding owner), `handle-booking` (URL publique avec owner_slug)
-- **Code client** : nouveau composant `OnboardingWizard`, nouveau hook `useOwnerProfile`, refactor `logoBase64`/`signatureBase64` → fetch dynamique, refactor PDFs
-- **À noter** : les emails transactionnels personnalisés ne marcheront pleinement qu'une fois le DNS configuré (bloqueur connu) — le code sera prêt mais les envois peuvent rester bloqués jusqu'au DNS
-
-### Découpage suggéré (3 itérations)
-
-1. **Fondations** : tables (`invitations`, `owner_profiles`, `user_roles`), wizard onboarding minimal, garde de redirection — sans démo data ni branding PDF
-2. **Branding & isolation** : refactor PDFs/logo dynamiques, slug owner sur pages publiques, templates emails personnalisés
-3. **Invitations & démo** : page admin `/settings/invitations`, edge function `send-invitation`, `seed-demo-data`
+## Récap technique
+- 1 OAuth = pages FB + WhatsApp en même temps
+- Auto-detect tous les numéros WA et pages, sauvegarde scopée au workspace
+- UI simplifiée : 1 bouton, plus de copier-coller de tokens
+- Plusieurs numéros WA par workspace supportés
 
