@@ -220,8 +220,8 @@ function PipelineColumn({
 }
 
 export default function PipelinePage() {
-  const { data: allLeads = [], isLoading } = useLeads();
-  const { data: offers = [] } = useOffers();
+  const { data: allLeads = [], isLoading, isError: isLeadsError, error: leadsError } = useLeads();
+  const { data: offers = [], isError: isOffersError, error: offersError } = useOffers();
   const updateLead = useUpdateLead();
   const createClient = useCreateClient();
   const navigate = useNavigate();
@@ -329,6 +329,19 @@ export default function PipelinePage() {
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
           <span className="text-sm text-muted-foreground">Chargement...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLeadsError || isOffersError) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <span className="text-sm font-medium text-foreground">Impossible de charger la pipeline</span>
+          <span className="max-w-md text-sm text-muted-foreground">
+            {String(leadsError?.message || offersError?.message || 'La connexion au backend a échoué.')}
+          </span>
         </div>
       </div>
     );
