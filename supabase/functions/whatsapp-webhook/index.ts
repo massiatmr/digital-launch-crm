@@ -100,7 +100,17 @@ Deno.serve(async (req) => {
               }),
             });
             const txt = await pushRes.text();
-            console.log(`OneSignal push for wa msg ${msg.id}: ${pushRes.status} ${txt}`);
+            let pushJson: any = null;
+            try {
+              pushJson = JSON.parse(txt);
+            } catch {
+              pushJson = null;
+            }
+            if (pushRes.ok && pushJson?.ok !== false) {
+              console.log(`OneSignal push for wa msg ${msg.id}: ${pushRes.status} ${txt}`);
+            } else {
+              console.error(`OneSignal push failed for wa msg ${msg.id}: ${pushRes.status} ${txt}`);
+            }
           } catch (pushErr) {
             console.error("Push error:", pushErr);
           }

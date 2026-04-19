@@ -56,7 +56,14 @@ Deno.serve(async (req) => {
       });
 
       const pushText = await pushResponse.text();
-      if (pushResponse.ok) {
+      let pushJson: any = null;
+      try {
+        pushJson = JSON.parse(pushText);
+      } catch {
+        pushJson = null;
+      }
+
+      if (pushResponse.ok && pushJson?.ok !== false) {
         sent++;
         console.log(`Push sent for reminder ${reminder.id}:`, pushText);
       } else {
