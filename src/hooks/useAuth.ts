@@ -1,5 +1,6 @@
 import {
   createContext,
+  createElement,
   useCallback,
   useContext,
   useEffect,
@@ -8,7 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import type { User, Session, AuthError } from '@supabase/supabase-js';
+import type { AuthError, Session, User } from '@supabase/supabase-js';
 
 type AuthContextValue = {
   user: User | null;
@@ -24,7 +25,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 async function restoreSessionWithRetry() {
   try {
     return await supabase.auth.getSession();
-  } catch (error) {
+  } catch {
     await new Promise((resolve) => setTimeout(resolve, 150));
     return await supabase.auth.getSession();
   }
@@ -38,7 +39,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!mounted) return;
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
@@ -87,16 +90,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   }, []);
 
-  const value = useMemo<AuthContextValue>(() => ({
-    user,
-    session,
-    loading,
-    signUp,
-    signIn,
-    signOut,
-  }), [user, session, loading, signUp, signIn, signOut]);
+  const value = useMemo<AuthContextValue>(
+    () => ({ user, session, loading, signUp, signIn, signOut }),
+    [user, session, loading, signUp, signIn, signOut],
+  );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return createElement(AuthContext.Provider, { value }, children);
 }
 
 export function useAuth() {
