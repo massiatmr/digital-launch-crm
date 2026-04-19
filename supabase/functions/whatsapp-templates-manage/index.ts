@@ -44,13 +44,18 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const action = body.action as string;
+    const workspaceId: string | null = body.workspace_id ?? null;
+
+    // Helper : applique le scope workspace si fourni, sinon legacy owner
+    const scopeQuery = (q: any) => {
+      if (workspaceId) return q.eq("workspace_id", workspaceId);
+      return q.eq("owner_id", user.id).is("workspace_id", null);
+    };
 
     if (action === "list") {
-      const { data, error } = await admin
-        .from("whatsapp_templates")
-        .select("*")
-        .eq("owner_id", user.id)
-        .order("created_at", { ascending: false });
+      let q = admin.from("whatsapp_templates").select("*").order("created_at", { ascending: false });
+      q = scopeQuery(q);
+      const { data, error } = await q;
       if (error) return json({ error: error.message }, 500);
       return json({ templates: data });
     }
