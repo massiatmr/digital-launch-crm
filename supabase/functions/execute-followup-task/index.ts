@@ -266,6 +266,94 @@ Deno.serve(async (req) => {
       await admin.from("leads").update({ status: "contacted" } as any).eq("id", task.lead_id);
     }
 
+    // Prise de notes IA : à chaque échange en qualification, mettre à jour les notes du lead
+    // pour préparer l'appel commercial (besoin, budget, urgence, signaux, objections)
+    if (
+      (logStatus === "sent" || logStatus === "dry_run") &&
+      task.task_type === "qualification"
+    ) {
+      try {
+        const { data: history } = await admin
+          .from("whatsapp_messages")
+          .select("direction, content, sent_at")
+          .eq("lead_id", task.lead_id)
+          .order("sent_at", { ascending: true })
+          .limit(30);
+
+        const transcript = (history || [])
+          .map((m: any) => `[${m.direction === "inbound" ? "LEAD" : "MOI"}] ${m.content}`)
+          .join("\n");
+
+        const notesPrompt = `Tu es l'assistant commercial. Analyse la conversation WhatsApp ci-dessous et produis des NOTES DE PRÉPARATION D'APPEL synthétiques en français.
+
+Contexte lead :
+- Nom : ${lead.name}
+- Entreprise : ${lead.company_name || "-"}
+- Message initial : ${lead.message || "-"}
+- Notes manuelles existantes : ${(lead.notes || "").replace(/<!-- AI_NOTES_START -->[\s\S]*?<!-- AI_NOTES_END -->/, "").trim() || "(aucune)"}
+
+Conversation WhatsApp :
+${transcript || "(aucun échange)"}
+
+Produis des notes COURTES et ACTIONNABLES sous ce format markdown EXACT (omet une section si aucune info) :
+
+## 🎯 Besoin
+- ...
+
+## 💰 Budget
+- ...
+
+## ⏱️ Urgence / Timing
+- ...
+
+## 🚨 Objections / Freins
+- ...
+
+## ✨ Signaux d'achat
+- ...
+
+## 📞 Stratégie pour l'appel
+- ...
+
+Règles :
+- Va à l'essentiel, pas de blabla
+- Si une info manque, n'invente rien — omet la section
+- Maximum 2-3 puces par section
+- Ton pro, prêt à l'emploi pour un call`;
+
+        const notesResp = await fetch(LOVABLE_AI, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
+          },
+          body: JSON.stringify({
+            model: settings?.ai_model || "google/gemini-3-flash-preview",
+            messages: [{ role: "user", content: notesPrompt }],
+          }),
+        });
+
+        if (notesResp.ok) {
+          const notesData = await notesResp.json();
+          const aiNotes = notesData.choices?.[0]?.message?.content?.trim();
+          if (aiNotes) {
+            const stamp = new Date().toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+            const block = `<!-- AI_NOTES_START -->\n_🤖 Notes IA mises à jour le ${stamp}_\n\n${aiNotes}\n<!-- AI_NOTES_END -->`;
+            const existing = lead.notes || "";
+            const blockRegex = /<!-- AI_NOTES_START -->[\s\S]*?<!-- AI_NOTES_END -->/;
+            const newNotes = blockRegex.test(existing)
+              ? existing.replace(blockRegex, block)
+              : (existing.trim() ? existing.trim() + "\n\n" + block : block);
+            await admin.from("leads").update({ notes: newNotes } as any).eq("id", task.lead_id);
+          }
+        } else {
+          console.warn("AI notes generation failed", await notesResp.text());
+        }
+      } catch (notesErr) {
+        console.error("AI notes update error", notesErr);
+      }
+    }
+
     return new Response(JSON.stringify({ success: logStatus !== "failed", message: messageContent, dry_run: dryRun, status: logStatus }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error("execute-followup-task error", e);
