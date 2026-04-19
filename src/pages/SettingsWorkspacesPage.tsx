@@ -12,8 +12,9 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { Building2, Plus, Check, Users, UserPlus, Trash2, ShieldCheck, MessageCircle, CalendarCheck, Package, Facebook, UserCheck } from 'lucide-react';
+import { Building2, Plus, Check, Users, UserPlus, Trash2, ShieldCheck, MessageCircle, CalendarCheck, Package, Facebook, UserCheck, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { InviteMemberDialog } from '@/components/InviteMemberDialog';
 
