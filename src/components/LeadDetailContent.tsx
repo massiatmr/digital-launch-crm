@@ -8,10 +8,9 @@ import { LeadActivityTimeline } from '@/components/LeadActivityTimeline';
 import { LeadEditForm } from '@/components/LeadEditForm';
 import { FollowupTimeline } from '@/components/FollowupTimeline';
 import {
-  Mail, Phone, Smartphone, Loader2, ExternalLink,
-  Pencil, Trash2, Sparkles, Activity, LayoutGrid, Building2, Save, MoreVertical,
+  Mail, Phone, Smartphone, Loader2,
+  Trash2, Sparkles, Activity, LayoutGrid, Building2, Save,
 } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { ShowStatusToggle } from '@/components/ShowStatusToggle';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
 import ReactMarkdown from 'react-markdown';
