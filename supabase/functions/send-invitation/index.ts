@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
     const { data: invite, error: insertErr } = await admin
       .from("invitations")
       .insert(insertPayload)
-      .select("token, expires_at, workspace_id, workspace_role")
+      .select("id, token, expires_at, workspace_id, workspace_role")
       .single();
 
     if (insertErr || !invite) {
@@ -92,6 +92,45 @@ Deno.serve(async (req) => {
 
     const origin = req.headers.get("origin") || "https://digital-launch-crm.lovable.app";
     const url = `${origin}/auth?invite=${invite.token}`;
+
+    // Récupère nom du workspace + nom inviteur pour l'email
+    let workspaceName: string | null = null;
+    if (invite.workspace_id) {
+      const { data: ws } = await admin
+        .from("workspaces")
+        .select("company_name")
+        .eq("id", invite.workspace_id)
+        .maybeSingle();
+      workspaceName = ws?.company_name || null;
+    }
+    let inviterName: string | null = null;
+    {
+      const { data: prof } = await admin
+        .from("owner_profiles")
+        .select("company_name, email")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      inviterName = prof?.company_name || prof?.email || user.email || null;
+    }
+
+    // Envoi email transactionnel (best-effort, n'échoue pas l'invitation)
+    try {
+      await admin.functions.invoke("send-transactional-email", {
+        body: {
+          templateName: "workspace-invitation",
+          recipientEmail: email,
+          idempotencyKey: `workspace-invite-${invite.id}`,
+          templateData: {
+            workspaceName: workspaceName || "votre nouvel espace",
+            inviterName,
+            acceptUrl: url,
+            role: invite.workspace_role,
+          },
+        },
+      });
+    } catch (mailErr) {
+      console.error("[send-invitation] email send failed", mailErr);
+    }
 
     return new Response(
       JSON.stringify({
