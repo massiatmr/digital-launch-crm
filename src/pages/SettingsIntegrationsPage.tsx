@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Facebook, Loader2, Trash2, RefreshCw, ChevronDown, ChevronUp, Copy, ExternalLink, MessageCircle, CheckCircle2, Send, Power } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCurrentWorkspaceId, useWorkspaces } from "@/hooks/useWorkspaces";
 
 interface WhatsappConfig {
   phone_number_id: string;
@@ -39,6 +40,8 @@ const WA_WEBHOOK_URL = `${SUPABASE_URL}/functions/v1/whatsapp-webhook`;
 
 export default function SettingsIntegrationsPage() {
   const [params, setParams] = useSearchParams();
+  const workspaceId = useCurrentWorkspaceId();
+  const { currentWorkspace } = useWorkspaces();
   const [pages, setPages] = useState<MetaPage[]>([]);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
@@ -59,7 +62,7 @@ export default function SettingsIntegrationsPage() {
   const loadPages = async () => {
     setLoading(true);
     const { data, error } = await supabase.functions.invoke("facebook-pages-manage", {
-      body: { action: "list" },
+      body: { action: "list", workspace_id: workspaceId },
     });
     if (error) {
       toast.error("Erreur de chargement", { description: error.message });
@@ -71,7 +74,9 @@ export default function SettingsIntegrationsPage() {
 
   const loadWaConfig = async () => {
     setWaLoading(true);
-    const { data, error } = await supabase.functions.invoke("whatsapp-config-manage", { body: { action: "get" } });
+    const { data, error } = await supabase.functions.invoke("whatsapp-config-manage", {
+      body: { action: "get", workspace_id: workspaceId },
+    });
     if (!error) setWaConfig(data?.config || null);
     setWaLoading(false);
   };
@@ -79,7 +84,7 @@ export default function SettingsIntegrationsPage() {
   const callWa = async (action: string, body: Record<string, unknown> = {}, successMsg?: string) => {
     setWaBusy(action);
     const { data, error } = await supabase.functions.invoke("whatsapp-config-manage", {
-      body: { action, ...body },
+      body: { action, workspace_id: workspaceId, ...body },
     });
     setWaBusy(null);
     if (error || data?.error) {
@@ -113,11 +118,13 @@ export default function SettingsIntegrationsPage() {
       setParams({}, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [workspaceId]);
 
   const connectFacebook = async () => {
     setConnecting(true);
-    const { data, error } = await supabase.functions.invoke("facebook-auth-init", { body: {} });
+    const { data, error } = await supabase.functions.invoke("facebook-auth-init", {
+      body: { workspace_id: workspaceId },
+    });
     setConnecting(false);
     if (error || !data?.url) {
       toast.error("Impossible de démarrer la connexion", { description: error?.message });
@@ -129,7 +136,7 @@ export default function SettingsIntegrationsPage() {
   const callAction = async (action: string, page_id: string, successMsg?: string) => {
     setBusy(`${action}:${page_id}`);
     const { data, error } = await supabase.functions.invoke("facebook-pages-manage", {
-      body: { action, page_id },
+      body: { action, page_id, workspace_id: workspaceId },
     });
     setBusy(null);
     if (error) {
@@ -153,6 +160,12 @@ export default function SettingsIntegrationsPage() {
         <p className="text-muted-foreground mt-1">
           Connectez vos comptes externes pour automatiser la collecte de leads.
         </p>
+        {currentWorkspace && (
+          <div className="mt-3 inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm">
+            <span className="text-muted-foreground">Espace configuré :</span>
+            <span className="font-semibold">{currentWorkspace.company_name}</span>
+          </div>
+        )}
       </div>
 
       {/* ============== WHATSAPP CLOUD API ============== */}
