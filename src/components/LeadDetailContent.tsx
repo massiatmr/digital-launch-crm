@@ -275,17 +275,6 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
         </ScrollArea>
       </Tabs>
 
-      {/* Edit mode in sub-Sheet */}
-      <Sheet open={editing} onOpenChange={setEditing}>
-        <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>Modifier le lead</SheetTitle>
-          </SheetHeader>
-          <div className="mt-4">
-            <LeadEditForm lead={lead} onClose={() => setEditing(false)} />
-          </div>
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }
