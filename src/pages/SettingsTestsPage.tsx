@@ -36,12 +36,29 @@ export default function SettingsTestsPage() {
   const [lastError, setLastError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(0);
   const inPreview = useMemo(() => isPreviewEnvironment(), []);
+  const [diag, setDiag] = useState<{ permission: string; subscriptionId: string | null; optedIn: boolean; swReady: boolean }>({
+    permission: 'unknown',
+    subscriptionId: null,
+    optedIn: false,
+    swReady: false,
+  });
 
   useEffect(() => {
-    setPermission(getOneSignalPermission() || (typeof Notification !== 'undefined' && Notification.permission === 'granted'));
-    const t = setInterval(() => {
+    const refresh = async () => {
       setPermission(getOneSignalPermission() || (typeof Notification !== 'undefined' && Notification.permission === 'granted'));
-    }, 1500);
+      try {
+        const OneSignal = (window as any).OneSignal;
+        const subId = OneSignal?.User?.PushSubscription?.id ?? null;
+        const optedIn = Boolean(OneSignal?.User?.PushSubscription?.optedIn);
+        const perm = typeof Notification !== 'undefined' ? Notification.permission : 'unknown';
+        const reg = await navigator.serviceWorker?.getRegistration();
+        setDiag({ permission: perm, subscriptionId: subId, optedIn, swReady: Boolean(reg?.active) });
+      } catch {
+        // ignore
+      }
+    };
+    refresh();
+    const t = setInterval(refresh, 1500);
     return () => clearInterval(t);
   }, []);
 
@@ -161,6 +178,21 @@ export default function SettingsTestsPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* DIAGNOSTIC */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Diagnostic OneSignal (live)</CardTitle>
+          <CardDescription>État réel du SDK sur cet appareil. Subscription ID = appareil enregistré côté OneSignal.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-1 text-xs font-mono">
+          <div>permission: <span className={diag.permission === 'granted' ? 'text-primary' : 'text-destructive'}>{diag.permission}</span></div>
+          <div>service worker actif: <span className={diag.swReady ? 'text-primary' : 'text-destructive'}>{String(diag.swReady)}</span></div>
+          <div>optedIn: <span className={diag.optedIn ? 'text-primary' : 'text-muted-foreground'}>{String(diag.optedIn)}</span></div>
+          <div className="break-all">subscriptionId: <span className={diag.subscriptionId ? 'text-primary' : 'text-destructive'}>{diag.subscriptionId ?? 'null'}</span></div>
+          <div>user_id: <span className="text-muted-foreground">{user?.id ?? 'non connecté'}</span></div>
+        </CardContent>
+      </Card>
 
       {/* STEP 1 — Activation */}
       <Card>
