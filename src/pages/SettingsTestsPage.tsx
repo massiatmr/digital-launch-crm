@@ -56,12 +56,12 @@ export default function SettingsTestsPage() {
       toast.error('Le preview ne peut pas enregistrer OneSignal. Ouvre la version publiée.');
       return;
     }
-    const ok = await requestOneSignalPermission();
+    const ok = await requestOneSignalPermission(user?.id);
     if (ok) {
       setPermission(true);
-      toast.success('Notifications activées');
+      toast.success('Notifications activées et appareil lié');
     } else {
-      toast.error('Permission refusée. Vérifie les réglages du navigateur/iOS.');
+      toast.error('Permission ok peut-être, mais appareil non lié. Réessaie sur la version publiée.');
     }
   };
 
