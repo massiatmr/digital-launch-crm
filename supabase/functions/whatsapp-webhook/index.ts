@@ -64,18 +64,24 @@ Deno.serve(async (req) => {
             `[${msg.type}]`;
 
           const tail = from.slice(-9);
-          const { data: leads } = await admin
+          let leadQuery = admin
             .from("leads")
-            .select("id, name")
-            .eq("owner_id", cfg.owner_id)
+            .select("id, name, workspace_id")
             .ilike("phone", `%${tail}%`)
             .limit(1);
+          if (cfg.workspace_id) {
+            leadQuery = leadQuery.eq("workspace_id", cfg.workspace_id);
+          } else {
+            leadQuery = leadQuery.eq("owner_id", cfg.owner_id);
+          }
+          const { data: leads } = await leadQuery;
           const lead = leads?.[0];
           if (!lead) continue;
 
           await admin.from("whatsapp_messages").insert({
             lead_id: lead.id,
             owner_id: cfg.owner_id,
+            workspace_id: cfg.workspace_id ?? lead.workspace_id ?? null,
             direction: "inbound",
             content,
             wa_message_id: msg.id,
