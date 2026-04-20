@@ -7,8 +7,18 @@ import { Badge } from '@/components/ui/badge';
 import BookingSection from '@/components/BookingSection';
 import {
   CalendarCheck, Check, Loader2, ArrowRight,
-  Shield, AlertCircle, Star, ChevronDown, Sparkles, Target, Zap
+  Shield, AlertCircle, Star, ChevronDown, Sparkles, Target, Zap,
+  AlertTriangle, Clock, TrendingDown, Frown, Rocket, Gift, Trophy, Gem, type LucideIcon,
 } from 'lucide-react';
+
+const ICON_MAP: Record<string, LucideIcon> = {
+  AlertTriangle, AlertCircle, Clock, TrendingDown, Frown, Zap,
+  Rocket, Target, Gift, Shield, Star, Trophy, Gem, Sparkles, Check,
+};
+const HormoziIcon = ({ name, className }: { name: string; className?: string }) => {
+  const C = ICON_MAP[name] || Sparkles;
+  return <C className={className} />;
+};
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import DemenageurLanding from '@/pages/landing/demenageur';
@@ -68,7 +78,13 @@ export default function PublicOfferPage() {
   const testimonials = Array.isArray(offerPage?.testimonials) ? offerPage.testimonials : [];
 
   const painPoints = sections.find((s: any) => s.type === 'pain_points');
+  const isHormoziPain = painPoints?.variant === 'hormozi';
   const solution = sections.find((s: any) => s.type === 'solution');
+  const transformation = sections.find((s: any) => s.type === 'transformation');
+  const deliverables = sections.find((s: any) => s.type === 'deliverables');
+  const bonuses = sections.find((s: any) => s.type === 'bonuses');
+  const faq = sections.find((s: any) => s.type === 'faq');
+  const pricing = sections.find((s: any) => s.type === 'pricing');
   const guarantee = sections.find((s: any) => s.type === 'guarantee');
   const portfolio = sections.find((s: any) => s.type === 'portfolio');
 
