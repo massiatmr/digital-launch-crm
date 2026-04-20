@@ -1,5 +1,9 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { Send, Sparkles, Mic, MicOff, Check, X, RotateCcw, Search, MessageSquare, Zap, UserPlus, Copy, Trash2, Loader2, Calendar } from 'lucide-react';
+import { Send, Sparkles, Mic, MicOff, Check, X, RotateCcw, Search, MessageSquare, Zap, UserPlus, Copy, Trash2, Loader2, Calendar, Paperclip, FileText } from 'lucide-react';
+import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
+import { BulkImportPreview, type MappedRow } from '@/components/BulkImportPreview';
+import { useCurrentWorkspaceId } from '@/hooks/useWorkspaces';
 import { useAuth } from '@/hooks/useAuth';
 import { AudioVisualizer } from '@/components/AudioVisualizer';
 import { toast } from 'sonner';
