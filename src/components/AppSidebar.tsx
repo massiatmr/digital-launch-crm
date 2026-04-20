@@ -34,7 +34,7 @@ export function AppSidebar() {
   return (
     <aside
       className={cn(
-        'fixed inset-y-0 left-0 z-50 flex flex-col border-r border-border/50 bg-sidebar transition-all duration-300',
+        'fixed left-0 top-16 bottom-0 z-40 flex flex-col border-r border-border/50 bg-sidebar transition-all duration-300',
         collapsed ? 'w-16' : 'w-60'
       )}
       style={{
