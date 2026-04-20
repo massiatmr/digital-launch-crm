@@ -215,8 +215,9 @@ export function useDeleteLead() {
         .eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['leads'] });
+      await queryClient.refetchQueries({ queryKey: ['leads'] });
       toast.success('Déplacé vers la corbeille');
     },
     onError: (e: any) => toast.error(e.message),
