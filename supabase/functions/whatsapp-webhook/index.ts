@@ -89,6 +89,16 @@ Deno.serve(async (req) => {
             status: "received",
           });
 
+          // Qualification IA en fire-and-forget
+          fetch(`${SUPABASE_URL}/functions/v1/qualify-conversation`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            },
+            body: JSON.stringify({ lead_id: lead.id }),
+          }).catch((e) => console.error("qualify-conversation invoke failed:", e));
+
           // Push notif via OneSignal
           try {
             const pushRes = await fetch(`${SUPABASE_URL}/functions/v1/send-onesignal-notification`, {
