@@ -73,6 +73,8 @@ export default function ClientDetailPage() {
   const updateClientSilent = useUpdateClientSilent();
 
   const [editing, setEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [hardDelete, setHardDelete] = useState(false);
   const [form, setForm] = useState<any>({});
   const [newAccess, setNewAccess] = useState({ service: '', login: '', password: '', url: '' });
   const [newObjective, setNewObjective] = useState('');
