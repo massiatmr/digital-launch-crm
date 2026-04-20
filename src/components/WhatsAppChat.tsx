@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { useWhatsAppMessages, useSendWhatsAppMessage, useSendWhatsAppAudio, useWhatsAppRealtime } from '@/hooks/useFollowupTasks';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { LiveAudioVisualizer } from '@/components/LiveAudioVisualizer';
 
 type PendingMsg = { tempId: string; content: string; at: number; status: 'sending' | 'failed' };
 
@@ -51,6 +52,7 @@ export function WhatsAppChat({ leadId, className }: { leadId: string; className?
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const [activeStream, setActiveStream] = useState<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
@@ -90,9 +92,11 @@ export function WhatsAppChat({ leadId, className }: { leadId: string; className?
         setRecordedBlob(blob);
         setRecordedUrl(URL.createObjectURL(blob));
         stream.getTracks().forEach((t) => t.stop());
+        setActiveStream(null);
       };
       mr.start();
       recorderRef.current = mr;
+      setActiveStream(stream);
       setRecording(true);
       setElapsed(0);
       timerRef.current = window.setInterval(() => setElapsed((s) => s + 1), 1000);
@@ -188,13 +192,13 @@ export function WhatsAppChat({ leadId, className }: { leadId: string; className?
       {/* Enregistrement en cours */}
       {recording && (
         <div className="border-t border-border p-2 flex items-center gap-2 bg-destructive/10">
-          <span className="h-2 w-2 rounded-full bg-destructive animate-pulse" />
-          <span className="text-sm font-mono">{Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}</span>
-          <span className="text-xs text-muted-foreground flex-1">Enregistrement…</span>
-          <Button size="icon" variant="ghost" onClick={cancelRecording} title="Annuler">
+          <span className="h-2 w-2 rounded-full bg-destructive animate-pulse shrink-0" />
+          <span className="text-sm font-mono shrink-0 tabular-nums">{Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}</span>
+          <LiveAudioVisualizer stream={activeStream} />
+          <Button size="icon" variant="ghost" onClick={cancelRecording} title="Annuler" className="shrink-0">
             <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
-          <Button size="icon" onClick={stopRecording} title="Arrêter">
+          <Button size="icon" onClick={stopRecording} title="Arrêter" className="shrink-0">
             <Square className="h-4 w-4" />
           </Button>
         </div>
