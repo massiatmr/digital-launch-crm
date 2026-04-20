@@ -68,6 +68,10 @@ export default function SettingsIntegrationsPage() {
   const [waTestText, setWaTestText] = useState("");
   const [waTestTemplate, setWaTestTemplate] = useState("");
   const [waTestLang, setWaTestLang] = useState("en_US");
+  const [showManualAdd, setShowManualAdd] = useState(false);
+  const [manualPhoneId, setManualPhoneId] = useState("");
+  const [manualWabaId, setManualWabaId] = useState("");
+  const [manualToken, setManualToken] = useState("");
 
   const activeWa = waNumbers.find((n) => n.is_active) || null;
 
