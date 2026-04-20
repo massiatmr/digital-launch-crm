@@ -59,11 +59,14 @@ export function useWhatsAppInbox() {
       const { data: leads } = await supabase
         .from('leads')
         .select('id, name, phone')
-        .in('id', leadIds);
+        .in('id', leadIds)
+        .is('deleted_at', null);
       const leadMap = new Map((leads ?? []).map((l: any) => [l.id, l]));
+      // Exclure les conversations dont le lead a été supprimé
+      const visibleLeadIds = leadIds.filter((id) => leadMap.has(id));
 
       const seen = readSeen();
-      const items: InboxItem[] = leadIds.map((id) => {
+      const items: InboxItem[] = visibleLeadIds.map((id) => {
         const m = byLead.get(id);
         const l: any = leadMap.get(id) ?? { name: 'Lead inconnu', phone: null };
         const lastTs = new Date(m.sent_at).getTime();
