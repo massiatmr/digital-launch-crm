@@ -108,10 +108,9 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
               onClick={() => {
                 deleteLead.mutate(lead.id, {
                   onSuccess: () => {
-                    toast.success('Lead supprimé');
-                    navigate('/leads');
+                    setConfirmDelete(false);
+                    navigate('/pipeline', { replace: true });
                   },
-                  onError: () => toast.error('Erreur lors de la suppression'),
                 });
               }}
             >
