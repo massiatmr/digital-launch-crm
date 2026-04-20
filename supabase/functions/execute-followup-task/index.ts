@@ -131,6 +131,72 @@ Deno.serve(async (req) => {
     }
     const dryRun = settings?.dry_run !== false; // default true (sécurité)
 
+    // === STOP INTELLIGENT ===
+    // 1. Skip si lead lost/won
+    if (lead.status === "lost" || lead.status === "won") {
+      await admin.from("lead_followup_tasks").update({
+        status: "cancelled",
+        error_message: `Skipped: lead status=${lead.status}`,
+      } as any).eq("id", task_id);
+      return new Response(JSON.stringify({ ok: true, skipped: true, reason: `lead ${lead.status}` }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 2. Check qualification : reporter si "pas le bon moment" récent
+    const { data: qualif } = await admin
+      .from("lead_qualification").select("*").eq("lead_id", task.lead_id).maybeSingle();
+    if (qualif) {
+      const objs: string[] = qualif.objections ?? [];
+      const hasBadTiming = objs.some((o) => /pas le bon moment|trop tôt|plus tard|recontacter/i.test(o));
+      if (hasBadTiming && qualif.last_qualified_at) {
+        const daysSince = (Date.now() - new Date(qualif.last_qualified_at).getTime()) / (1000 * 60 * 60 * 24);
+        if (daysSince < 7) {
+          const newDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+          await admin.from("lead_followup_tasks").update({
+            scheduled_at: newDate,
+            error_message: "Reporté +14j (objection 'mauvais moment' < 7j)",
+          } as any).eq("id", task_id);
+          return new Response(JSON.stringify({ ok: true, deferred: true, new_date: newDate }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+      // Si auto-stop activé et lead détecté pas intéressé → annule
+      if (settings?.auto_stop_on_not_interested !== false &&
+          (qualif.intent === "not_interested" || qualif.intent === "wrong_person")) {
+        await admin.from("lead_followup_tasks").update({
+          status: "cancelled",
+          error_message: `Auto-stop: intent=${qualif.intent}`,
+        } as any).eq("id", task_id);
+        return new Response(JSON.stringify({ ok: true, skipped: true, reason: qualif.intent }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    // 3. Escalade : 3+ relances sent consécutives sans aucun inbound après → pause + alerte
+    const { count: outboundCount } = await admin
+      .from("lead_followup_tasks").select("id", { count: "exact", head: true })
+      .eq("lead_id", task.lead_id).eq("status", "sent")
+      .in("task_type", ["followup_1", "followup_2", "last_followup", "reactivation"]);
+    const { count: inboundCount } = await admin
+      .from("whatsapp_messages").select("id", { count: "exact", head: true })
+      .eq("lead_id", task.lead_id).eq("direction", "inbound");
+    if ((outboundCount ?? 0) >= 3 && (inboundCount ?? 0) === 0) {
+      await admin.from("lead_followup_tasks").update({
+        status: "cancelled",
+        error_message: "Pause auto : 3 relances sans aucune réponse",
+      } as any).eq("id", task_id);
+      // Annule aussi les tâches futures non-manuelles
+      await admin.from("lead_followup_tasks").update({ status: "cancelled" } as any)
+        .eq("lead_id", task.lead_id).in("status", ["pending", "scheduled"])
+        .neq("task_type", "manual_call");
+      return new Response(JSON.stringify({ ok: true, skipped: true, reason: "auto_pause_3_no_reply" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Helper : récupère la config WhatsApp ACTIVE scopée au workspace du lead
     // (sinon fallback sur l'owner_id si lead sans workspace — legacy)
     const getActiveWaConfig = async () => {
@@ -261,7 +327,7 @@ Deno.serve(async (req) => {
           Authorization: isInternalCron ? `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` : authHeader!,
           ...(isInternalCron ? { "x-internal-cron": "1", "x-owner-id": ownerId! } : {}),
         },
-        body: JSON.stringify({ lead_id: task.lead_id, task_type: task.task_type }),
+        body: JSON.stringify({ lead_id: task.lead_id, task_type: task.task_type, variant: task.message_variant ?? (settings?.enable_ab_test ? (Math.random() < 0.5 ? "A" : "B") : undefined) }),
       });
       if (!genResp.ok) {
         const errBody = await genResp.text();

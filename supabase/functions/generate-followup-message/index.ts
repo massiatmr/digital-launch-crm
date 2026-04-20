@@ -1,4 +1,6 @@
-// Génère un message WhatsApp de suivi pour un lead via Lovable AI Gateway
+// Génère un message WhatsApp de suivi via Lovable AI Gateway.
+// Utilise la qualification structurée (lead_qualification) et sélectionne un prompt contextuel
+// selon l'intent / interest_level / objections.
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -11,11 +13,30 @@ const TASK_LABEL: Record<string, string> = {
   followup_1: "PREMIÈRE relance (sans réponse) — courte, bienveillante, recadre la valeur",
   followup_2: "DEUXIÈME relance (sans réponse) — preuve sociale ou bénéfice concret",
   last_followup: "DERNIÈRE relance — soft close, propose de clore si pas intéressé",
-  qualification: "Le lead vient de répondre — UNE seule question si pas encore qualifié, SINON propose directement 2 créneaux ou le lien de réservation",
-  propose_meeting: "Propose 2 créneaux concrets cette semaine OU partage le lien de réservation",
+  qualification: "Le lead vient de répondre — réagis selon le contexte qualif",
+  propose_meeting: "Lead chaud → propose 2 créneaux concrets OU partage le lien de réservation",
+  reactivation: "Lead silencieux → réveille la conversation avec une question ouverte",
 };
 
 const PUBLIC_BASE_URL = "https://digital-launch-crm.lovable.app";
+
+const DEFAULT_PROMPTS = {
+  qualification: "Tu qualifies un lead. Pose UNE seule question essentielle pour comprendre son contexte (problème, urgence ou décideur). Max 2 phrases. Direct, conversationnel.",
+  objection: "Le lead a soulevé une objection. Reconnais-la brièvement, retourne-la en avantage, puis propose un mini-engagement (créneau court de 15 min ou démo). Max 2 phrases.",
+  closing: "Le lead est qualifié et chaud. Propose IMMÉDIATEMENT 2 créneaux concrets cette semaine OU partage le lien de réservation. Aucune nouvelle question. Max 2 phrases.",
+  reactivation: "Le lead est silencieux. Réveille la conversation avec une question ouverte, valeur, sans pression. Max 2 phrases. Pas de relance générique style 'tu es là ?'.",
+};
+
+function pickPromptKey(qualification: any, taskType: string): keyof typeof DEFAULT_PROMPTS {
+  if (taskType === "reactivation" || taskType === "template_24h") return "reactivation";
+  if (taskType === "propose_meeting") return "closing";
+  const intent = qualification?.intent;
+  const interest = qualification?.interest_level ?? 0;
+  const objections = qualification?.objections ?? [];
+  if (intent === "ready_to_book" || interest >= 70) return "closing";
+  if (intent === "objection" || objections.length > 0) return "objection";
+  return "qualification";
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -24,7 +45,9 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     const isInternalCron = req.headers.get("x-internal-cron") === "1";
     const cronOwnerId = req.headers.get("x-owner-id");
-    if (!authHeader && !isInternalCron) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (!authHeader && !isInternalCron) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
     const supabase = isInternalCron
       ? createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!)
@@ -37,13 +60,12 @@ Deno.serve(async (req) => {
       ownerId = user.id;
     }
 
-    const { lead_id, task_type } = await req.json();
+    const { lead_id, task_type, variant } = await req.json();
     if (!lead_id || !task_type) return new Response(JSON.stringify({ error: "Missing lead_id or task_type" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const { data: lead } = await supabase.from("leads").select("*").eq("id", lead_id).maybeSingle();
     if (!lead) return new Response(JSON.stringify({ error: "Lead not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    // Settings : par workspace si dispo, sinon legacy par owner
     let settings: any = null;
     if (lead.workspace_id) {
       const { data } = await supabase.from("followup_automation_settings").select("*").eq("workspace_id", lead.workspace_id).maybeSingle();
@@ -54,50 +76,68 @@ Deno.serve(async (req) => {
       settings = data;
     }
 
-    const [{ data: history }, { data: offer }] = await Promise.all([
+    const [{ data: history }, { data: offer }, { data: qualification }] = await Promise.all([
       supabase.from("whatsapp_messages").select("direction,content,sent_at").eq("lead_id", lead_id).order("sent_at", { ascending: true }).limit(20),
       supabase.from("leads").select("offer_id, offers(name, description, price, slug)").eq("id", lead_id).maybeSingle(),
+      supabase.from("lead_qualification").select("*").eq("lead_id", lead_id).maybeSingle(),
     ]);
 
     const offerData = (offer as any)?.offers;
     const offerInfo = offerData
       ? `Offre proposée: ${offerData.name} — ${offerData.description ?? ''} ${offerData.price ? `(${offerData.price})` : ''}`
       : "Aucune offre liée";
-
-    const bookingLink = offerData?.slug
-      ? `${PUBLIC_BASE_URL}/offers/${offerData.slug}/page`
-      : null;
+    const bookingLink = offerData?.slug ? `${PUBLIC_BASE_URL}/offers/${offerData.slug}/page` : null;
 
     const inboundCount = (history ?? []).filter((m: any) => m.direction === 'inbound').length;
+    const historyText = (history ?? []).slice(-10).map(m => `${m.direction === 'inbound' ? 'LEAD' : 'MOI'}: ${m.content}`).join("\n") || "Aucun échange précédent.";
 
-    const historyText = (history ?? []).map(m => `${m.direction === 'inbound' ? 'LEAD' : 'MOI'}: ${m.content}`).join("\n") || "Aucun échange précédent.";
+    // Sélection du prompt contextuel
+    const promptKey = pickPromptKey(qualification, task_type);
+    const customPrompt = settings?.[`prompt_${promptKey}`]?.trim();
+    const contextualPrompt = customPrompt || DEFAULT_PROMPTS[promptKey];
 
-    const defaultInstructions = "Tu es un closer humain. Pose 3 à 5 questions ESSENTIELLES max pour qualifier (problème principal, urgence, contexte). Dès qu'un signal d'intérêt apparaît, propose un créneau précis (ex: 'Mardi 14h ou Jeudi 10h ?') ou partage le lien de réservation. Max 2 phrases. Pas de blabla, ton direct et conversationnel.";
+    const baseInstructions = settings?.ai_instructions?.trim() || "Tu es un closer humain, direct, conversationnel.";
 
-    const systemPrompt = `${settings?.ai_instructions ?? defaultInstructions}
+    const qualifBlock = qualification
+      ? `QUALIFICATION DÉJÀ DÉTECTÉE (utilise-la, ne re-pose pas ces questions) :
+- Problème : ${qualification.pain_point || "inconnu"}
+- Urgence : ${qualification.urgency}
+- Budget : ${qualification.budget_signal}
+- Décideur : ${qualification.decision_maker}
+- Objections rencontrées : ${(qualification.objections ?? []).join(", ") || "aucune"}
+- Intérêt estimé : ${qualification.interest_level}/100
+- Résumé : ${qualification.summary || "—"}`
+      : "QUALIFICATION : pas encore analysée.";
+
+    const variantHint = variant === "B" ? "\n\n⚠️ VARIANTE B : adopte un angle différent de ce que tu écrirais habituellement (autre accroche, autre question)." : "";
+
+    const systemPrompt = `${baseInstructions}
+
+MODE CONTEXTUEL : ${promptKey.toUpperCase()}
+${contextualPrompt}${variantHint}
 
 RÈGLES STRICTES :
-- MAX 2 phrases, ton direct et conversationnel
+- MAX 2 phrases
 - 1 SEULE question par message (jamais 2 ou 3)
-- Le lead a déjà répondu ${inboundCount} fois → ${inboundCount >= 1 ? "PROPOSE MAINTENANT un créneau ou le lien de réservation (pas une nouvelle question sauf info critique manquante)" : "pose UNE question d'ouverture"}
+- Pas de "Bonjour" si déjà dit, pas de signature, 1 emoji max
 - Pour proposer un RDV : ${bookingLink ? `partage ce lien → ${bookingLink}` : "propose 2 créneaux concrets cette semaine (ex: 'Mardi 14h ou Jeudi 10h ?')"}
-- Pas de "Bonjour" si déjà dit, pas de signature, pas d'emoji excessif (1 max)
 
-CONTEXTE LEAD:
-- Nom: ${lead.name}
-- Entreprise: ${lead.company_name || 'N/A'}
-- Source: ${lead.source}
-- Message initial du lead: "${lead.message || 'Aucun'}"
-- Notes internes: ${lead.notes || 'Aucune'}
+CONTEXTE LEAD :
+- Nom : ${lead.name}
+- Entreprise : ${lead.company_name || 'N/A'}
+- Source : ${lead.source}
+- Message initial : "${lead.message || 'Aucun'}"
 - ${offerInfo}
-${bookingLink ? `- Lien de réservation: ${bookingLink}` : '- Pas de lien de réservation → propose 2 créneaux à confirmer'}
+${bookingLink ? `- Lien de réservation : ${bookingLink}` : ''}
 
-HISTORIQUE DE LA CONVERSATION WHATSAPP (${inboundCount} réponse(s) du lead):
+${qualifBlock}
+
+HISTORIQUE WHATSAPP (${inboundCount} réponse(s) du lead, 10 derniers) :
 ${historyText}
 
-${settings?.ai_examples ? `EXEMPLES DE MESSAGES À SUIVRE:\n${settings.ai_examples}\n` : ''}
+${settings?.ai_examples ? `EXEMPLES DE STYLE :\n${settings.ai_examples}\n` : ''}
 
-TÂCHE ACTUELLE: ${TASK_LABEL[task_type] || task_type}
+TÂCHE ACTUELLE : ${TASK_LABEL[task_type] || task_type}
 
 Génère UNIQUEMENT le texte du message WhatsApp (français, max 2 phrases).`;
 
@@ -124,7 +164,9 @@ Génère UNIQUEMENT le texte du message WhatsApp (français, max 2 phrases).`;
     const data = await aiResponse.json();
     const message = data.choices?.[0]?.message?.content?.trim() || "";
 
-    return new Response(JSON.stringify({ message }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ message, prompt_used: promptKey, variant: variant ?? "A" }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (e) {
     console.error("generate-followup-message error", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });

@@ -543,9 +543,11 @@ export type Database = {
           ai_examples: string
           ai_instructions: string
           ai_model: string
+          auto_stop_on_not_interested: boolean
           created_at: string
           dry_run: boolean
           enable_24h_template_switch: boolean
+          enable_ab_test: boolean
           enable_call_escalation: boolean
           followup_1_delay_hours: number
           followup_2_delay_hours: number
@@ -554,6 +556,10 @@ export type Database = {
           is_enabled: boolean
           last_followup_delay_hours: number
           owner_id: string
+          prompt_closing: string
+          prompt_objection: string
+          prompt_qualification: string
+          prompt_reactivation: string
           template_followup_1_id: string | null
           template_followup_2_id: string | null
           template_initial_id: string | null
@@ -568,9 +574,11 @@ export type Database = {
           ai_examples?: string
           ai_instructions?: string
           ai_model?: string
+          auto_stop_on_not_interested?: boolean
           created_at?: string
           dry_run?: boolean
           enable_24h_template_switch?: boolean
+          enable_ab_test?: boolean
           enable_call_escalation?: boolean
           followup_1_delay_hours?: number
           followup_2_delay_hours?: number
@@ -579,6 +587,10 @@ export type Database = {
           is_enabled?: boolean
           last_followup_delay_hours?: number
           owner_id?: string
+          prompt_closing?: string
+          prompt_objection?: string
+          prompt_qualification?: string
+          prompt_reactivation?: string
           template_followup_1_id?: string | null
           template_followup_2_id?: string | null
           template_initial_id?: string | null
@@ -593,9 +605,11 @@ export type Database = {
           ai_examples?: string
           ai_instructions?: string
           ai_model?: string
+          auto_stop_on_not_interested?: boolean
           created_at?: string
           dry_run?: boolean
           enable_24h_template_switch?: boolean
+          enable_ab_test?: boolean
           enable_call_escalation?: boolean
           followup_1_delay_hours?: number
           followup_2_delay_hours?: number
@@ -604,6 +618,10 @@ export type Database = {
           is_enabled?: boolean
           last_followup_delay_hours?: number
           owner_id?: string
+          prompt_closing?: string
+          prompt_objection?: string
+          prompt_qualification?: string
+          prompt_reactivation?: string
           template_followup_1_id?: string | null
           template_followup_2_id?: string | null
           template_initial_id?: string | null
@@ -1018,6 +1036,7 @@ export type Database = {
           id: string
           lead_id: string
           message_content: string | null
+          message_variant: string | null
           owner_id: string
           scheduled_at: string
           status: Database["public"]["Enums"]["followup_task_status"]
@@ -1034,6 +1053,7 @@ export type Database = {
           id?: string
           lead_id: string
           message_content?: string | null
+          message_variant?: string | null
           owner_id?: string
           scheduled_at: string
           status?: Database["public"]["Enums"]["followup_task_status"]
@@ -1050,6 +1070,7 @@ export type Database = {
           id?: string
           lead_id?: string
           message_content?: string | null
+          message_variant?: string | null
           owner_id?: string
           scheduled_at?: string
           status?: Database["public"]["Enums"]["followup_task_status"]
@@ -1068,6 +1089,72 @@ export type Database = {
           },
           {
             foreignKeyName: "lead_followup_tasks_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_qualification: {
+        Row: {
+          budget_signal: string | null
+          created_at: string
+          decision_maker: string | null
+          intent: string | null
+          interest_level: number
+          last_qualified_at: string | null
+          lead_id: string
+          objections: Json
+          owner_id: string
+          pain_point: string | null
+          summary: string | null
+          updated_at: string
+          urgency: string | null
+          workspace_id: string | null
+        }
+        Insert: {
+          budget_signal?: string | null
+          created_at?: string
+          decision_maker?: string | null
+          intent?: string | null
+          interest_level?: number
+          last_qualified_at?: string | null
+          lead_id: string
+          objections?: Json
+          owner_id?: string
+          pain_point?: string | null
+          summary?: string | null
+          updated_at?: string
+          urgency?: string | null
+          workspace_id?: string | null
+        }
+        Update: {
+          budget_signal?: string | null
+          created_at?: string
+          decision_maker?: string | null
+          intent?: string | null
+          interest_level?: number
+          last_qualified_at?: string | null
+          lead_id?: string
+          objections?: Json
+          owner_id?: string
+          pain_point?: string | null
+          summary?: string | null
+          updated_at?: string
+          urgency?: string | null
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_qualification_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: true
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_qualification_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
@@ -1100,6 +1187,7 @@ export type Database = {
           source: Database["public"]["Enums"]["lead_source"]
           status: Database["public"]["Enums"]["lead_status"]
           updated_at: string
+          whatsapp_engagement_score: number
           workspace_id: string | null
         }
         Insert: {
@@ -1126,6 +1214,7 @@ export type Database = {
           source?: Database["public"]["Enums"]["lead_source"]
           status?: Database["public"]["Enums"]["lead_status"]
           updated_at?: string
+          whatsapp_engagement_score?: number
           workspace_id?: string | null
         }
         Update: {
@@ -1152,6 +1241,7 @@ export type Database = {
           source?: Database["public"]["Enums"]["lead_source"]
           status?: Database["public"]["Enums"]["lead_status"]
           updated_at?: string
+          whatsapp_engagement_score?: number
           workspace_id?: string | null
         }
         Relationships: [
@@ -1708,6 +1798,7 @@ export type Database = {
           direction: Database["public"]["Enums"]["wa_direction"]
           error_message: string | null
           id: string
+          intent: string | null
           lead_id: string
           owner_id: string
           sent_at: string
@@ -1722,6 +1813,7 @@ export type Database = {
           direction: Database["public"]["Enums"]["wa_direction"]
           error_message?: string | null
           id?: string
+          intent?: string | null
           lead_id: string
           owner_id?: string
           sent_at?: string
@@ -1736,6 +1828,7 @@ export type Database = {
           direction?: Database["public"]["Enums"]["wa_direction"]
           error_message?: string | null
           id?: string
+          intent?: string | null
           lead_id?: string
           owner_id?: string
           sent_at?: string

@@ -64,6 +64,12 @@ export default function SettingsAutomationPage() {
       enable_call_escalation: form.enable_call_escalation,
       enable_24h_template_switch: form.enable_24h_template_switch,
       template_reactivation_id: form.template_reactivation_id,
+      prompt_qualification: form.prompt_qualification,
+      prompt_objection: form.prompt_objection,
+      prompt_closing: form.prompt_closing,
+      prompt_reactivation: form.prompt_reactivation,
+      enable_ab_test: form.enable_ab_test,
+      auto_stop_on_not_interested: form.auto_stop_on_not_interested,
     } as any, { onSuccess: () => setDirty(false) });
   };
 
@@ -209,6 +215,50 @@ export default function SettingsAutomationPage() {
                 onChange={(e) => set({ ai_examples: e.target.value })}
                 placeholder={`Initial:\n"Salut Marie 👋 J'ai vu ta demande pour [offre]. Quel est ton délai ?"\n\nRelance 1:\n"…"`} />
               <p className="text-xs text-muted-foreground mt-1">Plus tu donnes d'exemples, plus l'IA imite ton style.</p>
+            </div>
+          </div>
+
+          {/* Prompts contextuels */}
+          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+            <div>
+              <h2 className="font-heading text-base flex items-center gap-2">
+                <Bot className="h-4 w-4 text-primary" /> Prompts contextuels (4 modes)
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                L'IA choisit automatiquement le prompt selon l'intent détecté du lead. Laisse vide pour utiliser les défauts.
+              </p>
+            </div>
+            {[
+              { key: 'prompt_qualification', label: 'Qualification (lead pas encore qualifié)' },
+              { key: 'prompt_objection', label: 'Traitement d\'objection' },
+              { key: 'prompt_closing', label: 'Closing (lead chaud → pousser RDV)' },
+              { key: 'prompt_reactivation', label: 'Réactivation (lead silencieux)' },
+            ].map((p) => (
+              <div key={p.key}>
+                <Label className="text-sm">{p.label}</Label>
+                <Textarea rows={3} className="mt-1"
+                  value={form[p.key] ?? ''}
+                  onChange={(e) => set({ [p.key]: e.target.value })}
+                  placeholder="(défaut système)" />
+              </div>
+            ))}
+
+            <div className="flex items-start justify-between gap-4 pt-3 border-t border-border">
+              <div>
+                <Label className="text-sm">Auto-stop si "pas intéressé"</Label>
+                <p className="text-xs text-muted-foreground mt-1">Annule les relances et marque le lead "perdu" dès que l'IA détecte un refus clair.</p>
+              </div>
+              <Switch checked={form.auto_stop_on_not_interested ?? true}
+                onCheckedChange={(v) => set({ auto_stop_on_not_interested: v })} />
+            </div>
+
+            <div className="flex items-start justify-between gap-4 pt-3 border-t border-border">
+              <div>
+                <Label className="text-sm">A/B testing des messages</Label>
+                <p className="text-xs text-muted-foreground mt-1">L'IA alterne entre 2 angles différents pour comparer les taux de réponse.</p>
+              </div>
+              <Switch checked={form.enable_ab_test ?? false}
+                onCheckedChange={(v) => set({ enable_ab_test: v })} />
             </div>
           </div>
         </TabsContent>
