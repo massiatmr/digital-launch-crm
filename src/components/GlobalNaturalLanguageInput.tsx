@@ -330,6 +330,111 @@ export function GlobalNaturalLanguageInput({ onDone }: { onDone?: () => void }) 
 
   const { isListening, isTranscribing, toggle: toggleMic, isSupported: micSupported, stop: stopMic } = useSpeechRecognition(handleVoiceResult, handleInterim);
 
+  // ============ BULK IMPORT (file upload) ============
+  const callBulkImport = useCallback(async (payload: {
+    rows?: any[];
+    rawText?: string;
+    fileBase64?: string;
+    fileName?: string;
+    mimeType?: string;
+  }) => {
+    setBulkLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-bulk-import', {
+        body: { ...payload, workspace_id: wsId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const rows = (data?.rows || []) as MappedRow[];
+      if (rows.length === 0) {
+        toast.error('Aucun lead détecté dans ce contenu.');
+        return;
+      }
+      setBulkRows(rows);
+      setBulkStats(data?.stats || null);
+      setBulkOpen(true);
+      toast.success(`${rows.length} ligne${rows.length > 1 ? 's' : ''} détectée${rows.length > 1 ? 's' : ''}`);
+    } catch (e: any) {
+      const msg = e?.message || 'Erreur import';
+      if (msg.includes('429')) toast.error('Trop de requêtes IA, réessaie dans un instant.');
+      else if (msg.includes('402')) toast.error('Crédits IA épuisés.');
+      else toast.error(msg);
+    } finally {
+      setBulkLoading(false);
+      setAttachedFileName(null);
+    }
+  }, [wsId]);
+
+  const fileToBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const b64 = result.split(',')[1] || '';
+      resolve(b64);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+
+  const handleFile = useCallback(async (file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Fichier trop volumineux (max 5 MB)');
+      return;
+    }
+    setAttachedFileName(file.name);
+    const name = file.name.toLowerCase();
+    const ext = name.split('.').pop() || '';
+
+    try {
+      if (ext === 'csv' || file.type === 'text/csv') {
+        const text = await file.text();
+        const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+        const rows = (parsed.data as any[]).filter((r) => r && Object.values(r).some((v) => String(v ?? '').trim()));
+        if (rows.length === 0) { toast.error('CSV vide.'); setAttachedFileName(null); return; }
+        await callBulkImport({ rows });
+        return;
+      }
+      if (ext === 'xlsx' || ext === 'xls' || file.type.includes('spreadsheet') || file.type.includes('excel')) {
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' }) as any[];
+        if (rows.length === 0) { toast.error('Excel vide.'); setAttachedFileName(null); return; }
+        await callBulkImport({ rows });
+        return;
+      }
+      if (ext === 'txt' || file.type === 'text/plain') {
+        const text = await file.text();
+        await callBulkImport({ rawText: text });
+        return;
+      }
+      // PDF / image / other → send to AI
+      const base64 = await fileToBase64(file);
+      await callBulkImport({
+        fileBase64: base64,
+        fileName: file.name,
+        mimeType: file.type || (ext === 'pdf' ? 'application/pdf' : 'application/octet-stream'),
+      });
+    } catch (e) {
+      console.error(e);
+      toast.error('Impossible de lire ce fichier.');
+      setAttachedFileName(null);
+    }
+  }, [callBulkImport]);
+
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) void handleFile(file);
+  }, [handleFile]);
+
+  const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) void handleFile(file);
+    e.target.value = '';
+  };
+
   const filteredLeads = leads.filter(l =>
     l.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
