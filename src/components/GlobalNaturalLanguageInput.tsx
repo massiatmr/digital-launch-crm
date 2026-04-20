@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { Send, Sparkles, Mic, MicOff, Check, X, RotateCcw, Search, MessageSquare, Zap, UserPlus, Copy, Trash2, Loader2, Calendar, Paperclip, FileText } from 'lucide-react';
+import { Send, Sparkles, Mic, MicOff, Copy, Trash2, Loader2, Paperclip, FileText } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { BulkImportPreview, type MappedRow } from '@/components/BulkImportPreview';
@@ -7,82 +7,30 @@ import { useCurrentWorkspaceId } from '@/hooks/useWorkspaces';
 import { useAuth } from '@/hooks/useAuth';
 import { AudioVisualizer } from '@/components/AudioVisualizer';
 import { toast } from 'sonner';
-import { useLeads, useAnalyzeNote, useApplyProposal, useCreateLead, AiProposal, DbLead } from '@/hooks/useLeadData';
+import { useLeads, useApplyProposal, useCreateLead, useCreateReminder, type DbLead } from '@/hooks/useLeadData';
 import { supabase } from '@/integrations/supabase/client';
 import ReactMarkdown from 'react-markdown';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
-
-const STATUS_LABELS: Record<string, string> = {
-  new: 'Nouveau', contacted: 'Contacté', qualified: 'Qualifié',
-  proposal: 'Proposition', won: 'Gagné', lost: 'Perdu',
-};
-
-const SCORE_LABELS: Record<string, string> = {
-  hot: '🔥 Chaud', warm: '🟡 Tiède', cold: '❄️ Froid',
-};
+import { ActionCard, type ActionPayload, type ActionStatus } from '@/components/assistant/ActionCard';
 
 const QUICK_SUGGESTIONS = [
-  'Résumé du pipeline',
-  'Leads à rappeler',
-  'Leads chauds sans action',
-  'Taux de conversion',
+  'Résumé de mon pipeline',
+  'Quels leads dois-je rappeler ?',
+  'Crée un rappel demain 10h pour Marc',
+  'Nouveau lead : Sophie 0612345678',
 ];
 
-type ChatMessage = { role: 'user' | 'assistant'; content: string };
+type ChatMessage = {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  action?: { payload: ActionPayload; status: ActionStatus };
+};
 
-// --- Fuzzy matching helper ---
-function normalizeStr(s: string) {
-  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-}
-
-function fuzzyMatchLead(text: string, leads: DbLead[]): DbLead | null {
-  const normalized = normalizeStr(text);
-  // Try exact name match first
-  for (const lead of leads) {
-    const leadName = normalizeStr(lead.name);
-    if (normalized.includes(leadName) && leadName.length >= 3) {
-      return lead;
-    }
-  }
-  // Try first name match (first word of name)
-  for (const lead of leads) {
-    const firstName = normalizeStr(lead.name).split(/\s+/)[0];
-    if (firstName.length >= 3 && normalized.includes(firstName)) {
-      return lead;
-    }
-  }
-  // Try company name
-  for (const lead of leads) {
-    if (lead.company_name) {
-      const company = normalizeStr(lead.company_name);
-      if (company.length >= 3 && normalized.includes(company)) {
-        return lead;
-      }
-    }
-  }
-  return null;
-}
-
-// --- Speech Recognition Hook ---
-function useSpeechRecognition(
-  onResult: (text: string) => void,
-  onInterim?: (text: string) => void
-) {
+// --- Speech Recognition Hook (preserved from previous implementation) ---
+function useSpeechRecognition(onResult: (text: string) => void, onInterim?: (text: string) => void) {
   const [isListening, setIsListening] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const recognitionRef = useRef<any>(null);
@@ -93,54 +41,36 @@ function useSpeechRecognition(
   const onResultRef = useRef(onResult);
   const onInterimRef = useRef(onInterim);
 
-  // Keep refs fresh without recreating recognition
   useEffect(() => { onResultRef.current = onResult; }, [onResult]);
   useEffect(() => { onInterimRef.current = onInterim; }, [onInterim]);
 
-  const speechSupported = typeof window !== 'undefined' &&
-    ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
-  const recorderSupported = typeof window !== 'undefined' &&
-    !!navigator.mediaDevices?.getUserMedia &&
-    typeof MediaRecorder !== 'undefined';
+  const speechSupported = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
+  const recorderSupported = typeof window !== 'undefined' && !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== 'undefined';
   const isSupported = speechSupported || recorderSupported;
 
   const clearRecorder = useCallback(() => {
     recorderRef.current = null;
     chunksRef.current = [];
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
+    if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null; }
   }, []);
 
   const transcribeRecording = useCallback(async (blob: Blob) => {
     if (!blob.size) return;
-
     setIsTranscribing(true);
-
     try {
-      const extension = blob.type.includes('ogg') ? 'ogg' : blob.type.includes('mp4') ? 'mp4' : 'webm';
-      const file = new File([blob], `voice-note.${extension}`, { type: blob.type || 'audio/webm' });
-      const formData = new FormData();
-      formData.append('type', 'transcribe_audio');
-      formData.append('file', file);
-
-      const { data, error } = await supabase.functions.invoke('ai-lead-analysis', {
-        body: formData,
-      });
-
+      const ext = blob.type.includes('ogg') ? 'ogg' : blob.type.includes('mp4') ? 'mp4' : 'webm';
+      const file = new File([blob], `voice.${ext}`, { type: blob.type || 'audio/webm' });
+      const fd = new FormData();
+      fd.append('type', 'transcribe_audio');
+      fd.append('file', file);
+      const { data, error } = await supabase.functions.invoke('ai-lead-analysis', { body: fd });
       if (error) throw error;
       const transcript = typeof data?.text === 'string' ? data.text.trim() : '';
-
-      if (!transcript) {
-        toast.error('Transcription vide, réessaie en parlant un peu plus fort.');
-        return;
-      }
-
+      if (!transcript) { toast.error('Transcription vide.'); return; }
       onResultRef.current(transcript);
       onInterimRef.current?.('');
     } catch {
-      toast.error('Impossible de transcrire l’audio pour le moment.');
+      toast.error('Impossible de transcrire l\'audio.');
     } finally {
       setIsTranscribing(false);
     }
@@ -149,102 +79,54 @@ function useSpeechRecognition(
   const stop = useCallback(() => {
     wantListening.current = false;
     recognitionRef.current?.stop();
-    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-      recorderRef.current.stop();
-    }
+    if (recorderRef.current && recorderRef.current.state !== 'inactive') recorderRef.current.stop();
     setIsListening(false);
   }, []);
 
   const startSpeechRecognition = useCallback(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'fr-FR';
-    recognition.continuous = true;
-    recognition.interimResults = true;
-
-    recognition.onresult = (event: any) => {
-      let interimTranscript = '';
-      let finalTranscript = '';
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+    const rec = new SR();
+    rec.lang = 'fr-FR'; rec.continuous = true; rec.interimResults = true;
+    rec.onresult = (event: any) => {
+      let interim = '', final = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += transcript;
-        } else {
-          interimTranscript += transcript;
-        }
+        const t = event.results[i][0].transcript;
+        if (event.results[i].isFinal) final += t; else interim += t;
       }
-      if (finalTranscript) onResultRef.current(finalTranscript);
-      if (interimTranscript) onInterimRef.current?.(interimTranscript);
+      if (final) onResultRef.current(final);
+      if (interim) onInterimRef.current?.(interim);
     };
-
-    recognition.onerror = (e: any) => {
-      if (e.error !== 'no-speech' && e.error !== 'aborted') {
-        wantListening.current = false;
-        setIsListening(false);
-      }
-    };
-
-    recognition.onend = () => {
-      if (wantListening.current) {
-        try { recognition.start(); } catch {}
-      } else {
-        setIsListening(false);
-      }
-    };
-
-    recognitionRef.current = recognition;
+    rec.onerror = (e: any) => { if (e.error !== 'no-speech' && e.error !== 'aborted') { wantListening.current = false; setIsListening(false); } };
+    rec.onend = () => { if (wantListening.current) { try { rec.start(); } catch {} } else setIsListening(false); };
+    recognitionRef.current = rec;
     wantListening.current = true;
-    recognition.start();
+    rec.start();
     setIsListening(true);
   }, []);
 
   const startRecorder = useCallback(async () => {
     if (!recorderSupported) return;
-
     try {
       onInterimRef.current?.('');
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/mp4')
-          ? 'audio/mp4'
-          : MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
-            ? 'audio/ogg;codecs=opus'
-            : '';
-
-      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-      streamRef.current = stream;
-      recorderRef.current = recorder;
-      chunksRef.current = [];
-      wantListening.current = true;
-
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunksRef.current.push(event.data);
-        }
-      };
-
+      const mt = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4'
+        : MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus' : '';
+      const recorder = mt ? new MediaRecorder(stream, { mimeType: mt }) : new MediaRecorder(stream);
+      streamRef.current = stream; recorderRef.current = recorder; chunksRef.current = []; wantListening.current = true;
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       recorder.onstop = async () => {
-        const blobType = recorder.mimeType || mimeType || 'audio/webm';
-        const audioBlob = new Blob(chunksRef.current, { type: blobType });
+        const bt = recorder.mimeType || mt || 'audio/webm';
+        const blob = new Blob(chunksRef.current, { type: bt });
         clearRecorder();
-        await transcribeRecording(audioBlob);
+        await transcribeRecording(blob);
       };
-
-      recorder.onerror = () => {
-        clearRecorder();
-        setIsListening(false);
-        toast.error('Impossible d’utiliser le micro.');
-      };
-
+      recorder.onerror = () => { clearRecorder(); setIsListening(false); toast.error('Erreur micro.'); };
       recorder.start();
       setIsListening(true);
     } catch {
-      clearRecorder();
-      setIsListening(false);
-      toast.error('Accès micro refusé ou indisponible.');
+      clearRecorder(); setIsListening(false); toast.error('Accès micro refusé.');
     }
   }, [clearRecorder, recorderSupported, transcribeRecording]);
 
@@ -254,47 +136,40 @@ function useSpeechRecognition(
     else void startRecorder();
   }, [isListening, speechSupported, startSpeechRecognition, startRecorder, stop]);
 
-  useEffect(() => {
-    return () => {
-      wantListening.current = false;
-      recognitionRef.current?.stop();
-      if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-        recorderRef.current.stop();
-      }
-      clearRecorder();
-    };
+  useEffect(() => () => {
+    wantListening.current = false;
+    recognitionRef.current?.stop();
+    if (recorderRef.current && recorderRef.current.state !== 'inactive') recorderRef.current.stop();
+    clearRecorder();
   }, [clearRecorder]);
 
   return { isListening, isTranscribing, toggle, isSupported, stop };
 }
 
-type Mode = 'action' | 'ask';
+const STATUS_LABELS: Record<string, string> = {
+  new: 'Nouveau', contacted: 'Contacté', qualified: 'Qualifié', proposal: 'Proposition', won: 'Gagné', lost: 'Perdu',
+};
+const SCORE_LABELS: Record<string, string> = { hot: '🔥', warm: '🟡', cold: '❄️' };
+
+const uid = () => Math.random().toString(36).slice(2);
 
 export function GlobalNaturalLanguageInput({ onDone }: { onDone?: () => void }) {
   const { data: leads = [] } = useLeads();
-  const [mode, setMode] = useState<Mode>('action');
-  const [selectedLead, setSelectedLead] = useState<DbLead | null>(null);
-  const [note, setNote] = useState('');
-  const [interimText, setInterimText] = useState('');
-  const [proposal, setProposal] = useState<AiProposal | null>(null);
-  const [showDialog, setShowDialog] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [popoverOpen, setPopoverOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [askingAi, setAskingAi] = useState(false);
-  const [creatingLead, setCreatingLead] = useState(false);
-  const [voiceMode, setVoiceMode] = useState(false);
-  const [detectedLeadName, setDetectedLeadName] = useState<string | null>(null);
-  const [bookingIntent, setBookingIntent] = useState<any | null>(null);
-  const [bookingSlots, setBookingSlots] = useState<string[] | null>(null);
-  const [bookingLoading, setBookingLoading] = useState(false);
   const { user } = useAuth();
   const wsId = useCurrentWorkspaceId();
+
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [interimText, setInterimText] = useState('');
+  const [thinking, setThinking] = useState(false);
+  const [voiceMode, setVoiceMode] = useState(false);
+
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
-  // Bulk import state
+  // Bulk import
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkRows, setBulkRows] = useState<MappedRow[] | null>(null);
   const [bulkStats, setBulkStats] = useState<{ total: number; valid: number; duplicates: number; errors: number } | null>(null);
@@ -302,464 +177,254 @@ export function GlobalNaturalLanguageInput({ onDone }: { onDone?: () => void }) 
   const [isDragging, setIsDragging] = useState(false);
   const [attachedFileName, setAttachedFileName] = useState<string | null>(null);
 
-  const analyze = useAnalyzeNote();
   const apply = useApplyProposal();
   const createLead = useCreateLead();
+  const createReminder = useCreateReminder();
 
-  // --- Voice result with smart lead detection ---
   const handleVoiceResult = useCallback((text: string) => {
-    setNote(prev => prev ? prev + ' ' + text : text);
+    setInput((p) => (p ? p + ' ' + text : text));
     setInterimText('');
-
-    // Try to auto-detect lead from voice
-    if (mode === 'action' && !selectedLead) {
-      const fullText = note + ' ' + text;
-      const matched = fuzzyMatchLead(fullText, leads);
-      if (matched) {
-        setSelectedLead(matched);
-        setDetectedLeadName(matched.name);
-        // Clear detection badge after 4s
-        setTimeout(() => setDetectedLeadName(null), 4000);
-      }
-    }
-  }, [leads, mode, selectedLead, note]);
-
-  const handleInterim = useCallback((text: string) => {
-    setInterimText(text);
   }, []);
+  const handleInterim = useCallback((text: string) => setInterimText(text), []);
 
   const { isListening, isTranscribing, toggle: toggleMic, isSupported: micSupported, stop: stopMic } = useSpeechRecognition(handleVoiceResult, handleInterim);
 
-  // ============ BULK IMPORT (file upload) ============
-  const callBulkImport = useCallback(async (payload: {
-    rows?: any[];
-    rawText?: string;
-    fileBase64?: string;
-    fileName?: string;
-    mimeType?: string;
-  }) => {
+  // ---------- Bulk import (preserved) ----------
+  const callBulkImport = useCallback(async (payload: { rows?: any[]; rawText?: string; fileBase64?: string; fileName?: string; mimeType?: string }) => {
     setBulkLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('ai-bulk-import', {
-        body: { ...payload, workspace_id: wsId },
-      });
+      const { data, error } = await supabase.functions.invoke('ai-bulk-import', { body: { ...payload, workspace_id: wsId } });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       const rows = (data?.rows || []) as MappedRow[];
-      if (rows.length === 0) {
-        toast.error('Aucun lead détecté dans ce contenu.');
-        return;
-      }
-      setBulkRows(rows);
-      setBulkStats(data?.stats || null);
-      setBulkOpen(true);
+      if (rows.length === 0) { toast.error('Aucun lead détecté.'); return; }
+      setBulkRows(rows); setBulkStats(data?.stats || null); setBulkOpen(true);
       toast.success(`${rows.length} ligne${rows.length > 1 ? 's' : ''} détectée${rows.length > 1 ? 's' : ''}`);
     } catch (e: any) {
       const msg = e?.message || 'Erreur import';
-      if (msg.includes('429')) toast.error('Trop de requêtes IA, réessaie dans un instant.');
+      if (msg.includes('429')) toast.error('Trop de requêtes IA.');
       else if (msg.includes('402')) toast.error('Crédits IA épuisés.');
       else toast.error(msg);
-    } finally {
-      setBulkLoading(false);
-      setAttachedFileName(null);
-    }
+    } finally { setBulkLoading(false); setAttachedFileName(null); }
   }, [wsId]);
 
   const fileToBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      const b64 = result.split(',')[1] || '';
-      resolve(b64);
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
+    const r = new FileReader();
+    r.onload = () => resolve((r.result as string).split(',')[1] || '');
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
   });
 
   const handleFile = useCallback(async (file: File) => {
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Fichier trop volumineux (max 5 MB)');
-      return;
-    }
+    if (file.size > 5 * 1024 * 1024) { toast.error('Fichier trop volumineux (max 5 MB)'); return; }
     setAttachedFileName(file.name);
-    const name = file.name.toLowerCase();
-    const ext = name.split('.').pop() || '';
-
+    const ext = file.name.toLowerCase().split('.').pop() || '';
     try {
       if (ext === 'csv' || file.type === 'text/csv') {
         const text = await file.text();
         const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
         const rows = (parsed.data as any[]).filter((r) => r && Object.values(r).some((v) => String(v ?? '').trim()));
-        if (rows.length === 0) { toast.error('CSV vide.'); setAttachedFileName(null); return; }
-        await callBulkImport({ rows });
-        return;
+        if (!rows.length) { toast.error('CSV vide.'); setAttachedFileName(null); return; }
+        await callBulkImport({ rows }); return;
       }
       if (ext === 'xlsx' || ext === 'xls' || file.type.includes('spreadsheet') || file.type.includes('excel')) {
         const buf = await file.arrayBuffer();
         const wb = XLSX.read(buf, { type: 'array' });
         const sheet = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' }) as any[];
-        if (rows.length === 0) { toast.error('Excel vide.'); setAttachedFileName(null); return; }
-        await callBulkImport({ rows });
-        return;
+        if (!rows.length) { toast.error('Excel vide.'); setAttachedFileName(null); return; }
+        await callBulkImport({ rows }); return;
       }
-      if (ext === 'txt' || file.type === 'text/plain') {
-        const text = await file.text();
-        await callBulkImport({ rawText: text });
-        return;
-      }
-      // PDF / image / other → send to AI
+      if (ext === 'txt' || file.type === 'text/plain') { await callBulkImport({ rawText: await file.text() }); return; }
       const base64 = await fileToBase64(file);
-      await callBulkImport({
-        fileBase64: base64,
-        fileName: file.name,
-        mimeType: file.type || (ext === 'pdf' ? 'application/pdf' : 'application/octet-stream'),
-      });
-    } catch (e) {
-      console.error(e);
-      toast.error('Impossible de lire ce fichier.');
-      setAttachedFileName(null);
-    }
+      await callBulkImport({ fileBase64: base64, fileName: file.name, mimeType: file.type || (ext === 'pdf' ? 'application/pdf' : 'application/octet-stream') });
+    } catch (e) { console.error(e); toast.error('Impossible de lire ce fichier.'); setAttachedFileName(null); }
   }, [callBulkImport]);
 
   const onDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) void handleFile(file);
+    e.preventDefault(); setIsDragging(false);
+    const f = e.dataTransfer.files?.[0]; if (f) void handleFile(f);
   }, [handleFile]);
-
   const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) void handleFile(file);
-    e.target.value = '';
+    const f = e.target.files?.[0]; if (f) void handleFile(f); e.target.value = '';
   };
 
-  const filteredLeads = leads.filter(l =>
-    l.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
+  // ---------- Context for AI ----------
   const pipelineSummary = useMemo(() => {
-    const byStatus: Record<string, number> = {};
-    const byScore: Record<string, number> = {};
-    leads.forEach(l => {
-      byStatus[l.status] = (byStatus[l.status] || 0) + 1;
-      byScore[l.score] = (byScore[l.score] || 0) + 1;
-    });
-    const withNextAction = leads.filter(l => l.next_action).map(l => `- ${l.name}: ${l.next_action}`).slice(0, 10);
-    const hotLeads = leads.filter(l => l.score === 'hot').map(l => `- ${l.name} (${STATUS_LABELS[l.status]}): ${l.notes?.slice(0, 100) || 'pas de notes'}`);
-    const warmLeads = leads.filter(l => l.score === 'warm').map(l => `- ${l.name} (${STATUS_LABELS[l.status]})`);
-
-    return `Total leads: ${leads.length}
-Par statut: ${Object.entries(byStatus).map(([k, v]) => `${STATUS_LABELS[k] || k}: ${v}`).join(', ')}
-Par score: ${Object.entries(byScore).map(([k, v]) => `${SCORE_LABELS[k] || k}: ${v}`).join(', ')}
-Taux de closing: ${leads.length > 0 ? Math.round((byStatus['won'] || 0) / leads.length * 100) : 0}%
-Leads chauds:\n${hotLeads.join('\n') || 'Aucun'}
-Leads tièdes:\n${warmLeads.join('\n') || 'Aucun'}
-Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
+    const byStatus: Record<string, number> = {}; const byScore: Record<string, number> = {};
+    leads.forEach((l) => { byStatus[l.status] = (byStatus[l.status] || 0) + 1; byScore[l.score] = (byScore[l.score] || 0) + 1; });
+    const next = leads.filter((l) => l.next_action).slice(0, 8).map((l) => `- ${l.name}: ${l.next_action}`);
+    return `Total: ${leads.length}
+Statuts: ${Object.entries(byStatus).map(([k, v]) => `${STATUS_LABELS[k] || k}=${v}`).join(', ')}
+Scores: ${Object.entries(byScore).map(([k, v]) => `${SCORE_LABELS[k] || k}=${v}`).join(', ')}
+Prochaines actions:
+${next.join('\n') || 'Aucune'}`;
   }, [leads]);
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  const leadsIndex = useMemo(() => {
+    return leads.slice(0, 80).map((l) => `${l.id} - ${l.name}${l.company_name ? ' (' + l.company_name + ')' : ''} - ${STATUS_LABELS[l.status] || l.status}`).join('\n');
+  }, [leads]);
+
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, thinking]);
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setNote(e.target.value);
-    const ta = e.target;
-    ta.style.height = 'auto';
-    ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+    setInput(e.target.value);
+    const ta = e.target; ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+  };
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e as any); }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit(e as any);
-    }
+  const updateMessage = (id: string, patch: Partial<ChatMessage> | ((m: ChatMessage) => Partial<ChatMessage>)) => {
+    setMessages((prev) => prev.map((m) => m.id === id ? { ...m, ...(typeof patch === 'function' ? patch(m) : patch) } : m));
+  };
+
+  // ---------- Send to AI assistant ----------
+  const sendToAI = async (history: ChatMessage[]) => {
+    setThinking(true);
+    abortRef.current?.abort();
+    const ctrl = new AbortController(); abortRef.current = ctrl;
+    try {
+      const apiMessages = history.map((m) => ({ role: m.role, content: m.content }));
+      const { data, error } = await supabase.functions.invoke('ai-assistant-chat', {
+        body: { messages: apiMessages, context: { pipeline_summary: pipelineSummary, leads_index: leadsIndex, workspace_id: wsId } },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      const assistantId = uid();
+      const intent: string = data.intent;
+      const reply: string = data.assistant_reply || '';
+      const payload = data.payload;
+
+      const baseMsg: ChatMessage = { id: assistantId, role: 'assistant', content: reply };
+
+      if (intent === 'update_lead' && payload?.lead_id) {
+        baseMsg.action = { payload: { type: 'update_lead', ...payload }, status: 'pending' };
+      } else if (intent === 'create_lead' && payload?.fields) {
+        baseMsg.action = { payload: { type: 'create_lead', fields: payload.fields }, status: 'pending' };
+      } else if (intent === 'booking' && payload?.date) {
+        // Fetch slots immediately for richer card
+        let slots: string[] = [];
+        try {
+          const { data: avail } = await supabase.functions.invoke('check-availability', { body: { owner_id: user?.id, date: payload.date } });
+          slots = avail?.slots || [];
+        } catch {}
+        baseMsg.action = { payload: { type: 'booking', ...payload, slots }, status: 'pending' };
+      } else if (intent === 'reminder' && payload?.lead_id) {
+        const lead = leads.find((l) => l.id === payload.lead_id);
+        baseMsg.action = { payload: { type: 'reminder', ...payload, lead_name: payload.lead_name || lead?.name }, status: 'pending' };
+      }
+
+      setMessages((prev) => [...prev, baseMsg]);
+    } catch (e: any) {
+      const msg = e?.message || 'Erreur';
+      if (msg.includes('429')) toast.error('Trop de requêtes IA.');
+      else if (msg.includes('402')) toast.error('Crédits IA épuisés.');
+      else toast.error(msg);
+      setMessages((prev) => [...prev, { id: uid(), role: 'assistant', content: '⚠️ Désolé, une erreur est survenue.' }]);
+    } finally { setThinking(false); }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!note.trim()) return;
-
-    // Stop mic on submit
+    if (!input.trim() || thinking) return;
     if (isListening) stopMic();
     setVoiceMode(false);
 
-    if (mode === 'ask') {
-      const userMsg: ChatMessage = { role: 'user', content: note.trim() };
-      setMessages(prev => [...prev, userMsg]);
-      setNote('');
-      setInterimText('');
-      if (textareaRef.current) { textareaRef.current.style.height = 'auto'; }
-      setAskingAi(true);
-
-      try {
-        const { data, error } = await supabase.functions.invoke('ai-lead-analysis', {
-          body: {
-            type: 'pipeline_question',
-            lead: { new_note: note, pipeline_summary: pipelineSummary },
-          },
-        });
-        if (error) throw error;
-        if (data?.error) throw new Error(data.error);
-        const answer = data?.answer || 'Pas de réponse.';
-        setMessages(prev => [...prev, { role: 'assistant', content: answer }]);
-      } catch {
-        toast.error("Erreur lors de la requête IA");
-        setMessages(prev => [...prev, { role: 'assistant', content: "Désolé, une erreur s'est produite." }]);
-      } finally {
-        setAskingAi(false);
-      }
-      return;
-    }
-
-    // Action mode
-    // === 0. Détection intention RDV (check / book) ===
-    try {
-      const { data: intent } = await supabase.functions.invoke('ai-lead-analysis', {
-        body: { type: 'booking_intent', lead: { new_note: note } },
-      });
-      if (intent?.is_booking_intent && intent?.date) {
-        setBookingLoading(true);
-        // Toujours check les dispos d'abord
-        const { data: avail } = await supabase.functions.invoke('check-availability', {
-          body: { owner_id: user?.id, date: intent.date },
-        });
-        const slots: string[] = avail?.slots || [];
-        setBookingSlots(slots);
-        setBookingIntent(intent);
-        setBookingLoading(false);
-        if (intent.subtype === 'check' || !intent.time_slot) {
-          // Juste afficher les créneaux
-          return;
-        }
-        // Sous-type "book" + créneau précis : vérifier qu'il est dispo
-        if (!slots.includes(intent.time_slot)) {
-          toast.error(`Créneau ${intent.time_slot} indisponible le ${intent.date}. Voici les autres dispos.`);
-          return;
-        }
-        // Créneau OK → on attend confirmation via le dialog booking
-        return;
-      }
-    } catch (err) {
-      // Si l'IA n'arrive pas à détecter, on continue le flow normal
-      console.warn('booking_intent failed', err);
-      setBookingLoading(false);
-    }
-
-    if (!selectedLead) {
-      setCreatingLead(true);
-      try {
-        const { data, error } = await supabase.functions.invoke('ai-lead-analysis', {
-          body: { type: 'create_lead', lead: { new_note: note } },
-        });
-        if (error) throw error;
-        if (data?.error) throw new Error(data.error);
-
-        // Insert lead with all AI-extracted fields
-        const { data: createdLead, error: insertError } = await supabase
-          .from('leads')
-          .insert({
-            name: data.name || 'Lead inconnu',
-            email: data.email || '',
-            phone: data.phone || '',
-            message: data.message || '',
-            source: (data.source || 'manual') as any,
-            company_name: data.company_name || '',
-            score: (data.score || 'cold') as any,
-            status: (data.status || 'new') as any,
-            show_status: (data.show_status || 'pending') as any,
-            lost_reason: data.lost_reason || '',
-            next_action: data.next_action || '',
-            next_action_date: data.next_action_date || null,
-            last_contacted_at: data.last_contacted_at || null,
-            sales_angle: data.sales_angle || '',
-            ai_summary: data.ai_summary || '',
-            notes: data.notes || '',
-          })
-          .select()
-          .single();
-        if (insertError) throw insertError;
-
-        // Then trigger AI analysis for script/messages
-        try {
-          const { data: aiData } = await supabase.functions.invoke('ai-lead-analysis', {
-            body: { type: 'analyze', lead: { name: data.name, email: data.email, phone: data.phone, message: data.message, source: data.source } },
-          });
-          if (aiData && !aiData.error && createdLead) {
-            if (aiData.whatsapp_message) {
-              await supabase.from('generated_messages').insert({ lead_id: createdLead.id, type: 'whatsapp', content: aiData.whatsapp_message });
-            }
-            if (aiData.script) {
-              await supabase.from('sales_scripts').insert({ lead_id: createdLead.id, script: aiData.script, objections: aiData.objections || [] });
-            }
-          }
-        } catch {}
-
-        toast.success(`Lead "${data.name}" créé avec succès !`);
-        setNote('');
-        setInterimText('');
-        // Invalidate queries
-        onDone?.();
-      } catch {
-        toast.error("Erreur lors de la création du lead");
-      } finally {
-        setCreatingLead(false);
-      }
-      return;
-    }
-
-    try {
-      const result = await analyze.mutateAsync({ lead: selectedLead, note });
-      setProposal(result);
-      setShowDialog(true);
-    } catch {
-      toast.error("Erreur lors de l'analyse IA");
-    }
+    const userMsg: ChatMessage = { id: uid(), role: 'user', content: input.trim() };
+    const next = [...messages, userMsg];
+    setMessages(next);
+    setInput(''); setInterimText('');
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
+    await sendToAI(next);
   };
 
-  const handleValidate = async () => {
-    if (!proposal || !selectedLead) return;
+  // ---------- Confirm action handlers ----------
+  const confirmAction = async (msgId: string, payload: ActionPayload) => {
+    updateMessage(msgId, (m) => ({ action: m.action ? { ...m.action, status: 'loading', payload } : undefined }));
     try {
-      await apply.mutateAsync({ lead: selectedLead, proposal });
-      toast.success(
-        <div>
-          <p className="font-medium">CRM mis à jour pour {selectedLead.name} :</p>
-          <ul className="mt-1 text-sm">
-            {(proposal.updates_summary || []).map((u, i) => (
-              <li key={i}>• {u}</li>
-            ))}
-          </ul>
-        </div>
-      );
-      setNote('');
-      setInterimText('');
-      setProposal(null);
-      setShowDialog(false);
+      if (payload.type === 'update_lead') {
+        const lead = leads.find((l) => l.id === payload.lead_id);
+        if (!lead) throw new Error('Lead introuvable');
+        await apply.mutateAsync({ lead, proposal: payload.changes as any });
+        toast.success(`✅ ${lead.name} mis à jour`);
+      } else if (payload.type === 'create_lead') {
+        const f = payload.fields;
+        await createLead.mutateAsync({
+          name: f.name || 'Sans nom',
+          email: f.email || '', phone: f.phone || '', company_name: f.company_name || '',
+          message: f.message || '', notes: f.notes || '',
+          source: (f.source || 'manual') as any, score: (f.score || 'cold') as any, status: (f.status || 'new') as any,
+        } as any);
+        toast.success(`✅ Lead "${f.name}" créé`);
+      } else if (payload.type === 'reminder') {
+        await createReminder.mutateAsync({ lead_id: payload.lead_id, action: payload.action, due_date: payload.due_date });
+        toast.success('✅ Rappel créé');
+      } else if (payload.type === 'booking') {
+        if (!payload.time_slot) { toast.error('Choisis un créneau.'); throw new Error('no slot'); }
+        await doBooking(payload, payload.time_slot);
+      }
+      updateMessage(msgId, (m) => ({ action: m.action ? { ...m.action, status: 'confirmed' } : undefined }));
       onDone?.();
-    } catch {
-      toast.error("Erreur lors de l'exécution");
-    }
-  };
-
-  const handleCorrect = () => { setShowDialog(false); setProposal(null); };
-
-  // === Booking helpers ===
-  const resetBooking = () => { setBookingIntent(null); setBookingSlots(null); };
-
-  const confirmBooking = async (timeSlot: string) => {
-    if (!bookingIntent || !user?.id) return;
-    setBookingLoading(true);
-    try {
-      // Trouver lead existant ou créer
-      let leadMatch: DbLead | null = selectedLead;
-      if (!leadMatch && bookingIntent.contact_name) {
-        leadMatch = fuzzyMatchLead(bookingIntent.contact_name, leads);
-      }
-
-      // Trouver une offre par défaut (lead.offer_id ou première active)
-      let offerId: string | null = leadMatch?.offer_id || null;
-      let contactEmail = bookingIntent.contact_email || leadMatch?.email || '';
-      let contactPhone = bookingIntent.contact_phone || leadMatch?.phone || '';
-      let contactName = leadMatch?.name || bookingIntent.contact_name || 'RDV sans nom';
-
-      if (!offerId) {
-        const { data: offers } = await supabase
-          .from('offers')
-          .select('id')
-          .eq('is_active', true)
-          .eq('owner_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(1);
-        offerId = offers?.[0]?.id || null;
-      }
-      if (!offerId) {
-        toast.error("Aucune offre active trouvée. Crée une offre avant de réserver.");
-        setBookingLoading(false);
-        return;
-      }
-      if (!contactEmail) contactEmail = `rdv-${Date.now()}@placeholder.local`;
-      if (!contactPhone) contactPhone = '+33000000000';
-
-      const { data, error } = await supabase.functions.invoke('handle-booking', {
-        body: {
-          name: contactName,
-          email: contactEmail,
-          phone: contactPhone,
-          booking_date: bookingIntent.date,
-          time_slot: timeSlot,
-          offer_id: offerId,
-          notes: bookingIntent.notes || `Créé via assistant IA — "${note}"`,
-          owner_id: user.id,
-        },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      toast.success(`✅ RDV créé : ${contactName} le ${bookingIntent.date} à ${timeSlot}${data?.meet_link ? ' (Meet créé)' : ''}`);
-      setNote('');
-      resetBooking();
-      onDone?.();
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      toast.error('Échec création RDV : ' + (e as Error).message);
-    } finally {
-      setBookingLoading(false);
+      if (e?.message !== 'no slot') toast.error('Erreur : ' + (e?.message || 'inconnue'));
+      updateMessage(msgId, (m) => ({ action: m.action ? { ...m.action, status: 'pending' } : undefined }));
     }
   };
 
-
-  const SHOW_STATUS_LABELS: Record<string, string> = {
-    pending: 'En attente', show: 'Présent', noshow: 'Absent',
+  const doBooking = async (payload: Extract<ActionPayload, { type: 'booking' }>, slot: string) => {
+    if (!user?.id) throw new Error('Non authentifié');
+    const lead = payload.lead_id ? leads.find((l) => l.id === payload.lead_id) : null;
+    let offerId = lead?.offer_id || null;
+    if (!offerId) {
+      const { data: offers } = await supabase.from('offers').select('id').eq('is_active', true).eq('owner_id', user.id).order('created_at', { ascending: false }).limit(1);
+      offerId = offers?.[0]?.id || null;
+    }
+    if (!offerId) throw new Error('Aucune offre active. Crée une offre d\'abord.');
+    const { data, error } = await supabase.functions.invoke('handle-booking', {
+      body: {
+        name: lead?.name || payload.contact_name || 'RDV',
+        email: payload.contact_email || lead?.email || `rdv-${Date.now()}@placeholder.local`,
+        phone: payload.contact_phone || lead?.phone || '+33000000000',
+        booking_date: payload.date, time_slot: slot, offer_id: offerId,
+        notes: payload.notes || 'Créé via assistant IA',
+        owner_id: user.id,
+      },
+    });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    toast.success(`✅ RDV créé le ${payload.date} à ${slot}`);
   };
 
-  const proposalItems = proposal ? [
-    proposal.status && `Statut → ${STATUS_LABELS[proposal.status] || proposal.status}`,
-    proposal.score && `Score → ${SCORE_LABELS[proposal.score] || proposal.score}`,
-    proposal.show_status && `Présence RDV → ${SHOW_STATUS_LABELS[proposal.show_status] || proposal.show_status}`,
-    proposal.lost_reason && `Raison de perte : ${proposal.lost_reason}`,
-    proposal.email && `Email → ${proposal.email}`,
-    proposal.phone && `Téléphone → ${proposal.phone}`,
-    proposal.company_name && `Entreprise → ${proposal.company_name}`,
-    proposal.sales_angle && `Angle de vente → ${proposal.sales_angle}`,
-    proposal.next_action && `Prochaine action : ${proposal.next_action}`,
-    proposal.next_action_date && `Date : ${new Date(proposal.next_action_date).toLocaleDateString('fr-FR')}`,
-    proposal.last_contacted_at && `Dernier contact : ${new Date(proposal.last_contacted_at).toLocaleDateString('fr-FR')}`,
-    proposal.notes_append && `Note ajoutée : "${proposal.notes_append}"`,
-  ].filter(Boolean) as string[] : [];
-
-  const isPending = analyze.isPending || askingAi || creatingLead || isTranscribing || bookingLoading;
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success('Copié !');
+  const cancelAction = (msgId: string) => {
+    updateMessage(msgId, (m) => ({ action: m.action ? { ...m.action, status: 'cancelled' } : undefined }));
   };
+
+  const pickBookingSlot = async (msgId: string, slot: string) => {
+    const msg = messages.find((m) => m.id === msgId);
+    if (!msg?.action || msg.action.payload.type !== 'booking') return;
+    const newPayload: ActionPayload = { ...msg.action.payload, time_slot: slot };
+    await confirmAction(msgId, newPayload);
+  };
+
+  const copyToClipboard = (t: string) => { navigator.clipboard.writeText(t); toast.success('Copié !'); };
+  const clearChat = () => { setMessages([]); abortRef.current?.abort(); };
 
   const handleToggleVoice = () => {
-    if (!micSupported) {
-      toast.error('Le mode vocal n’est pas pris en charge par ce navigateur.');
-      return;
-    }
-
-    if (isListening) {
-      stopMic();
-      setVoiceMode(false);
-    } else {
-      setVoiceMode(false);
-      toggleMic();
-    }
+    if (!micSupported) { toast.error('Mode vocal non disponible.'); return; }
+    if (isListening) { stopMic(); setVoiceMode(false); } else { setVoiceMode(false); toggleMic(); }
   };
 
-  const displayText = isListening && interimText
-    ? note + (note ? ' ' : '') + interimText
-    : note;
+  const displayText = isListening && interimText ? input + (input ? ' ' : '') + interimText : input;
+  const isPending = thinking || isTranscribing;
+  const isEmpty = messages.length === 0 && !thinking;
 
   return (
     <>
       <div
-        className={cn(
-          "w-full relative rounded-xl transition-all",
-          isDragging && "ring-2 ring-primary/50 bg-primary/5"
-        )}
+        className={cn("w-full relative rounded-xl transition-all", isDragging && "ring-2 ring-primary/50 bg-primary/5")}
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={onDrop}
@@ -772,13 +437,8 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
             </div>
           </div>
         )}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".csv,.xlsx,.xls,.pdf,.txt,.png,.jpg,.jpeg,.webp"
-          onChange={onPickFile}
-          className="hidden"
-        />
+        <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls,.pdf,.txt,.png,.jpg,.jpeg,.webp" onChange={onPickFile} className="hidden" />
+
         {(attachedFileName || bulkLoading) && (
           <div className="mb-2 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
             {bulkLoading ? <Loader2 className="h-3 w-3 animate-spin text-primary" /> : <FileText className="h-3 w-3 text-primary" />}
@@ -786,32 +446,18 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
             <span className="text-muted-foreground">{bulkLoading ? 'Analyse IA…' : 'Prêt'}</span>
           </div>
         )}
-        {/* Mode toggle */}
-        <div className="flex items-center gap-1 mb-3">
-          <button
-            type="button"
-            onClick={() => { setMode('action'); }}
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200",
-              mode === 'action' ? 'gradient-primary text-white shadow-sm' : 'bg-muted text-muted-foreground hover:text-foreground'
-            )}
-          >
-            <Zap className="h-3 w-3" /> Action IA
-          </button>
-          <button
-            type="button"
-            onClick={() => { setMode('ask'); }}
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200",
-              mode === 'ask' ? 'gradient-primary text-white shadow-sm' : 'bg-muted text-muted-foreground hover:text-foreground'
-            )}
-          >
-            <MessageSquare className="h-3 w-3" /> Question IA
-          </button>
-          {mode === 'ask' && messages.length > 0 && (
+
+        {/* Chat header */}
+        <div className="mb-2 flex items-center gap-2">
+          <div className="flex h-6 w-6 items-center justify-center rounded-full gradient-primary">
+            <Sparkles className="h-3 w-3 text-white" />
+          </div>
+          <span className="text-xs font-medium text-foreground">Assistant IA</span>
+          <span className="text-[10px] text-muted-foreground">· confirme avant chaque action</span>
+          {messages.length > 0 && (
             <button
               type="button"
-              onClick={() => setMessages([])}
+              onClick={clearChat}
               className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
             >
               <Trash2 className="h-3 w-3" /> Effacer
@@ -819,12 +465,12 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
           )}
         </div>
 
-        {/* Chat messages */}
-        {mode === 'ask' && messages.length > 0 && (
-          <div className="mb-3 max-h-96 overflow-y-auto custom-scrollbar space-y-3 rounded-xl border border-border/50 bg-muted/20 p-3">
-            {messages.map((msg, i) => (
+        {/* Chat thread */}
+        {!isEmpty && (
+          <div className="mb-3 max-h-[420px] overflow-y-auto custom-scrollbar space-y-3 rounded-xl border border-border/50 bg-muted/20 p-3">
+            {messages.map((msg) => (
               <motion.div
-                key={i}
+                key={msg.id}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2 }}
@@ -836,19 +482,28 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
                   </div>
                 )}
                 <div className={cn(
-                  'max-w-[85%] rounded-xl px-3 py-2 text-sm',
-                  msg.role === 'user'
-                    ? 'bg-primary/15 text-foreground'
-                    : 'bg-muted/50 text-foreground'
+                  'max-w-[88%] rounded-2xl px-3 py-2 text-sm',
+                  msg.role === 'user' ? 'bg-primary/15 text-foreground rounded-br-sm' : 'bg-muted/50 text-foreground rounded-bl-sm'
                 )}>
                   {msg.role === 'assistant' ? (
-                    <div className="prose prose-sm prose-invert max-w-none [&>p]:mb-1.5 [&>ul]:mb-1.5 [&>ol]:mb-1.5">
+                    <div className="prose prose-sm prose-invert max-w-none [&>p]:mb-1.5 [&>ul]:mb-1.5 [&>ol]:mb-1.5 [&_code]:text-xs">
                       <ReactMarkdown>{msg.content}</ReactMarkdown>
                     </div>
                   ) : (
-                    <span>{msg.content}</span>
+                    <span className="whitespace-pre-wrap">{msg.content}</span>
                   )}
-                  {msg.role === 'assistant' && (
+
+                  {msg.action && (
+                    <ActionCard
+                      payload={msg.action.payload}
+                      status={msg.action.status}
+                      onConfirm={(p) => confirmAction(msg.id, p)}
+                      onCancel={() => cancelAction(msg.id)}
+                      onPickSlot={(slot) => pickBookingSlot(msg.id, slot)}
+                    />
+                  )}
+
+                  {msg.role === 'assistant' && msg.content && (
                     <button
                       onClick={() => copyToClipboard(msg.content)}
                       className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
@@ -859,7 +514,8 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
                 </div>
               </motion.div>
             ))}
-            {askingAi && (
+
+            {thinking && (
               <div className="flex items-center gap-2">
                 <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full gradient-primary">
                   <Sparkles className="h-3 w-3 text-white" />
@@ -875,14 +531,14 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
           </div>
         )}
 
-        {/* Quick suggestions */}
-        {mode === 'ask' && messages.length === 0 && !askingAi && (
+        {/* Quick suggestions when empty */}
+        {isEmpty && (
           <div className="flex flex-wrap gap-1.5 mb-3">
-            {QUICK_SUGGESTIONS.map(s => (
+            {QUICK_SUGGESTIONS.map((s) => (
               <button
                 key={s}
                 type="button"
-                onClick={() => setNote(s)}
+                onClick={() => setInput(s)}
                 className="rounded-lg border border-border/50 bg-muted/30 px-2.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/5 transition-all duration-200"
               >
                 {s}
@@ -891,7 +547,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
           </div>
         )}
 
-        {/* Voice mode - full visual experience */}
+        {/* Voice mode visualizer */}
         <AnimatePresence>
           {voiceMode && isListening && (
             <motion.div
@@ -902,55 +558,22 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
               className="mb-4 rounded-2xl border border-primary/20 bg-gradient-to-b from-primary/5 to-transparent p-6"
             >
               <AudioVisualizer isListening={isListening} variant="orbital" />
-
-              {/* Detected lead badge */}
-              <AnimatePresence>
-                {detectedLeadName && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="mt-3 flex items-center justify-center gap-2"
-                  >
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 border border-primary/30 px-3 py-1 text-xs font-medium text-primary">
-                      <UserPlus className="h-3 w-3" />
-                      Lead détecté : {detectedLeadName}
-                    </span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Live transcript */}
               <div className="mt-4 min-h-[40px] rounded-xl bg-muted/30 border border-border/30 px-4 py-3">
                 {displayText ? (
                   <p className="text-sm text-foreground">
-                    {note}
-                    {interimText && (
-                      <span className="text-muted-foreground/70 italic"> {interimText}</span>
-                    )}
+                    {input}
+                    {interimText && <span className="text-muted-foreground/70 italic"> {interimText}</span>}
                   </p>
                 ) : (
                   <p className="text-sm text-muted-foreground/50 italic">Parlez, je vous écoute...</p>
                 )}
               </div>
-
-              {/* Stop button */}
               <div className="mt-4 flex justify-center gap-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleToggleVoice}
-                  className="rounded-full border-destructive/30 text-destructive hover:bg-destructive/10"
-                >
+                <Button variant="outline" size="sm" onClick={handleToggleVoice} className="rounded-full border-destructive/30 text-destructive hover:bg-destructive/10">
                   <MicOff className="h-4 w-4 mr-1.5" /> Arrêter
                 </Button>
-                {note.trim() && (
-                  <Button
-                    size="sm"
-                    onClick={(e) => handleSubmit(e as any)}
-                    className="rounded-full gradient-primary text-white"
-                    disabled={isPending}
-                  >
+                {input.trim() && (
+                  <Button size="sm" onClick={(e) => handleSubmit(e as any)} className="rounded-full gradient-primary text-white" disabled={isPending}>
                     <Send className="h-4 w-4 mr-1.5" /> Envoyer
                   </Button>
                 )}
@@ -960,75 +583,8 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
         </AnimatePresence>
 
         <form onSubmit={handleSubmit} className="space-y-2">
-          {/* Lead selector - only in action mode */}
-          {mode === 'action' && (
-            <div className="flex items-center gap-2">
-              <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-                <PopoverTrigger asChild>
-                  <button
-                    type="button"
-                    className={cn(
-                      "flex flex-1 items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-all duration-200",
-                      selectedLead
-                        ? "border-primary/30 bg-primary/5 text-foreground"
-                        : "border-border/50 bg-muted/30 text-muted-foreground"
-                    )}
-                  >
-                    <Search className="h-3 w-3 shrink-0" />
-                    <span className="truncate">
-                      {selectedLead ? selectedLead.name : 'Sélectionner un lead (ou parlez son nom)'}
-                    </span>
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[280px] p-2" align="start">
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="Rechercher..."
-                    className="w-full rounded-md border border-border/50 bg-background px-3 py-1.5 text-xs mb-2 focus:outline-none focus:ring-1 focus:ring-ring"
-                    autoFocus
-                  />
-                  <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-0.5">
-                    {filteredLeads.length === 0 ? (
-                      <p className="text-xs text-muted-foreground p-2 text-center">Aucun lead trouvé</p>
-                    ) : (
-                      filteredLeads.map(lead => (
-                        <button
-                          key={lead.id}
-                          type="button"
-                          onClick={() => { setSelectedLead(lead); setPopoverOpen(false); setSearchQuery(''); }}
-                          className={cn(
-                            "flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-xs transition-colors hover:bg-accent",
-                            selectedLead?.id === lead.id && "bg-primary/10 text-primary"
-                          )}
-                        >
-                          <span className="truncate">{lead.name}</span>
-                          <span className="ml-auto text-[10px] text-muted-foreground capitalize">{lead.status}</span>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </PopoverContent>
-              </Popover>
-              {selectedLead && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedLead(null)}
-                  className="rounded-lg border border-border/50 px-2 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              )}
-            </div>
-          )}
+          {isListening && <AudioVisualizer isListening={isListening} variant="inline" className="mb-1" />}
 
-          {/* Inline visualizer when not in full voice mode */}
-          {isListening && (
-            <AudioVisualizer isListening={isListening} variant="inline" className="mb-1" />
-          )}
-
-          {/* Input row */}
           <div className="flex gap-2 items-end">
             <motion.button
               type="button"
@@ -1036,20 +592,20 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
               whileHover={micSupported ? { scale: 1.04 } : undefined}
               whileTap={micSupported ? { scale: 0.97 } : undefined}
               disabled={!micSupported || isTranscribing}
-              aria-label={micSupported ? (isListening ? 'Arrêter le mode vocal' : 'Activer le mode vocal') : 'Mode vocal indisponible'}
+              aria-label={isListening ? 'Arrêter le mode vocal' : 'Activer le mode vocal'}
               className={cn(
                 'inline-flex h-11 shrink-0 items-center gap-2 rounded-xl border px-3 text-sm font-medium transition-all duration-300',
                 isListening
                   ? 'border-destructive/50 bg-destructive/10 text-destructive shadow-[0_0_15px_hsl(var(--destructive)/0.2)]'
                   : micSupported
-                    ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 hover:border-primary/50 hover:shadow-[0_0_12px_hsl(var(--primary)/0.15)]'
-                    : 'border-border/60 bg-muted/40 text-muted-foreground opacity-100'
+                    ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 hover:border-primary/50'
+                    : 'border-border/60 bg-muted/40 text-muted-foreground'
               )}
-              title={micSupported ? (isListening ? 'Arrêter' : isTranscribing ? 'Transcription en cours' : 'Mode vocal') : 'Mode vocal indisponible sur ce navigateur'}
             >
               {isTranscribing ? <Loader2 className="h-4 w-4 animate-spin" /> : isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
               <span className="hidden sm:inline">Vocal</span>
             </motion.button>
+
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -1060,6 +616,7 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
             >
               {bulkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
             </button>
+
             <textarea
               ref={textareaRef}
               value={displayText}
@@ -1067,140 +624,25 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
               onKeyDown={handleKeyDown}
               rows={1}
               placeholder={
-                isListening
-                  ? 'Parlez, je transcris en direct...'
-                  : isTranscribing
-                    ? 'Transcription en cours...'
-                  : mode === 'action'
-                    ? (selectedLead ? 'Ex : "hésite sur le prix, rappeler dans 3 jours"' : 'Ex : "nouveau lead Jean Dupont, 0612345678"')
-                    : 'Ex : "combien de leads à rappeler ?"'
+                isListening ? 'Parlez, je transcris en direct...'
+                : isTranscribing ? 'Transcription en cours...'
+                : 'Demande, modifie, crée — je confirme avant toute action…'
               }
               className="flex-1 min-w-0 rounded-xl border border-border/50 bg-muted/30 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none transition-all"
               style={{ maxHeight: '120px' }}
               disabled={isPending}
             />
+
             <button
               type="submit"
-              disabled={isPending || !note.trim()}
+              disabled={isPending || !input.trim()}
               className="flex items-center gap-1 rounded-xl gradient-primary px-3 py-2.5 text-sm font-medium text-white hover:opacity-90 transition-all disabled:opacity-50"
             >
-              {isPending ? (
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
+              {isPending ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Send className="h-4 w-4" />}
             </button>
           </div>
         </form>
       </div>
-
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Proposition de l'IA</DialogTitle>
-            <DialogDescription>
-              Modifications proposées pour <strong>{selectedLead?.name}</strong>. Validez ou corrigez.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-2 py-2">
-            <p className="text-xs text-muted-foreground">Votre note :</p>
-            <p className="text-sm italic text-foreground bg-muted/40 rounded-lg p-3">"{note}"</p>
-
-            {proposalItems.length > 0 ? (
-              <ul className="space-y-1.5 mt-3">
-                {proposalItems.map((item, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm">
-                    <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground mt-3">Aucune modification détectée.</p>
-            )}
-          </div>
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={handleCorrect} disabled={apply.isPending}>
-              <RotateCcw className="h-4 w-4 mr-1" /> Corriger
-            </Button>
-            <Button variant="ghost" onClick={() => { setShowDialog(false); setNote(''); setProposal(null); }} disabled={apply.isPending}>
-              <X className="h-4 w-4 mr-1" /> Annuler
-            </Button>
-            <Button onClick={handleValidate} disabled={apply.isPending || proposalItems.length === 0}>
-              {apply.isPending ? (
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-              ) : (
-                <Check className="h-4 w-4 mr-1" />
-              )}
-              Valider
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Booking dialog */}
-      <Dialog open={!!bookingIntent} onOpenChange={(o) => !o && resetBooking()}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-primary" />
-              {bookingIntent?.subtype === 'check' ? 'Créneaux disponibles' : 'Confirmer le rendez-vous'}
-            </DialogTitle>
-            <DialogDescription>
-              {bookingIntent?.human_summary || `Le ${bookingIntent?.date}`}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3 py-2">
-            {bookingLoading && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Vérification des dispos…
-              </div>
-            )}
-
-            {bookingSlots && bookingSlots.length === 0 && (
-              <p className="text-sm text-destructive">Aucun créneau disponible ce jour.</p>
-            )}
-
-            {bookingSlots && bookingSlots.length > 0 && (
-              <>
-                <p className="text-xs text-muted-foreground">
-                  Clique sur un créneau pour {bookingIntent?.subtype === 'check' ? 'le réserver' : 'confirmer'} :
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {bookingSlots.map((s) => (
-                    <Button
-                      key={s}
-                      size="sm"
-                      variant={bookingIntent?.time_slot === s ? 'default' : 'outline'}
-                      disabled={bookingLoading}
-                      onClick={() => confirmBooking(s)}
-                    >
-                      {s}
-                    </Button>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {bookingIntent?.contact_name && (
-              <div className="rounded-lg bg-muted/30 p-3 text-xs space-y-1">
-                <div><span className="text-muted-foreground">Contact : </span>{bookingIntent.contact_name}</div>
-                {bookingIntent.contact_phone && <div><span className="text-muted-foreground">Tél : </span>{bookingIntent.contact_phone}</div>}
-                {bookingIntent.contact_email && <div><span className="text-muted-foreground">Email : </span>{bookingIntent.contact_email}</div>}
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button variant="ghost" onClick={resetBooking} disabled={bookingLoading}>
-              Fermer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {bulkRows && (
         <BulkImportPreview
