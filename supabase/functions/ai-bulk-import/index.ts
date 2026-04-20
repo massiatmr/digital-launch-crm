@@ -156,86 +156,140 @@ serve(async (req) => {
       }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // ---- 2. AI mapping: send raw rows + ask to map to lead schema ----
-    const sample = rawRows.slice(0, Math.min(rawRows.length, 200));
+    // ---- 2. Try heuristic column mapping first (fast path, no AI) ----
+    const FIELD_PATTERNS: Record<string, RegExp[]> = {
+      name: [/^(name|full.?name|nom.?complet|nom|contact|client|prospect)$/i],
+      first_name: [/^(first.?name|pr[eé]nom|firstname)$/i],
+      last_name: [/^(last.?name|nom.?de.?famille|lastname|surname)$/i],
+      email: [/^(e?.?mail|courriel|adresse.?mail)$/i],
+      phone: [/^(phone|t[eé]l|telephone|portable|mobile|num[eé]ro|gsm|tel.?portable)$/i],
+      company_name: [/^(company|entreprise|soci[eé]t[eé]|org|organisation|business)$/i],
+      message: [/^(message|commentaire|comment|notes?|remarque|demande)$/i],
+      source: [/^(source|origine|canal|provenance)$/i],
+      status: [/^(status|statut|etat|[eé]tat)$/i],
+      score: [/^(score|priorit[eé]|priority|rating)$/i],
+    };
 
-    const mapRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content:
-              "Tu es un mapper CRM expert. Tu reçois des lignes brutes (colonnes hétérogènes en français/anglais). " +
-              "Pour chaque ligne, retourne un objet conforme au schéma leads: " +
-              "{name, email, phone, company_name, message, source, score, status, notes}. " +
-              "Règles: " +
-              "- name = nom complet (obligatoire, devine depuis 'Nom', 'Prénom Nom', 'Contact', 'Full name', etc.) " +
-              "- email valide ou chaîne vide " +
-              "- phone tel quel (sera normalisé) " +
-              "- source dans [facebook, website, google_sheets, manual, other, organic_social, recommendation, google_my_business] " +
-              "- score dans [hot, warm, cold] (défaut cold) " +
-              "- status dans [new, contacted, qualified, proposal, won, lost, ghost] (défaut new) " +
-              "- TOUT champ original non mappé doit être concaténé dans 'notes' (format 'clé: valeur'). " +
-              "Ne perds aucune information.",
-          },
-          { role: "user", content: `Lignes brutes (${sample.length}):\n${JSON.stringify(sample)}` },
-        ],
-        tools: [{
-          type: "function",
-          function: {
-            name: "map_leads",
-            description: "Return mapped leads",
-            parameters: {
-              type: "object",
-              properties: {
-                leads: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      name: { type: "string" },
-                      email: { type: "string" },
-                      phone: { type: "string" },
-                      company_name: { type: "string" },
-                      message: { type: "string" },
-                      source: { type: "string" },
-                      score: { type: "string" },
-                      status: { type: "string" },
-                      notes: { type: "string" },
-                    },
-                    required: ["name"],
-                  },
-                },
-              },
-              required: ["leads"],
-            },
-          },
-        }],
-        tool_choice: { type: "function", function: { name: "map_leads" } },
-      }),
-    });
-
-    if (mapRes.status === 429 || mapRes.status === 402) {
-      return new Response(JSON.stringify({
-        error: mapRes.status === 429 ? "Trop de requêtes IA, réessaie dans un instant." : "Crédits IA épuisés.",
-      }), { status: mapRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const firstRow = rawRows[0] || {};
+    const rawKeys = Object.keys(firstRow);
+    const keyMap: Record<string, string> = {}; // originalKey -> targetField
+    for (const key of rawKeys) {
+      const k = String(key).trim();
+      for (const [field, patterns] of Object.entries(FIELD_PATTERNS)) {
+        if (patterns.some((p) => p.test(k))) {
+          if (!Object.values(keyMap).includes(field)) keyMap[key] = field;
+          break;
+        }
+      }
     }
 
-    const mapJson = await mapRes.json();
-    const mapToolCall = mapJson?.choices?.[0]?.message?.tool_calls?.[0];
+    const matchedFields = new Set(Object.values(keyMap));
+    const hasNameSignal = matchedFields.has("name") || (matchedFields.has("first_name") && matchedFields.has("last_name")) || matchedFields.has("first_name");
+    const hasContact = matchedFields.has("email") || matchedFields.has("phone");
+    const heuristicOk = hasNameSignal && hasContact;
+
     let mapped: any[] = [];
-    try {
-      const args = JSON.parse(mapToolCall?.function?.arguments || "{}");
-      mapped = Array.isArray(args.leads) ? args.leads : [];
-    } catch {
-      mapped = [];
+
+    if (heuristicOk) {
+      // Fast path: apply mapping directly without AI
+      mapped = rawRows.map((r) => {
+        const out: any = { name: "", email: "", phone: "", company_name: "", message: "", source: "manual", score: "cold", status: "new", notes: "" };
+        const extras: string[] = [];
+        const firstName = Object.entries(keyMap).find(([, f]) => f === "first_name")?.[0];
+        const lastName = Object.entries(keyMap).find(([, f]) => f === "last_name")?.[0];
+        for (const [orig, field] of Object.entries(keyMap)) {
+          const val = safeStr(r[orig]);
+          if (!val) continue;
+          if (field === "first_name" || field === "last_name") continue; // handled below
+          out[field] = val;
+        }
+        if (!out.name) {
+          const fn = firstName ? safeStr(r[firstName]) : "";
+          const ln = lastName ? safeStr(r[lastName]) : "";
+          out.name = [fn, ln].filter(Boolean).join(" ").trim();
+        }
+        for (const [k, v] of Object.entries(r)) {
+          if (keyMap[k]) continue;
+          const val = safeStr(v);
+          if (val) extras.push(`${k}: ${val}`);
+        }
+        out.notes = extras.join(" | ");
+        return out;
+      });
+    } else {
+      // AI path: only send a tiny sample to INFER the mapping, then apply locally
+      const sample = rawRows.slice(0, 5);
+      const mapRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash-lite",
+          messages: [
+            {
+              role: "system",
+              content:
+                "Tu reçois un échantillon de lignes brutes. Retourne UNIQUEMENT un mapping des clés vers les champs standards du schéma leads. " +
+                "Champs cibles: name, email, phone, company_name, message, source, score, status. " +
+                "Toute clé non mappée sera mise dans 'notes'. Réponds via l'outil propose_mapping.",
+            },
+            { role: "user", content: `Échantillon (${sample.length} lignes):\n${JSON.stringify(sample)}` },
+          ],
+          tools: [{
+            type: "function",
+            function: {
+              name: "propose_mapping",
+              description: "Return column mapping",
+              parameters: {
+                type: "object",
+                properties: {
+                  mapping: {
+                    type: "object",
+                    description: "Object where each key is a source column name and value is the target field",
+                    additionalProperties: { type: "string" },
+                  },
+                },
+                required: ["mapping"],
+              },
+            },
+          }],
+          tool_choice: { type: "function", function: { name: "propose_mapping" } },
+        }),
+      });
+
+      if (mapRes.status === 429 || mapRes.status === 402) {
+        return new Response(JSON.stringify({
+          error: mapRes.status === 429 ? "Trop de requêtes IA, réessaie dans un instant." : "Crédits IA épuisés.",
+        }), { status: mapRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const mapJson = await mapRes.json();
+      const mapToolCall = mapJson?.choices?.[0]?.message?.tool_calls?.[0];
+      let aiMapping: Record<string, string> = {};
+      try {
+        const args = JSON.parse(mapToolCall?.function?.arguments || "{}");
+        aiMapping = args.mapping || {};
+      } catch { aiMapping = {}; }
+
+      const VALID_TARGETS = new Set(["name", "email", "phone", "company_name", "message", "source", "score", "status"]);
+      mapped = rawRows.map((r) => {
+        const out: any = { name: "", email: "", phone: "", company_name: "", message: "", source: "manual", score: "cold", status: "new", notes: "" };
+        const extras: string[] = [];
+        for (const [k, v] of Object.entries(r)) {
+          const val = safeStr(v);
+          const target = aiMapping[k];
+          if (target && VALID_TARGETS.has(target) && val) {
+            out[target] = val;
+          } else if (val) {
+            extras.push(`${k}: ${val}`);
+          }
+        }
+        out.notes = extras.join(" | ");
+        return out;
+      });
     }
 
     if (mapped.length === 0) {
-      return new Response(JSON.stringify({ error: "L'IA n'a pas pu mapper les colonnes." }), {
+      return new Response(JSON.stringify({ error: "Impossible de mapper les colonnes." }), {
         status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
