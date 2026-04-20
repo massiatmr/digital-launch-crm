@@ -6,6 +6,7 @@ import { NaturalLanguageInput } from '@/components/NaturalLanguageInput';
 import { LeadActivityTimeline } from '@/components/LeadActivityTimeline';
 import { LeadEditForm } from '@/components/LeadEditForm';
 import { FollowupTimeline } from '@/components/FollowupTimeline';
+import { LeadQualificationCard } from '@/components/LeadQualificationCard';
 import {
   Mail,
   Phone,
@@ -238,7 +239,7 @@ export function LeadDetailContent({
                 </div>
               )}
 
-              <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+              <LeadQualificationCard leadId={lead.id} />
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-medium">Notes</h3>
                   {notesDirty && (
