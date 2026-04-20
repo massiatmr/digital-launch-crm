@@ -94,6 +94,7 @@ Deno.serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (LOVABLE_API_KEY) {
       try {
+        const audioFormat = ext === "mp3" ? "mp3" : ext === "m4a" ? "wav" : "ogg";
         const trRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -112,7 +113,7 @@ Deno.serve(async (req) => {
                 role: "user",
                 content: [
                   { type: "text", text: "Transcris ce message vocal :" },
-                  { type: "input_audio", input_audio: { data: audio_base64, format: "ogg" } },
+                  { type: "input_audio", input_audio: { data: audio_base64, format: audioFormat } },
                 ],
               },
             ],

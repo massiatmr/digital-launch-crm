@@ -92,18 +92,18 @@ function encodeMp3FromFloat32(samples: Float32Array, sampleRate: number) {
   const pcm = floatTo16BitPCM(mono);
   const encoder = new Mp3Encoder(1, targetRate, 64);
   const blockSize = 1152;
-  const mp3Data: Uint8Array[] = [];
+  const mp3Parts: BlobPart[] = [];
 
   for (let i = 0; i < pcm.length; i += blockSize) {
     const chunk = pcm.subarray(i, i + blockSize);
     const encoded = encoder.encodeBuffer(chunk);
-    if (encoded.length > 0) mp3Data.push(Uint8Array.from(encoded));
+    if (encoded.length > 0) mp3Parts.push(new Uint8Array(encoded).slice().buffer);
   }
 
   const finalChunk = encoder.flush();
-  if (finalChunk.length > 0) mp3Data.push(Uint8Array.from(finalChunk));
+  if (finalChunk.length > 0) mp3Parts.push(new Uint8Array(finalChunk).slice().buffer);
 
-  return new Blob(mp3Data, { type: 'audio/mpeg' });
+  return new Blob(mp3Parts, { type: 'audio/mpeg' });
 }
 
 export function WhatsAppChat({ leadId, className }: { leadId: string; className?: string }) {
