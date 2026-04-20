@@ -104,12 +104,16 @@ export function InviteMemberDialog({ workspaceId, workspaceName, trigger }: Prop
               </Select>
             </div>
             <p className="text-xs text-muted-foreground">
-              Un lien d'invitation valide 14 jours sera généré et copié.
+              Un email de bienvenue sera envoyé automatiquement à cette adresse, avec un lien valide 14 jours pour créer le compte.
             </p>
           </div>
         ) : (
           <div className="space-y-3 py-2">
-            <p className="text-sm">Partage ce lien avec ton invité&nbsp;:</p>
+            <div className="flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
+              <Mail className="h-4 w-4 text-primary" />
+              <span>Email de bienvenue envoyé à <strong>{email}</strong></span>
+            </div>
+            <p className="text-xs text-muted-foreground">Ou partage ce lien manuellement&nbsp;:</p>
             <div className="flex gap-2">
               <Input value={generatedUrl} readOnly className="font-mono text-xs" />
               <Button
@@ -123,6 +127,16 @@ export function InviteMemberDialog({ workspaceId, workspaceName, trigger }: Prop
                 <Copy className="h-4 w-4" />
               </Button>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 w-full"
+              onClick={resendEmail}
+              disabled={resending}
+            >
+              {resending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+              Renvoyer l'email
+            </Button>
             <p className="text-xs text-muted-foreground">
               Il pourra créer son compte avec cet email et accédera automatiquement à l'espace.
             </p>
@@ -135,9 +149,9 @@ export function InviteMemberDialog({ workspaceId, workspaceName, trigger }: Prop
           ) : (
             <>
               <Button variant="ghost" onClick={() => setOpen(false)}>Annuler</Button>
-              <Button onClick={submit} disabled={submitting || !email.trim()}>
-                {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                Créer l'invitation
+              <Button onClick={submit} disabled={submitting || !email.trim()} className="gap-2">
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                Créer & envoyer l'email
               </Button>
             </>
           )}
