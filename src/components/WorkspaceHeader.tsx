@@ -18,7 +18,7 @@ export function WorkspaceHeader({ className }: Props) {
   return (
     <header
       className={cn(
-        'h-16 flex items-center px-6 border-b border-border/50 bg-sidebar/80 backdrop-blur-sm sticky top-0 z-40',
+        'h-16 flex items-center px-6 border-b border-border/50 backdrop-blur-sm fixed top-0 left-0 right-0 z-50',
         className
       )}
       style={{
