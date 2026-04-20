@@ -153,11 +153,47 @@ Deno.serve(async (req) => {
     };
 
     // Déterminer si un template est mappé pour ce type de tâche
-    const tplField = templateKey(task.task_type);
-    const tplId = tplField && settings ? (settings as any)[tplField] : null;
+    // PRIORITÉ 1 : followup_sequence_steps (séquence dynamique configurée par l'owner)
+    // PRIORITÉ 2 : followup_automation_settings.template_xxx_id (legacy)
+    let tplId: string | null = null;
+
+    // Lookup séquence dynamique : par workspace si dispo, sinon par owner
+    let stepQuery = admin
+      .from("followup_sequence_steps")
+      .select("template_id")
+      .eq("task_type", task.task_type)
+      .eq("step_order", task.step_order)
+      .eq("is_enabled", true);
+    if (lead.workspace_id) {
+      stepQuery = stepQuery.eq("workspace_id", lead.workspace_id);
+    } else {
+      stepQuery = stepQuery.eq("owner_id", ownerId).is("workspace_id", null);
+    }
+    const { data: stepRow } = await stepQuery.maybeSingle();
+    if (stepRow?.template_id) {
+      tplId = stepRow.template_id;
+    } else {
+      // Fallback legacy : si task_type matche un step_order différent, on tente sans step_order
+      let fallbackStep = admin
+        .from("followup_sequence_steps")
+        .select("template_id")
+        .eq("task_type", task.task_type)
+        .eq("is_enabled", true);
+      if (lead.workspace_id) fallbackStep = fallbackStep.eq("workspace_id", lead.workspace_id);
+      else fallbackStep = fallbackStep.eq("owner_id", ownerId).is("workspace_id", null);
+      const { data: fb } = await fallbackStep.order("step_order", { ascending: true }).limit(1).maybeSingle();
+      if (fb?.template_id) tplId = fb.template_id;
+    }
+
+    // Fallback final : champs legacy dans followup_automation_settings
+    if (!tplId) {
+      const tplField = templateKey(task.task_type);
+      tplId = tplField && settings ? (settings as any)[tplField] : null;
+    }
+
     let template: any = null;
     if (tplId) {
-      const { data: tpl } = await supabase
+      const { data: tpl } = await admin
         .from("whatsapp_templates").select("*").eq("id", tplId).maybeSingle();
       template = tpl;
     }
