@@ -1,0 +1,6 @@
+UPDATE public.whatsapp_messages m
+SET workspace_id = l.workspace_id
+FROM public.leads l
+WHERE m.lead_id = l.id
+  AND m.workspace_id IS NULL
+  AND l.workspace_id IS NOT NULL;
