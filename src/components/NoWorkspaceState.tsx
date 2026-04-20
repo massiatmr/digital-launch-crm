@@ -1,17 +1,29 @@
-import { Building2, Plus } from 'lucide-react';
+import { Building2, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useWorkspaces } from '@/hooks/useWorkspaces';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 export function NoWorkspaceState() {
   const { user, signOut } = useAuth();
   const { refetch, switchWorkspace } = useWorkspaces();
   const [creating, setCreating] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data } = await (supabase.rpc as any)('has_role', {
+        _user_id: user.id,
+        _role: 'admin',
+      });
+      setIsAdmin(!!data);
+    })();
+  }, [user]);
 
   const createDefault = async () => {
     if (!user) return;
@@ -42,20 +54,24 @@ export function NoWorkspaceState() {
     <div className="flex min-h-screen items-center justify-center bg-background p-6">
       <div className="max-w-md w-full text-center space-y-6 rounded-2xl border border-white/10 bg-white/5 p-8 backdrop-blur">
         <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/15 flex items-center justify-center">
-          <Building2 className="h-8 w-8 text-primary" />
+          {isAdmin ? <Building2 className="h-8 w-8 text-primary" /> : <Mail className="h-8 w-8 text-primary" />}
         </div>
         <div className="space-y-2">
-          <h1 className="text-xl font-semibold">Aucun espace de travail</h1>
+          <h1 className="text-xl font-semibold">
+            {isAdmin ? 'Aucun espace de travail' : 'En attente d\'invitation'}
+          </h1>
           <p className="text-sm text-muted-foreground">
-            Tu n'es membre d'aucun espace pour le moment. Crée-en un pour démarrer,
-            ou demande à un administrateur de t'inviter.
+            {isAdmin
+              ? 'Crée un espace pour démarrer.'
+              : 'Ton compte est créé. Un administrateur doit t\'inviter dans un espace pour accéder à la plateforme.'}
           </p>
         </div>
         <div className="flex flex-col gap-2">
-          <Button onClick={createDefault} disabled={creating} className="w-full gap-2">
-            <Plus className="h-4 w-4" />
-            {creating ? 'Création...' : 'Créer mon espace'}
-          </Button>
+          {isAdmin && (
+            <Button onClick={createDefault} disabled={creating} className="w-full gap-2">
+              {creating ? 'Création...' : 'Créer un espace'}
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={() => signOut()}>
             Se déconnecter
           </Button>
