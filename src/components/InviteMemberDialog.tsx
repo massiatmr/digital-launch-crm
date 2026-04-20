@@ -20,6 +20,7 @@ export function InviteMemberDialog({ workspaceId, workspaceName, trigger }: Prop
   const [role, setRole] = useState<'member' | 'owner'>('member');
   const [submitting, setSubmitting] = useState(false);
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
 
   const submit = async () => {
     if (!email.trim()) return;
@@ -36,8 +37,22 @@ export function InviteMemberDialog({ workspaceId, workspaceName, trigger }: Prop
     if (url) {
       setGeneratedUrl(url);
       await navigator.clipboard.writeText(url).catch(() => {});
-      toast.success('Invitation créée — lien copié');
+      toast.success('Invitation créée — email envoyé & lien copié');
     }
+  };
+
+  const resendEmail = async () => {
+    if (!email.trim()) return;
+    setResending(true);
+    const { error } = await supabase.functions.invoke('send-invitation', {
+      body: { email: email.trim(), workspace_id: workspaceId, workspace_role: role },
+    });
+    setResending(false);
+    if (error) {
+      toast.error(error.message || "Échec de l'envoi");
+      return;
+    }
+    toast.success(`Email renvoyé à ${email.trim()}`);
   };
 
   const reset = () => {
