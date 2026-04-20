@@ -1,0 +1,1 @@
+SELECT pgmq.archive('transactional_emails', msg_id) FROM pgmq.q_transactional_emails WHERE message->>'idempotency_key' IS NULL OR message->>'purpose' IS NULL;
