@@ -138,19 +138,22 @@ export default function AuthPage() {
           toast.error(error.message);
         }
       } else if (!isLogin) {
-        // Tentative best-effort de consume immédiat (cas auto-confirm email)
         if (inviteToken) {
-          const { data: { user: newUser } } = await supabase.auth.getUser();
-          if (newUser) {
-            await (supabase.rpc as any)('consume_workspace_invitation', {
-              p_token: inviteToken,
-              p_user_id: newUser.id,
-            });
-            try { localStorage.removeItem(INVITE_STORAGE_KEY); } catch {}
+          // Invité : email auto-confirmé par trigger DB → on peut connecter direct
+          const { error: signInErr } = await signIn(email, password);
+          if (signInErr) {
+            toast.error("Compte créé, mais connexion impossible. Réessaye de te connecter.");
+          } else {
+            const { data: { user: newUser } } = await supabase.auth.getUser();
+            if (newUser) {
+              await (supabase.rpc as any)('consume_workspace_invitation', {
+                p_token: inviteToken,
+                p_user_id: newUser.id,
+              });
+              try { localStorage.removeItem(INVITE_STORAGE_KEY); } catch {}
+            }
+            toast.success("Compte créé. Tu rejoins l'espace…");
           }
-        }
-        if (inviteToken) {
-          toast.success("Compte créé. Tu rejoins l'espace…");
         } else {
           toast.success('Compte créé ! Vérifie ton email pour confirmer.');
         }
