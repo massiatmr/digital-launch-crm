@@ -145,6 +145,8 @@ Deno.serve(async (req) => {
     // Récupère le workspace : nom + email de notification
     let workspaceName: string | null = null;
     let workspaceEmail: string | null = null;
+    const memberEmails: string[] = [];
+    const memberUserIds: string[] = [];
     if (lead.workspace_id) {
       const { data: ws } = await supabase
         .from("workspaces")
@@ -153,11 +155,30 @@ Deno.serve(async (req) => {
         .maybeSingle();
       workspaceName = ws?.company_name || null;
       workspaceEmail = (ws?.notification_email || ws?.email || "").trim() || null;
+
+      // Récupère TOUS les membres du workspace (owner + members)
+      const { data: members, error: memErr } = await supabase
+        .rpc("list_workspace_members", { _workspace_id: lead.workspace_id });
+      if (memErr) {
+        console.error("notify-new-lead: list_workspace_members failed", memErr);
+      } else if (Array.isArray(members)) {
+        for (const m of members as Array<{ user_id: string; email: string }>) {
+          if (m.email) memberEmails.push(m.email);
+          if (m.user_id) memberUserIds.push(m.user_id);
+        }
+      }
     }
 
-    // Destinataires : admin global TOUJOURS + workspace si différent
+    // Destinataires email : admin global + email workspace + tous les membres
     const recipients = Array.from(new Set(
-      [NOTIFY_EMAIL, workspaceEmail].filter((e): e is string => !!e && e.toLowerCase() !== "")
+      [NOTIFY_EMAIL, workspaceEmail, ...memberEmails]
+        .filter((e): e is string => !!e && e.trim().toLowerCase() !== "")
+        .map((e) => e.trim())
+    ));
+
+    // Destinataires push : tous les membres (fallback sur owner)
+    const pushUserIds = Array.from(new Set(
+      memberUserIds.length ? memberUserIds : [lead.owner_id].filter(Boolean)
     ));
 
     const leadUrl = `${APP_BASE_URL}/leads/${lead.id}`;
