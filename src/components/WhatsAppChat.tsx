@@ -9,10 +9,11 @@ import { useWhatsAppMessages, useSendWhatsAppMessage, useSendWhatsAppAudio, useW
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { LiveAudioVisualizer } from '@/components/LiveAudioVisualizer';
+import { VoiceMessagePlayer } from '@/components/VoiceMessagePlayer';
 
 type PendingMsg = { tempId: string; content: string; at: number; status: 'sending' | 'failed' };
 
-function AudioBubble({ path, transcript }: { path: string | null; transcript: string | null }) {
+function AudioBubble({ path, transcript, outbound }: { path: string | null; transcript: string | null; outbound?: boolean }) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
     if (!path) return;
@@ -23,11 +24,13 @@ function AudioBubble({ path, transcript }: { path: string | null; transcript: st
     return () => { cancelled = true; };
   }, [path]);
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       {url ? (
-        <audio controls src={url} className="w-full max-w-[240px] h-9" />
+        <VoiceMessagePlayer src={url} outbound={outbound} />
       ) : (
-        <div className="text-xs text-muted-foreground">Chargement audio…</div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground py-2 px-1">
+          <Loader2 className="h-3 w-3 animate-spin" /> Chargement audio…
+        </div>
       )}
       {transcript && (
         <p className="text-xs italic text-muted-foreground border-l-2 border-primary/40 pl-2">
