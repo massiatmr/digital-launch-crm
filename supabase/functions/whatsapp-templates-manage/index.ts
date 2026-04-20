@@ -61,41 +61,80 @@ Deno.serve(async (req) => {
     }
 
     if (action === "sync") {
-      // Récupérer la config WhatsApp scopée au workspace si fourni
+      // Récupérer TOUS les configs WhatsApp actifs (un workspace peut avoir plusieurs WABA/numéros)
       let cfgQ = admin.from("whatsapp_config").select("*").eq("is_active", true);
       cfgQ = workspaceId ? cfgQ.eq("workspace_id", workspaceId) : cfgQ.eq("owner_id", user.id).is("workspace_id", null);
-      const { data: config } = await cfgQ.maybeSingle();
-      if (!config) return json({ error: "WhatsApp non configuré" }, 400);
-
-      const url = `${GRAPH}/${config.business_account_id}/message_templates?limit=100`;
-      const resp = await fetch(url, { headers: { Authorization: `Bearer ${config.access_token}` } });
-      const data = await resp.json();
-      if (!resp.ok) return json({ error: "Erreur Meta API", details: data }, 400);
-
-      const fetched = (data.data || []) as any[];
-      let upserted = 0;
-      for (const t of fetched) {
-        const bodyComp = (t.components || []).find((c: any) => c.type === "BODY");
-        const bodyText = bodyComp?.text || "";
-        const varsCount = countVariables(bodyText);
-        const { error: upErr } = await admin
-          .from("whatsapp_templates")
-          .upsert({
-            owner_id: user.id,
-            workspace_id: workspaceId,
-            name: t.name,
-            language: t.language,
-            category: t.category,
-            body_text: bodyText,
-            variables_count: varsCount,
-            status: t.status,
-            is_synced: true,
-            meta_template_id: t.id,
-            updated_at: new Date().toISOString(),
-          }, { onConflict: "owner_id,name,language" });
-        if (!upErr) upserted++;
+      const { data: configs, error: cfgErr } = await cfgQ;
+      if (cfgErr) return json({ error: cfgErr.message }, 500);
+      if (!configs || configs.length === 0) {
+        return json({ error: "Aucune config WhatsApp active. Active au moins un numéro dans Intégrations." }, 400);
       }
-      return json({ success: true, count: upserted, total: fetched.length });
+
+      console.log(`[wa-templates-sync] ${configs.length} config(s) actifs à synchroniser`);
+
+      let upserted = 0;
+      let totalFetched = 0;
+      const errors: any[] = [];
+      const wabaSeen = new Set<string>();
+
+      for (const config of configs) {
+        // Dédoublonne par WABA (plusieurs numéros peuvent partager le même WABA → même catalogue)
+        if (wabaSeen.has(config.business_account_id)) {
+          console.log(`[wa-templates-sync] WABA ${config.business_account_id} déjà traité, skip`);
+          continue;
+        }
+        wabaSeen.add(config.business_account_id);
+
+        const url = `${GRAPH}/${config.business_account_id}/message_templates?limit=200&fields=name,language,category,status,id,components`;
+        try {
+          const resp = await fetch(url, { headers: { Authorization: `Bearer ${config.access_token}` } });
+          const data = await resp.json();
+          if (!resp.ok) {
+            console.error(`[wa-templates-sync] WABA ${config.business_account_id} erreur Meta:`, JSON.stringify(data));
+            errors.push({ waba: config.business_account_id, error: data?.error?.message || "Erreur Meta API", details: data });
+            continue;
+          }
+
+          const fetched = (data.data || []) as any[];
+          totalFetched += fetched.length;
+          console.log(`[wa-templates-sync] WABA ${config.business_account_id}: ${fetched.length} templates récupérés`);
+
+          for (const t of fetched) {
+            const bodyComp = (t.components || []).find((c: any) => c.type === "BODY");
+            const bodyText = bodyComp?.text || "";
+            const varsCount = countVariables(bodyText);
+            const { error: upErr } = await admin
+              .from("whatsapp_templates")
+              .upsert({
+                owner_id: user.id,
+                workspace_id: workspaceId,
+                name: t.name,
+                language: t.language,
+                category: t.category,
+                body_text: bodyText,
+                variables_count: varsCount,
+                status: t.status,
+                is_synced: true,
+                meta_template_id: t.id,
+                updated_at: new Date().toISOString(),
+              }, { onConflict: "owner_id,name,language" });
+            if (upErr) {
+              console.error(`[wa-templates-sync] upsert error ${t.name}:`, upErr.message);
+              errors.push({ template: t.name, error: upErr.message });
+            } else {
+              upserted++;
+            }
+          }
+        } catch (e) {
+          console.error(`[wa-templates-sync] WABA ${config.business_account_id} exception:`, e);
+          errors.push({ waba: config.business_account_id, error: e instanceof Error ? e.message : String(e) });
+        }
+      }
+
+      if (upserted === 0 && errors.length > 0) {
+        return json({ error: "Aucun template synchronisé", details: errors }, 400);
+      }
+      return json({ success: true, count: upserted, total: totalFetched, waba_count: wabaSeen.size, errors: errors.length ? errors : undefined });
     }
 
     if (action === "create_local") {
