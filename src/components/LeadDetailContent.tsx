@@ -47,6 +47,7 @@ export function LeadDetailContent({
   onDeleted?: () => void;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [hardDelete, setHardDelete] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
   const [notesDirty, setNotesDirty] = useState(false);
 
