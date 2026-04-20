@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
 
         const { data: cfg } = await admin
           .from("whatsapp_config")
-          .select("owner_id, is_active")
+          .select("owner_id, is_active, workspace_id")
           .eq("phone_number_id", phone_number_id)
           .maybeSingle();
         if (!cfg || !cfg.is_active) continue;
