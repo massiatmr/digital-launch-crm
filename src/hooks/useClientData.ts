@@ -148,16 +148,29 @@ export function useUpdateClientSilent() {
 export function useDeleteClient() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('clients')
-        .update({ deleted_at: new Date().toISOString() } as any)
-        .eq('id', id);
-      if (error) throw error;
+    mutationFn: async (input: string | { id: string; hard?: boolean }) => {
+      const id = typeof input === 'string' ? input : input.id;
+      const hard = typeof input === 'string' ? false : !!input.hard;
+      if (hard) {
+        await supabase.from('client_activities').delete().eq('client_id', id);
+        await supabase.from('client_resources').delete().eq('client_id', id);
+        await supabase.from('client_onboarding_responses').delete().eq('client_id', id);
+        await supabase.from('contract_signatures').delete().eq('client_id', id);
+        await supabase.from('invoices').delete().eq('client_id', id);
+        const { error } = await supabase.from('clients').delete().eq('id', id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('clients')
+          .update({ deleted_at: new Date().toISOString() } as any)
+          .eq('id', id);
+        if (error) throw error;
+      }
     },
-    onSuccess: () => {
+    onSuccess: (_, input) => {
+      const hard = typeof input === 'string' ? false : !!input.hard;
       qc.invalidateQueries({ queryKey: ['clients'] });
-      toast.success('Déplacé vers la corbeille');
+      toast.success(hard ? 'Client supprimé définitivement' : 'Déplacé vers la corbeille');
     },
     onError: (e: any) => toast.error(e.message),
   });
