@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { LiveAudioVisualizer } from '@/components/LiveAudioVisualizer';
 import { VoiceMessagePlayer } from '@/components/VoiceMessagePlayer';
+import { Mp3Encoder } from 'lamejs';
 
 type PendingMsg = { tempId: string; content: string; at: number; status: 'sending' | 'failed' };
 
@@ -41,6 +42,70 @@ function AudioBubble({ path, transcript, outbound }: { path: string | null; tran
   );
 }
 
+function mergeBuffers(chunks: Float32Array[]) {
+  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const result = new Float32Array(totalLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return result;
+}
+
+function downsampleBuffer(buffer: Float32Array, inputSampleRate: number, outputSampleRate: number) {
+  if (outputSampleRate >= inputSampleRate) return buffer;
+  const sampleRateRatio = inputSampleRate / outputSampleRate;
+  const newLength = Math.round(buffer.length / sampleRateRatio);
+  const result = new Float32Array(newLength);
+  let offsetResult = 0;
+  let offsetBuffer = 0;
+
+  while (offsetResult < result.length) {
+    const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
+    let accum = 0;
+    let count = 0;
+    for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
+      accum += buffer[i];
+      count++;
+    }
+    result[offsetResult] = count > 0 ? accum / count : 0;
+    offsetResult++;
+    offsetBuffer = nextOffsetBuffer;
+  }
+
+  return result;
+}
+
+function floatTo16BitPCM(input: Float32Array) {
+  const output = new Int16Array(input.length);
+  for (let i = 0; i < input.length; i++) {
+    const s = Math.max(-1, Math.min(1, input[i]));
+    output[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+  }
+  return output;
+}
+
+function encodeMp3FromFloat32(samples: Float32Array, sampleRate: number) {
+  const targetRate = 16000;
+  const mono = downsampleBuffer(samples, sampleRate, targetRate);
+  const pcm = floatTo16BitPCM(mono);
+  const encoder = new Mp3Encoder(1, targetRate, 64);
+  const blockSize = 1152;
+  const mp3Parts: BlobPart[] = [];
+
+  for (let i = 0; i < pcm.length; i += blockSize) {
+    const chunk = pcm.subarray(i, i + blockSize);
+    const encoded = encoder.encodeBuffer(chunk);
+    if (encoded.length > 0) mp3Parts.push(new Uint8Array(encoded).slice().buffer);
+  }
+
+  const finalChunk = encoder.flush();
+  if (finalChunk.length > 0) mp3Parts.push(new Uint8Array(finalChunk).slice().buffer);
+
+  return new Blob(mp3Parts, { type: 'audio/mpeg' });
+}
+
 export function WhatsAppChat({ leadId, className }: { leadId: string; className?: string }) {
   useWhatsAppRealtime(leadId);
   const { data: messages = [] } = useWhatsAppMessages(leadId);
@@ -50,14 +115,17 @@ export function WhatsAppChat({ leadId, className }: { leadId: string; className?
   const [pending, setPending] = useState<PendingMsg[]>([]);
   const endRef = useRef<HTMLDivElement | null>(null);
 
-  // Recording state
   const [recording, setRecording] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [activeStream, setActiveStream] = useState<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const audioChunksRef = useRef<Float32Array[]>([]);
+  const sampleRateRef = useRef<number>(44100);
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -87,26 +155,24 @@ export function WhatsAppChat({ leadId, className }: { leadId: string; className?
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Préférer ogg/opus (compatible WhatsApp natif), sinon fallback webm/opus
-      const preferred = [
-        'audio/ogg;codecs=opus',
-        'audio/webm;codecs=opus',
-        'audio/webm',
-        'audio/mp4',
-      ];
-      const mimeType = preferred.find((m) => MediaRecorder.isTypeSupported(m)) || '';
-      const mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-      chunksRef.current = [];
-      mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      mr.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: mr.mimeType });
-        setRecordedBlob(blob);
-        setRecordedUrl(URL.createObjectURL(blob));
-        stream.getTracks().forEach((t) => t.stop());
-        setActiveStream(null);
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AudioCtx();
+      const source = ctx.createMediaStreamSource(stream);
+      const processor = ctx.createScriptProcessor(4096, 1, 1);
+      sampleRateRef.current = ctx.sampleRate;
+      audioChunksRef.current = [];
+
+      source.connect(processor);
+      processor.connect(ctx.destination);
+      processor.onaudioprocess = (event) => {
+        const inputData = event.inputBuffer.getChannelData(0);
+        audioChunksRef.current.push(new Float32Array(inputData));
       };
-      mr.start();
-      recorderRef.current = mr;
+
+      audioContextRef.current = ctx;
+      sourceRef.current = source;
+      processorRef.current = processor;
+      recorderRef.current = null;
       setActiveStream(stream);
       setRecording(true);
       setElapsed(0);
@@ -116,19 +182,42 @@ export function WhatsAppChat({ leadId, className }: { leadId: string; className?
     }
   };
 
-  const stopRecording = () => {
-    recorderRef.current?.stop();
-    setRecording(false);
+  const stopRecording = async () => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    setRecording(false);
+
+    processorRef.current?.disconnect();
+    sourceRef.current?.disconnect();
+    activeStream?.getTracks().forEach((t) => t.stop());
+    setActiveStream(null);
+
+    const samples = mergeBuffers(audioChunksRef.current);
+    const blob = encodeMp3FromFloat32(samples, sampleRateRef.current);
+    setRecordedBlob(blob);
+    setRecordedUrl(URL.createObjectURL(blob));
+
+    audioContextRef.current?.close().catch(() => undefined);
+    audioContextRef.current = null;
+    sourceRef.current = null;
+    processorRef.current = null;
+    audioChunksRef.current = [];
   };
 
   const cancelRecording = () => {
-    if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
+    processorRef.current?.disconnect();
+    sourceRef.current?.disconnect();
+    audioContextRef.current?.close().catch(() => undefined);
+    activeStream?.getTracks().forEach((t) => t.stop());
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     setRecording(false);
     setRecordedBlob(null);
     if (recordedUrl) { URL.revokeObjectURL(recordedUrl); setRecordedUrl(null); }
     setElapsed(0);
+    setActiveStream(null);
+    audioContextRef.current = null;
+    sourceRef.current = null;
+    processorRef.current = null;
+    audioChunksRef.current = [];
   };
 
   const sendRecording = async () => {
@@ -139,7 +228,7 @@ export function WhatsAppChat({ leadId, className }: { leadId: string; className?
     for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
     const b64 = btoa(bin);
     try {
-      await sendAudio.mutateAsync({ leadId, audioBase64: b64, mimeType: recordedBlob.type || 'audio/webm' });
+      await sendAudio.mutateAsync({ leadId, audioBase64: b64, mimeType: recordedBlob.type || 'audio/mpeg' });
       cancelRecording();
     } catch { /* toast géré dans le hook */ }
   };
