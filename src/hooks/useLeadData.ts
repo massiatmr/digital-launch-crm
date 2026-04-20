@@ -208,19 +208,44 @@ export function useDeleteLead() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      // Soft-delete : déplace vers la corbeille (récupérable 30j)
       const { error } = await supabase
         .from('leads')
         .update({ deleted_at: new Date().toISOString() } as any)
         .eq('id', id);
       if (error) throw error;
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['leads'] });
-      await queryClient.refetchQueries({ queryKey: ['leads'] });
+    onMutate: async (id: string) => {
+      await queryClient.cancelQueries({ queryKey: ['leads'] });
+
+      const previousLeadsQueries = queryClient.getQueriesData<DbLead[]>({ queryKey: ['leads'] });
+      const previousLeadDetail = queryClient.getQueryData<DbLead | null>(['leads', id]);
+
+      previousLeadsQueries.forEach(([key, leads]) => {
+        if (Array.isArray(leads)) {
+          queryClient.setQueryData(
+            key,
+            leads.filter((lead) => lead.id !== id)
+          );
+        }
+      });
+
+      queryClient.setQueryData(['leads', id], null);
+
+      return { previousLeadsQueries, previousLeadDetail };
+    },
+    onSuccess: () => {
       toast.success('Déplacé vers la corbeille');
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: any, id, context) => {
+      context?.previousLeadsQueries?.forEach(([key, leads]: any) => {
+        queryClient.setQueryData(key, leads);
+      });
+      queryClient.setQueryData(['leads', id], context?.previousLeadDetail ?? null);
+      toast.error(e.message);
+    },
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['leads'] });
+    },
   });
 }
 

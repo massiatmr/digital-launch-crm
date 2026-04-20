@@ -34,7 +34,7 @@ export default function LeadDetailPage() {
       >
         <ArrowLeft className="h-4 w-4" /> Retour
       </button>
-      <LeadDetailContent leadId={lead.id} />
+      <LeadDetailContent leadId={lead.id} onDeleted={() => window.history.length > 1 ? goBack() : window.location.replace('/')} />
     </div>
   );
 }
