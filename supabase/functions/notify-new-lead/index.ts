@@ -187,21 +187,25 @@ Deno.serve(async (req) => {
     const wsPrefix = workspaceName ? `[${workspaceName}] ` : "";
     const results: Record<string, unknown> = {};
 
-    // ---- 1) Push
-    try {
-      const pushRes = await supabase.functions.invoke("send-onesignal-notification", {
-        body: {
-          user_id: lead.owner_id,
-          title: `${wsPrefix}Nouveau lead — ${lead.name}${titleSuffix}`,
-          body: `${sourceLabel} • ${lead.phone || lead.email || "pas de contact"}`,
-          url: `/leads/${lead.id}`,
-          tag: `new-lead-${lead.id}`,
-        },
-      });
-      results.push = pushRes.data ?? { error: pushRes.error?.message };
-    } catch (e) {
-      results.push = { error: e instanceof Error ? e.message : String(e) };
+    // ---- 1) Push à tous les membres du workspace
+    const pushResults: any[] = [];
+    for (const uid of pushUserIds) {
+      try {
+        const pushRes = await supabase.functions.invoke("send-onesignal-notification", {
+          body: {
+            user_id: uid,
+            title: `${wsPrefix}Nouveau lead — ${lead.name}${titleSuffix}`,
+            body: `${sourceLabel} • ${lead.phone || lead.email || "pas de contact"}`,
+            url: `/leads/${lead.id}`,
+            tag: `new-lead-${lead.id}`,
+          },
+        });
+        pushResults.push({ user_id: uid, ...(pushRes.data ?? { error: pushRes.error?.message }) });
+      } catch (e) {
+        pushResults.push({ user_id: uid, error: e instanceof Error ? e.message : String(e) });
+      }
     }
+    results.push = pushResults;
 
     // ---- 2) Email via SMTP (admin global + workspace si défini)
     try {
