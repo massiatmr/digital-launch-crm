@@ -36,6 +36,8 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const email = String(body.email || "").trim().toLowerCase();
+    const recipientName: string | null = body.name ? String(body.name).trim() : null;
+    const sendEmail: boolean = body.send_email !== false; // default true
     const workspaceId: string | null = body.workspace_id || null;
     const workspaceRole: "owner" | "member" = body.workspace_role === "owner" ? "owner" : "member";
 
@@ -114,22 +116,25 @@ Deno.serve(async (req) => {
     }
 
     // Envoi email transactionnel (best-effort, n'échoue pas l'invitation)
-    try {
-      await admin.functions.invoke("send-transactional-email", {
-        body: {
-          templateName: "workspace-invitation",
-          recipientEmail: email,
-          idempotencyKey: `workspace-invite-${invite.id}`,
-          templateData: {
-            workspaceName: workspaceName || "votre nouvel espace",
-            inviterName,
-            acceptUrl: url,
-            role: invite.workspace_role,
+    if (sendEmail) {
+      try {
+        await admin.functions.invoke("send-transactional-email", {
+          body: {
+            templateName: "workspace-invitation",
+            recipientEmail: email,
+            idempotencyKey: `workspace-invite-${invite.id}`,
+            templateData: {
+              recipientName,
+              workspaceName: workspaceName || "votre nouvel espace",
+              inviterName,
+              acceptUrl: url,
+              role: invite.workspace_role,
+            },
           },
-        },
-      });
-    } catch (mailErr) {
-      console.error("[send-invitation] email send failed", mailErr);
+        });
+      } catch (mailErr) {
+        console.error("[send-invitation] email send failed", mailErr);
+      }
     }
 
     return new Response(
