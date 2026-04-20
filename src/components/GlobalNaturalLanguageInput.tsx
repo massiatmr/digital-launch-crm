@@ -289,8 +289,18 @@ export function GlobalNaturalLanguageInput({ onDone }: { onDone?: () => void }) 
   const [bookingSlots, setBookingSlots] = useState<string[] | null>(null);
   const [bookingLoading, setBookingLoading] = useState(false);
   const { user } = useAuth();
+  const wsId = useCurrentWorkspaceId();
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Bulk import state
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkRows, setBulkRows] = useState<MappedRow[] | null>(null);
+  const [bulkStats, setBulkStats] = useState<{ total: number; valid: number; duplicates: number; errors: number } | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [attachedFileName, setAttachedFileName] = useState<string | null>(null);
 
   const analyze = useAnalyzeNote();
   const apply = useApplyProposal();
