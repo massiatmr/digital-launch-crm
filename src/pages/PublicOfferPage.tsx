@@ -7,8 +7,18 @@ import { Badge } from '@/components/ui/badge';
 import BookingSection from '@/components/BookingSection';
 import {
   CalendarCheck, Check, Loader2, ArrowRight,
-  Shield, AlertCircle, Star, ChevronDown, Sparkles, Target, Zap
+  Shield, AlertCircle, Star, ChevronDown, Sparkles, Target, Zap,
+  AlertTriangle, Clock, TrendingDown, Frown, Rocket, Gift, Trophy, Gem, type LucideIcon,
 } from 'lucide-react';
+
+const ICON_MAP: Record<string, LucideIcon> = {
+  AlertTriangle, AlertCircle, Clock, TrendingDown, Frown, Zap,
+  Rocket, Target, Gift, Shield, Star, Trophy, Gem, Sparkles, Check,
+};
+const HormoziIcon = ({ name, className }: { name: string; className?: string }) => {
+  const C = ICON_MAP[name] || Sparkles;
+  return <C className={className} />;
+};
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import DemenageurLanding from '@/pages/landing/demenageur';
@@ -68,7 +78,13 @@ export default function PublicOfferPage() {
   const testimonials = Array.isArray(offerPage?.testimonials) ? offerPage.testimonials : [];
 
   const painPoints = sections.find((s: any) => s.type === 'pain_points');
+  const isHormoziPain = painPoints?.variant === 'hormozi';
   const solution = sections.find((s: any) => s.type === 'solution');
+  const transformation = sections.find((s: any) => s.type === 'transformation');
+  const deliverables = sections.find((s: any) => s.type === 'deliverables');
+  const bonuses = sections.find((s: any) => s.type === 'bonuses');
+  const faq = sections.find((s: any) => s.type === 'faq');
+  const pricing = sections.find((s: any) => s.type === 'pricing');
   const guarantee = sections.find((s: any) => s.type === 'guarantee');
   const portfolio = sections.find((s: any) => s.type === 'portfolio');
 
@@ -119,14 +135,120 @@ export default function PublicOfferPage() {
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
               <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12">{painPoints.title || 'Est-ce que cela vous ressemble ?'}</h2>
               <div className="space-y-4">
-                {painPoints.items.map((item: string, i: number) => (
-                  <motion.div key={i} initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
-                    className="flex items-start gap-4 p-5 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:border-red-500/20 transition-colors">
-                    <AlertCircle className="h-5 w-5 text-red-400 mt-0.5 shrink-0" />
-                    <p className="text-gray-300 leading-relaxed">{item}</p>
+                {painPoints.items.map((item: any, i: number) => {
+                  const isObj = isHormoziPain && typeof item === 'object';
+                  const iconName = isObj ? item.icon : 'AlertCircle';
+                  const title = isObj ? item.title : null;
+                  const desc = isObj ? item.description : (typeof item === 'string' ? item : '');
+                  return (
+                    <motion.div key={i} initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
+                      className="flex items-start gap-4 p-5 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:border-red-500/20 transition-colors">
+                      <HormoziIcon name={iconName} className="h-5 w-5 text-red-400 mt-0.5 shrink-0" />
+                      <div className="flex-1">
+                        {title && <p className="font-semibold text-white mb-1">{title}</p>}
+                        <p className="text-gray-300 leading-relaxed">{desc}</p>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </div>
+        </section>
+      )}
+
+      {/* ─── Transformation Before/After (Hormozi) ─── */}
+      {transformation && (
+        <section className="py-20 px-4 bg-gradient-to-b from-transparent via-primary/[0.04] to-transparent">
+          <div className="max-w-4xl mx-auto">
+            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
+              <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12">La transformation</h2>
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="p-6 rounded-2xl bg-red-950/20 border border-red-900/30">
+                  <p className="text-xs font-bold text-red-400 mb-3 tracking-wider">AVANT</p>
+                  <p className="text-gray-300 leading-relaxed">{transformation.before}</p>
+                </div>
+                <div className="p-6 rounded-2xl bg-emerald-950/20 border border-emerald-900/30">
+                  <p className="text-xs font-bold text-emerald-400 mb-3 tracking-wider">APRÈS</p>
+                  <p className="text-gray-300 leading-relaxed">{transformation.after}</p>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+      )}
+
+      {/* ─── Deliverables / Value Stack (Hormozi) ─── */}
+      {deliverables && Array.isArray(deliverables.items) && deliverables.items.length > 0 && (
+        <section className="py-20 px-4">
+          <div className="max-w-4xl mx-auto">
+            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
+              <div className="text-center mb-12">
+                <Zap className="h-8 w-8 text-yellow-400 mx-auto mb-4" />
+                <h2 className="text-3xl sm:text-4xl font-bold">{deliverables.title || 'Tout ce que tu obtiens'}</h2>
+              </div>
+              <div className="space-y-4">
+                {deliverables.items.map((d: any, i: number) => (
+                  <motion.div key={i} initial={{ opacity: 0, y: 15 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.05 }}
+                    className="flex items-start gap-4 p-5 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                    <HormoziIcon name={d.icon} className="h-6 w-6 text-primary shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="font-semibold text-white">{d.title}</p>
+                        {d.value && <span className="text-sm font-bold text-emerald-400 shrink-0">{d.value}</span>}
+                      </div>
+                      <p className="text-gray-400 text-sm mt-1 leading-relaxed">{d.description}</p>
+                    </div>
                   </motion.div>
                 ))}
               </div>
+              {deliverables.total_value > 0 && (
+                <p className="text-center mt-8 text-gray-400">
+                  Valeur totale : <span className="text-2xl font-black text-white">{deliverables.total_value}€</span>
+                </p>
+              )}
+            </motion.div>
+          </div>
+        </section>
+      )}
+
+      {/* ─── Bonuses (Hormozi) ─── */}
+      {bonuses && Array.isArray(bonuses.items) && bonuses.items.length > 0 && (
+        <section className="py-20 px-4 bg-gradient-to-b from-transparent via-yellow-500/[0.04] to-transparent">
+          <div className="max-w-3xl mx-auto">
+            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
+              <div className="text-center mb-10">
+                <Gift className="h-8 w-8 text-yellow-400 mx-auto mb-4" />
+                <h2 className="text-3xl sm:text-4xl font-bold">{bonuses.title || 'Bonus exclusifs'}</h2>
+              </div>
+              <div className="space-y-4">
+                {bonuses.items.map((b: any, i: number) => (
+                  <motion.div key={i} initial={{ opacity: 0, y: 15 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }}
+                    className="p-5 rounded-xl bg-yellow-500/[0.05] border border-yellow-500/20">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="font-semibold text-white">🎁 {b.title}</p>
+                      {b.value && <span className="text-sm font-bold text-yellow-400 shrink-0">{b.value}</span>}
+                    </div>
+                    <p className="text-gray-400 text-sm mt-2 leading-relaxed">{b.description}</p>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        </section>
+      )}
+
+      {/* ─── Pricing (Hormozi) ─── */}
+      {pricing && (
+        <section className="py-20 px-4">
+          <div className="max-w-2xl mx-auto text-center">
+            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
+              <p className="text-sm text-gray-500 uppercase tracking-wider mb-3">Investissement</p>
+              {pricing.anchor && <p className="text-2xl text-gray-500 line-through mb-2">{pricing.anchor}</p>}
+              <p className="text-6xl sm:text-7xl font-black text-primary">{pricing.final}</p>
+              <Button size="lg" onClick={scrollToBooking} className="mt-8 bg-primary hover:bg-primary/90 text-primary-foreground rounded-full px-10 py-6 text-lg font-semibold">
+                {ctaText} <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
             </motion.div>
           </div>
         </section>
@@ -158,8 +280,8 @@ export default function PublicOfferPage() {
         </section>
       )}
 
-      {/* ─── Features ─── */}
-      {features.length > 0 && (
+      {/* ─── Features (masqué si on a des deliverables Hormozi) ─── */}
+      {features.length > 0 && !deliverables && (
         <section className="py-20 px-4">
           <div className="max-w-4xl mx-auto">
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
@@ -243,6 +365,26 @@ export default function PublicOfferPage() {
                     <p className="text-gray-300 italic mb-4">"{t.text}"</p>
                     <p className="text-sm font-semibold text-white">{t.name}</p>
                     {t.company && <p className="text-xs text-gray-500">{t.company}</p>}
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        </section>
+      )}
+
+      {/* ─── FAQ (Hormozi) ─── */}
+      {faq && Array.isArray(faq.items) && faq.items.length > 0 && (
+        <section className="py-20 px-4">
+          <div className="max-w-3xl mx-auto">
+            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
+              <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12">{faq.title || 'Questions fréquentes'}</h2>
+              <div className="space-y-3">
+                {faq.items.map((q: any, i: number) => (
+                  <motion.div key={i} initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.05 }}
+                    className="p-5 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                    <p className="font-semibold text-white mb-2">{q.question}</p>
+                    <p className="text-gray-400 leading-relaxed">{q.answer}</p>
                   </motion.div>
                 ))}
               </div>

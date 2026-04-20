@@ -9,8 +9,9 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Package, Plus, ExternalLink, Trash2, Eye, EyeOff, Users, CalendarCheck, Loader2 } from 'lucide-react';
+import { Package, Plus, ExternalLink, Trash2, Eye, EyeOff, Users, CalendarCheck, Loader2, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
+import OfferAIWizard from '@/components/offers/OfferAIWizard';
 
 export default function OffersPage() {
   const { data: offers, isLoading } = useOffers();
@@ -20,6 +21,7 @@ export default function OffersPage() {
   const deleteOffer = useDeleteOffer();
   const updateOffer = useUpdateOffer();
   const [open, setOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const [form, setForm] = useState({ name: '', description: '', price: '', niche: '' });
 
   const handleCreate = async () => {
@@ -46,10 +48,19 @@ export default function OffersPage() {
           <h1 className="text-2xl font-bold text-foreground">Offres</h1>
           <p className="text-muted-foreground text-sm mt-1">{offers?.length || 0} offre(s)</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-2" />Nouvelle offre</Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setAiOpen(true)}
+            className="border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            Créer avec l'IA
+          </Button>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button variant="ghost"><Plus className="h-4 w-4 mr-2" />Manuelle</Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader><DialogTitle>Créer une offre</DialogTitle></DialogHeader>
             <div className="space-y-4 mt-4">
@@ -64,8 +75,9 @@ export default function OffersPage() {
                 Créer
               </Button>
             </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -130,6 +142,8 @@ export default function OffersPage() {
           </div>
         )}
       </div>
+
+      <OfferAIWizard open={aiOpen} onOpenChange={setAiOpen} />
     </div>
   );
 }
