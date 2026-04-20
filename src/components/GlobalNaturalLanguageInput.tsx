@@ -390,7 +390,6 @@ ${next.join('\n') || 'Aucune'}`;
         phone: payload.contact_phone || lead?.phone || '+33000000000',
         booking_date: payload.date, time_slot: slot, offer_id: offerId,
         notes: payload.notes || 'Créé via assistant IA',
-        owner_id: user.id,
       },
     });
     if (error) throw error;
