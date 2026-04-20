@@ -24,6 +24,26 @@ export function useSendWhatsAppMessage() {
   });
 }
 
+export function useSendWhatsAppAudio() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ leadId, audioBase64, mimeType }: { leadId: string; audioBase64: string; mimeType: string }) => {
+      const { data, error } = await supabase.functions.invoke('send-whatsapp-audio', {
+        body: { lead_id: leadId, audio_base64: audioBase64, mime_type: mimeType },
+      });
+      if (error) throw error;
+      if ((data as any)?.error && !(data as any)?.success) throw new Error((data as any).error);
+      return data;
+    },
+    onSuccess: (data: any, vars) => {
+      if (data?.dry_run) toast.success('Vocal simulé (dry-run actif)');
+      else toast.success('Vocal envoyé');
+      qc.invalidateQueries({ queryKey: ['wa-messages', vars.leadId] });
+    },
+    onError: (e: any) => toast.error(e.message || 'Erreur envoi vocal'),
+  });
+}
+
 export function useWhatsAppRealtime(leadId?: string) {
   const qc = useQueryClient();
   useEffect(() => {
