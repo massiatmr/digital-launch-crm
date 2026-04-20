@@ -1,12 +1,14 @@
-import { useReminders, useToggleReminder, useUpdateReminder } from '@/hooks/useLeadData';
+import { useReminders, useToggleReminder, useUpdateReminder, useCreateReminder, useLeads } from '@/hooks/useLeadData';
 import { format, addDays, setHours, setMinutes, startOfDay, isSameDay, isToday, isTomorrow, addWeeks } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Check, Clock, Loader2, Pencil, X, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
+import { Check, Clock, Loader2, Pencil, X, ChevronLeft, ChevronRight, CalendarDays, Plus, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 
 const QUICK_TIMES = [
   { label: '08:00', h: 8, m: 0 },
