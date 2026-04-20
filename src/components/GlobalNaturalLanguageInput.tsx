@@ -755,7 +755,37 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
 
   return (
     <>
-      <div className="w-full">
+      <div
+        className={cn(
+          "w-full relative rounded-xl transition-all",
+          isDragging && "ring-2 ring-primary/50 bg-primary/5"
+        )}
+        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={onDrop}
+      >
+        {isDragging && (
+          <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-xl bg-background/90 backdrop-blur-sm border-2 border-dashed border-primary">
+            <div className="flex flex-col items-center gap-2 text-primary">
+              <Paperclip className="h-6 w-6" />
+              <p className="text-sm font-medium">Déposez le fichier (CSV, Excel, PDF, image…)</p>
+            </div>
+          </div>
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv,.xlsx,.xls,.pdf,.txt,.png,.jpg,.jpeg,.webp"
+          onChange={onPickFile}
+          className="hidden"
+        />
+        {(attachedFileName || bulkLoading) && (
+          <div className="mb-2 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
+            {bulkLoading ? <Loader2 className="h-3 w-3 animate-spin text-primary" /> : <FileText className="h-3 w-3 text-primary" />}
+            <span className="flex-1 truncate text-foreground">{attachedFileName || 'Analyse en cours…'}</span>
+            <span className="text-muted-foreground">{bulkLoading ? 'Analyse IA…' : 'Prêt'}</span>
+          </div>
+        )}
         {/* Mode toggle */}
         <div className="flex items-center gap-1 mb-3">
           <button
