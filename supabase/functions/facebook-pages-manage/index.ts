@@ -120,6 +120,19 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === "unsubscribe" && pageId) {
+      const page = await loadPage(pageId);
+      const res = await fetch(
+        `https://graph.facebook.com/v21.0/${pageId}/subscribed_apps?access_token=${page.page_access_token}`,
+        { method: "DELETE" },
+      );
+      const json = await res.json().catch(() => ({}));
+      const verification = await getSubscriptionState(page);
+      return new Response(JSON.stringify({ ...json, subscribed: verification.subscribed, verification: verification.checkJson }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (action === "fetch_forms" && pageId) {
       const page = await loadPage(pageId);
       const res = await fetch(
