@@ -158,7 +158,7 @@ export function WhatsAppChat({ leadId, className }: { leadId: string; className?
                 <div className={cn('max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm',
                   m.direction === 'outbound' ? 'bg-primary/20 rounded-br-sm' : 'bg-card rounded-bl-sm border border-border')}>
                   {isAudio(m) ? (
-                    <AudioBubble path={m.media_storage_path} transcript={m.transcript} />
+                    <AudioBubble path={m.media_storage_path} transcript={m.transcript} outbound={m.direction === 'outbound'} />
                   ) : (
                     <p className="whitespace-pre-line">{m.content}</p>
                   )}
@@ -190,7 +190,9 @@ export function WhatsAppChat({ leadId, className }: { leadId: string; className?
       {/* Preview vocal enregistré */}
       {recordedUrl && !recording && (
         <div className="border-t border-border p-2 flex items-center gap-2 bg-muted/20">
-          <audio controls src={recordedUrl} className="flex-1 h-9" />
+          <div className="flex-1 min-w-0 rounded-xl bg-card border border-border px-2">
+            <VoiceMessagePlayer src={recordedUrl} outbound />
+          </div>
           <Button size="icon" variant="ghost" onClick={cancelRecording} title="Annuler">
             <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
