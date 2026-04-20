@@ -260,20 +260,26 @@ serve(async (req) => {
           tool_choice: { type: "function", function: { name: "propose_mapping" } },
         }),
       });
-
-      if (mapRes.status === 429 || mapRes.status === 402) {
-        return new Response(JSON.stringify({
-          error: mapRes.status === 429 ? "Trop de requêtes IA, réessaie dans un instant." : "Crédits IA épuisés.",
-        }), { status: mapRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      } catch (err) {
+        console.warn("AI mapping timed out / failed, falling back:", err);
+        mapRes = null as any;
       }
+      clearTimeout(aiTimeout);
 
-      const mapJson = await mapRes.json();
-      const mapToolCall = mapJson?.choices?.[0]?.message?.tool_calls?.[0];
       let aiMapping: Record<string, string> = {};
-      try {
-        const args = JSON.parse(mapToolCall?.function?.arguments || "{}");
-        aiMapping = args.mapping || {};
-      } catch { aiMapping = {}; }
+      if (mapRes) {
+        if (mapRes.status === 429 || mapRes.status === 402) {
+          return new Response(JSON.stringify({
+            error: mapRes.status === 429 ? "Trop de requêtes IA, réessaie dans un instant." : "Crédits IA épuisés.",
+          }), { status: mapRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+        try {
+          const mapJson = await mapRes.json();
+          const mapToolCall = mapJson?.choices?.[0]?.message?.tool_calls?.[0];
+          const args = JSON.parse(mapToolCall?.function?.arguments || "{}");
+          aiMapping = args.mapping || {};
+        } catch { aiMapping = {}; }
+      }
 
       const VALID_TARGETS = new Set(["name", "email", "phone", "company_name", "message", "source", "score", "status"]);
       mapped = rawRows.map((r) => {
