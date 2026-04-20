@@ -1,49 +1,123 @@
-## Plan : Corriger les relances + recadrer l'IA vers la prise de RDV
+# Plan : Améliorer l'automatisation et la qualification WhatsApp
 
-### Diagnostic
+## Contexte actuel
 
-**Bug n°1 — Les relances après le 1er message ne partent jamais**
-La fonction `execute-followup-task` cherche le template à utiliser dans `followup_automation_settings.template_followup_1_id` (champ historique, **NULL** chez toi). Or ton template est en réalité configuré sur l'**étape de la séquence** (`followup_sequence_steps.template_id` = `lead_followup_intro`). Comme aucun template n'est trouvé, l'exécuteur tombe sur la branche "texte libre IA" → la fenêtre 24h Meta est fermée → la tâche est marquée `skipped`. C'est exactement ce qu'on voit dans la base :
+Ton système fait déjà beaucoup : séquence dynamique, détection d'inactivité, escalade appel, basculement template 24h, IA closer. Mais la **qualification** repose 100% sur l'IA en texte libre — sans suivi structuré de ce qui a été qualifié, sans détection d'intention forte, et sans automatisation de la prise de RDV quand le lead est prêt.
 
-> `followup_1` → status `skipped` → "Aucun template mappé et fenêtre 24h fermée"
+## Problèmes identifiés
 
-**Bug n°2 — L'IA pose trop de questions**
-Les `ai_instructions` par défaut disent *"qualifier progressivement (besoin, budget, urgence)"* → l'IA enchaîne 3 questions au lieu de proposer un RDV.
-
----
-
-### Changements
-
-**1. `execute-followup-task/index.ts` — lire le template depuis la séquence**
-Avant de lire `template_xxx_id` dans `followup_automation_settings`, charger d'abord `followup_sequence_steps` pour la tâche en cours et utiliser son `template_id` en priorité. Lookup par : `(workspace_id || owner_id) + task_type + step_order`. Fallback sur les champs legacy si aucune ligne séquence trouvée.
-
-→ Conséquence : ta `followup_1` (6h après) enverra bien le template `lead_followup_intro` même si le lead n'a pas répondu (Meta accepte les templates approuvés hors fenêtre 24h).
-
-**2. `generate-followup-message/index.ts` — recadrer l'IA "closer"**
-Réécrire le `systemPrompt` :
-
-- Maximum **1 question** par message (pas 3)
-- Après **1 réponse** du lead → proposer immédiatement un créneau de RDV (2 créneaux concrets cette semaine, format "Mardi 14h ou Jeudi 10h ?")
-- Ajouter le **lien de booking** dans le contexte : si une `offers.slug` est liée au lead → `https://digital-launch-crm.lovable.app/offers/{slug}/page`, sinon mention "(propose 2 créneaux à confirmer)"
-- Ton direct, conversationnel, max 2 phrases
-
-**3. `followup_automation_settings.ai_instructions` — nouveau défaut**
-Mise à jour du défaut SQL (et migration des lignes existantes qui ont encore le texte historique) :
-
-> *"Tu es un closer humain. Pose max 3-5  questions essentielle pour qualifier (problème principal, urgence, ). Dès que le lead a donné un signal d'intérêt, propose un créneau précis (ex: 'Mardi 14h ou Jeudi 10h ?') ou partage le lien de réservation. Max 2 phrases. Pas de blabla."*
-
-**4. UI `/settings/automation` (onglet IA)** — pré-remplir le textarea avec ce nouveau prompt si vide pour aider l'utilisateur à itérer.
+1. **Aucune mémoire structurée de qualification** — l'IA repose juste sur l'historique brut. Pas de champs "budget identifié", "urgence détectée", "objection rencontrée".
+2. **Pas de détection d'intention** — quand le lead écrit "ok je veux réserver" ou "envoie-moi le lien", aucune action automatique.
+3. **Score statique** — le `lead.score` ne bouge pas en fonction des réponses WhatsApp (engagement, tonalité, mots-clés).
+4. **Pas de scoring de la conversation** — impossible de savoir si une convo "avance" ou "stagne".
+5. **L'IA ne sait pas quand s'arrêter de relancer** — elle continue même si le lead a explicitement dit non.
 
 ---
 
-### Fichiers touchés
+## Améliorations proposées
 
-- `supabase/functions/execute-followup-task/index.ts`
-- `supabase/functions/generate-followup-message/index.ts`
-- 1 migration SQL : update `followup_automation_settings.ai_instructions` (nouveau default + UPDATE des lignes existantes contenant l'ancien prompt)
-- `src/pages/SettingsAutomationPage.tsx` (placeholder du textarea AI uniquement)
+### 1. Qualification structurée par IA (BANT-light)
 
-### Test après déploiement
+Ajouter une table `lead_qualification` qui stocke automatiquement après chaque réponse du lead :
 
-1. Lancer le test séquence accélérée sur un nouveau lead → la 2ème étape (followup_1) doit passer en `sent` au lieu de `skipped`.
-2. Faire répondre le lead → vérifier que la réponse IA propose directement 2 créneaux au lieu d'enchaîner les questions.
+- `pain_point` (problème principal détecté)
+- `urgency` (immediate / weeks / months / unclear)
+- `budget_signal` (yes / no / unknown)
+- `decision_maker` (yes / no / unknown)
+- `objections` (jsonb : liste d'objections rencontrées)
+- `interest_level` (0–100)
+- `last_qualified_at`
+
+Une edge function `qualify-conversation` est appelée à chaque message inbound, lit les 10 derniers messages et met à jour ces champs via Gemini Flash. **Le prompt suivant `generate-followup-message` utilise ces champs** au lieu de relire tout l'historique → réponses plus pertinentes et focalisées.
+
+### 2. Détection d'intention temps réel
+
+Sur chaque message inbound, l'IA classe l'intention parmi :
+
+- `ready_to_book` → crée auto une tâche "envoyer lien réservation" ou répond avec 2 créneaux
+- `objection` → déclenche une réponse type "traitement objection" (prompt dédié)
+- `not_interested` / `unsubscribe` → **annule TOUTES les tâches scheduled** + passe `status=lost` + `lost_reason="désintéressé via WhatsApp"`
+- `info_request` → réponse standard
+- `wrong_person` → marque le lead `lost`
+
+→ Évite de relancer un lead qui a dit non, et accélère ceux qui sont prêts.
+
+### 3. Score WhatsApp dynamique
+
+Ajout d'une vue/champ `whatsapp_engagement_score` calculé en SQL (trigger sur `whatsapp_messages`) :
+
+- +20 par inbound dans les 10 dernières min après un outbound (réactivité)
+- +10 si message > 50 chars (engagement)
+- +30 si intention `ready_to_book` détectée
+- −20 si silence > 48h après outbound
+- → Mappé en `hot/warm/cold` automatiquement (override le score statique).
+
+### 4. Stop intelligent des relances
+
+Dans `process-followup-tasks` et `detect-inactive-conversations`, ajouter une vérification :
+
+- Si `lead.status` ∈ `('lost', 'won')` → skip
+- Si `qualification.objections` contient "pas le bon moment" + dernière relance < 7j → reporter à +14j au lieu de continuer
+- Si 3 relances consécutives sans aucun inbound → escalade humaine + pause auto
+
+### 5. Templates de réponse contextuels
+
+Au lieu d'un seul prompt IA générique, créer 4 prompts spécialisés sélectionnés selon l'intention :
+
+- `prompt_qualification` (lead pas encore qualifié)
+- `prompt_objection_handling` (objection détectée)
+- `prompt_closing` (lead qualifié, pousser RDV)
+- `prompt_reactivation` (silence > seuil)
+
+→ Stockés et éditables dans `/settings/automation` onglet IA (4 textareas au lieu d'1).
+
+### 6. Tableau de bord qualification
+
+Nouvel onglet sur `/conversations` ou dans la fiche lead :
+
+- Badge "Qualifié 60%" basé sur les champs BANT remplis
+- Liste des objections rencontrées
+- Bouton "Forcer prise de RDV" (envoie immédiatement le lien + 2 créneaux)
+- Toggle "Pause relances 7j" (utile quand on attend volontairement)
+
+### 7. A/B testing des messages
+
+Ajouter `message_variant` dans `lead_followup_tasks` (A ou B). Si activé dans settings, l'IA génère 2 versions et alterne. Tracking du taux de réponse par variant dans `/settings/automation` → onglet Stats.
+
+---
+
+## Détails techniques
+
+### Nouvelles tables / colonnes
+
+- **Table `lead_qualification**` : 1 ligne par lead, mise à jour par trigger ou edge function après chaque inbound.
+- **Colonne `whatsapp_engagement_score INT**` sur `leads` (recalculée par trigger).
+- **Colonne `intent` TEXT** sur `whatsapp_messages` (classifiée à l'arrivée).
+- **Colonnes `prompt_qualification`, `prompt_objection`, `prompt_closing`, `prompt_reactivation` TEXT** sur `followup_automation_settings`.
+- **Colonne `message_variant` TEXT** sur `lead_followup_tasks`.
+
+### Nouvelles edge functions
+
+- `qualify-conversation` : appelée par `whatsapp-webhook` après chaque inbound. Lit historique → JSON structuré → upsert `lead_qualification` + classifie intention + déclenche action si `ready_to_book` ou `not_interested`.
+- Refacto `generate-followup-message` : sélectionne le bon prompt selon `qualification.interest_level` + objections, et utilise le résumé structuré au lieu de réinjecter tout l'historique.
+
+### Modifs existantes
+
+- `whatsapp-webhook` → après insert inbound, invoke `qualify-conversation` en fire-and-forget.
+- `process-followup-tasks` → check `lead.status` + qualification avant exécution.
+- `SettingsAutomationPage.tsx` → 4 textareas au lieu d'1, toggle A/B test, toggle "auto-stop si désintéressé".
+- `LeadDetailContent.tsx` → nouveau bloc "Qualification" affichant les champs BANT.
+
+### Approche progressive
+
+Phase 1 (essentielle) : qualification structurée + détection intention + stop intelligent.
+Phase 2 (optimisation) : score WhatsApp dynamique + 4 prompts contextuels.
+Phase 3 (avancé) : A/B testing + dashboard qualification.
+
+---
+
+## Question pour toi
+
+Veux-tu que je démarre par **Phase 1 uniquement** (le plus gros impact qualité immédiate, ~30 min de build) ou tout d'un coup ?
+
+non fait tout
