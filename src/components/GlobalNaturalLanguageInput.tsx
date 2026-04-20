@@ -1050,6 +1050,16 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
               {isTranscribing ? <Loader2 className="h-4 w-4 animate-spin" /> : isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
               <span className="hidden sm:inline">Vocal</span>
             </motion.button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={bulkLoading}
+              title="Joindre un fichier (CSV, Excel, PDF, image)"
+              aria-label="Joindre un fichier"
+              className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-muted/30 px-3 text-muted-foreground hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-all disabled:opacity-50"
+            >
+              {bulkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+            </button>
             <textarea
               ref={textareaRef}
               value={displayText}
