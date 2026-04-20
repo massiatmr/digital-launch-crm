@@ -71,7 +71,7 @@ export function useLeads() {
   return useQuery({
     queryKey: ['leads', wsId],
     queryFn: async () => {
-      let q: any = supabase.from('leads').select('*');
+      let q: any = supabase.from('leads').select('*').is('deleted_at', null);
       if (wsId) q = q.eq('workspace_id', wsId);
       const { data, error } = await q.order('created_at', { ascending: false });
       if (error) throw error;
@@ -90,9 +90,10 @@ export function useLead(id: string | undefined) {
         .from('leads')
         .select('*')
         .eq('id', id)
-        .single();
+        .is('deleted_at', null)
+        .maybeSingle();
       if (error) throw error;
-      return data as DbLead;
+      return data as DbLead | null;
     },
     enabled: !!id,
   });
