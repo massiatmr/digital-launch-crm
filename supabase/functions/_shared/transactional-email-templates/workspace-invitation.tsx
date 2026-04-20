@@ -23,30 +23,43 @@ const WorkspaceInvitationEmail = ({
   <Html lang="fr" dir="ltr">
     <Head />
     <Preview>
-      Tu es invité à rejoindre {workspaceName || 'un espace de travail'} sur {SITE_NAME}
+      Bienvenue 👋 — rejoins {workspaceName || 'ton nouvel espace'} sur {SITE_NAME}
     </Preview>
     <Body style={main}>
       <Container style={container}>
         <LogoHeader />
-        <Heading style={h1}>Tu as été invité 🎉</Heading>
+        <Heading style={h1}>Bienvenue dans l'équipe 🎉</Heading>
 
         <Text style={text}>
           {inviterName ? `${inviterName} t'a invité` : 'Tu as été invité'} à rejoindre
           {' '}
           <strong>{workspaceName || 'un espace de travail'}</strong>
           {role ? ` en tant que ${role === 'owner' ? 'propriétaire' : 'membre'}` : ''}
-          {' '}sur {SITE_NAME}.
+          {' '}sur {SITE_NAME} — la plateforme qui centralise vos leads et vos clients.
         </Text>
 
         <Section style={{ textAlign: 'center' as const, margin: '30px 0' }}>
           <Button style={ctaButton} href={acceptUrl || '#'}>
-            Accepter l'invitation
+            Créer mon compte
           </Button>
         </Section>
 
+        <Section style={stepsBox}>
+          <Text style={stepsTitle}>Prochaines étapes :</Text>
+          <Text style={stepItem}>
+            <strong>1.</strong> Clique sur le bouton ci-dessus pour créer ton compte (moins de 30 secondes).
+          </Text>
+          <Text style={stepItem}>
+            <strong>2.</strong> Tu seras automatiquement ajouté à <strong>{workspaceName || "l'espace"}</strong>.
+          </Text>
+          <Text style={stepItem}>
+            <strong>3.</strong> Accède immédiatement à la pipeline pour voir et gérer les leads de l'équipe.
+          </Text>
+        </Section>
+
         <Text style={text}>
-          En acceptant, tu auras accès aux leads, clients, automatisations et tableaux de
-          bord de cet espace.
+          Tu auras accès aux leads, clients, rendez-vous, automatisations et au tableau
+          de bord de cet espace — comme tous les autres membres.
         </Text>
 
         <Hr style={hr} />
@@ -58,7 +71,7 @@ const WorkspaceInvitationEmail = ({
         </Text>
 
         <Text style={footer}>
-          À bientôt,<br />
+          À très vite,<br />
           L'équipe {SITE_NAME}
         </Text>
       </Container>
@@ -69,7 +82,7 @@ const WorkspaceInvitationEmail = ({
 export const template = {
   component: WorkspaceInvitationEmail,
   subject: (data: Record<string, any>) =>
-    `Invitation à rejoindre ${data.workspaceName || 'un espace'} sur ${SITE_NAME}`,
+    `Bienvenue 👋 — rejoins ${data.workspaceName || 'ton nouvel espace'} sur ${SITE_NAME}`,
   displayName: "Invitation espace de travail",
   previewData: {
     workspaceName: 'Acme Corp',
@@ -93,6 +106,15 @@ const ctaButton = {
   textDecoration: 'none',
   display: 'inline-block',
 }
+const stepsBox = {
+  backgroundColor: '#f4f0ff',
+  borderRadius: '12px',
+  padding: '18px 22px',
+  margin: '20px 0',
+  borderLeft: '4px solid #7c3aed',
+}
+const stepsTitle = { fontSize: '13px', color: '#7c3aed', fontWeight: '700' as const, margin: '0 0 10px', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }
+const stepItem = { fontSize: '14px', color: '#1a1a2e', lineHeight: '1.6', margin: '0 0 8px' }
 const hr = { borderColor: '#e5e5e5', margin: '25px 0' }
 const footerText = { fontSize: '12px', color: '#888', lineHeight: '1.5', margin: '0 0 16px' }
 const footer = { fontSize: '13px', color: '#999', margin: '20px 0 0', lineHeight: '1.5' }
