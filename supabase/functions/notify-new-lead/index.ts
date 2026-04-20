@@ -145,6 +145,8 @@ Deno.serve(async (req) => {
     // Récupère le workspace : nom + email de notification
     let workspaceName: string | null = null;
     let workspaceEmail: string | null = null;
+    const memberEmails: string[] = [];
+    const memberUserIds: string[] = [];
     if (lead.workspace_id) {
       const { data: ws } = await supabase
         .from("workspaces")
@@ -153,11 +155,30 @@ Deno.serve(async (req) => {
         .maybeSingle();
       workspaceName = ws?.company_name || null;
       workspaceEmail = (ws?.notification_email || ws?.email || "").trim() || null;
+
+      // Récupère TOUS les membres du workspace (owner + members)
+      const { data: members, error: memErr } = await supabase
+        .rpc("list_workspace_members", { _workspace_id: lead.workspace_id });
+      if (memErr) {
+        console.error("notify-new-lead: list_workspace_members failed", memErr);
+      } else if (Array.isArray(members)) {
+        for (const m of members as Array<{ user_id: string; email: string }>) {
+          if (m.email) memberEmails.push(m.email);
+          if (m.user_id) memberUserIds.push(m.user_id);
+        }
+      }
     }
 
-    // Destinataires : admin global TOUJOURS + workspace si différent
+    // Destinataires email : admin global + email workspace + tous les membres
     const recipients = Array.from(new Set(
-      [NOTIFY_EMAIL, workspaceEmail].filter((e): e is string => !!e && e.toLowerCase() !== "")
+      [NOTIFY_EMAIL, workspaceEmail, ...memberEmails]
+        .filter((e): e is string => !!e && e.trim().toLowerCase() !== "")
+        .map((e) => e.trim())
+    ));
+
+    // Destinataires push : tous les membres (fallback sur owner)
+    const pushUserIds = Array.from(new Set(
+      memberUserIds.length ? memberUserIds : [lead.owner_id].filter(Boolean)
     ));
 
     const leadUrl = `${APP_BASE_URL}/leads/${lead.id}`;
@@ -166,21 +187,25 @@ Deno.serve(async (req) => {
     const wsPrefix = workspaceName ? `[${workspaceName}] ` : "";
     const results: Record<string, unknown> = {};
 
-    // ---- 1) Push
-    try {
-      const pushRes = await supabase.functions.invoke("send-onesignal-notification", {
-        body: {
-          user_id: lead.owner_id,
-          title: `${wsPrefix}Nouveau lead — ${lead.name}${titleSuffix}`,
-          body: `${sourceLabel} • ${lead.phone || lead.email || "pas de contact"}`,
-          url: `/leads/${lead.id}`,
-          tag: `new-lead-${lead.id}`,
-        },
-      });
-      results.push = pushRes.data ?? { error: pushRes.error?.message };
-    } catch (e) {
-      results.push = { error: e instanceof Error ? e.message : String(e) };
+    // ---- 1) Push à tous les membres du workspace
+    const pushResults: any[] = [];
+    for (const uid of pushUserIds) {
+      try {
+        const pushRes = await supabase.functions.invoke("send-onesignal-notification", {
+          body: {
+            user_id: uid,
+            title: `${wsPrefix}Nouveau lead — ${lead.name}${titleSuffix}`,
+            body: `${sourceLabel} • ${lead.phone || lead.email || "pas de contact"}`,
+            url: `/leads/${lead.id}`,
+            tag: `new-lead-${lead.id}`,
+          },
+        });
+        pushResults.push({ user_id: uid, ...(pushRes.data ?? { error: pushRes.error?.message }) });
+      } catch (e) {
+        pushResults.push({ user_id: uid, error: e instanceof Error ? e.message : String(e) });
+      }
     }
+    results.push = pushResults;
 
     // ---- 2) Email via SMTP (admin global + workspace si défini)
     try {
