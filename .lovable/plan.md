@@ -1,123 +1,67 @@
-# Plan : Améliorer l'automatisation et la qualification WhatsApp
 
-## Contexte actuel
 
-Ton système fait déjà beaucoup : séquence dynamique, détection d'inactivité, escalade appel, basculement template 24h, IA closer. Mais la **qualification** repose 100% sur l'IA en texte libre — sans suivi structuré de ce qui a été qualifié, sans détection d'intention forte, et sans automatisation de la prise de RDV quand le lead est prêt.
+# Assistant IA — Multi-fichiers, multi-leads, mapping intelligent
 
-## Problèmes identifiés
+Aujourd'hui l'assistant IA accepte uniquement texte + voix, et crée/modifie **un seul lead à la fois**. Objectif : en faire un véritable agent capable d'ingérer des **documents (CSV, Excel, PDF, images, texte collé)** contenant **plusieurs leads ou clients**, de **mapper intelligemment** chaque colonne vers les bons champs CRM, de **dédupliquer**, et de te présenter un **aperçu vérifiable** avant insertion.
 
-1. **Aucune mémoire structurée de qualification** — l'IA repose juste sur l'historique brut. Pas de champs "budget identifié", "urgence détectée", "objection rencontrée".
-2. **Pas de détection d'intention** — quand le lead écrit "ok je veux réserver" ou "envoie-moi le lien", aucune action automatique.
-3. **Score statique** — le `lead.score` ne bouge pas en fonction des réponses WhatsApp (engagement, tonalité, mots-clés).
-4. **Pas de scoring de la conversation** — impossible de savoir si une convo "avance" ou "stagne".
-5. **L'IA ne sait pas quand s'arrêter de relancer** — elle continue même si le lead a explicitement dit non.
+## Ce que tu vas pouvoir faire
 
----
+1. **Drag & drop ou bouton "Joindre fichier"** dans l'assistant IA flottant (Sparkles)
+2. Formats acceptés : `.csv`, `.xlsx`, `.xls`, `.pdf`, `.txt`, images (`.png/.jpg` — OCR), copier-coller texte brut
+3. L'IA lit le fichier, **détecte automatiquement** :
+   - Type d'enregistrement (lead, client, RDV)
+   - Colonnes mal nommées ("Tel portable" → `phone`, "Société" → `company_name`, etc.)
+   - Lignes invalides (emails malformés, doublons par email/téléphone)
+   - Source probable (Facebook Ads, Google Sheets, formulaire web…)
+4. Affiche un **tableau de prévisualisation éditable** : tu vois chaque ligne mappée, tu peux corriger une cellule, désélectionner des lignes, fusionner les doublons détectés
+5. **Détection des doublons** par email + téléphone normalisé contre les leads existants → tu choisis "ignorer / mettre à jour / créer quand même"
+6. **Bouton "Importer N leads"** insère le tout en une transaction, avec scoring IA optionnel
 
-## Améliorations proposées
+## Architecture technique
 
-### 1. Qualification structurée par IA (BANT-light)
+### Frontend
+- **`GlobalNaturalLanguageInput`** : ajout d'une zone drag-drop + bouton 📎. Détection du type de fichier côté client.
+- **Parsing client** :
+  - CSV → `papaparse` (déjà léger, à ajouter)
+  - Excel → `xlsx` (SheetJS)
+  - PDF/image → envoi direct à l'edge function (Gemini multimodal gère)
+  - Texte → envoi direct
+- **Nouveau composant `BulkImportPreview`** (Sheet plein écran) : tableau éditable avec colonnes mappées, badges doublon/erreur/OK, checkboxes de sélection, actions par ligne.
 
-Ajouter une table `lead_qualification` qui stocke automatiquement après chaque réponse du lead :
+### Backend (nouvelle edge function `ai-bulk-import`)
+- Accepte : `{ rows: any[], rawText?: string, fileBase64?: string, fileName?: string, mimeType?: string }`
+- Étapes :
+  1. **Normalisation** : si CSV/XLSX → reçoit déjà des lignes structurées. Si PDF/image/texte → demande à Gemini d'extraire un tableau JSON.
+  2. **Mapping IA** (Gemini 2.5 Flash + tool calling) : pour chaque ligne, retourne un objet conforme au schéma `leads` (name, email, phone, company_name, message, source, score, notes, status). Les champs inconnus vont dans `notes`.
+  3. **Validation** : email regex, normalisation téléphone via `lib/phone.ts`, source mappée sur l'enum existant.
+  4. **Détection doublons** : query `leads` sur email+phone normalisés du workspace, retourne `duplicate_of: lead_id` par ligne.
+  5. Réponse : `{ rows: MappedRow[], stats: { total, valid, duplicates, errors } }` — **aucune insertion** à cette étape.
+- Insertion finale faite côté client via `supabase.from('leads').insert(...)` après validation utilisateur (respecte RLS owner_id/workspace_id).
 
-- `pain_point` (problème principal détecté)
-- `urgency` (immediate / weeks / months / unclear)
-- `budget_signal` (yes / no / unknown)
-- `decision_maker` (yes / no / unknown)
-- `objections` (jsonb : liste d'objections rencontrées)
-- `interest_level` (0–100)
-- `last_qualified_at`
+### Sécurité & limites
+- Validation JWT (pattern existant `getClaims`)
+- Limite : **500 lignes max par import**, fichiers ≤ 5 MB
+- Gestion 429/402 du gateway AI avec toasts (pattern existant)
+- Aucune insertion sans confirmation explicite dans la preview
 
-Une edge function `qualify-conversation` est appelée à chaque message inbound, lit les 10 derniers messages et met à jour ces champs via Gemini Flash. **Le prompt suivant `generate-followup-message` utilise ces champs** au lieu de relire tout l'historique → réponses plus pertinentes et focalisées.
+### Ce qu'on garde / supprime
+- **`ImportPage.tsx`** existant : conservé mais devient un raccourci qui ouvre directement l'assistant IA en mode bulk (le parsing CSV manuel actuel est trop limité)
+- Mode "single lead" actuel de l'assistant : préservé, le bulk s'active automatiquement quand un fichier ≥ 2 lignes est détecté
 
-### 2. Détection d'intention temps réel
+## Fichiers touchés
 
-Sur chaque message inbound, l'IA classe l'intention parmi :
+| Fichier | Action |
+|---|---|
+| `src/components/GlobalNaturalLanguageInput.tsx` | Ajout drag-drop + bouton 📎 + détection bulk |
+| `src/components/BulkImportPreview.tsx` | **Nouveau** — tableau éditable de prévisualisation |
+| `supabase/functions/ai-bulk-import/index.ts` | **Nouveau** — mapping IA + dédup |
+| `package.json` | + `papaparse`, `xlsx` |
+| `src/pages/ImportPage.tsx` | Simplifié → bouton "Ouvrir l'assistant IA" |
 
-- `ready_to_book` → crée auto une tâche "envoyer lien réservation" ou répond avec 2 créneaux
-- `objection` → déclenche une réponse type "traitement objection" (prompt dédié)
-- `not_interested` / `unsubscribe` → **annule TOUTES les tâches scheduled** + passe `status=lost` + `lost_reason="désintéressé via WhatsApp"`
-- `info_request` → réponse standard
-- `wrong_person` → marque le lead `lost`
+## Étapes de livraison
 
-→ Évite de relancer un lead qui a dit non, et accélère ceux qui sont prêts.
+1. Edge function `ai-bulk-import` (mapping + dédup, sans insertion)
+2. Composant `BulkImportPreview` avec édition inline
+3. Intégration drag-drop + parsing CSV/XLSX/PDF dans `GlobalNaturalLanguageInput`
+4. Test end-to-end avec un vrai fichier CSV de leads
 
-### 3. Score WhatsApp dynamique
-
-Ajout d'une vue/champ `whatsapp_engagement_score` calculé en SQL (trigger sur `whatsapp_messages`) :
-
-- +20 par inbound dans les 10 dernières min après un outbound (réactivité)
-- +10 si message > 50 chars (engagement)
-- +30 si intention `ready_to_book` détectée
-- −20 si silence > 48h après outbound
-- → Mappé en `hot/warm/cold` automatiquement (override le score statique).
-
-### 4. Stop intelligent des relances
-
-Dans `process-followup-tasks` et `detect-inactive-conversations`, ajouter une vérification :
-
-- Si `lead.status` ∈ `('lost', 'won')` → skip
-- Si `qualification.objections` contient "pas le bon moment" + dernière relance < 7j → reporter à +14j au lieu de continuer
-- Si 3 relances consécutives sans aucun inbound → escalade humaine + pause auto
-
-### 5. Templates de réponse contextuels
-
-Au lieu d'un seul prompt IA générique, créer 4 prompts spécialisés sélectionnés selon l'intention :
-
-- `prompt_qualification` (lead pas encore qualifié)
-- `prompt_objection_handling` (objection détectée)
-- `prompt_closing` (lead qualifié, pousser RDV)
-- `prompt_reactivation` (silence > seuil)
-
-→ Stockés et éditables dans `/settings/automation` onglet IA (4 textareas au lieu d'1).
-
-### 6. Tableau de bord qualification
-
-Nouvel onglet sur `/conversations` ou dans la fiche lead :
-
-- Badge "Qualifié 60%" basé sur les champs BANT remplis
-- Liste des objections rencontrées
-- Bouton "Forcer prise de RDV" (envoie immédiatement le lien + 2 créneaux)
-- Toggle "Pause relances 7j" (utile quand on attend volontairement)
-
-### 7. A/B testing des messages
-
-Ajouter `message_variant` dans `lead_followup_tasks` (A ou B). Si activé dans settings, l'IA génère 2 versions et alterne. Tracking du taux de réponse par variant dans `/settings/automation` → onglet Stats.
-
----
-
-## Détails techniques
-
-### Nouvelles tables / colonnes
-
-- **Table `lead_qualification**` : 1 ligne par lead, mise à jour par trigger ou edge function après chaque inbound.
-- **Colonne `whatsapp_engagement_score INT**` sur `leads` (recalculée par trigger).
-- **Colonne `intent` TEXT** sur `whatsapp_messages` (classifiée à l'arrivée).
-- **Colonnes `prompt_qualification`, `prompt_objection`, `prompt_closing`, `prompt_reactivation` TEXT** sur `followup_automation_settings`.
-- **Colonne `message_variant` TEXT** sur `lead_followup_tasks`.
-
-### Nouvelles edge functions
-
-- `qualify-conversation` : appelée par `whatsapp-webhook` après chaque inbound. Lit historique → JSON structuré → upsert `lead_qualification` + classifie intention + déclenche action si `ready_to_book` ou `not_interested`.
-- Refacto `generate-followup-message` : sélectionne le bon prompt selon `qualification.interest_level` + objections, et utilise le résumé structuré au lieu de réinjecter tout l'historique.
-
-### Modifs existantes
-
-- `whatsapp-webhook` → après insert inbound, invoke `qualify-conversation` en fire-and-forget.
-- `process-followup-tasks` → check `lead.status` + qualification avant exécution.
-- `SettingsAutomationPage.tsx` → 4 textareas au lieu d'1, toggle A/B test, toggle "auto-stop si désintéressé".
-- `LeadDetailContent.tsx` → nouveau bloc "Qualification" affichant les champs BANT.
-
-### Approche progressive
-
-Phase 1 (essentielle) : qualification structurée + détection intention + stop intelligent.
-Phase 2 (optimisation) : score WhatsApp dynamique + 4 prompts contextuels.
-Phase 3 (avancé) : A/B testing + dashboard qualification.
-
----
-
-## Question pour toi
-
-Veux-tu que je démarre par **Phase 1 uniquement** (le plus gros impact qualité immédiate, ~30 min de build) ou tout d'un coup ?
-
-non fait tout
