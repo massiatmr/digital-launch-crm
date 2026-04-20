@@ -1201,6 +1201,16 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {bulkRows && (
+        <BulkImportPreview
+          open={bulkOpen}
+          onOpenChange={setBulkOpen}
+          rows={bulkRows}
+          stats={bulkStats}
+          onImported={() => { setBulkRows(null); setBulkStats(null); onDone?.(); }}
+        />
+      )}
     </>
   );
 }
