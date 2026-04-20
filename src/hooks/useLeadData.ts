@@ -252,10 +252,12 @@ export function useDeleteLead() {
 
       return { previousLeadsQueries, previousLeadDetail };
     },
-    onSuccess: () => {
-      toast.success('Déplacé vers la corbeille');
+    onSuccess: (_, input) => {
+      const hard = typeof input === 'string' ? false : !!input.hard;
+      toast.success(hard ? 'Lead supprimé définitivement' : 'Déplacé vers la corbeille');
     },
-    onError: (e: any, id, context) => {
+    onError: (e: any, input, context) => {
+      const id = typeof input === 'string' ? input : input.id;
       context?.previousLeadsQueries?.forEach(([key, leads]: any) => {
         queryClient.setQueryData(key, leads);
       });
