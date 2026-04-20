@@ -89,6 +89,43 @@ Deno.serve(async (req) => {
 
     console.log(`[send-whatsapp-audio] input=${inputMt} → meta=${metaMime} ext=${ext} size=${audioBytes.length}`);
 
+    // Transcription via Lovable AI (Gemini multimodal) — pour que l'IA puisse contextualiser les vocaux sortants
+    let transcript: string | null = null;
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (LOVABLE_API_KEY) {
+      try {
+        const trRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash",
+            messages: [
+              {
+                role: "system",
+                content:
+                  "Tu es un transcripteur audio. Transcris fidèlement le message vocal dans sa langue d'origine. Renvoie UNIQUEMENT le texte transcrit, sans commentaire ni guillemets.",
+              },
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: "Transcris ce message vocal :" },
+                  { type: "input_audio", input_audio: { data: audio_base64, format: "ogg" } },
+                ],
+              },
+            ],
+          }),
+        });
+        const trJson = await trRes.json();
+        transcript = trJson?.choices?.[0]?.message?.content?.trim() || null;
+        console.log(`[send-whatsapp-audio] transcript=${transcript?.slice(0, 80)}`);
+      } catch (trErr) {
+        console.error("[send-whatsapp-audio] transcription error:", trErr);
+      }
+    }
+
     // Stockage local pour relecture dans le CRM
     const storagePath = `outbound/${user.id}/${crypto.randomUUID()}.${ext}`;
     await admin.storage
