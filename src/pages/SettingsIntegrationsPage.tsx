@@ -118,9 +118,10 @@ export default function SettingsIntegrationsPage() {
     const fb = params.get("fb");
     if (fb === "connected") {
       const count = params.get("count") || "0";
+      const subscribed = params.get("subscribed") || "0";
       const wa = params.get("wa") || "0";
-      toast.success(`Meta connecté`, {
-        description: `${count} page(s) · ${wa} numéro(s) WhatsApp détecté(s)`,
+      toast.success("Meta connecté", {
+        description: `${count} page(s) détectée(s) · ${subscribed} abonnée(s) · ${wa} numéro(s) WhatsApp`,
       });
       setParams({}, { replace: true });
     } else if (fb === "error") {
@@ -153,7 +154,23 @@ export default function SettingsIntegrationsPage() {
       toast.error("Échec", { description: error.message });
       return null;
     }
-    if (successMsg) toast.success(successMsg);
+    if (action === "subscribe") {
+      if (data?.subscribed) {
+        toast.success(successMsg || "Abonnement effectué");
+      } else {
+        toast.error("Abonnement Meta non confirmé", {
+          description: "La page est visible mais l’app Meta n’est pas encore abonnée aux lead forms.",
+        });
+      }
+    } else if (action === "unsubscribe") {
+      if (data?.subscribed === false) {
+        toast.success(successMsg || "Désabonné");
+      } else {
+        toast.error("Désabonnement non confirmé");
+      }
+    } else if (successMsg) {
+      toast.success(successMsg);
+    }
     await loadPages();
     return data;
   };
