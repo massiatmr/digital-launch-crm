@@ -1,5 +1,9 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { Send, Sparkles, Mic, MicOff, Check, X, RotateCcw, Search, MessageSquare, Zap, UserPlus, Copy, Trash2, Loader2, Calendar } from 'lucide-react';
+import { Send, Sparkles, Mic, MicOff, Check, X, RotateCcw, Search, MessageSquare, Zap, UserPlus, Copy, Trash2, Loader2, Calendar, Paperclip, FileText } from 'lucide-react';
+import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
+import { BulkImportPreview, type MappedRow } from '@/components/BulkImportPreview';
+import { useCurrentWorkspaceId } from '@/hooks/useWorkspaces';
 import { useAuth } from '@/hooks/useAuth';
 import { AudioVisualizer } from '@/components/AudioVisualizer';
 import { toast } from 'sonner';
@@ -285,8 +289,18 @@ export function GlobalNaturalLanguageInput({ onDone }: { onDone?: () => void }) 
   const [bookingSlots, setBookingSlots] = useState<string[] | null>(null);
   const [bookingLoading, setBookingLoading] = useState(false);
   const { user } = useAuth();
+  const wsId = useCurrentWorkspaceId();
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Bulk import state
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkRows, setBulkRows] = useState<MappedRow[] | null>(null);
+  const [bulkStats, setBulkStats] = useState<{ total: number; valid: number; duplicates: number; errors: number } | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [attachedFileName, setAttachedFileName] = useState<string | null>(null);
 
   const analyze = useAnalyzeNote();
   const apply = useApplyProposal();
@@ -315,6 +329,111 @@ export function GlobalNaturalLanguageInput({ onDone }: { onDone?: () => void }) 
   }, []);
 
   const { isListening, isTranscribing, toggle: toggleMic, isSupported: micSupported, stop: stopMic } = useSpeechRecognition(handleVoiceResult, handleInterim);
+
+  // ============ BULK IMPORT (file upload) ============
+  const callBulkImport = useCallback(async (payload: {
+    rows?: any[];
+    rawText?: string;
+    fileBase64?: string;
+    fileName?: string;
+    mimeType?: string;
+  }) => {
+    setBulkLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-bulk-import', {
+        body: { ...payload, workspace_id: wsId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const rows = (data?.rows || []) as MappedRow[];
+      if (rows.length === 0) {
+        toast.error('Aucun lead détecté dans ce contenu.');
+        return;
+      }
+      setBulkRows(rows);
+      setBulkStats(data?.stats || null);
+      setBulkOpen(true);
+      toast.success(`${rows.length} ligne${rows.length > 1 ? 's' : ''} détectée${rows.length > 1 ? 's' : ''}`);
+    } catch (e: any) {
+      const msg = e?.message || 'Erreur import';
+      if (msg.includes('429')) toast.error('Trop de requêtes IA, réessaie dans un instant.');
+      else if (msg.includes('402')) toast.error('Crédits IA épuisés.');
+      else toast.error(msg);
+    } finally {
+      setBulkLoading(false);
+      setAttachedFileName(null);
+    }
+  }, [wsId]);
+
+  const fileToBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const b64 = result.split(',')[1] || '';
+      resolve(b64);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+
+  const handleFile = useCallback(async (file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Fichier trop volumineux (max 5 MB)');
+      return;
+    }
+    setAttachedFileName(file.name);
+    const name = file.name.toLowerCase();
+    const ext = name.split('.').pop() || '';
+
+    try {
+      if (ext === 'csv' || file.type === 'text/csv') {
+        const text = await file.text();
+        const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+        const rows = (parsed.data as any[]).filter((r) => r && Object.values(r).some((v) => String(v ?? '').trim()));
+        if (rows.length === 0) { toast.error('CSV vide.'); setAttachedFileName(null); return; }
+        await callBulkImport({ rows });
+        return;
+      }
+      if (ext === 'xlsx' || ext === 'xls' || file.type.includes('spreadsheet') || file.type.includes('excel')) {
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' }) as any[];
+        if (rows.length === 0) { toast.error('Excel vide.'); setAttachedFileName(null); return; }
+        await callBulkImport({ rows });
+        return;
+      }
+      if (ext === 'txt' || file.type === 'text/plain') {
+        const text = await file.text();
+        await callBulkImport({ rawText: text });
+        return;
+      }
+      // PDF / image / other → send to AI
+      const base64 = await fileToBase64(file);
+      await callBulkImport({
+        fileBase64: base64,
+        fileName: file.name,
+        mimeType: file.type || (ext === 'pdf' ? 'application/pdf' : 'application/octet-stream'),
+      });
+    } catch (e) {
+      console.error(e);
+      toast.error('Impossible de lire ce fichier.');
+      setAttachedFileName(null);
+    }
+  }, [callBulkImport]);
+
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) void handleFile(file);
+  }, [handleFile]);
+
+  const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) void handleFile(file);
+    e.target.value = '';
+  };
 
   const filteredLeads = leads.filter(l =>
     l.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -636,7 +755,37 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
 
   return (
     <>
-      <div className="w-full">
+      <div
+        className={cn(
+          "w-full relative rounded-xl transition-all",
+          isDragging && "ring-2 ring-primary/50 bg-primary/5"
+        )}
+        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={onDrop}
+      >
+        {isDragging && (
+          <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-xl bg-background/90 backdrop-blur-sm border-2 border-dashed border-primary">
+            <div className="flex flex-col items-center gap-2 text-primary">
+              <Paperclip className="h-6 w-6" />
+              <p className="text-sm font-medium">Déposez le fichier (CSV, Excel, PDF, image…)</p>
+            </div>
+          </div>
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv,.xlsx,.xls,.pdf,.txt,.png,.jpg,.jpeg,.webp"
+          onChange={onPickFile}
+          className="hidden"
+        />
+        {(attachedFileName || bulkLoading) && (
+          <div className="mb-2 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
+            {bulkLoading ? <Loader2 className="h-3 w-3 animate-spin text-primary" /> : <FileText className="h-3 w-3 text-primary" />}
+            <span className="flex-1 truncate text-foreground">{attachedFileName || 'Analyse en cours…'}</span>
+            <span className="text-muted-foreground">{bulkLoading ? 'Analyse IA…' : 'Prêt'}</span>
+          </div>
+        )}
         {/* Mode toggle */}
         <div className="flex items-center gap-1 mb-3">
           <button
@@ -901,6 +1050,16 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
               {isTranscribing ? <Loader2 className="h-4 w-4 animate-spin" /> : isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
               <span className="hidden sm:inline">Vocal</span>
             </motion.button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={bulkLoading}
+              title="Joindre un fichier (CSV, Excel, PDF, image)"
+              aria-label="Joindre un fichier"
+              className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-muted/30 px-3 text-muted-foreground hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-all disabled:opacity-50"
+            >
+              {bulkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+            </button>
             <textarea
               ref={textareaRef}
               value={displayText}
@@ -1042,6 +1201,16 @@ Prochaines actions:\n${withNextAction.join('\n') || 'Aucune'}`;
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {bulkRows && (
+        <BulkImportPreview
+          open={bulkOpen}
+          onOpenChange={setBulkOpen}
+          rows={bulkRows}
+          stats={bulkStats}
+          onImported={() => { setBulkRows(null); setBulkStats(null); onDone?.(); }}
+        />
+      )}
     </>
   );
 }
