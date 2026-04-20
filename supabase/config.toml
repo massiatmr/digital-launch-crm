@@ -48,4 +48,4 @@ project_id = "rvangzupebrajhhhvewu"
   [functions.send-onesignal-notification]
     verify_jwt = false
   [functions.generate-offer]
-    verify_jwt = true
+    verify_jwt = false
