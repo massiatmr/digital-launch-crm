@@ -373,6 +373,26 @@ export default function PublicOfferPage() {
         </section>
       )}
 
+      {/* ─── FAQ (Hormozi) ─── */}
+      {faq && Array.isArray(faq.items) && faq.items.length > 0 && (
+        <section className="py-20 px-4">
+          <div className="max-w-3xl mx-auto">
+            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
+              <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12">{faq.title || 'Questions fréquentes'}</h2>
+              <div className="space-y-3">
+                {faq.items.map((q: any, i: number) => (
+                  <motion.div key={i} initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.05 }}
+                    className="p-5 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                    <p className="font-semibold text-white mb-2">{q.question}</p>
+                    <p className="text-gray-400 leading-relaxed">{q.answer}</p>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        </section>
+      )}
+
       {/* ─── Booking Section ─── */}
       <section id="booking-section" className="py-20 px-4">
         <div className="max-w-5xl mx-auto">
