@@ -240,6 +240,8 @@ export function LeadDetailContent({
               )}
 
               <LeadQualificationCard leadId={lead.id} />
+
+              <div className="space-y-3 rounded-xl border border-border bg-card p-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-medium">Notes</h3>
                   {notesDirty && (

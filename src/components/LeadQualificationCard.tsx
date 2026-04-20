@@ -120,8 +120,8 @@ export function LeadQualificationCard({ leadId }: { leadId: string }) {
       </div>
 
       {q.objections?.length > 0 && (
-        <div className="rounded border border-yellow-500/30 bg-yellow-500/5 p-2">
-          <p className="text-[10px] uppercase tracking-wider text-yellow-400 mb-1">Objections</p>
+        <div className="rounded border border-warning/30 bg-warning/5 p-2">
+          <p className="text-[10px] uppercase tracking-wider text-warning mb-1">Objections</p>
           <ul className="text-xs space-y-0.5">
             {q.objections.map((o, i) => <li key={i}>• {o}</li>)}
           </ul>
