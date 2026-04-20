@@ -219,8 +219,13 @@ serve(async (req) => {
     } else {
       // AI path: only send a tiny sample to INFER the mapping, then apply locally
       const sample = rawRows.slice(0, 5);
-      const mapRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const aiController = new AbortController();
+      const aiTimeout = setTimeout(() => aiController.abort(), 25_000); // 25s hard cap
+      let mapRes: Response;
+      try {
+        mapRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
+        signal: aiController.signal,
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "google/gemini-2.5-flash-lite",
@@ -255,20 +260,26 @@ serve(async (req) => {
           tool_choice: { type: "function", function: { name: "propose_mapping" } },
         }),
       });
-
-      if (mapRes.status === 429 || mapRes.status === 402) {
-        return new Response(JSON.stringify({
-          error: mapRes.status === 429 ? "Trop de requêtes IA, réessaie dans un instant." : "Crédits IA épuisés.",
-        }), { status: mapRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      } catch (err) {
+        console.warn("AI mapping timed out / failed, falling back:", err);
+        mapRes = null as any;
       }
+      clearTimeout(aiTimeout);
 
-      const mapJson = await mapRes.json();
-      const mapToolCall = mapJson?.choices?.[0]?.message?.tool_calls?.[0];
       let aiMapping: Record<string, string> = {};
-      try {
-        const args = JSON.parse(mapToolCall?.function?.arguments || "{}");
-        aiMapping = args.mapping || {};
-      } catch { aiMapping = {}; }
+      if (mapRes) {
+        if (mapRes.status === 429 || mapRes.status === 402) {
+          return new Response(JSON.stringify({
+            error: mapRes.status === 429 ? "Trop de requêtes IA, réessaie dans un instant." : "Crédits IA épuisés.",
+          }), { status: mapRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+        try {
+          const mapJson = await mapRes.json();
+          const mapToolCall = mapJson?.choices?.[0]?.message?.tool_calls?.[0];
+          const args = JSON.parse(mapToolCall?.function?.arguments || "{}");
+          aiMapping = args.mapping || {};
+        } catch { aiMapping = {}; }
+      }
 
       const VALID_TARGETS = new Set(["name", "email", "phone", "company_name", "message", "source", "score", "status"]);
       mapped = rawRows.map((r) => {
