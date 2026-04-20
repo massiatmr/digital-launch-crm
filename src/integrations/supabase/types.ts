@@ -1796,14 +1796,19 @@ export type Database = {
           content: string
           created_at: string
           direction: Database["public"]["Enums"]["wa_direction"]
+          duration_seconds: number | null
           error_message: string | null
           id: string
           intent: string | null
           lead_id: string
+          media_storage_path: string | null
+          media_type: string | null
+          media_url: string | null
           owner_id: string
           sent_at: string
           status: string
           task_id: string | null
+          transcript: string | null
           wa_message_id: string | null
           workspace_id: string | null
         }
@@ -1811,14 +1816,19 @@ export type Database = {
           content: string
           created_at?: string
           direction: Database["public"]["Enums"]["wa_direction"]
+          duration_seconds?: number | null
           error_message?: string | null
           id?: string
           intent?: string | null
           lead_id: string
+          media_storage_path?: string | null
+          media_type?: string | null
+          media_url?: string | null
           owner_id?: string
           sent_at?: string
           status?: string
           task_id?: string | null
+          transcript?: string | null
           wa_message_id?: string | null
           workspace_id?: string | null
         }
@@ -1826,14 +1836,19 @@ export type Database = {
           content?: string
           created_at?: string
           direction?: Database["public"]["Enums"]["wa_direction"]
+          duration_seconds?: number | null
           error_message?: string | null
           id?: string
           intent?: string | null
           lead_id?: string
+          media_storage_path?: string | null
+          media_type?: string | null
+          media_url?: string | null
           owner_id?: string
           sent_at?: string
           status?: string
           task_id?: string | null
+          transcript?: string | null
           wa_message_id?: string | null
           workspace_id?: string | null
         }
