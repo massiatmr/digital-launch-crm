@@ -81,58 +81,77 @@ Deno.serve(async (req) => {
 
     // 5. Detect WhatsApp Business Accounts and phone numbers
     let waNumbersFound = 0;
-    try {
-      // Get businesses owned by user
-      const bizRes = await fetch(
-        `https://graph.facebook.com/v21.0/me/businesses?fields=id,name&access_token=${userToken}`,
+    const wabaSeen = new Set<string>();
+    const upsertPhones = async (waba: { id: string; name?: string }, phones: any[]) => {
+      for (const ph of phones) {
+        waNumbersFound++;
+        const existQ = supabase
+          .from("whatsapp_config")
+          .select("id, is_active")
+          .eq("phone_number_id", ph.id);
+        const existScoped = workspace_id
+          ? existQ.eq("workspace_id", workspace_id)
+          : existQ.eq("owner_id", userId).is("workspace_id", null);
+        const { data: existCfg } = await existScoped.maybeSingle();
+
+        const waPayload = {
+          owner_id: userId,
+          workspace_id,
+          phone_number_id: ph.id,
+          business_account_id: waba.id,
+          access_token: userToken,
+          display_phone_number: ph.display_phone_number || "",
+          verified_name: ph.verified_name || waba.name || "",
+          is_active: existCfg?.is_active ?? false,
+        };
+        if (existCfg) {
+          await supabase.from("whatsapp_config").update(waPayload).eq("id", existCfg.id);
+        } else {
+          await supabase.from("whatsapp_config").insert(waPayload);
+        }
+      }
+    };
+
+    const fetchWabaPhones = async (waba: { id: string; name?: string }) => {
+      if (wabaSeen.has(waba.id)) return;
+      wabaSeen.add(waba.id);
+      const phonesRes = await fetch(
+        `https://graph.facebook.com/v21.0/${waba.id}/phone_numbers?fields=id,display_phone_number,verified_name&access_token=${userToken}`,
       );
-      const bizJson = await bizRes.json();
-      const businesses = bizJson.data || [];
+      const phonesJson = await phonesRes.json();
+      console.log(`[fb-callback] WABA ${waba.id} (${waba.name}) phones:`, JSON.stringify(phonesJson));
+      await upsertPhones(waba, phonesJson.data || []);
+    };
 
-      for (const biz of businesses) {
-        // Get owned WABAs for each business
-        const wabaRes = await fetch(
-          `https://graph.facebook.com/v21.0/${biz.id}/owned_whatsapp_business_accounts?fields=id,name&access_token=${userToken}`,
+    try {
+      // A) Try direct app-level WABAs (works when user is admin of WhatsApp app)
+      try {
+        const debugRes = await fetch(
+          `https://graph.facebook.com/v21.0/debug_token?input_token=${userToken}&access_token=${Deno.env.get("FB_APP_ID")}|${Deno.env.get("FB_APP_SECRET")}`,
         );
-        const wabaJson = await wabaRes.json();
-        const wabas = wabaJson.data || [];
+        const debugJson = await debugRes.json();
+        console.log("[fb-callback] token scopes:", JSON.stringify(debugJson?.data?.scopes));
+      } catch (_) { /* ignore */ }
 
-        for (const waba of wabas) {
-          // Get phone numbers for each WABA
-          const phonesRes = await fetch(
-            `https://graph.facebook.com/v21.0/${waba.id}/phone_numbers?fields=id,display_phone_number,verified_name&access_token=${userToken}`,
-          );
-          const phonesJson = await phonesRes.json();
-          const phones = phonesJson.data || [];
+      // B) Loop ALL businesses (owned + client) — covers BMs where user is admin but not creator
+      for (const bizType of ["", "?type=client_business"]) {
+        const bizRes = await fetch(
+          `https://graph.facebook.com/v21.0/me/businesses${bizType}&fields=id,name&access_token=${userToken}`.replace("?&", "?"),
+        );
+        const bizJson = await bizRes.json();
+        console.log(`[fb-callback] businesses (${bizType || "owned"}):`, JSON.stringify(bizJson));
+        const businesses = bizJson.data || [];
 
-          for (const ph of phones) {
-            waNumbersFound++;
-            // Check if config already exists for this phone
-            const existQ = supabase
-              .from("whatsapp_config")
-              .select("id, is_active")
-              .eq("phone_number_id", ph.id);
-            const existScoped = workspace_id
-              ? existQ.eq("workspace_id", workspace_id)
-              : existQ.eq("owner_id", userId).is("workspace_id", null);
-            const { data: existCfg } = await existScoped.maybeSingle();
-
-            const waPayload = {
-              owner_id: userId,
-              workspace_id,
-              phone_number_id: ph.id,
-              business_account_id: waba.id,
-              access_token: userToken,
-              display_phone_number: ph.display_phone_number || "",
-              verified_name: ph.verified_name || waba.name || "",
-              // Don't auto-activate; let user choose which number to activate
-              is_active: existCfg?.is_active ?? false,
-            };
-
-            if (existCfg) {
-              await supabase.from("whatsapp_config").update(waPayload).eq("id", existCfg.id);
-            } else {
-              await supabase.from("whatsapp_config").insert(waPayload);
+        for (const biz of businesses) {
+          // Owned WABAs
+          for (const edge of ["owned_whatsapp_business_accounts", "client_whatsapp_business_accounts"]) {
+            const wabaRes = await fetch(
+              `https://graph.facebook.com/v21.0/${biz.id}/${edge}?fields=id,name&access_token=${userToken}`,
+            );
+            const wabaJson = await wabaRes.json();
+            console.log(`[fb-callback] biz ${biz.id} ${edge}:`, JSON.stringify(wabaJson));
+            for (const waba of (wabaJson.data || [])) {
+              await fetchWabaPhones(waba);
             }
           }
         }
@@ -140,6 +159,7 @@ Deno.serve(async (req) => {
     } catch (waErr) {
       console.error("[fb-callback] WA detection error", waErr);
     }
+    console.log(`[fb-callback] total WA numbers detected: ${waNumbersFound}`);
 
     return Response.redirect(
       `${redirectBase}?fb=connected&count=${pages.length}&wa=${waNumbersFound}`,
