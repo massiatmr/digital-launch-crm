@@ -146,8 +146,12 @@ function WorkspaceEditor({ workspace, canManage }: { workspace: any; canManage: 
           <Input className="h-8 text-sm" value={form.slug} onChange={(e) => setForm({ ...form, slug: slugify(e.target.value) })} />
         </div>
         <div>
-          <Label className="text-xs">Logo URL</Label>
-          <Input className="h-8 text-sm" value={form.logo_url} onChange={(e) => setForm({ ...form, logo_url: e.target.value })} placeholder="https://..." />
+          <Label className="text-xs">Logo du workspace</Label>
+          <LogoUploader
+            workspaceId={workspace.id}
+            currentLogoUrl={form.logo_url}
+            onChange={(url) => setForm({ ...form, logo_url: url })}
+          />
         </div>
         <div>
           <Label className="text-xs">Email de notification du workspace</Label>
