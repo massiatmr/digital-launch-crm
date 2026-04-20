@@ -219,8 +219,13 @@ serve(async (req) => {
     } else {
       // AI path: only send a tiny sample to INFER the mapping, then apply locally
       const sample = rawRows.slice(0, 5);
-      const mapRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const aiController = new AbortController();
+      const aiTimeout = setTimeout(() => aiController.abort(), 25_000); // 25s hard cap
+      let mapRes: Response;
+      try {
+        mapRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
+        signal: aiController.signal,
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "google/gemini-2.5-flash-lite",
