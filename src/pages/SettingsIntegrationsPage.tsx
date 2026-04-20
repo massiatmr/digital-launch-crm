@@ -21,6 +21,7 @@ import {
   Send,
   Power,
   Phone,
+  Plus,
 } from "lucide-react";
 import { useCurrentWorkspaceId, useWorkspaces } from "@/hooks/useWorkspaces";
 
