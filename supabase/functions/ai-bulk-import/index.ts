@@ -157,61 +157,113 @@ serve(async (req) => {
     }
 
     // ---- 2. Try heuristic column mapping first (fast path, no AI) ----
-    const FIELD_PATTERNS: Record<string, RegExp[]> = {
-      name: [/^(name|full.?name|nom.?complet|nom|contact|client|prospect)$/i],
-      first_name: [/^(first.?name|pr[eé]nom|firstname)$/i],
-      last_name: [/^(last.?name|nom.?de.?famille|lastname|surname)$/i],
-      email: [/^(e?.?mail|courriel|adresse.?mail)$/i],
-      phone: [/^(phone|t[eé]l|telephone|portable|mobile|num[eé]ro|gsm|tel.?portable)$/i],
-      company_name: [/^(company|entreprise|soci[eé]t[eé]|org|organisation|business)$/i],
-      message: [/^(message|commentaire|comment|notes?|remarque|demande)$/i],
-      source: [/^(source|origine|canal|provenance)$/i],
-      status: [/^(status|statut|etat|[eé]tat)$/i],
-      score: [/^(score|priorit[eé]|priority|rating)$/i],
-    };
+    // Patterns are ORDERED by priority — first match wins per field.
+    // For "name" we prioritize "contact" over generic "nom" to avoid catching
+    // "Nom de l'opportunité" / "Nom de la société" which are deal/company names.
+    const FIELD_PATTERNS: Array<[string, RegExp[]]> = [
+      ["email", [/^(e[\s\-_]?mail|courriel|adresse[\s\-_]?mail)$/i]],
+      ["phone", [/^(phone|t[eé]l|telephone|t[eé]l[eé]phone|portable|mobile|num[eé]ro|gsm|tel[\s\-_]?portable|cell)$/i]],
+      ["first_name", [/^(first[\s\-_]?name|pr[eé]nom|firstname)$/i]],
+      ["last_name", [/^(last[\s\-_]?name|nom[\s\-_]?de[\s\-_]?famille|lastname|surname)$/i]],
+      // High-priority "name" matches: explicit contact/person columns
+      ["name", [
+        /^(nom[\s\-_]?(du[\s\-_]?)?contact|contact[\s\-_]?name|nom[\s\-_]?du[\s\-_]?prospect|nom[\s\-_]?du[\s\-_]?client)$/i,
+        /^(full[\s\-_]?name|nom[\s\-_]?complet)$/i,
+        /^(contact|prospect|client|lead)$/i,
+        /^nom$/i,
+      ]],
+      // Company comes AFTER name so "Nom de l'opportunité" / "Nom de la société" land here
+      ["company_name", [
+        /(opportunit|deal|affaire)/i,
+        /^(company|entreprise|soci[eé]t[eé]|org|organisation|business|raison[\s\-_]?sociale)$/i,
+        /^nom[\s\-_]?(de[\s\-_]?l['e]?)?(opportunit|soci[eé]t[eé]|entreprise|deal)/i,
+      ]],
+      ["status", [/^(status|statut|etat|[eé]tat|[eé]tape|stage|pipeline[\s\-_]?stage)$/i]],
+      ["source", [/^(source|origine|canal|provenance|attribu[eé]|owner)$/i]],
+      ["score", [/^(score|priorit[eé]|priority|rating|engagement)$/i]],
+      ["message", [/^(message|commentaire|comment|remarque|remarques|demande|note|notes)$/i]],
+    ];
 
     const firstRow = rawRows[0] || {};
     const rawKeys = Object.keys(firstRow);
-    const keyMap: Record<string, string> = {}; // originalKey -> targetField
-    for (const key of rawKeys) {
-      const k = String(key).trim();
-      for (const [field, patterns] of Object.entries(FIELD_PATTERNS)) {
+    const keyMap: Record<string, string> = {};
+    const usedFields = new Set<string>();
+    for (const [field, patterns] of FIELD_PATTERNS) {
+      if (usedFields.has(field)) continue;
+      for (const key of rawKeys) {
+        if (keyMap[key]) continue;
+        const k = String(key).trim();
         if (patterns.some((p) => p.test(k))) {
-          if (!Object.values(keyMap).includes(field)) keyMap[key] = field;
+          keyMap[key] = field;
+          usedFields.add(field);
           break;
         }
       }
     }
 
+    const normalizeStatus = (v: string): string => {
+      const s = v.toLowerCase().trim();
+      if (/won|gagn|sign/.test(s)) return "won";
+      if (/lost|perdu/.test(s)) return "lost";
+      if (/ghost|fant[oô]me/.test(s)) return "ghost";
+      if (/qualif|interest|discover|intrested/.test(s)) return "qualified";
+      if (/proposal|propos|devis|offre/.test(s)) return "proposal";
+      if (/contact/.test(s)) return "contacted";
+      if (/new|nouveau|open/.test(s)) return "new";
+      return "new";
+    };
+    const normalizeSource = (v: string): string => {
+      const s = v.toLowerCase().trim();
+      if (/facebook|fb|meta[\s\-_]?ads/.test(s)) return "facebook";
+      if (/website|site|web|landing|formul/.test(s)) return "website";
+      if (/sheet|csv|excel/.test(s)) return "google_sheets";
+      if (/recommand|referral|bouche/.test(s)) return "recommendation";
+      if (/google[\s\-_]?my[\s\-_]?business|gmb/.test(s)) return "google_my_business";
+      if (/instagram|tiktok|linkedin|organic|social/.test(s)) return "organic_social";
+      if (/manual|manuel|saisi/.test(s)) return "manual";
+      return "other";
+    };
+    const normalizeScore = (v: string): string => {
+      const s = v.toLowerCase().trim();
+      if (/hot|chaud|high|[8-9]|10/.test(s)) return "hot";
+      if (/warm|ti[eè]de|medium|[4-7]/.test(s)) return "warm";
+      return "cold";
+    };
+
     const matchedFields = new Set(Object.values(keyMap));
-    const hasNameSignal = matchedFields.has("name") || (matchedFields.has("first_name") && matchedFields.has("last_name")) || matchedFields.has("first_name");
+    const hasNameSignal = matchedFields.has("name") || matchedFields.has("first_name") || matchedFields.has("last_name");
     const hasContact = matchedFields.has("email") || matchedFields.has("phone");
     const heuristicOk = hasNameSignal && hasContact;
 
     let mapped: any[] = [];
 
     if (heuristicOk) {
-      // Fast path: apply mapping directly without AI
       mapped = rawRows.map((r) => {
         const out: any = { name: "", email: "", phone: "", company_name: "", message: "", source: "manual", score: "cold", status: "new", notes: "" };
         const extras: string[] = [];
-        const firstName = Object.entries(keyMap).find(([, f]) => f === "first_name")?.[0];
-        const lastName = Object.entries(keyMap).find(([, f]) => f === "last_name")?.[0];
+        const firstNameKey = Object.entries(keyMap).find(([, f]) => f === "first_name")?.[0];
+        const lastNameKey = Object.entries(keyMap).find(([, f]) => f === "last_name")?.[0];
         for (const [orig, field] of Object.entries(keyMap)) {
           const val = safeStr(r[orig]);
           if (!val) continue;
-          if (field === "first_name" || field === "last_name") continue; // handled below
-          out[field] = val;
+          if (field === "first_name" || field === "last_name") continue;
+          if (field === "status") out.status = normalizeStatus(val);
+          else if (field === "source") out.source = normalizeSource(val);
+          else if (field === "score") out.score = normalizeScore(val);
+          else out[field] = val;
         }
         if (!out.name) {
-          const fn = firstName ? safeStr(r[firstName]) : "";
-          const ln = lastName ? safeStr(r[lastName]) : "";
+          const fn = firstNameKey ? safeStr(r[firstNameKey]) : "";
+          const ln = lastNameKey ? safeStr(r[lastNameKey]) : "";
           out.name = [fn, ln].filter(Boolean).join(" ").trim();
         }
         for (const [k, v] of Object.entries(r)) {
           if (keyMap[k]) continue;
           const val = safeStr(v);
-          if (val) extras.push(`${k}: ${val}`);
+          if (!val) continue;
+          // Skip junk columns: internal IDs, technical metadata
+          if (/^id\b|^.*[\s_]id$|forecast|slippage|jours\s+(depuis|comme)|abonn[eé]s|mots[\s\-_]?cl[eé]s/i.test(k)) continue;
+          extras.push(`${k}: ${val}`);
         }
         out.notes = extras.join(" | ");
         return out;
