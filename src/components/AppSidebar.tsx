@@ -43,16 +43,8 @@ export function AppSidebar() {
         background: 'linear-gradient(180deg, hsl(225 15% 5%) 0%, hsl(225 15% 3%) 100%)',
       }}
     >
-      <div className={cn('flex items-center border-b border-border/50 px-3 py-4', collapsed ? 'justify-center' : 'px-4')}>
-        {!collapsed ? (
-          <img src={logo} alt="Logo" className="h-10 w-auto" />
-        ) : (
-          <img src={logoIcon} alt="Logo" className="h-8 w-8" />
-        )}
-      </div>
-
       {/* Workspace switcher */}
-      <div className="px-2 pt-3">
+      <div className="px-2 pt-4">
         <WorkspaceSwitcher collapsed={collapsed} />
       </div>
 
