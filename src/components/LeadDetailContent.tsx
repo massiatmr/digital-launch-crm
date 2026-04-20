@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useLead, useLeadMessages, useLeadScripts, useDeleteLead, useUpdateLead } from '@/hooks/useLeadData';
+import { useEffect, useState } from 'react';
+import { useLead, useDeleteLead, useUpdateLead } from '@/hooks/useLeadData';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadStatusBadge } from '@/components/LeadStatusBadge';
 import { NaturalLanguageInput } from '@/components/NaturalLanguageInput';
@@ -8,8 +7,15 @@ import { LeadActivityTimeline } from '@/components/LeadActivityTimeline';
 import { LeadEditForm } from '@/components/LeadEditForm';
 import { FollowupTimeline } from '@/components/FollowupTimeline';
 import {
-  Mail, Phone, Smartphone, Loader2,
-  Trash2, Sparkles, Activity, LayoutGrid, Building2, Save,
+  Mail,
+  Phone,
+  Smartphone,
+  Loader2,
+  Trash2,
+  Sparkles,
+  Activity,
+  LayoutGrid,
+  Save,
 } from 'lucide-react';
 import { ShowStatusToggle } from '@/components/ShowStatusToggle';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
@@ -22,20 +28,31 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-export function LeadDetailContent({ leadId }: { leadId: string }) {
+export function LeadDetailContent({
+  leadId,
+  onDeleted,
+}: {
+  leadId: string;
+  onDeleted?: () => void;
+}) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
   const [notesDirty, setNotesDirty] = useState(false);
-  const navigate = useNavigate();
+
   const { data: lead, isLoading } = useLead(leadId);
   const deleteLead = useDeleteLead();
   const updateLead = useUpdateLead();
 
-  // Sépare bloc IA (auto-généré) et notes manuelles
   const AI_BLOCK_REGEX = /<!-- AI_NOTES_START -->([\s\S]*?)<!-- AI_NOTES_END -->/;
   const fullNotes = lead?.notes ?? '';
   const aiMatch = fullNotes.match(AI_BLOCK_REGEX);
@@ -44,7 +61,7 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
 
   useEffect(() => {
     if (lead && !notesDirty) setNotesDraft(manualNotes);
-  }, [manualNotes, notesDirty]);
+  }, [lead, manualNotes, notesDirty]);
 
   if (isLoading) {
     return (
@@ -55,14 +72,14 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
   }
 
   if (!lead) {
-    return <p className="text-muted-foreground py-10 text-center">Lead introuvable</p>;
+    return <p className="py-10 text-center text-muted-foreground">Lead introuvable</p>;
   }
 
   const saveNotes = async () => {
-    // Recompose : notes manuelles + bloc IA préservé
     const recomposed = aiMatch
-      ? (notesDraft.trim() ? notesDraft.trim() + '\n\n' : '') + aiMatch[0]
+      ? `${notesDraft.trim() ? `${notesDraft.trim()}\n\n` : ''}${aiMatch[0]}`
       : notesDraft;
+
     await updateLead.mutateAsync({ id: lead.id, notes: recomposed });
     setNotesDirty(false);
     toast.success('Notes sauvegardées');
@@ -70,26 +87,20 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
 
   return (
     <div className="flex h-[calc(100vh-80px)] flex-col">
-      {/* Compact Header */}
-      <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur-sm pb-2 pr-12">
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 min-w-0">
-              <h2 className="font-heading text-lg truncate">{lead.name}</h2>
+      <div className="sticky top-0 z-10 border-b border-border bg-background/95 pb-2 pr-12 backdrop-blur-sm">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <h2 className="font-heading truncate text-lg">{lead.name}</h2>
               <LeadScoreBadge score={lead.score} />
-            </div>
-            <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
               <LeadStatusBadge status={lead.status} />
-              {lead.company_name && (
-                <span className="flex items-center gap-1 truncate">
-                  <Building2 className="h-3 w-3" />{lead.company_name}
-                </span>
-              )}
-              <span className="capitalize">· {lead.source.replace('_', ' ')}</span>
-              <span>· {format(new Date(lead.created_at), "dd MMM", { locale: fr })}</span>
+              <ShowStatusToggle leadId={lead.id} currentStatus={lead.show_status} size="sm" />
             </div>
+
+            {lead.company_name && (
+              <p className="truncate text-sm text-muted-foreground">{lead.company_name}</p>
+            )}
           </div>
-          <ShowStatusToggle leadId={lead.id} currentStatus={lead.show_status} size="sm" />
         </div>
       </div>
 
@@ -98,7 +109,7 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Supprimer ce lead ?</AlertDialogTitle>
             <AlertDialogDescription>
-              Cette action est irréversible. Toutes les données associées à {lead.name} seront supprimées.
+              Ce lead sera déplacé dans la corbeille et retiré de la pipeline.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -109,7 +120,7 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
                 deleteLead.mutate(lead.id, {
                   onSuccess: () => {
                     setConfirmDelete(false);
-                    navigate('/pipeline', { replace: true });
+                    onDeleted?.();
                   },
                 });
               }}
@@ -120,45 +131,47 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Tabs */}
-      <Tabs defaultValue="overview" className="flex-1 flex flex-col min-h-0 mt-3">
-        <TabsList className="grid grid-cols-3 w-full">
-          <TabsTrigger value="overview" className="text-xs gap-1">
+      <Tabs defaultValue="overview" className="mt-3 flex min-h-0 flex-1 flex-col">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="overview" className="gap-1 text-xs">
             <LayoutGrid className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Détails</span>
           </TabsTrigger>
-          <TabsTrigger value="followup" className="text-xs gap-1">
+          <TabsTrigger value="followup" className="gap-1 text-xs">
             <Smartphone className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">WhatsApp</span>
           </TabsTrigger>
-          <TabsTrigger value="activities" className="text-xs gap-1">
+          <TabsTrigger value="activities" className="gap-1 text-xs">
             <Activity className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Activités</span>
           </TabsTrigger>
         </TabsList>
 
-        <ScrollArea className="flex-1 mt-3">
-          <div className="pr-3 pb-6">
+        <ScrollArea className="mt-3 flex-1">
+          <div className="space-y-4 pb-6 pr-3">
             <TabsContent value="overview" className="mt-0 space-y-4">
-              {/* Contact + actions directes */}
-              <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+              <div className="space-y-2 rounded-xl border border-border bg-card p-3">
                 <div className="flex flex-wrap gap-2">
                   {lead.phone && (
                     <Button asChild variant="outline" size="sm" className="gap-1.5">
                       <a href={toWhatsAppUrl(lead.phone)} target="_blank" rel="noopener noreferrer">
-                        <Smartphone className="h-3.5 w-3.5" />WhatsApp
+                        <Smartphone className="h-3.5 w-3.5" />
+                        WhatsApp
                       </a>
                     </Button>
                   )}
+
                   {lead.phone && (
                     <Button asChild variant="outline" size="sm" className="gap-1.5">
                       <a href={`tel:${lead.phone}`}>
-                        <Phone className="h-3.5 w-3.5" />{formatPhoneDisplay(lead.phone)}
+                        <Phone className="h-3.5 w-3.5" />
+                        {formatPhoneDisplay(lead.phone)}
                       </a>
                     </Button>
                   )}
+
                   {lead.email && (
-                    <Button asChild variant="outline" size="sm" className="gap-1.5 max-w-full">
+                    <Button asChild variant="outline" size="sm" className="max-w-full gap-1.5">
                       <a href={`mailto:${lead.email}`} className="truncate">
                         <Mail className="h-3.5 w-3.5 shrink-0" />
                         <span className="truncate">{lead.email}</span>
@@ -166,55 +179,58 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
                     </Button>
                   )}
                 </div>
-                <div className="flex gap-2 pt-2 border-t border-border/50">
+
+                <div className="flex gap-2 border-t border-border/50 pt-2">
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
                     onClick={() => setConfirmDelete(true)}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />Supprimer
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Supprimer
                   </Button>
                 </div>
               </div>
 
-              {/* Formulaire d'édition inline */}
               <LeadEditForm lead={lead} inline />
 
-
-              {/* Message initial */}
               {lead.message && (
-                <div className="rounded-lg bg-muted/50 p-3 border-l-2 border-primary/40">
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Message initial du lead</p>
+                <div className="rounded-lg border-l-2 border-primary/40 bg-muted/50 p-3">
+                  <p className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">
+                    Message initial du lead
+                  </p>
                   <p className="text-sm italic">"{lead.message}"</p>
                 </div>
               )}
 
-              {/* Analyse IA */}
               {(lead.ai_summary || lead.sales_angle || lead.next_action) && (
-                <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
-                  <h3 className="text-sm font-medium flex items-center gap-2">
+                <div className="space-y-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+                  <h3 className="flex items-center gap-2 text-sm font-medium">
                     <Sparkles className="h-4 w-4 text-primary" /> Analyse IA
                   </h3>
+
                   {lead.ai_summary && (
                     <div>
                       <p className="text-xs uppercase tracking-wider text-muted-foreground">Résumé</p>
-                      <p className="text-sm mt-0.5">{lead.ai_summary}</p>
+                      <p className="mt-0.5 text-sm">{lead.ai_summary}</p>
                     </div>
                   )}
+
                   {lead.sales_angle && (
                     <div>
                       <p className="text-xs uppercase tracking-wider text-muted-foreground">Angle de vente</p>
-                      <p className="text-sm mt-0.5">{lead.sales_angle}</p>
+                      <p className="mt-0.5 text-sm">{lead.sales_angle}</p>
                     </div>
                   )}
+
                   {lead.next_action && (
                     <div>
                       <p className="text-xs uppercase tracking-wider text-muted-foreground">Prochaine action</p>
-                      <p className="text-sm mt-0.5">{lead.next_action}</p>
+                      <p className="mt-0.5 text-sm">{lead.next_action}</p>
                       {lead.next_action_date && (
                         <p className="text-xs text-muted-foreground">
-                          {format(new Date(lead.next_action_date), "dd MMM yyyy à HH:mm", { locale: fr })}
+                          {format(new Date(lead.next_action_date), 'dd MMM yyyy à HH:mm', { locale: fr })}
                         </p>
                       )}
                     </div>
@@ -222,25 +238,30 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
                 </div>
               )}
 
-              {/* Notes éditables */}
-              <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+              <div className="space-y-3 rounded-xl border border-border bg-card p-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-medium">Notes</h3>
                   {notesDirty && (
                     <Button size="sm" onClick={saveNotes} disabled={updateLead.isPending}>
-                      {updateLead.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Save className="h-3 w-3 mr-1" />Sauver</>}
+                      {updateLead.isPending ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <>
+                          <Save className="mr-1 h-3 w-3" />
+                          Sauver
+                        </>
+                      )}
                     </Button>
                   )}
                 </div>
 
-                {/* Bloc Notes IA (auto-généré depuis WhatsApp) */}
                 {aiNotesBlock && (
                   <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
-                    <div className="flex items-center gap-1.5 mb-2 text-xs font-medium text-primary">
+                    <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-primary">
                       <Sparkles className="h-3.5 w-3.5" />
                       Préparation d'appel par l'IA
                     </div>
-                    <div className="prose prose-sm prose-invert max-w-none text-sm [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 [&_ul]:my-1 [&_li]:my-0.5">
+                    <div className="prose prose-sm prose-invert max-w-none text-sm [&_h2]:mb-1 [&_h2]:mt-3 [&_h2]:text-sm [&_h2]:font-semibold [&_li]:my-0.5 [&_ul]:my-1">
                       <ReactMarkdown>{aiNotesBlock}</ReactMarkdown>
                     </div>
                   </div>
@@ -248,11 +269,14 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
 
                 <div>
                   {aiNotesBlock && (
-                    <p className="text-xs text-muted-foreground mb-1">Mes notes manuelles</p>
+                    <p className="mb-1 text-xs text-muted-foreground">Mes notes manuelles</p>
                   )}
                   <Textarea
                     value={notesDraft}
-                    onChange={(e) => { setNotesDraft(e.target.value); setNotesDirty(true); }}
+                    onChange={(e) => {
+                      setNotesDraft(e.target.value);
+                      setNotesDirty(true);
+                    }}
                     placeholder="Ajoute tes notes sur ce lead..."
                     rows={5}
                     className="resize-none"
@@ -260,8 +284,6 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
                 </div>
               </div>
 
-
-              {/* Input langage naturel */}
               <NaturalLanguageInput leadId={lead.id} lead={lead} />
             </TabsContent>
 
@@ -275,7 +297,6 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
           </div>
         </ScrollArea>
       </Tabs>
-
     </div>
   );
 }

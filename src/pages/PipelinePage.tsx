@@ -435,7 +435,7 @@ export default function PipelinePage() {
           <SheetHeader>
             <SheetTitle className="sr-only">Détails du lead</SheetTitle>
           </SheetHeader>
-          {selectedLeadId && <LeadDetailContent leadId={selectedLeadId} />}
+          {selectedLeadId && <LeadDetailContent leadId={selectedLeadId} onDeleted={() => setSelectedLeadId(null)} />}
         </SheetContent>
       </Sheet>
 
