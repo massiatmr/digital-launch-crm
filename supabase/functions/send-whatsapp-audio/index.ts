@@ -73,16 +73,27 @@ Deno.serve(async (req) => {
       });
 
     const audioBytes = b64ToBytes(audio_base64);
-    // WhatsApp accepte audio/ogg (codec opus) — c'est ce que MediaRecorder produit en webm/opus
-    // On force l'envoi en ogg ; si l'input est webm, Meta l'accepte aussi en audio/ogg pour les vocaux
-    const mt = mime_type || "audio/ogg";
-    const ext = mt.includes("mpeg") ? "mp3" : mt.includes("webm") ? "ogg" : "ogg";
+
+    // Détection du conteneur réel envoyé par le navigateur.
+    // Meta WhatsApp accepte pour les vocaux : audio/aac, audio/mp4, audio/mpeg, audio/amr, audio/ogg (codecs=opus).
+    // Le navigateur produit en général audio/webm;codecs=opus → Meta REJETTE webm.
+    // On déclare donc audio/ogg (le payload opus est compatible avec le conteneur ogg côté Meta dans la majorité des cas).
+    const inputMt = (mime_type || "").toLowerCase();
+    const isMp3 = inputMt.includes("mpeg") || inputMt.includes("mp3");
+    const isMp4 = inputMt.includes("mp4") || inputMt.includes("aac");
+    let metaMime: string;
+    let ext: string;
+    if (isMp3) { metaMime = "audio/mpeg"; ext = "mp3"; }
+    else if (isMp4) { metaMime = "audio/mp4"; ext = "m4a"; }
+    else { metaMime = "audio/ogg"; ext = "ogg"; }
+
+    console.log(`[send-whatsapp-audio] input=${inputMt} → meta=${metaMime} ext=${ext} size=${audioBytes.length}`);
 
     // Stockage local pour relecture dans le CRM
     const storagePath = `outbound/${user.id}/${crypto.randomUUID()}.${ext}`;
     await admin.storage
       .from("wa-audio")
-      .upload(storagePath, audioBytes, { contentType: mt, upsert: false })
+      .upload(storagePath, audioBytes, { contentType: metaMime, upsert: false })
       .catch((e) => console.error("storage upload error:", e));
 
     const { data: settings } = await admin
@@ -114,13 +125,13 @@ Deno.serve(async (req) => {
           errorMessage = "Téléphone du lead invalide";
           logStatus = "failed";
         } else {
-          // 1. Upload média vers Meta
+          // 1. Upload média vers Meta (multipart/form-data)
           const form = new FormData();
           form.append("messaging_product", "whatsapp");
-          form.append("type", "audio/ogg");
+          form.append("type", metaMime);
           form.append(
             "file",
-            new Blob([audioBytes], { type: "audio/ogg" }),
+            new Blob([audioBytes], { type: metaMime }),
             `voice.${ext}`
           );
           const upRes = await fetch(`${GRAPH}/${config.phone_number_id}/media`, {
@@ -129,8 +140,9 @@ Deno.serve(async (req) => {
             body: form,
           });
           const upJson = await upRes.json();
+          console.log(`[send-whatsapp-audio] Meta upload (${upRes.status}):`, JSON.stringify(upJson));
           if (!upRes.ok || !upJson?.id) {
-            errorMessage = `Upload média Meta échoué: ${JSON.stringify(upJson)}`;
+            errorMessage = `Upload média Meta échoué (${upRes.status}): ${JSON.stringify(upJson)}`;
             logStatus = "failed";
           } else {
             // 2. Envoyer message audio
@@ -148,8 +160,9 @@ Deno.serve(async (req) => {
               }),
             });
             const sendJson = await sendRes.json();
+            console.log(`[send-whatsapp-audio] Meta send (${sendRes.status}):`, JSON.stringify(sendJson));
             if (!sendRes.ok) {
-              errorMessage = JSON.stringify(sendJson);
+              errorMessage = `Envoi Meta échoué (${sendRes.status}): ${JSON.stringify(sendJson)}`;
               logStatus = "failed";
             } else {
               waMessageId = sendJson.messages?.[0]?.id || null;
@@ -168,7 +181,7 @@ Deno.serve(async (req) => {
       status: logStatus,
       wa_message_id: waMessageId,
       error_message: errorMessage,
-      media_type: "audio/ogg",
+      media_type: metaMime,
       media_storage_path: storagePath,
     } as any);
 
