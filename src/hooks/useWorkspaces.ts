@@ -79,9 +79,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
     const valid = workspaces.some((w) => w.id === currentId);
     if (!valid) {
-      const first = workspaces[0].id;
-      setCurrentId(first);
-      try { localStorage.setItem(STORAGE_KEY, first); } catch {}
+      // Priorité au workspace "Digital Launch" s'il existe
+      const preferred = workspaces.find((w) =>
+        (w.company_name || '').toLowerCase().includes('digital launch')
+      );
+      const next = (preferred || workspaces[0]).id;
+      setCurrentId(next);
+      try { localStorage.setItem(STORAGE_KEY, next); } catch {}
     }
   }, [workspaces, currentId]);
 
