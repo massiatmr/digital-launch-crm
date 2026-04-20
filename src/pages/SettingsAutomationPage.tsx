@@ -200,7 +200,7 @@ export default function SettingsAutomationPage() {
               <Textarea id="ai_instructions" rows={6} className="mt-1"
                 value={form.ai_instructions}
                 onChange={(e) => set({ ai_instructions: e.target.value })}
-                placeholder="Tu es un commercial humain et bienveillant…" />
+                placeholder="Tu es un closer humain. Pose 3 à 5 questions essentielles max pour qualifier (problème, urgence, contexte). Dès qu'un signal d'intérêt apparaît, propose un créneau précis (ex: 'Mardi 14h ou Jeudi 10h ?') ou partage le lien de réservation. Max 2 phrases. Pas de blabla." />
             </div>
             <div>
               <Label htmlFor="ai_examples">Exemples de messages (style à imiter)</Label>

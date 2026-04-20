@@ -7,13 +7,15 @@ const corsHeaders = {
 };
 
 const TASK_LABEL: Record<string, string> = {
-  initial_message: "PREMIER message de prise de contact (présentation courte, 1 question d'ouverture)",
-  followup_1: "PREMIÈRE relance (24h sans réponse) — légère, bienveillante, recadre la valeur",
-  followup_2: "DEUXIÈME relance (48h sans réponse) — apporte une preuve / un bénéfice concret",
-  last_followup: "DERNIÈRE relance (72h sans réponse) — ton soft close, propose de clore si pas intéressé",
-  qualification: "Réponse au lead qui vient de répondre — qualifie progressivement (1 seule question)",
-  propose_meeting: "Proposition d'un rendez-vous (créneaux suggérés)",
+  initial_message: "PREMIER message de prise de contact (présentation courte + 1 question simple)",
+  followup_1: "PREMIÈRE relance (sans réponse) — courte, bienveillante, recadre la valeur",
+  followup_2: "DEUXIÈME relance (sans réponse) — preuve sociale ou bénéfice concret",
+  last_followup: "DERNIÈRE relance — soft close, propose de clore si pas intéressé",
+  qualification: "Le lead vient de répondre — UNE seule question si pas encore qualifié, SINON propose directement 2 créneaux ou le lien de réservation",
+  propose_meeting: "Propose 2 créneaux concrets cette semaine OU partage le lien de réservation",
 };
+
+const PUBLIC_BASE_URL = "https://digital-launch-crm.lovable.app";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -54,18 +56,32 @@ Deno.serve(async (req) => {
 
     const [{ data: history }, { data: offer }] = await Promise.all([
       supabase.from("whatsapp_messages").select("direction,content,sent_at").eq("lead_id", lead_id).order("sent_at", { ascending: true }).limit(20),
-      supabase.from("leads").select("offer_id, offers(name, description, price)").eq("id", lead_id).maybeSingle(),
+      supabase.from("leads").select("offer_id, offers(name, description, price, slug)").eq("id", lead_id).maybeSingle(),
     ]);
 
-    // (lead already loaded above)
-
-    const offerInfo = (offer as any)?.offers
-      ? `Offre proposée: ${(offer as any).offers.name} — ${(offer as any).offers.description ?? ''} ${(offer as any).offers.price ? `(${(offer as any).offers.price})` : ''}`
+    const offerData = (offer as any)?.offers;
+    const offerInfo = offerData
+      ? `Offre proposée: ${offerData.name} — ${offerData.description ?? ''} ${offerData.price ? `(${offerData.price})` : ''}`
       : "Aucune offre liée";
+
+    const bookingLink = offerData?.slug
+      ? `${PUBLIC_BASE_URL}/offers/${offerData.slug}/page`
+      : null;
+
+    const inboundCount = (history ?? []).filter((m: any) => m.direction === 'inbound').length;
 
     const historyText = (history ?? []).map(m => `${m.direction === 'inbound' ? 'LEAD' : 'MOI'}: ${m.content}`).join("\n") || "Aucun échange précédent.";
 
-    const systemPrompt = `${settings?.ai_instructions ?? "Tu es un commercial humain et bienveillant. Réponds en français, court (max 2 phrases), pose UNE seule question à la fois."}
+    const defaultInstructions = "Tu es un closer humain. Pose 3 à 5 questions ESSENTIELLES max pour qualifier (problème principal, urgence, contexte). Dès qu'un signal d'intérêt apparaît, propose un créneau précis (ex: 'Mardi 14h ou Jeudi 10h ?') ou partage le lien de réservation. Max 2 phrases. Pas de blabla, ton direct et conversationnel.";
+
+    const systemPrompt = `${settings?.ai_instructions ?? defaultInstructions}
+
+RÈGLES STRICTES :
+- MAX 2 phrases, ton direct et conversationnel
+- 1 SEULE question par message (jamais 2 ou 3)
+- Le lead a déjà répondu ${inboundCount} fois → ${inboundCount >= 1 ? "PROPOSE MAINTENANT un créneau ou le lien de réservation (pas une nouvelle question sauf info critique manquante)" : "pose UNE question d'ouverture"}
+- Pour proposer un RDV : ${bookingLink ? `partage ce lien → ${bookingLink}` : "propose 2 créneaux concrets cette semaine (ex: 'Mardi 14h ou Jeudi 10h ?')"}
+- Pas de "Bonjour" si déjà dit, pas de signature, pas d'emoji excessif (1 max)
 
 CONTEXTE LEAD:
 - Nom: ${lead.name}
@@ -74,15 +90,16 @@ CONTEXTE LEAD:
 - Message initial du lead: "${lead.message || 'Aucun'}"
 - Notes internes: ${lead.notes || 'Aucune'}
 - ${offerInfo}
+${bookingLink ? `- Lien de réservation: ${bookingLink}` : '- Pas de lien de réservation → propose 2 créneaux à confirmer'}
 
-HISTORIQUE DE LA CONVERSATION WHATSAPP:
+HISTORIQUE DE LA CONVERSATION WHATSAPP (${inboundCount} réponse(s) du lead):
 ${historyText}
 
 ${settings?.ai_examples ? `EXEMPLES DE MESSAGES À SUIVRE:\n${settings.ai_examples}\n` : ''}
 
 TÂCHE ACTUELLE: ${TASK_LABEL[task_type] || task_type}
 
-Génère UNIQUEMENT le texte du message WhatsApp à envoyer (pas de salutation type "Bonjour" si déjà fait, pas de signature, pas d'emoji excessif). Réponds en français, ton naturel, max 2-3 phrases.`;
+Génère UNIQUEMENT le texte du message WhatsApp (français, max 2 phrases).`;
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
