@@ -76,11 +76,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { owner_id, date } = await req.json();
+    const { offer_id, date } = await req.json();
 
-    if (!owner_id || !date) {
+    if (!offer_id || !date) {
       return new Response(
-        JSON.stringify({ error: "owner_id and date are required" }),
+        JSON.stringify({ error: "offer_id and date are required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -96,6 +96,23 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+    // Derive owner_id server-side from the active offer (prevents calendar enumeration).
+    const { data: offer } = await supabase
+      .from("offers")
+      .select("owner_id")
+      .eq("id", offer_id)
+      .eq("is_active", true)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (!offer?.owner_id) {
+      return new Response(
+        JSON.stringify({ error: "Offer not found or inactive" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const owner_id = offer.owner_id;
 
     const accessToken = await getValidAccessToken(supabase, owner_id);
 

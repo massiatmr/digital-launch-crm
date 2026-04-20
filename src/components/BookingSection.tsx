@@ -83,7 +83,7 @@ export default function BookingSection({
     const dateStr = format(date, 'yyyy-MM-dd');
     try {
       const { data, error: fnErr } = await supabase.functions.invoke('check-availability', {
-        body: { owner_id: ownerId, date: dateStr },
+        body: { offer_id: offerId, date: dateStr },
       });
       if (fnErr) throw fnErr;
       setAvailableSlots(data?.slots || []);
@@ -115,7 +115,7 @@ export default function BookingSection({
     setSubmitting(true);
     try {
       const { data, error: fnError } = await supabase.functions.invoke('handle-booking', {
-        body: { ...form, offer_id: offerId, owner_id: ownerId },
+        body: { ...form, offer_id: offerId },
       });
       if (fnError) throw fnError;
       if (data?.error) throw new Error(data.error);
