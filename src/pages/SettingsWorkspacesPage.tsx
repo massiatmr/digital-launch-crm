@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { Building2, Plus, Check, Users, UserPlus, Trash2, ShieldCheck, MessageCircle, CalendarCheck, Package, Facebook, UserCheck, AlertTriangle } from 'lucide-react';
+import { Building2, Plus, Check, Users, UserPlus, Trash2, ShieldCheck, MessageCircle, CalendarCheck, Package, Facebook, UserCheck, AlertTriangle, Upload, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { InviteMemberDialog } from '@/components/InviteMemberDialog';
 
@@ -30,6 +30,105 @@ const FEATURE_DEFS: { key: FeatureKey; label: string; icon: any }[] = [
   { key: 'offers', label: 'Offres & Landing Pages', icon: Package },
   { key: 'clients', label: 'Clients', icon: UserCheck },
 ];
+
+function LogoUploader({ workspaceId, currentLogoUrl, onChange }: { workspaceId: string; currentLogoUrl: string; onChange: (url: string) => void }) {
+  const qc = useQueryClient();
+  const [uploading, setUploading] = useState(false);
+
+  const handleFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('Format invalide (image requise)');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Image trop lourde (max 2 Mo)');
+      return;
+    }
+    setUploading(true);
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
+      const path = `${workspaceId}/logo-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('workspace-logos').upload(path, file, {
+        cacheControl: '3600',
+        upsert: true,
+        contentType: file.type,
+      });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from('workspace-logos').getPublicUrl(path);
+      const url = pub.publicUrl;
+      const { error: updErr } = await (supabase.from('workspaces' as any) as any)
+        .update({ logo_url: url })
+        .eq('id', workspaceId);
+      if (updErr) throw updErr;
+      onChange(url);
+      qc.invalidateQueries({ queryKey: ['workspaces'] });
+      toast.success('Logo mis à jour');
+    } catch (e: any) {
+      toast.error(e.message || 'Erreur upload');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRemove = async () => {
+    setUploading(true);
+    try {
+      const { error } = await (supabase.from('workspaces' as any) as any)
+        .update({ logo_url: null })
+        .eq('id', workspaceId);
+      if (error) throw error;
+      onChange('');
+      qc.invalidateQueries({ queryKey: ['workspaces'] });
+      toast.success('Logo retiré');
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-3 mt-1">
+      <div className="h-12 w-12 rounded-md bg-muted/40 border border-border/50 flex items-center justify-center overflow-hidden shrink-0">
+        {currentLogoUrl ? (
+          <img src={currentLogoUrl} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <Building2 className="h-5 w-5 text-muted-foreground" />
+        )}
+      </div>
+      <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+        <label className="inline-flex">
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            disabled={uploading}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleFile(f);
+              e.target.value = '';
+            }}
+          />
+          <span className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-md bg-primary/10 hover:bg-primary/20 text-primary cursor-pointer transition-colors w-fit">
+            {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+            {currentLogoUrl ? 'Changer' : 'Téléverser'}
+          </span>
+        </label>
+        {currentLogoUrl && (
+          <button
+            type="button"
+            disabled={uploading}
+            onClick={handleRemove}
+            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-destructive w-fit"
+          >
+            <X className="h-3 w-3" /> Retirer
+          </button>
+        )}
+        <p className="text-[10px] text-muted-foreground">PNG/JPG/SVG · max 2 Mo</p>
+      </div>
+    </div>
+  );
+}
 
 function FeatureToggles({ workspaceId, isAdmin }: { workspaceId: string; isAdmin: boolean }) {
   const { features } = useWorkspaceFeatures(workspaceId);
@@ -146,8 +245,12 @@ function WorkspaceEditor({ workspace, canManage }: { workspace: any; canManage: 
           <Input className="h-8 text-sm" value={form.slug} onChange={(e) => setForm({ ...form, slug: slugify(e.target.value) })} />
         </div>
         <div>
-          <Label className="text-xs">Logo URL</Label>
-          <Input className="h-8 text-sm" value={form.logo_url} onChange={(e) => setForm({ ...form, logo_url: e.target.value })} placeholder="https://..." />
+          <Label className="text-xs">Logo du workspace</Label>
+          <LogoUploader
+            workspaceId={workspace.id}
+            currentLogoUrl={form.logo_url}
+            onChange={(url) => setForm({ ...form, logo_url: url })}
+          />
         </div>
         <div>
           <Label className="text-xs">Email de notification du workspace</Label>
