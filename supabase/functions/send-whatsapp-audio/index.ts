@@ -214,12 +214,13 @@ Deno.serve(async (req) => {
       lead_id,
       owner_id: user.id,
       direction: "outbound",
-      content: "[Vocal]",
+      content: transcript || "[Vocal]",
       status: logStatus,
       wa_message_id: waMessageId,
       error_message: errorMessage,
       media_type: metaMime,
       media_storage_path: storagePath,
+      transcript,
     } as any);
 
     return new Response(
