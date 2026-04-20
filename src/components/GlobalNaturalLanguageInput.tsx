@@ -307,7 +307,7 @@ ${next.join('\n') || 'Aucune'}`;
         // Fetch slots immediately for richer card
         let slots: string[] = [];
         try {
-          const { data: avail } = await supabase.functions.invoke('check-availability', { body: { owner_id: user?.id, date: payload.date } });
+          const { data: avail } = await supabase.functions.invoke('check-availability', { body: { offer_id: offerId, date: payload.date } });
           slots = avail?.slots || [];
         } catch {}
         baseMsg.action = { payload: { type: 'booking', ...payload, slots }, status: 'pending' };
