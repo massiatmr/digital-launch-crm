@@ -17,7 +17,6 @@ Deno.serve(async (req) => {
     return Response.redirect(`${redirectBase}?fb=error&reason=missing_params`, 302);
   }
 
-  // Parse state: "user_id|workspace_id"
   const [userId, workspaceIdRaw] = state.split("|");
   const workspace_id = workspaceIdRaw && workspaceIdRaw.length > 0 ? workspaceIdRaw : null;
 
@@ -25,10 +24,27 @@ Deno.serve(async (req) => {
     const appId = Deno.env.get("FB_APP_ID")!;
     const appSecret = Deno.env.get("FB_APP_SECRET")!;
     const redirectUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/facebook-auth-callback`;
+    const graphApi = "https://graph.facebook.com/v21.0";
 
-    // 1. Exchange code -> short-lived user token
+    const subscribePage = async (pageId: string, pageToken: string) => {
+      const subscribeRes = await fetch(
+        `${graphApi}/${pageId}/subscribed_apps?subscribed_fields=leadgen&access_token=${pageToken}`,
+        { method: "POST" },
+      );
+      const subscribeJson = await subscribeRes.json().catch(() => ({}));
+
+      const checkRes = await fetch(
+        `${graphApi}/${pageId}/subscribed_apps?access_token=${pageToken}`,
+      );
+      const checkJson = await checkRes.json().catch(() => ({}));
+      const apps = Array.isArray(checkJson?.data) ? checkJson.data : [];
+      const isSubscribed = apps.some((entry: { id?: string }) => entry?.id === appId);
+
+      return { isSubscribed, subscribeJson, checkJson };
+    };
+
     const tokenRes = await fetch(
-      `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`,
+      `${graphApi}/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`,
     );
     const tokenJson = await tokenRes.json();
     if (!tokenJson.access_token) {
@@ -36,16 +52,14 @@ Deno.serve(async (req) => {
       return Response.redirect(`${redirectBase}?fb=error&reason=token_exchange`, 302);
     }
 
-    // 2. Long-lived user token
     const longRes = await fetch(
-      `https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${tokenJson.access_token}`,
+      `${graphApi}/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${tokenJson.access_token}`,
     );
     const longJson = await longRes.json();
     const userToken = longJson.access_token || tokenJson.access_token;
 
-    // 3. Pages
     const pagesRes = await fetch(
-      `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token&access_token=${userToken}`,
+      `${graphApi}/me/accounts?fields=id,name,access_token&access_token=${userToken}`,
     );
     const pagesJson = await pagesRes.json();
     const pages = pagesJson.data || [];
@@ -55,13 +69,35 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // 4. Upsert pages per workspace (or legacy if no workspace)
+    let subscribedPages = 0;
+
     for (const p of pages) {
       const query = supabase.from("meta_pages").select("id").eq("page_id", p.id);
       const scoped = workspace_id
         ? query.eq("workspace_id", workspace_id)
         : query.eq("owner_id", userId).is("workspace_id", null);
       const { data: existing } = await scoped.maybeSingle();
+
+      let subscribed = false;
+      try {
+        const subscription = await subscribePage(p.id, p.access_token);
+        subscribed = subscription.isSubscribed;
+        console.log("[fb-callback] page subscription status", {
+          pageId: p.id,
+          pageName: p.name,
+          subscribed,
+          subscribeJson: subscription.subscribeJson,
+          checkJson: subscription.checkJson,
+        });
+      } catch (subscriptionError) {
+        console.error("[fb-callback] page subscription failed", {
+          pageId: p.id,
+          pageName: p.name,
+          error: subscriptionError instanceof Error ? subscriptionError.message : String(subscriptionError),
+        });
+      }
+
+      if (subscribed) subscribedPages++;
 
       const payload = {
         owner_id: userId,
@@ -70,16 +106,16 @@ Deno.serve(async (req) => {
         page_name: p.name || "",
         page_access_token: p.access_token,
         is_active: true,
+        subscribed,
       };
 
       if (existing) {
-        await supabase.from("meta_pages").update(payload).eq("id", existing.id);
+        await supabase.from("meta_pages").update(payload as any).eq("id", existing.id);
       } else {
-        await supabase.from("meta_pages").insert(payload);
+        await supabase.from("meta_pages").insert(payload as any);
       }
     }
 
-    // 5. Detect WhatsApp Business Accounts and phone numbers
     let waNumbersFound = 0;
     const wabaSeen = new Set<string>();
     const upsertPhones = async (waba: { id: string; name?: string }, phones: any[]) => {
@@ -116,7 +152,7 @@ Deno.serve(async (req) => {
       if (wabaSeen.has(waba.id)) return;
       wabaSeen.add(waba.id);
       const phonesRes = await fetch(
-        `https://graph.facebook.com/v21.0/${waba.id}/phone_numbers?fields=id,display_phone_number,verified_name&access_token=${userToken}`,
+        `${graphApi}/${waba.id}/phone_numbers?fields=id,display_phone_number,verified_name&access_token=${userToken}`,
       );
       const phonesJson = await phonesRes.json();
       console.log(`[fb-callback] WABA ${waba.id} (${waba.name}) phones:`, JSON.stringify(phonesJson));
@@ -124,29 +160,26 @@ Deno.serve(async (req) => {
     };
 
     try {
-      // A) Try direct app-level WABAs (works when user is admin of WhatsApp app)
       try {
         const debugRes = await fetch(
-          `https://graph.facebook.com/v21.0/debug_token?input_token=${userToken}&access_token=${Deno.env.get("FB_APP_ID")}|${Deno.env.get("FB_APP_SECRET")}`,
+          `${graphApi}/debug_token?input_token=${userToken}&access_token=${Deno.env.get("FB_APP_ID")}|${Deno.env.get("FB_APP_SECRET")}`,
         );
         const debugJson = await debugRes.json();
         console.log("[fb-callback] token scopes:", JSON.stringify(debugJson?.data?.scopes));
       } catch (_) { /* ignore */ }
 
-      // B) Loop ALL businesses (owned + client) — covers BMs where user is admin but not creator
       for (const bizType of ["", "?type=client_business"]) {
         const bizRes = await fetch(
-          `https://graph.facebook.com/v21.0/me/businesses${bizType}&fields=id,name&access_token=${userToken}`.replace("?&", "?"),
+          `${graphApi}/me/businesses${bizType}&fields=id,name&access_token=${userToken}`.replace("?&", "?"),
         );
         const bizJson = await bizRes.json();
         console.log(`[fb-callback] businesses (${bizType || "owned"}):`, JSON.stringify(bizJson));
         const businesses = bizJson.data || [];
 
         for (const biz of businesses) {
-          // Owned WABAs
           for (const edge of ["owned_whatsapp_business_accounts", "client_whatsapp_business_accounts"]) {
             const wabaRes = await fetch(
-              `https://graph.facebook.com/v21.0/${biz.id}/${edge}?fields=id,name&access_token=${userToken}`,
+              `${graphApi}/${biz.id}/${edge}?fields=id,name&access_token=${userToken}`,
             );
             const wabaJson = await wabaRes.json();
             console.log(`[fb-callback] biz ${biz.id} ${edge}:`, JSON.stringify(wabaJson));
@@ -162,7 +195,7 @@ Deno.serve(async (req) => {
     console.log(`[fb-callback] total WA numbers detected: ${waNumbersFound}`);
 
     return Response.redirect(
-      `${redirectBase}?fb=connected&count=${pages.length}&wa=${waNumbersFound}`,
+      `${redirectBase}?fb=connected&count=${pages.length}&subscribed=${subscribedPages}&wa=${waNumbersFound}`,
       302,
     );
   } catch (err) {

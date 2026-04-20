@@ -68,15 +68,41 @@ Deno.serve(async (req) => {
       return data;
     };
 
+    const getSubscriptionState = async (page: { id: string; page_id: string; page_access_token: string }) => {
+      const checkRes = await fetch(
+        `https://graph.facebook.com/v21.0/${page.page_id}/subscribed_apps?access_token=${page.page_access_token}`,
+      );
+      const checkJson = await checkRes.json().catch(() => ({}));
+      const appId = Deno.env.get("FB_APP_ID");
+      const apps = Array.isArray(checkJson?.data) ? checkJson.data : [];
+      const subscribed = appId
+        ? apps.some((entry: { id?: string }) => entry?.id === appId)
+        : false;
+
+      await admin.from("meta_pages").update({ subscribed } as any).eq("id", page.id);
+
+      return { subscribed, checkJson };
+    };
+
     if (action === "list") {
       const { data, error } = await scope(
         admin
           .from("meta_pages")
-          .select("id, page_id, page_name, is_active, subscribed, forms, created_at, updated_at")
+          .select("id, page_id, page_name, is_active, subscribed, forms, created_at, updated_at, page_access_token")
           .order("created_at", { ascending: false }),
       );
       if (error) throw error;
-      return new Response(JSON.stringify({ pages: data || [] }), {
+
+      const pages = await Promise.all((data || []).map(async (page: any) => {
+        try {
+          const verification = await getSubscriptionState(page);
+          return { ...page, subscribed: verification.subscribed };
+        } catch {
+          return page;
+        }
+      }));
+
+      return new Response(JSON.stringify({ pages: pages.map(({ page_access_token, ...page }) => page) }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -87,26 +113,9 @@ Deno.serve(async (req) => {
         `https://graph.facebook.com/v21.0/${pageId}/subscribed_apps?subscribed_fields=leadgen&access_token=${page.page_access_token}`,
         { method: "POST" },
       );
-      const json = await res.json();
-      if (json.success) {
-        await admin.from("meta_pages").update({ subscribed: true } as any).eq("id", page.id);
-      }
-      return new Response(JSON.stringify(json), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    if (action === "unsubscribe" && pageId) {
-      const page = await loadPage(pageId);
-      const res = await fetch(
-        `https://graph.facebook.com/v21.0/${pageId}/subscribed_apps?access_token=${page.page_access_token}`,
-        { method: "DELETE" },
-      );
-      const json = await res.json();
-      if (json.success) {
-        await admin.from("meta_pages").update({ subscribed: false } as any).eq("id", page.id);
-      }
-      return new Response(JSON.stringify(json), {
+      const json = await res.json().catch(() => ({}));
+      const verification = await getSubscriptionState(page);
+      return new Response(JSON.stringify({ ...json, subscribed: verification.subscribed, verification: verification.checkJson }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
