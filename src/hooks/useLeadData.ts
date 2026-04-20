@@ -372,6 +372,26 @@ export function useToggleReminder() {
   });
 }
 
+export function useCreateReminder() {
+  const queryClient = useQueryClient();
+  const wsId = useCurrentWorkspaceId();
+  return useMutation({
+    mutationFn: async ({ lead_id, action, due_date }: { lead_id: string; action: string; due_date: string }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Non authentifié');
+      const payload: any = { lead_id, action, due_date, owner_id: user.id };
+      if (wsId) payload.workspace_id = wsId;
+      const { error } = await supabase.from('reminders').insert(payload);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Rappel créé');
+      queryClient.invalidateQueries({ queryKey: ['reminders'] });
+    },
+    onError: (e: any) => toast.error(e.message || 'Erreur création'),
+  });
+}
+
 export function useUpdateReminder() {
   const queryClient = useQueryClient();
   return useMutation({
