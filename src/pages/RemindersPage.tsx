@@ -287,6 +287,135 @@ function ReminderCard({ r, isPending, highlighted }: { r: any; isPending: boolea
   );
 }
 
+function NewReminderDialog() {
+  const [open, setOpen] = useState(false);
+  const [leadId, setLeadId] = useState<string>('');
+  const [leadSearch, setLeadSearch] = useState('');
+  const [action, setAction] = useState('');
+  const [date, setDate] = useState<Date>(() => {
+    const d = addDays(new Date(), 1);
+    return setMinutes(setHours(d, 9), 0);
+  });
+  const { data: leads = [] } = useLeads();
+  const createReminder = useCreateReminder();
+
+  const filteredLeads = useMemo(() => {
+    const q = leadSearch.trim().toLowerCase();
+    const list = q
+      ? leads.filter((l: any) =>
+          l.name?.toLowerCase().includes(q) ||
+          l.company_name?.toLowerCase().includes(q) ||
+          l.phone?.includes(q)
+        )
+      : leads;
+    return list.slice(0, 50);
+  }, [leads, leadSearch]);
+
+  const selectedLead = leads.find((l: any) => l.id === leadId);
+
+  const reset = () => {
+    setLeadId(''); setLeadSearch(''); setAction('');
+    setDate(setMinutes(setHours(addDays(new Date(), 1), 9), 0));
+  };
+
+  const handleSubmit = async () => {
+    if (!leadId || !action.trim()) return;
+    await createReminder.mutateAsync({ lead_id: leadId, action: action.trim(), due_date: date.toISOString() });
+    reset();
+    setOpen(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset(); }}>
+      <Button onClick={() => setOpen(true)} className="gap-2">
+        <Plus className="h-4 w-4" />
+        Nouveau rappel
+      </Button>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Nouveau rappel</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Lead concerné</Label>
+            {selectedLead ? (
+              <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2">
+                <div>
+                  <div className="text-sm font-medium">{selectedLead.name}</div>
+                  {selectedLead.company_name && (
+                    <div className="text-xs text-muted-foreground">{selectedLead.company_name}</div>
+                  )}
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => { setLeadId(''); setLeadSearch(''); }}>
+                  Changer
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    autoFocus
+                    placeholder="Rechercher un lead…"
+                    value={leadSearch}
+                    onChange={(e) => setLeadSearch(e.target.value)}
+                    className="pl-8 h-9"
+                  />
+                </div>
+                <div className="max-h-48 overflow-y-auto rounded-lg border border-border divide-y divide-border">
+                  {filteredLeads.length === 0 ? (
+                    <div className="px-3 py-4 text-xs text-center text-muted-foreground">
+                      Aucun lead trouvé
+                    </div>
+                  ) : (
+                    filteredLeads.map((l: any) => (
+                      <button
+                        key={l.id}
+                        type="button"
+                        onClick={() => { setLeadId(l.id); setLeadSearch(''); }}
+                        className="w-full text-left px-3 py-2 hover:bg-muted transition-colors"
+                      >
+                        <div className="text-sm">{l.name}</div>
+                        {l.company_name && (
+                          <div className="text-xs text-muted-foreground">{l.company_name}</div>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Action à faire</Label>
+            <Input
+              placeholder="Ex: Rappeler pour confirmer le RDV"
+              value={action}
+              onChange={(e) => setAction(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Quand ?</Label>
+            <DateTimePicker value={date} onChange={setDate} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOpen(false)}>Annuler</Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={!leadId || !action.trim() || createReminder.isPending}
+          >
+            {createReminder.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Créer le rappel
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function RemindersPage() {
   const { data: reminders = [], isLoading } = useReminders();
   const [params, setParams] = useSearchParams();
@@ -317,14 +446,17 @@ export default function RemindersPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-heading text-3xl">Rappels</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{pending.length} actions en attente</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="font-heading text-3xl">Rappels</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{pending.length} actions en attente</p>
+        </div>
+        <NewReminderDialog />
       </div>
 
       {pending.length === 0 && done.length === 0 ? (
         <div className="rounded-xl border border-border bg-card px-5 py-12 text-center text-sm text-muted-foreground">
-          Aucun rappel. Les rappels sont créés automatiquement quand vous ajoutez des leads.
+          Aucun rappel pour l'instant. Cliquez sur « Nouveau rappel » pour en créer un.
         </div>
       ) : (
         <>
