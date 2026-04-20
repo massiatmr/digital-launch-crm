@@ -106,28 +106,40 @@ export function LeadDetailContent({
         </div>
       </div>
 
-      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+      <AlertDialog open={confirmDelete} onOpenChange={(o) => { setConfirmDelete(o); if (!o) setHardDelete(false); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer ce lead ?</AlertDialogTitle>
+            <AlertDialogTitle>{hardDelete ? 'Supprimer définitivement ?' : 'Archiver ce lead ?'}</AlertDialogTitle>
             <AlertDialogDescription>
-              Ce lead sera déplacé dans la corbeille et retiré de la pipeline.
+              {hardDelete
+                ? '⚠️ Action irréversible. Le lead, ses messages WhatsApp, tâches, qualification et activités seront supprimés définitivement de la base.'
+                : 'Ce lead sera déplacé dans la corbeille (récupérable 30 jours) et retiré de la pipeline.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <label className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={hardDelete}
+              onChange={(e) => setHardDelete(e.target.checked)}
+              className="h-4 w-4 accent-destructive"
+            />
+            <span>Supprimer définitivement (purge totale, pas de corbeille)</span>
+          </label>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
-                deleteLead.mutate(lead.id, {
+                deleteLead.mutate({ id: lead.id, hard: hardDelete }, {
                   onSuccess: () => {
                     setConfirmDelete(false);
+                    setHardDelete(false);
                     onDeleted?.();
                   },
                 });
               }}
             >
-              Supprimer
+              {hardDelete ? 'Supprimer définitivement' : 'Archiver'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
