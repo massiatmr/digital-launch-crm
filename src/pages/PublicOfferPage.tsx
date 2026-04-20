@@ -280,8 +280,8 @@ export default function PublicOfferPage() {
         </section>
       )}
 
-      {/* ─── Features ─── */}
-      {features.length > 0 && (
+      {/* ─── Features (masqué si on a des deliverables Hormozi) ─── */}
+      {features.length > 0 && !deliverables && (
         <section className="py-20 px-4">
           <div className="max-w-4xl mx-auto">
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
