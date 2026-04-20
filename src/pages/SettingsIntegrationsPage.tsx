@@ -424,6 +424,64 @@ export default function SettingsIntegrationsPage() {
             </div>
           )}
 
+          {/* Manual add (fallback if auto-detect fails) */}
+          <div className="border rounded-lg p-4 space-y-3">
+            <button
+              type="button"
+              className="flex items-center justify-between w-full text-sm font-semibold"
+              onClick={() => setShowManualAdd((s) => !s)}
+            >
+              <span className="flex items-center gap-2">
+                <Plus className="h-4 w-4" />
+                Ajouter un numéro WhatsApp manuellement
+              </span>
+              {showManualAdd ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            {showManualAdd && (
+              <div className="space-y-3 pt-2">
+                <p className="text-xs text-muted-foreground">
+                  À utiliser si l'auto-détection ne trouve pas tes numéros (compte test, WABA externe…).
+                  Récupère ces 3 valeurs sur <a href="https://business.facebook.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">business.facebook.com</a> → WhatsApp Accounts → API Setup.
+                </p>
+                <div className="space-y-2">
+                  <Label className="text-xs">Phone Number ID</Label>
+                  <Input value={manualPhoneId} onChange={(e) => setManualPhoneId(e.target.value)} placeholder="ex: 123456789012345" className="font-mono text-sm" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">WhatsApp Business Account ID (WABA)</Label>
+                  <Input value={manualWabaId} onChange={(e) => setManualWabaId(e.target.value)} placeholder="ex: 987654321098765" className="font-mono text-sm" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Access Token (permanent system-user)</Label>
+                  <Input value={manualToken} onChange={(e) => setManualToken(e.target.value)} placeholder="EAAG..." type="password" className="font-mono text-sm" />
+                </div>
+                <Button
+                  onClick={async () => {
+                    const r = await callWa(
+                      "save",
+                      {
+                        phone_number_id: manualPhoneId.trim(),
+                        business_account_id: manualWabaId.trim(),
+                        access_token: manualToken.trim(),
+                      },
+                      "Numéro ajouté",
+                    );
+                    if (r) {
+                      setManualPhoneId("");
+                      setManualWabaId("");
+                      setManualToken("");
+                      setShowManualAdd(false);
+                    }
+                  }}
+                  disabled={!manualPhoneId || !manualWabaId || !manualToken || waBusy?.startsWith("save")}
+                >
+                  {waBusy?.startsWith("save") ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  Ajouter le numéro
+                </Button>
+              </div>
+            )}
+          </div>
+
           {/* Test send (only if active number exists) */}
           {activeWa && (
             <div className="border rounded-lg p-4 space-y-3">
