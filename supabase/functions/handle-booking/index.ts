@@ -130,9 +130,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { name, email, phone, booking_date, time_slot, offer_id, notes, owner_id } = await req.json();
+    const { name, email, phone, booking_date, time_slot, offer_id, notes } = await req.json();
 
-    if (!name || !email || !phone || !booking_date || !time_slot || !offer_id || !owner_id) {
+    if (!name || !email || !phone || !booking_date || !time_slot || !offer_id) {
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -143,14 +143,23 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Get offer name for calendar event
+    // Derive owner_id server-side from the active offer (prevents cross-tenant booking creation).
     const { data: offer } = await supabase
       .from("offers")
-      .select("name")
+      .select("name, owner_id")
       .eq("id", offer_id)
+      .eq("is_active", true)
+      .is("deleted_at", null)
       .maybeSingle();
 
-    const offerName = offer?.name || "Consultation";
+    if (!offer?.owner_id) {
+      return new Response(
+        JSON.stringify({ error: "Offer not found or inactive" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const owner_id = offer.owner_id;
+    const offerName = offer.name || "Consultation";
 
     // Try to create Google Calendar event
     let googleEventId: string | null = null;

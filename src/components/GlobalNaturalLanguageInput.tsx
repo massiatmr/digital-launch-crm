@@ -304,11 +304,15 @@ ${next.join('\n') || 'Aucune'}`;
       } else if (intent === 'create_lead' && payload?.fields) {
         baseMsg.action = { payload: { type: 'create_lead', fields: payload.fields }, status: 'pending' };
       } else if (intent === 'booking' && payload?.date) {
-        // Fetch slots immediately for richer card
+        // Fetch slots immediately — derive offer_id server-side from user's active offer.
         let slots: string[] = [];
         try {
-          const { data: avail } = await supabase.functions.invoke('check-availability', { body: { owner_id: user?.id, date: payload.date } });
-          slots = avail?.slots || [];
+          const { data: offers } = await supabase.from('offers').select('id').eq('is_active', true).eq('owner_id', user!.id).order('created_at', { ascending: false }).limit(1);
+          const offerId = offers?.[0]?.id;
+          if (offerId) {
+            const { data: avail } = await supabase.functions.invoke('check-availability', { body: { offer_id: offerId, date: payload.date } });
+            slots = avail?.slots || [];
+          }
         } catch {}
         baseMsg.action = { payload: { type: 'booking', ...payload, slots }, status: 'pending' };
       } else if (intent === 'reminder' && payload?.lead_id) {
@@ -390,7 +394,6 @@ ${next.join('\n') || 'Aucune'}`;
         phone: payload.contact_phone || lead?.phone || '+33000000000',
         booking_date: payload.date, time_slot: slot, offer_id: offerId,
         notes: payload.notes || 'Créé via assistant IA',
-        owner_id: user.id,
       },
     });
     if (error) throw error;
