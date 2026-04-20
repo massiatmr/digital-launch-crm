@@ -208,14 +208,32 @@ export function useUpdateLead() {
 export function useDeleteLead() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('leads')
-        .update({ deleted_at: new Date().toISOString() } as any)
-        .eq('id', id);
-      if (error) throw error;
+    mutationFn: async (input: string | { id: string; hard?: boolean }) => {
+      const id = typeof input === 'string' ? input : input.id;
+      const hard = typeof input === 'string' ? false : !!input.hard;
+      if (hard) {
+        // Hard delete : purge en cascade des enfants puis du lead
+        await supabase.from('lead_followup_tasks').delete().eq('lead_id', id);
+        await supabase.from('whatsapp_messages').delete().eq('lead_id', id);
+        await supabase.from('lead_activities').delete().eq('lead_id', id);
+        await supabase.from('lead_qualification').delete().eq('lead_id', id);
+        await supabase.from('lead_conversation_state').delete().eq('lead_id', id);
+        await supabase.from('generated_messages').delete().eq('lead_id', id);
+        await supabase.from('sales_scripts').delete().eq('lead_id', id);
+        await supabase.from('reminders').delete().eq('lead_id', id);
+        await supabase.from('bookings').update({ lead_id: null } as any).eq('lead_id', id);
+        const { error } = await supabase.from('leads').delete().eq('id', id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('leads')
+          .update({ deleted_at: new Date().toISOString() } as any)
+          .eq('id', id);
+        if (error) throw error;
+      }
     },
-    onMutate: async (id: string) => {
+    onMutate: async (input) => {
+      const id = typeof input === 'string' ? input : input.id;
       await queryClient.cancelQueries({ queryKey: ['leads'] });
 
       const previousLeadsQueries = queryClient.getQueriesData<DbLead[]>({ queryKey: ['leads'] });
@@ -234,10 +252,12 @@ export function useDeleteLead() {
 
       return { previousLeadsQueries, previousLeadDetail };
     },
-    onSuccess: () => {
-      toast.success('Déplacé vers la corbeille');
+    onSuccess: (_, input) => {
+      const hard = typeof input === 'string' ? false : !!input.hard;
+      toast.success(hard ? 'Lead supprimé définitivement' : 'Déplacé vers la corbeille');
     },
-    onError: (e: any, id, context) => {
+    onError: (e: any, input, context) => {
+      const id = typeof input === 'string' ? input : input.id;
       context?.previousLeadsQueries?.forEach(([key, leads]: any) => {
         queryClient.setQueryData(key, leads);
       });

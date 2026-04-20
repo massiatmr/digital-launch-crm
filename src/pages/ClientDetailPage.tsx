@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
@@ -72,6 +73,8 @@ export default function ClientDetailPage() {
   const updateClientSilent = useUpdateClientSilent();
 
   const [editing, setEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [hardDelete, setHardDelete] = useState(false);
   const [form, setForm] = useState<any>({});
   const [newAccess, setNewAccess] = useState({ service: '', login: '', password: '', url: '' });
   const [newObjective, setNewObjective] = useState('');
@@ -471,15 +474,46 @@ export default function ClientDetailPage() {
       </Tabs>
 
       <div className="flex justify-end">
-        <Button variant="destructive" size="sm" onClick={async () => {
-          if (confirm('Supprimer ce client ?')) {
-            await deleteClient.mutateAsync(client.id);
-            navigate('/clients');
-          }
-        }}>
+        <Button variant="destructive" size="sm" onClick={() => setConfirmDelete(true)}>
           <Trash2 className="h-3 w-3 mr-1" />Supprimer le client
         </Button>
       </div>
+
+      <AlertDialog open={confirmDelete} onOpenChange={(o) => { setConfirmDelete(o); if (!o) setHardDelete(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{hardDelete ? 'Supprimer définitivement ?' : 'Archiver ce client ?'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {hardDelete
+                ? '⚠️ Action irréversible. Le client, ses ressources, onboardings, contrats et factures seront supprimés définitivement de la base.'
+                : 'Ce client sera déplacé dans la corbeille (récupérable 30 jours).'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <label className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={hardDelete}
+              onChange={(e) => setHardDelete(e.target.checked)}
+              className="h-4 w-4 accent-destructive"
+            />
+            <span>Supprimer définitivement (purge totale, pas de corbeille)</span>
+          </label>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                await deleteClient.mutateAsync({ id: client.id, hard: hardDelete });
+                setConfirmDelete(false);
+                setHardDelete(false);
+                navigate('/clients');
+              }}
+            >
+              {hardDelete ? 'Supprimer définitivement' : 'Archiver'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
