@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom';
 import { AppSidebar } from './AppSidebar';
 import { MobileBottomNav } from './MobileBottomNav';
 import { EnablePushButton } from './EnablePushButton';
+import { WorkspaceHeader } from './WorkspaceHeader';
 import { createContext, useContext, useState } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -14,19 +15,21 @@ export function AppLayout() {
 
   return (
     <SidebarContext.Provider value={{ collapsed, setCollapsed }}>
-      <div className="flex min-h-screen">
-        {!isMobile && <AppSidebar />}
-        <main className={`flex-1 transition-all duration-300 overflow-x-hidden ${
-          isMobile ? 'p-4 pb-24' : collapsed ? 'ml-16 p-6 lg:p-8' : 'ml-60 p-6 lg:p-8'
-        }`}>
-          <div className="flex justify-end mb-2">
-            <EnablePushButton />
-          </div>
-          <Outlet />
-        </main>
-        {isMobile && <MobileBottomNav />}
+      <div className="flex min-h-screen flex-col">
+        <WorkspaceHeader />
+        <div className="flex flex-1">
+          {!isMobile && <AppSidebar />}
+          <main className={`flex-1 transition-all duration-300 overflow-x-hidden ${
+            isMobile ? 'p-4 pb-24' : collapsed ? 'ml-16 p-6 lg:p-8' : 'ml-60 p-6 lg:p-8'
+          }`}>
+            <div className="flex justify-end mb-2">
+              <EnablePushButton />
+            </div>
+            <Outlet />
+          </main>
+          {isMobile && <MobileBottomNav />}
+        </div>
       </div>
     </SidebarContext.Provider>
   );
 }
-

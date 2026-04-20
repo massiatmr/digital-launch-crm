@@ -1,8 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { LayoutDashboard, Kanban, Bell, PanelLeftClose, PanelLeft, LogOut, Package, CalendarCheck, UserCheck, Settings, MessageCircle, Sparkles } from 'lucide-react';
-import logo from '@/assets/logo.webp';
-import logoIcon from '@/assets/logo-icon.webp';
 import { useSidebarState } from './AppLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useWhatsAppInbox } from '@/hooks/useWhatsAppInbox';
@@ -36,23 +34,15 @@ export function AppSidebar() {
   return (
     <aside
       className={cn(
-        'fixed inset-y-0 left-0 z-50 flex flex-col border-r border-border/50 bg-sidebar transition-all duration-300',
+        'fixed left-0 top-16 bottom-0 z-40 flex flex-col border-r border-border/50 bg-sidebar transition-all duration-300',
         collapsed ? 'w-16' : 'w-60'
       )}
       style={{
         background: 'linear-gradient(180deg, hsl(225 15% 5%) 0%, hsl(225 15% 3%) 100%)',
       }}
     >
-      <div className={cn('flex items-center border-b border-border/50 px-3 py-4', collapsed ? 'justify-center' : 'px-4')}>
-        {!collapsed ? (
-          <img src={logo} alt="Logo" className="h-10 w-auto" />
-        ) : (
-          <img src={logoIcon} alt="Logo" className="h-8 w-8" />
-        )}
-      </div>
-
       {/* Workspace switcher */}
-      <div className="px-2 pt-3">
+      <div className="px-2 pt-4">
         <WorkspaceSwitcher collapsed={collapsed} />
       </div>
 
