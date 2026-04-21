@@ -50,36 +50,13 @@ export default function OffersPage() {
           <h1 className="text-2xl font-bold text-foreground">Offres</h1>
           <p className="text-muted-foreground text-sm mt-1">{offers?.length || 0} offre(s)</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setAiOpen(true)}
-            className="border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
-          >
-            <Sparkles className="h-4 w-4 mr-2" />
-            Créer avec l'IA
-          </Button>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button variant="ghost"><Plus className="h-4 w-4 mr-2" />Manuelle</Button>
-            </DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Créer une offre</DialogTitle></DialogHeader>
-            <div className="space-y-4 mt-4">
-              <Input placeholder="Nom de l'offre" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-              <Textarea placeholder="Description" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-              <div className="grid grid-cols-2 gap-3">
-                <Input placeholder="Prix (ex: 997€)" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
-                <Input placeholder="Niche (ex: Déménageurs)" value={form.niche} onChange={e => setForm(f => ({ ...f, niche: e.target.value }))} />
-              </div>
-              <Button className="w-full" onClick={handleCreate} disabled={createOffer.isPending}>
-                {createOffer.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Créer
-              </Button>
-            </div>
-            </DialogContent>
-          </Dialog>
-        </div>
+        <Button
+          onClick={() => setAiOpen(true)}
+          className="bg-primary hover:bg-primary/90"
+        >
+          <Sparkles className="h-4 w-4 mr-2" />
+          Créer avec l'IA
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
