@@ -89,6 +89,7 @@ export type Database = {
         Row: {
           booking_date: string
           created_at: string
+          created_from: string | null
           deleted_at: string | null
           email: string
           google_event_id: string | null
@@ -107,6 +108,7 @@ export type Database = {
         Insert: {
           booking_date: string
           created_at?: string
+          created_from?: string | null
           deleted_at?: string | null
           email: string
           google_event_id?: string | null
@@ -125,6 +127,7 @@ export type Database = {
         Update: {
           booking_date?: string
           created_at?: string
+          created_from?: string | null
           deleted_at?: string | null
           email?: string
           google_event_id?: string | null
