@@ -137,6 +137,28 @@ Deno.serve(async (req) => {
       .from("leads").select("*").eq("id", task.lead_id).maybeSingle();
     if (!lead) return new Response(JSON.stringify({ error: "Lead not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+    const [{ data: conversationState }, { data: activeBooking }] = await Promise.all([
+      admin.from("lead_conversation_state").select("state").eq("lead_id", task.lead_id).maybeSingle(),
+      admin
+        .from("bookings")
+        .select("id")
+        .eq("lead_id", task.lead_id)
+        .neq("status", "cancelled")
+        .is("deleted_at", null)
+        .limit(1)
+        .maybeSingle(),
+    ]);
+    if (conversationState?.state === "BOOKED" || activeBooking) {
+      await admin.from("lead_followup_tasks").update({
+        status: "cancelled",
+        error_message: activeBooking ? `Skipped: booking already exists (${activeBooking.id})` : "Skipped: conversation already booked",
+        updated_at: new Date().toISOString(),
+      } as any).eq("id", task_id);
+      return new Response(JSON.stringify({ ok: true, skipped: true, reason: "already_booked" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Charger settings (dry_run + mapping templates) — par workspace si possible, fallback owner legacy
     let settings: any = null;
     if (lead.workspace_id) {
