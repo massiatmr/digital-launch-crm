@@ -349,8 +349,15 @@ export function useReminders() {
   return useQuery({
     queryKey: ['reminders', wsId],
     queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [] as DbReminder[];
+      // Inclut les rappels du workspace courant + ceux sans workspace appartenant à l'utilisateur
       let q: any = supabase.from('reminders').select('*, leads(name)');
-      if (wsId) q = q.eq('workspace_id', wsId);
+      if (wsId) {
+        q = q.or(`workspace_id.eq.${wsId},and(workspace_id.is.null,owner_id.eq.${user.id})`);
+      } else {
+        q = q.eq('owner_id', user.id);
+      }
       const { data, error } = await q.order('due_date', { ascending: true });
       if (error) throw error;
       return data as DbReminder[];
