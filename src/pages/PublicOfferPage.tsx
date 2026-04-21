@@ -12,11 +12,11 @@ import {
   AlertTriangle, Clock, TrendingDown, Frown, Rocket, Gift, Trophy, Gem, type LucideIcon,
 } from 'lucide-react';
 
-const ICON_MAP: Record<string, LucideIcon> = {
+export const ICON_MAP: Record<string, LucideIcon> = {
   AlertTriangle, AlertCircle, Clock, TrendingDown, Frown, Zap,
   Rocket, Target, Gift, Shield, Star, Trophy, Gem, Sparkles, Check,
 };
-const HormoziIcon = ({ name, className }: { name: string; className?: string }) => {
+export const HormoziIcon = ({ name, className }: { name: string; className?: string }) => {
   const C = ICON_MAP[name] || Sparkles;
   return <C className={className} />;
 };
