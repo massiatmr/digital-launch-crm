@@ -197,6 +197,16 @@ Deno.serve(async (req) => {
             body: JSON.stringify({ lead_id: lead.id }),
           }).catch((e) => console.error("qualify-conversation invoke failed:", e));
 
+          // Détection auto de RDV confirmé (fire-and-forget)
+          fetch(`${SUPABASE_URL}/functions/v1/detect-booking-from-conversation`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            },
+            body: JSON.stringify({ lead_id: lead.id }),
+          }).catch((e) => console.error("detect-booking invoke failed:", e));
+
           // Push notif via OneSignal
           try {
             const pushRes = await fetch(`${SUPABASE_URL}/functions/v1/send-onesignal-notification`, {
