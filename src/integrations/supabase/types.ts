@@ -2070,6 +2070,8 @@ export type Database = {
           id: string
           legal_name: string | null
           logo_url: string | null
+          logo_url_dark: string | null
+          logo_url_light: string | null
           notification_email: string | null
           onboarding_completed: boolean
           phone: string | null
@@ -2092,6 +2094,8 @@ export type Database = {
           id?: string
           legal_name?: string | null
           logo_url?: string | null
+          logo_url_dark?: string | null
+          logo_url_light?: string | null
           notification_email?: string | null
           onboarding_completed?: boolean
           phone?: string | null
@@ -2114,6 +2118,8 @@ export type Database = {
           id?: string
           legal_name?: string | null
           logo_url?: string | null
+          logo_url_dark?: string | null
+          logo_url_light?: string | null
           notification_email?: string | null
           onboarding_completed?: boolean
           phone?: string | null
