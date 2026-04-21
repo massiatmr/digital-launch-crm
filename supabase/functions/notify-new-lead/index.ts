@@ -157,14 +157,27 @@ Deno.serve(async (req) => {
       workspaceEmail = (ws?.notification_email || ws?.email || "").trim() || null;
 
       // Récupère TOUS les membres du workspace (owner + members)
+      // NB: on n'utilise pas la RPC list_workspace_members car elle exige auth.uid()
+      // (forbidden en contexte service_role). On lit directement la table avec la service key.
       const { data: members, error: memErr } = await supabase
-        .rpc("list_workspace_members", { _workspace_id: lead.workspace_id });
+        .from("workspace_members")
+        .select("user_id")
+        .eq("workspace_id", lead.workspace_id);
       if (memErr) {
-        console.error("notify-new-lead: list_workspace_members failed", memErr);
-      } else if (Array.isArray(members)) {
-        for (const m of members as Array<{ user_id: string; email: string }>) {
-          if (m.email) memberEmails.push(m.email);
-          if (m.user_id) memberUserIds.push(m.user_id);
+        console.error("notify-new-lead: workspace_members lookup failed", memErr);
+      } else if (Array.isArray(members) && members.length > 0) {
+        const userIds = members.map((m: any) => m.user_id).filter(Boolean);
+        for (const uid of userIds) memberUserIds.push(uid);
+
+        // Résout les emails depuis auth.users via l'admin API
+        for (const uid of userIds) {
+          try {
+            const { data: u } = await (supabase as any).auth.admin.getUserById(uid);
+            const em = u?.user?.email;
+            if (em) memberEmails.push(em);
+          } catch (e) {
+            console.error("notify-new-lead: getUserById failed", uid, e);
+          }
         }
       }
     }
