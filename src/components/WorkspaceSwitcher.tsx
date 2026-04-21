@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { useWorkspaces } from '@/hooks/useWorkspaces';
+import { useIsAdmin } from '@/hooks/useWorkspaceFeatures';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 
@@ -12,6 +13,7 @@ interface Props {
 
 export function WorkspaceSwitcher({ collapsed }: Props) {
   const { workspaces, currentWorkspace, switchWorkspace, isLoading } = useWorkspaces();
+  const { data: isAdmin = false } = useIsAdmin();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
@@ -87,20 +89,22 @@ export function WorkspaceSwitcher({ collapsed }: Props) {
             );
           })}
         </div>
-        <div className="border-t border-border/50 mt-1 pt-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-start gap-2"
-            onClick={() => {
-              setOpen(false);
-              navigate('/settings/workspaces');
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            Créer un espace
-          </Button>
-        </div>
+        {isAdmin && (
+          <div className="border-t border-border/50 mt-1 pt-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start gap-2"
+              onClick={() => {
+                setOpen(false);
+                navigate('/settings/workspaces');
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              Créer un espace
+            </Button>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );
