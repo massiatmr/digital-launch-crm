@@ -19,12 +19,46 @@ Règles strictes :
 - Style : direct, percutant, en français, tutoiement. Moins de blabla, plus d'impact.
 - Privilégie les visuels via icônes Lucide (chaque pain/deliverable/bonus DOIT avoir un icon valide).
 - Sections supportées : pain_points, transformation, deliverables, bonuses, solution, guarantee, faq, portfolio.
+- Interdiction absolue de renvoyer des items vides : pas de {}, pas de titre vide, pas de description vide.
+- pain_points : items = objets complets { icon, title, description }, minimum 4 items si la section existe.
+- deliverables : items = objets complets { icon, title, description, value }, minimum 4 items si la section existe.
+- bonuses : items = objets complets { icon, title, description, value }, minimum 2 items si la section existe.
+- faq : items = objets complets { question, answer }, minimum 3 items si la section existe.
+- Si l'utilisateur demande de refaire/améliorer le contenu, réécris aussi TOUS les items des sections, pas seulement les titres.
 - Si l'utilisateur demande de supprimer une section, retire-la complètement du tableau sections.
 - Si l'utilisateur demande d'ajouter une section, crée-la avec une structure cohérente.
 - Conserve les valeurs existantes que l'utilisateur n'a pas demandé à modifier.
 - Réponds en 1 phrase courte et claire dans "summary" (ce que tu as fait).
 
 Icônes valides (Lucide) : AlertTriangle, AlertCircle, Clock, TrendingDown, Frown, Zap, Rocket, Target, Gift, Shield, Star, Trophy, Gem, Sparkles, Check.`;
+
+const hasText = (value: unknown) => typeof value === "string" && value.trim().length > 0;
+
+function cleanItems(items: any[], type: string) {
+  if (!Array.isArray(items)) return [];
+  return items.filter((item) => {
+    if (type === "faq") return hasText(item?.question) && hasText(item?.answer);
+    if (typeof item === "string") return hasText(item);
+    return hasText(item?.title) && hasText(item?.description);
+  });
+}
+
+function sanitizeSections(sections: any[]) {
+  if (!Array.isArray(sections)) return [];
+  return sections.map((section) => {
+    if (!section || typeof section !== "object") return null;
+    const next = { ...section };
+    if (Array.isArray(next.items)) next.items = cleanItems(next.items, next.type);
+    return next;
+  }).filter((section) => {
+    if (!section) return false;
+    if (["pain_points", "deliverables", "bonuses", "faq", "portfolio"].includes(section.type)) return section.items?.length > 0;
+    if (section.type === "transformation") return hasText(section.before) || hasText(section.after);
+    if (section.type === "guarantee") return hasText(section.title) || hasText(section.description);
+    if (section.type === "solution") return hasText(section.title) || hasText(section.description) || section.items?.length > 0;
+    return true;
+  });
+}
 
 const updateOfferTool = {
   type: "function",
