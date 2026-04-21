@@ -24,8 +24,17 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import DemenageurLanding from '@/pages/landing/demenageur';
 
+// Branding shared across landing pages
+export interface OfferBranding {
+  logo_url: string | null;
+  logo_url_light: string | null;
+  logo_url_dark: string | null;
+  company_name: string | null;
+  brand_color: string | null;
+}
+
 // Custom page registry: slug → component
-const CUSTOM_PAGES: Record<string, React.ComponentType<{ offer: any }>> = {
+const CUSTOM_PAGES: Record<string, React.ComponentType<{ offer: any; branding: OfferBranding | null }>> = {
   // Add custom landing pages here by slug
   // 'demenageur': DemenageurLanding,
 };
