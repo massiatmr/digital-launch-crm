@@ -31,7 +31,21 @@ const FEATURE_DEFS: { key: FeatureKey; label: string; icon: any }[] = [
   { key: 'clients', label: 'Clients', icon: UserCheck },
 ];
 
-function LogoUploader({ workspaceId, currentLogoUrl, onChange }: { workspaceId: string; currentLogoUrl: string; onChange: (url: string) => void }) {
+type LogoField = 'logo_url' | 'logo_url_light' | 'logo_url_dark';
+
+function LogoUploader({
+  workspaceId,
+  currentLogoUrl,
+  onChange,
+  field = 'logo_url',
+  variant = 'default',
+}: {
+  workspaceId: string;
+  currentLogoUrl: string;
+  onChange: (url: string) => void;
+  field?: LogoField;
+  variant?: 'default' | 'light' | 'dark';
+}) {
   const qc = useQueryClient();
   const [uploading, setUploading] = useState(false);
 
@@ -47,7 +61,7 @@ function LogoUploader({ workspaceId, currentLogoUrl, onChange }: { workspaceId: 
     setUploading(true);
     try {
       const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
-      const path = `${workspaceId}/logo-${Date.now()}.${ext}`;
+      const path = `${workspaceId}/logo-${field}-${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage.from('workspace-logos').upload(path, file, {
         cacheControl: '3600',
         upsert: true,
@@ -57,7 +71,7 @@ function LogoUploader({ workspaceId, currentLogoUrl, onChange }: { workspaceId: 
       const { data: pub } = supabase.storage.from('workspace-logos').getPublicUrl(path);
       const url = pub.publicUrl;
       const { error: updErr } = await (supabase.from('workspaces' as any) as any)
-        .update({ logo_url: url })
+        .update({ [field]: url })
         .eq('id', workspaceId);
       if (updErr) throw updErr;
       onChange(url);
@@ -74,7 +88,7 @@ function LogoUploader({ workspaceId, currentLogoUrl, onChange }: { workspaceId: 
     setUploading(true);
     try {
       const { error } = await (supabase.from('workspaces' as any) as any)
-        .update({ logo_url: null })
+        .update({ [field]: null })
         .eq('id', workspaceId);
       if (error) throw error;
       onChange('');
@@ -87,13 +101,18 @@ function LogoUploader({ workspaceId, currentLogoUrl, onChange }: { workspaceId: 
     }
   };
 
+  const previewBg =
+    variant === 'light' ? 'bg-neutral-900' : variant === 'dark' ? 'bg-neutral-100' : 'bg-muted/40';
+  const previewIconColor =
+    variant === 'light' ? 'text-neutral-400' : variant === 'dark' ? 'text-neutral-500' : 'text-muted-foreground';
+
   return (
     <div className="flex items-center gap-3 mt-1">
-      <div className="h-12 w-12 rounded-md bg-muted/40 border border-border/50 flex items-center justify-center overflow-hidden shrink-0">
+      <div className={`h-12 w-12 rounded-md ${previewBg} border border-border/50 flex items-center justify-center overflow-hidden shrink-0`}>
         {currentLogoUrl ? (
-          <img src={currentLogoUrl} alt="" className="h-full w-full object-cover" />
+          <img src={currentLogoUrl} alt="" className="h-full w-full object-contain" />
         ) : (
-          <Building2 className="h-5 w-5 text-muted-foreground" />
+          <Building2 className={`h-5 w-5 ${previewIconColor}`} />
         )}
       </div>
       <div className="flex flex-col gap-1.5 flex-1 min-w-0">
@@ -179,6 +198,8 @@ function WorkspaceEditor({ workspace, canManage }: { workspace: any; canManage: 
     company_name: workspace.company_name || '',
     slug: workspace.slug || '',
     logo_url: workspace.logo_url || '',
+    logo_url_light: workspace.logo_url_light || '',
+    logo_url_dark: workspace.logo_url_dark || '',
     notification_email: workspace.notification_email || '',
   });
   const [confirmName, setConfirmName] = useState('');
@@ -245,12 +266,36 @@ function WorkspaceEditor({ workspace, canManage }: { workspace: any; canManage: 
           <Input className="h-8 text-sm" value={form.slug} onChange={(e) => setForm({ ...form, slug: slugify(e.target.value) })} />
         </div>
         <div>
-          <Label className="text-xs">Logo du workspace</Label>
+          <Label className="text-xs">Logo principal</Label>
           <LogoUploader
             workspaceId={workspace.id}
             currentLogoUrl={form.logo_url}
+            field="logo_url"
             onChange={(url) => setForm({ ...form, logo_url: url })}
           />
+          <p className="text-[10px] text-muted-foreground mt-1">Utilisé dans l'app et en repli sur les pages publiques.</p>
+        </div>
+        <div>
+          <Label className="text-xs">Logo clair (pour fonds sombres)</Label>
+          <LogoUploader
+            workspaceId={workspace.id}
+            currentLogoUrl={form.logo_url_light}
+            field="logo_url_light"
+            variant="light"
+            onChange={(url) => setForm({ ...form, logo_url_light: url })}
+          />
+          <p className="text-[10px] text-muted-foreground mt-1">Affiché sur les landing pages d'offres (fond noir).</p>
+        </div>
+        <div>
+          <Label className="text-xs">Logo sombre (pour fonds clairs)</Label>
+          <LogoUploader
+            workspaceId={workspace.id}
+            currentLogoUrl={form.logo_url_dark}
+            field="logo_url_dark"
+            variant="dark"
+            onChange={(url) => setForm({ ...form, logo_url_dark: url })}
+          />
+          <p className="text-[10px] text-muted-foreground mt-1">Utilisé pour les PDF (factures, contrats) et impressions.</p>
         </div>
         <div>
           <Label className="text-xs">Email de notification du workspace</Label>

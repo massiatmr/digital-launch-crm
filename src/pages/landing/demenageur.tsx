@@ -8,6 +8,7 @@ import {
   Target, Zap, Award, Clock, CheckCircle2
 } from 'lucide-react';
 import type { DbOffer } from '@/hooks/useOfferData';
+import type { OfferBranding } from '@/pages/PublicOfferPage';
 
 import portfolioParis from '@/assets/portfolio-demenagement-paris.png';
 import portfolioAmydem from '@/assets/portfolio-amydem.png';
@@ -37,19 +38,22 @@ const solutions = [
 
 interface Props {
   offer: DbOffer;
+  branding?: OfferBranding | null;
 }
 
-export default function DemenageurLanding({ offer }: Props) {
+export default function DemenageurLanding({ offer, branding }: Props) {
   const scrollToBooking = () => document.getElementById('booking-section')?.scrollIntoView({ behavior: 'smooth' });
+  const headerLogo = branding?.logo_url_light || branding?.logo_url || logoDigitalLaunch;
+  const brandName = branding?.company_name || 'Digital Launch';
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white overflow-x-hidden">
       {/* ─── Sticky Navbar ─── */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0a0a0f]/90 backdrop-blur-xl border-b border-white/5">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <img src={logoDigitalLaunch} alt="Digital Launch" className="h-8 w-8" />
-            <span className="font-bold text-lg tracking-tight">Digital Launch</span>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <img src={headerLogo} alt={brandName} className="h-9 w-auto max-h-9 max-w-[160px] object-contain" />
+            <span className="font-bold text-lg tracking-tight truncate">{brandName}</span>
           </div>
           <Button
             size="sm"
@@ -470,8 +474,8 @@ export default function DemenageurLanding({ offer }: Props) {
       <footer className="border-t border-white/[0.06] py-10 px-4">
         <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <img src={logoDigitalLaunch} alt="Digital Launch" className="h-6 w-6" loading="lazy" />
-            <span className="font-semibold text-sm text-gray-400">Digital Launch</span>
+            <img src={headerLogo} alt={brandName} className="h-6 w-auto max-h-6 max-w-[120px] object-contain" loading="lazy" />
+            <span className="font-semibold text-sm text-gray-400">{brandName}</span>
           </div>
           <p className="text-sm text-gray-600">© {new Date().getFullYear()} Tous droits réservés.</p>
         </div>
