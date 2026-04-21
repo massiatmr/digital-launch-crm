@@ -6,6 +6,12 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { GripVertical, Eye, EyeOff, Trash2, Save, Upload, Loader2, Tag, DollarSign } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+const ICON_OPTIONS = [
+  'AlertTriangle', 'AlertCircle', 'Clock', 'TrendingDown', 'Frown', 'Zap',
+  'Rocket', 'Target', 'Gift', 'Shield', 'Star', 'Trophy', 'Gem', 'Sparkles', 'Check',
+];
 import { useUpdateOffer, useUpdateOfferPage, type DbOffer, type DbOfferPage } from '@/hooks/useOfferData';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -205,16 +211,19 @@ export default function OfferStudioSidebar({ offer, page }: Props) {
                 updateSections(sections.map((sec, k) => (k === idx ? { ...sec, items: newItems } : sec)));
               };
               const addItem = () => {
+                const isHormoziPain = s.type === 'pain_points' && s.variant === 'hormozi';
                 const blank =
                   s.type === 'portfolio' ? { title: '', image: '', description: '' }
                   : s.type === 'faq' ? { question: '', answer: '' }
-                  : s.type === 'bonuses' || s.type === 'deliverables' ? { title: '', description: '' }
+                  : s.type === 'bonuses' || s.type === 'deliverables' ? { icon: 'Gift', title: '', description: '', value: '' }
+                  : isHormoziPain ? { icon: 'AlertCircle', title: '', description: '' }
                   : '';
                 updateSections(sections.map((sec, k) => (k === idx ? { ...sec, items: [...items, blank] } : sec)));
               };
               const updateField = (field: string, value: any) => {
                 updateSections(sections.map((sec, k) => (k === idx ? { ...sec, [field]: value } : sec)));
               };
+              const isHormoziPain = s.type === 'pain_points' && s.variant === 'hormozi';
 
               return (
                 <div key={idx} className={`group p-2.5 rounded-lg border ${s.hidden ? 'border-border/30 bg-muted/20 opacity-60' : 'border-border/60 bg-muted/40'} hover:border-primary/30 transition-colors`}>
@@ -257,11 +266,30 @@ export default function OfferStudioSidebar({ offer, page }: Props) {
                     </div>
                   )}
 
+                  {/* Pricing fields */}
+                  {s.type === 'pricing' && (
+                    <div className="mt-1.5 space-y-1.5">
+                      <Input value={s.anchor || ''} onChange={(e) => updateField('anchor', e.target.value)} placeholder="Prix barré (ex: 2997€)" className="text-xs h-7" />
+                      <Input value={s.final || ''} onChange={(e) => updateField('final', e.target.value)} placeholder="Prix final (ex: 997€)" className="text-xs h-7" />
+                    </div>
+                  )}
+
+                  {/* Deliverables total value */}
+                  {s.type === 'deliverables' && (
+                    <Input
+                      type="number"
+                      value={s.total_value || ''}
+                      onChange={(e) => updateField('total_value', Number(e.target.value) || 0)}
+                      placeholder="Valeur totale (€)"
+                      className="mt-1.5 text-xs h-7"
+                    />
+                  )}
+
                   {/* Items editor for sections that have items */}
                   {['pain_points', 'solution', 'deliverables', 'bonuses', 'faq', 'portfolio'].includes(s.type) && (
                     <div className="mt-2 space-y-1.5">
                       {items.map((it: any, i: number) => (
-                        <div key={i} className="flex gap-1 items-start">
+                        <div key={i} className="flex gap-1 items-start p-1.5 rounded bg-background/50 border border-border/40">
                           <div className="flex-1 space-y-1">
                             {s.type === 'faq' ? (
                               <>
@@ -276,8 +304,41 @@ export default function OfferStudioSidebar({ offer, page }: Props) {
                               </>
                             ) : s.type === 'bonuses' || s.type === 'deliverables' ? (
                               <>
-                                <Input value={it?.title || ''} onChange={(e) => updateItem(i, { ...it, title: e.target.value })} placeholder="Titre" className="text-xs h-7" />
-                                <Input value={it?.description || ''} onChange={(e) => updateItem(i, { ...it, description: e.target.value })} placeholder="Description" className="text-xs h-7" />
+                                <div className="flex gap-1">
+                                  <Select value={it?.icon || 'Gift'} onValueChange={(v) => updateItem(i, { ...it, icon: v })}>
+                                    <SelectTrigger className="text-xs h-7 w-24"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      {ICON_OPTIONS.map(ic => <SelectItem key={ic} value={ic} className="text-xs">{ic}</SelectItem>)}
+                                    </SelectContent>
+                                  </Select>
+                                  <Input value={it?.title || ''} onChange={(e) => updateItem(i, { ...it, title: e.target.value })} placeholder="Titre" className="text-xs h-7 flex-1" />
+                                  <Input value={it?.value || ''} onChange={(e) => updateItem(i, { ...it, value: e.target.value })} placeholder="997€" className="text-xs h-7 w-20" />
+                                </div>
+                                <Textarea value={it?.description || ''} onChange={(e) => updateItem(i, { ...it, description: e.target.value })} placeholder="Description" rows={2} className="text-xs resize-none" />
+                              </>
+                            ) : isHormoziPain ? (
+                              <>
+                                <div className="flex gap-1">
+                                  <Select value={it?.icon || 'AlertCircle'} onValueChange={(v) => updateItem(i, { ...(typeof it === 'object' ? it : {}), icon: v })}>
+                                    <SelectTrigger className="text-xs h-7 w-32"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      {ICON_OPTIONS.map(ic => <SelectItem key={ic} value={ic} className="text-xs">{ic}</SelectItem>)}
+                                    </SelectContent>
+                                  </Select>
+                                  <Input
+                                    value={typeof it === 'object' ? (it?.title || '') : ''}
+                                    onChange={(e) => updateItem(i, { ...(typeof it === 'object' ? it : { icon: 'AlertCircle' }), title: e.target.value })}
+                                    placeholder="Titre court"
+                                    className="text-xs h-7 flex-1"
+                                  />
+                                </div>
+                                <Textarea
+                                  value={typeof it === 'object' ? (it?.description || '') : (typeof it === 'string' ? it : '')}
+                                  onChange={(e) => updateItem(i, { ...(typeof it === 'object' ? it : { icon: 'AlertCircle', title: '' }), description: e.target.value })}
+                                  placeholder="Description du pain point"
+                                  rows={2}
+                                  className="text-xs resize-none"
+                                />
                               </>
                             ) : (
                               <Input value={typeof it === 'string' ? it : it?.text || ''} onChange={(e) => updateItem(i, e.target.value)} placeholder="Texte" className="text-xs h-7" />
