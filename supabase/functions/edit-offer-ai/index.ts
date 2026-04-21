@@ -215,6 +215,10 @@ Deno.serve(async (req) => {
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall) throw new Error("Pas de réponse structurée de l'IA");
     const result = JSON.parse(toolCall.function.arguments);
+    if (result?.page) {
+      result.page.sections = sanitizeSections(result.page.sections || []);
+      result.page.testimonials = Array.isArray(result.page.testimonials) ? result.page.testimonials : [];
+    }
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
