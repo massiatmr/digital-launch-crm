@@ -9,10 +9,11 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Package, Plus, ExternalLink, Trash2, Eye, EyeOff, Users, CalendarCheck, Loader2, Sparkles } from 'lucide-react';
+import { Package, Plus, ExternalLink, Trash2, Eye, EyeOff, Users, CalendarCheck, Loader2, Sparkles, Pencil } from 'lucide-react';
 import { motion } from 'framer-motion';
 import OfferAIWizard from '@/components/offers/OfferAIWizard';
 import { useNavigate } from 'react-router-dom';
+import { DialogFooter } from '@/components/ui/dialog';
 
 export default function OffersPage() {
   const navigate = useNavigate();
@@ -24,7 +25,14 @@ export default function OffersPage() {
   const updateOffer = useUpdateOffer();
   const [open, setOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [renameOffer, setRenameOffer] = useState<{ id: string; name: string } | null>(null);
   const [form, setForm] = useState({ name: '', description: '', price: '', niche: '' });
+
+  const handleRename = async () => {
+    if (!renameOffer || !renameOffer.name.trim()) return;
+    await updateOffer.mutateAsync({ id: renameOffer.id, name: renameOffer.name.trim() });
+    setRenameOffer(null);
+  };
 
   const handleCreate = async () => {
     if (!form.name.trim()) return;
@@ -82,6 +90,13 @@ export default function OffersPage() {
                         {offer.is_active ? <Eye className="h-4 w-4 text-green-400" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
                       </button>
                       <button
+                        onClick={() => setRenameOffer({ id: offer.id, name: offer.name })}
+                        className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                        title="Renommer"
+                      >
+                        <Pencil className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                      </button>
+                      <button
                         onClick={() => deleteOffer.mutate(offer.id)}
                         className="p-1.5 rounded-md hover:bg-destructive/10 transition-colors"
                       >
@@ -130,6 +145,26 @@ export default function OffersPage() {
         onOpenChange={setAiOpen}
         onCreated={(offerId) => navigate(`/offers/${offerId}/studio`)}
       />
+
+      <Dialog open={!!renameOffer} onOpenChange={(o) => !o && setRenameOffer(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Renommer l'offre</DialogTitle></DialogHeader>
+          <Input
+            value={renameOffer?.name || ''}
+            onChange={(e) => setRenameOffer((r) => r ? { ...r, name: e.target.value } : r)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleRename(); }}
+            placeholder="Nom de l'offre"
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameOffer(null)}>Annuler</Button>
+            <Button onClick={handleRename} disabled={!renameOffer?.name.trim() || updateOffer.isPending}>
+              {updateOffer.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Enregistrer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

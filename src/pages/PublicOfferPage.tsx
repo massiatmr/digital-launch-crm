@@ -125,14 +125,24 @@ export default function PublicOfferPage() {
           <div className="flex items-center gap-3 min-w-0">
             {(() => {
               const logo = branding?.logo_url_light || branding?.logo_url;
-              return logo ? (
-                <img
-                  src={logo}
-                  alt={branding?.company_name || offer.name}
-                  className="h-9 w-auto max-w-[160px] object-contain"
-                />
-              ) : (
-                <span className="font-bold text-lg tracking-tight truncate">{branding?.company_name || offer.name}</span>
+              const name = branding?.company_name || offer.name;
+              if (logo) {
+                return (
+                  <img
+                    src={logo}
+                    alt={name}
+                    className="h-9 w-auto max-w-[160px] object-contain"
+                  />
+                );
+              }
+              const initial = (name || '?').trim().charAt(0).toUpperCase();
+              return (
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="h-9 w-9 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center text-primary font-black text-base shrink-0">
+                    {initial}
+                  </div>
+                  <span className="font-bold text-base tracking-tight truncate">{name}</span>
+                </div>
               );
             })()}
           </div>
