@@ -24,6 +24,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import DemenageurLanding from '@/pages/landing/demenageur';
 import { getVisibleOfferItems, sanitizeOfferSections } from '@/lib/offerContent';
+import { buildBrandCssVars } from '@/lib/brandColor';
 
 // Branding shared across landing pages
 export interface OfferBranding {
@@ -117,21 +118,7 @@ export default function PublicOfferPage() {
   const portfolio = sections.find((s: any) => s.type === 'portfolio');
 
   const scrollToBooking = () => document.getElementById('booking-section')?.scrollIntoView({ behavior: 'smooth' });
-
-  // Brand color tokens injected so BookingSection (and any var(--brand) consumer) follows the workspace palette
-  const brand = branding?.brand_color || '#7C3AED';
-  const brandStyle = {
-    '--brand': brand,
-    '--brand-hover': `color-mix(in srgb, ${brand} 88%, white)`,
-    '--brand-soft': `color-mix(in srgb, ${brand} 18%, transparent)`,
-    '--brand-softer': `color-mix(in srgb, ${brand} 10%, transparent)`,
-    '--brand-border': `color-mix(in srgb, ${brand} 30%, transparent)`,
-    '--brand-border-strong': `color-mix(in srgb, ${brand} 50%, transparent)`,
-    '--brand-light': `color-mix(in srgb, ${brand} 70%, white)`,
-    '--brand-glow': `color-mix(in srgb, ${brand} 30%, transparent)`,
-    '--brand-deep': `color-mix(in srgb, ${brand} 25%, black)`,
-    '--brand-deep-border': `color-mix(in srgb, ${brand} 35%, black)`,
-  } as React.CSSProperties;
+  const brandStyle = buildBrandCssVars(branding?.brand_color) as React.CSSProperties;
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white overflow-x-hidden" style={brandStyle}>

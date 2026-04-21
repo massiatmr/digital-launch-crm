@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, ReactNode, cre
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { applyBrandToElement } from '@/lib/brandColor';
 
 export interface Workspace {
   id: string;
@@ -108,6 +109,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     () => workspaces.find((w) => w.id === currentId) || null,
     [workspaces, currentId]
   );
+
+  // Apply the workspace brand color globally so the entire CRM follows it.
+  useEffect(() => {
+    applyBrandToElement(currentWorkspace?.brand_color || null);
+  }, [currentWorkspace?.brand_color]);
 
   const value: WorkspaceContextValue = {
     workspaces,

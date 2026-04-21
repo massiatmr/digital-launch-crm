@@ -11,6 +11,7 @@ import type { DbOffer } from '@/hooks/useOfferData';
 import { useOfferPage } from '@/hooks/useOfferData';
 import { type OfferBranding, HormoziIcon } from '@/pages/PublicOfferPage';
 import { getVisibleOfferItems, sanitizeOfferSections } from '@/lib/offerContent';
+import { buildBrandCssVars } from '@/lib/brandColor';
 
 import portfolioParis from '@/assets/portfolio-demenagement-paris.png';
 import portfolioAmydem from '@/assets/portfolio-amydem.png';
@@ -87,21 +88,9 @@ export default function DemenageurLanding({ offer, branding }: Props) {
   const pricing = showPrice ? findSection('pricing') : null;
 
   // Brand color drives the entire accent palette of the landing.
-  // Fallback to the historical red (#dc2626 = red-600) so the design stays identical
+  // Fallback to the historical red (#dc2626) so the design stays identical
   // when no brand color is set on the workspace.
-  const brand = branding?.brand_color || '#dc2626';
-  const brandStyle = {
-    '--brand': brand,
-    '--brand-hover': `color-mix(in srgb, ${brand} 88%, white)`,
-    '--brand-soft': `color-mix(in srgb, ${brand} 18%, transparent)`,
-    '--brand-softer': `color-mix(in srgb, ${brand} 10%, transparent)`,
-    '--brand-border': `color-mix(in srgb, ${brand} 30%, transparent)`,
-    '--brand-border-strong': `color-mix(in srgb, ${brand} 50%, transparent)`,
-    '--brand-light': `color-mix(in srgb, ${brand} 70%, white)`,
-    '--brand-glow': `color-mix(in srgb, ${brand} 30%, transparent)`,
-    '--brand-deep': `color-mix(in srgb, ${brand} 25%, black)`,
-    '--brand-deep-border': `color-mix(in srgb, ${brand} 35%, black)`,
-  } as React.CSSProperties;
+  const brandStyle = buildBrandCssVars(branding?.brand_color || '#dc2626') as React.CSSProperties;
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white overflow-x-hidden" style={brandStyle}>
