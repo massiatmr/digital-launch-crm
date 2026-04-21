@@ -201,6 +201,7 @@ function WorkspaceEditor({ workspace, canManage }: { workspace: any; canManage: 
     logo_url_light: workspace.logo_url_light || '',
     logo_url_dark: workspace.logo_url_dark || '',
     notification_email: workspace.notification_email || '',
+    brand_color: workspace.brand_color || '#7C3AED',
   });
   const [confirmName, setConfirmName] = useState('');
   const [impact, setImpact] = useState<{ leads: number; clients: number; offers: number; invoices: number } | null>(null);
@@ -487,7 +488,7 @@ export default function SettingsWorkspacesPage() {
         </Dialog>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="grid gap-3 grid-cols-1 max-w-3xl">
         {workspaces.map((w) => {
           const isCurrent = w.id === currentWorkspaceId;
           const canManage = w.role === 'owner' || isAdmin;
