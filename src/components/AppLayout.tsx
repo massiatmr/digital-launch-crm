@@ -34,14 +34,16 @@ export function AppLayout() {
 
   return (
     <SidebarContext.Provider value={{ collapsed, setCollapsed }}>
-      <div className="flex min-h-screen">
+      <div className="min-h-screen flex flex-col">
         <WorkspaceHeader />
-        {!isMobile && <AppSidebar />}
-        <main className={`flex-1 transition-all duration-300 overflow-x-hidden pt-20 ${
-          isMobile ? 'p-4 pt-20 pb-24' : collapsed ? 'ml-16 p-6 lg:p-8 pt-20' : 'ml-60 p-6 lg:p-8 pt-20'
-        }`}>
-          <Outlet />
-        </main>
+        <div className="flex flex-1">
+          {!isMobile && <AppSidebar />}
+          <main className={`flex-1 transition-all duration-300 overflow-x-hidden ${
+            isMobile ? 'p-4 pb-24' : collapsed ? 'ml-16 p-6 lg:p-8' : 'ml-60 p-6 lg:p-8'
+          }`}>
+            <Outlet />
+          </main>
+        </div>
         {isMobile && <MobileBottomNav />}
         <EnableNotificationsPrompt />
       </div>
