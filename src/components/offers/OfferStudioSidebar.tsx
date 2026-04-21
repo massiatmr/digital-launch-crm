@@ -194,35 +194,108 @@ export default function OfferStudioSidebar({ offer, page }: Props) {
           <p className="text-xs text-muted-foreground italic">Demande à l'IA d'ajouter des sections</p>
         ) : (
           <div className="space-y-2">
-            {sections.map((s, idx) => (
-              <div key={idx} className={`group p-2.5 rounded-lg border ${s.hidden ? 'border-border/30 bg-muted/20 opacity-60' : 'border-border/60 bg-muted/40'} hover:border-primary/30 transition-colors`}>
-                <div className="flex items-center gap-1.5">
-                  <button onClick={() => moveSection(idx, -1)} disabled={idx === 0} className="p-0.5 hover:text-primary disabled:opacity-30">
-                    <GripVertical className="h-3.5 w-3.5" />
-                  </button>
-                  <Badge variant="outline" className="text-[10px] py-0 px-1.5">{SECTION_LABELS[s.type] || s.type}</Badge>
-                  <div className="flex-1" />
-                  <button onClick={() => toggleSection(idx)} className="p-1 hover:text-primary" title={s.hidden ? 'Afficher' : 'Masquer'}>
-                    {s.hidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                  </button>
-                  <button onClick={() => deleteSection(idx)} className="p-1 hover:text-destructive">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+            {sections.map((s, idx) => {
+              const items: any[] = Array.isArray(s.items) ? s.items : [];
+              const updateItem = (i: number, value: any) => {
+                const newItems = items.map((it, j) => (j === i ? value : it));
+                updateSections(sections.map((sec, k) => (k === idx ? { ...sec, items: newItems } : sec)));
+              };
+              const removeItem = (i: number) => {
+                const newItems = items.filter((_, j) => j !== i);
+                updateSections(sections.map((sec, k) => (k === idx ? { ...sec, items: newItems } : sec)));
+              };
+              const addItem = () => {
+                const blank =
+                  s.type === 'portfolio' ? { title: '', image: '', description: '' }
+                  : s.type === 'faq' ? { question: '', answer: '' }
+                  : s.type === 'bonuses' || s.type === 'deliverables' ? { title: '', description: '' }
+                  : '';
+                updateSections(sections.map((sec, k) => (k === idx ? { ...sec, items: [...items, blank] } : sec)));
+              };
+              const updateField = (field: string, value: any) => {
+                updateSections(sections.map((sec, k) => (k === idx ? { ...sec, [field]: value } : sec)));
+              };
+
+              return (
+                <div key={idx} className={`group p-2.5 rounded-lg border ${s.hidden ? 'border-border/30 bg-muted/20 opacity-60' : 'border-border/60 bg-muted/40'} hover:border-primary/30 transition-colors`}>
+                  <div className="flex items-center gap-1.5">
+                    <button onClick={() => moveSection(idx, -1)} disabled={idx === 0} className="p-0.5 hover:text-primary disabled:opacity-30">
+                      <GripVertical className="h-3.5 w-3.5" />
+                    </button>
+                    <Badge variant="outline" className="text-[10px] py-0 px-1.5">{SECTION_LABELS[s.type] || s.type}</Badge>
+                    <div className="flex-1" />
+                    <button onClick={() => toggleSection(idx)} className="p-1 hover:text-primary" title={s.hidden ? 'Afficher' : 'Masquer'}>
+                      {s.hidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    </button>
+                    <button onClick={() => deleteSection(idx)} className="p-1 hover:text-destructive">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <Input
+                    value={s.title || ''}
+                    onChange={(e) => updateField('title', e.target.value)}
+                    placeholder="Titre de la section"
+                    className="mt-1.5 text-xs h-7"
+                  />
+
+                  {/* Description for sections that support it */}
+                  {(s.type === 'solution' || s.type === 'guarantee') && (
+                    <Textarea
+                      value={s.description || ''}
+                      onChange={(e) => updateField('description', e.target.value)}
+                      placeholder="Description"
+                      rows={2}
+                      className="mt-1.5 text-xs resize-none"
+                    />
+                  )}
+
+                  {/* Avant/Après transformation */}
+                  {s.type === 'transformation' && (
+                    <div className="mt-1.5 space-y-1.5">
+                      <Textarea value={s.before || ''} onChange={(e) => updateField('before', e.target.value)} placeholder="Avant" rows={2} className="text-xs resize-none" />
+                      <Textarea value={s.after || ''} onChange={(e) => updateField('after', e.target.value)} placeholder="Après" rows={2} className="text-xs resize-none" />
+                    </div>
+                  )}
+
+                  {/* Items editor for sections that have items */}
+                  {['pain_points', 'solution', 'deliverables', 'bonuses', 'faq', 'portfolio'].includes(s.type) && (
+                    <div className="mt-2 space-y-1.5">
+                      {items.map((it: any, i: number) => (
+                        <div key={i} className="flex gap-1 items-start">
+                          <div className="flex-1 space-y-1">
+                            {s.type === 'faq' ? (
+                              <>
+                                <Input value={it?.question || ''} onChange={(e) => updateItem(i, { ...it, question: e.target.value })} placeholder="Question" className="text-xs h-7" />
+                                <Textarea value={it?.answer || ''} onChange={(e) => updateItem(i, { ...it, answer: e.target.value })} placeholder="Réponse" rows={2} className="text-xs resize-none" />
+                              </>
+                            ) : s.type === 'portfolio' ? (
+                              <>
+                                <Input value={it?.title || ''} onChange={(e) => updateItem(i, { ...it, title: e.target.value })} placeholder="Titre du projet" className="text-xs h-7" />
+                                <Input value={it?.image || ''} onChange={(e) => updateItem(i, { ...it, image: e.target.value })} placeholder="URL de l'image" className="text-xs h-7" />
+                                <Input value={it?.description || ''} onChange={(e) => updateItem(i, { ...it, description: e.target.value })} placeholder="Description" className="text-xs h-7" />
+                              </>
+                            ) : s.type === 'bonuses' || s.type === 'deliverables' ? (
+                              <>
+                                <Input value={it?.title || ''} onChange={(e) => updateItem(i, { ...it, title: e.target.value })} placeholder="Titre" className="text-xs h-7" />
+                                <Input value={it?.description || ''} onChange={(e) => updateItem(i, { ...it, description: e.target.value })} placeholder="Description" className="text-xs h-7" />
+                              </>
+                            ) : (
+                              <Input value={typeof it === 'string' ? it : it?.text || ''} onChange={(e) => updateItem(i, e.target.value)} placeholder="Texte" className="text-xs h-7" />
+                            )}
+                          </div>
+                          <button onClick={() => removeItem(i)} className="p-1 hover:text-destructive mt-0.5">
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                      <Button variant="outline" size="sm" onClick={addItem} className="w-full h-7 text-xs">
+                        + Ajouter
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                <Input
-                  value={s.title || ''}
-                  onChange={(e) => {
-                    const next = sections.map((sec, i) => i === idx ? { ...sec, title: e.target.value } : sec);
-                    updateSections(next);
-                  }}
-                  placeholder="Titre de la section"
-                  className="mt-1.5 text-xs h-7"
-                />
-                <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
-                  <span>{Array.isArray(s.items) ? `${s.items.length} éléments` : (s.before ? 'Avant/Après' : '—')}</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
