@@ -415,9 +415,11 @@ export default function SettingsWorkspacesPage() {
           <p className="text-sm text-muted-foreground">Crée un espace par client/projet pour cloisonner leads, configs et branding.</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2"><Plus className="h-4 w-4" />Créer un espace</Button>
-          </DialogTrigger>
+          {isAdmin && (
+            <DialogTrigger asChild>
+              <Button className="gap-2"><Plus className="h-4 w-4" />Créer un espace</Button>
+            </DialogTrigger>
+          )}
           <DialogContent>
             <DialogHeader><DialogTitle>Nouvel espace de travail</DialogTitle></DialogHeader>
             <div className="space-y-4 py-2">
