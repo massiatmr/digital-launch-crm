@@ -48,20 +48,29 @@ Deno.serve(async (req) => {
         const phone_number_id = value.metadata?.phone_number_id;
         if (!phone_number_id) continue;
 
-        const { data: cfg } = await admin
+        // Plusieurs workspaces peuvent partager le même phone_number_id (legacy).
+        // On prend en priorité la config active, sinon la plus récente.
+        const { data: cfgs, error: cfgErr } = await admin
           .from("whatsapp_config")
-          .select("owner_id, is_active, workspace_id")
+          .select("owner_id, is_active, workspace_id, access_token")
           .eq("phone_number_id", phone_number_id)
-          .maybeSingle();
-        if (!cfg || !cfg.is_active) continue;
-
-        // Récupérer access_token pour téléchargement média
-        const { data: cfgFull } = await admin
-          .from("whatsapp_config")
-          .select("access_token")
-          .eq("phone_number_id", phone_number_id)
-          .maybeSingle();
-        const accessToken = cfgFull?.access_token;
+          .order("is_active", { ascending: false })
+          .order("updated_at", { ascending: false })
+          .limit(1);
+        if (cfgErr) {
+          console.error("whatsapp_config lookup error:", cfgErr);
+          continue;
+        }
+        const cfg = cfgs?.[0];
+        if (!cfg) {
+          console.warn(`No whatsapp_config found for phone_number_id=${phone_number_id}`);
+          continue;
+        }
+        if (!cfg.is_active) {
+          console.warn(`whatsapp_config inactive for phone_number_id=${phone_number_id}, skipping`);
+          continue;
+        }
+        const accessToken = cfg.access_token;
 
         for (const msg of value.messages) {
           const from = normalizePhone(msg.from);
