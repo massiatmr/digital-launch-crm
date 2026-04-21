@@ -117,7 +117,7 @@ export default function PublicOfferPage() {
             <Button size="lg" onClick={scrollToBooking} className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-full px-10 py-6 text-lg font-semibold shadow-lg">
               {ctaText} <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
-            {offer.price && <span className="text-sm text-gray-500">{offer.price}</span>}
+            {(offer as any).show_price && offer.price && <span className="text-sm text-gray-500">{offer.price}</span>}
           </div>
           {guarantee && (
             <div className="mt-8 flex items-center justify-center gap-2 text-sm text-emerald-400">
