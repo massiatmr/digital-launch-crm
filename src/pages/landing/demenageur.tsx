@@ -43,8 +43,10 @@ interface Props {
 
 export default function DemenageurLanding({ offer, branding }: Props) {
   const scrollToBooking = () => document.getElementById('booking-section')?.scrollIntoView({ behavior: 'smooth' });
-  const headerLogo = branding?.logo_url_light || branding?.logo_url || logoDigitalLaunch;
+  const workspaceLogo = branding?.logo_url_light || branding?.logo_url;
+  const headerLogo = workspaceLogo || logoDigitalLaunch;
   const brandName = branding?.company_name || 'Digital Launch';
+  const showBrandText = !workspaceLogo;
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white overflow-x-hidden">
@@ -52,8 +54,10 @@ export default function DemenageurLanding({ offer, branding }: Props) {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0a0a0f]/90 backdrop-blur-xl border-b border-white/5">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5 min-w-0">
-            <img src={headerLogo} alt={brandName} className="h-9 w-auto max-h-9 max-w-[160px] object-contain" />
-            <span className="font-bold text-lg tracking-tight truncate">{brandName}</span>
+            <img src={headerLogo} alt={brandName} className="h-9 w-auto max-h-9 max-w-[200px] object-contain" />
+            {showBrandText && (
+              <span className="font-bold text-lg tracking-tight truncate">{brandName}</span>
+            )}
           </div>
           <Button
             size="sm"
