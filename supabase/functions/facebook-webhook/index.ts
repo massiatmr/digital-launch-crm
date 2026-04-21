@@ -370,12 +370,23 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
           extrasCount: extras.length,
         });
 
-        let notesContent = `📘 Facebook Lead Ads\n- Form ID: ${formId ?? "N/A"}`;
+        // Format structuré et lisible pour les notes (markdown léger)
+        const receivedAt = leadData.created_time ?? new Date().toISOString();
+        const lines: string[] = [];
+        lines.push("📘 Lead Facebook Ads");
+        lines.push("");
         if (extras.length > 0) {
-          notesContent += "\n- " + extras.join("\n- ");
+          lines.push("📋 Réponses au formulaire");
+          for (const { label, value } of extras) {
+            lines.push(`• ${label} : ${value}`);
+          }
+          lines.push("");
         }
-        notesContent += `\n- Leadgen ID: ${leadgenId}`;
-        notesContent += `\n- Reçu le: ${leadData.created_time ?? new Date().toISOString()}`;
+        lines.push("ℹ️ Source");
+        lines.push(`• Form ID : ${formId ?? "N/A"}`);
+        lines.push(`• Leadgen ID : ${leadgenId}`);
+        lines.push(`• Reçu le : ${new Date(receivedAt).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Paris" })}`);
+        const notesContent = lines.join("\n");
 
         let existingLead: LeadLookupResult | null = null;
 
