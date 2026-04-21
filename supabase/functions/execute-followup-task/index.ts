@@ -91,16 +91,35 @@ Deno.serve(async (req) => {
       ownerId = user.id;
     }
 
-    const { data: task, error: taskErr } = await admin
-      .from("lead_followup_tasks").select("*").eq("id", task_id).maybeSingle();
+    // === LOCK ANTI-DOUBLON ATOMIQUE ===
+    // On claim la tâche en la passant à 'processing' uniquement si elle est encore 'scheduled' ou 'pending'.
+    // Si une autre exécution concurrente l'a déjà claim, l'UPDATE retourne 0 ligne → on abort proprement.
+    const { data: claimed, error: claimErr } = await admin
+      .from("lead_followup_tasks")
+      .update({ status: "processing", updated_at: new Date().toISOString() } as any)
+      .eq("id", task_id)
+      .in("status", ["scheduled", "pending"])
+      .select("*")
+      .maybeSingle();
 
-    if (taskErr || !task) return new Response(JSON.stringify({ error: "Task not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (claimErr) {
+      return new Response(JSON.stringify({ error: "Claim failed", details: claimErr.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    if (!claimed) {
+      // Soit la tâche n'existe pas, soit elle a déjà été claim (sent/cancelled/processing/failed)
+      const { data: existing } = await admin.from("lead_followup_tasks").select("status").eq("id", task_id).maybeSingle();
+      if (!existing) return new Response(JSON.stringify({ error: "Task not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ ok: true, skipped: true, reason: `already_${existing.status}` }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const task = claimed;
 
     if (isInternalCron) ownerId = task.owner_id;
-    else if (task.owner_id !== ownerId) return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-
-    if (task.status === 'sent' || task.status === 'cancelled') {
-      return new Response(JSON.stringify({ error: `Task already ${task.status}` }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    else if (task.owner_id !== ownerId) {
+      // Rollback du lock si forbidden
+      await admin.from("lead_followup_tasks").update({ status: "scheduled" } as any).eq("id", task_id);
+      return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Tâches manuelles (appel) : ne rien envoyer, juste marquer comme "à faire"
