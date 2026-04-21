@@ -1,15 +1,13 @@
 import logo from '@/assets/logo.webp';
 import { useWorkspaces } from '@/hooks/useWorkspaces';
 import { cn } from '@/lib/utils';
+import { HeaderNotifications } from './HeaderNotifications';
+import { HeaderMessages } from './HeaderMessages';
 
 interface Props {
   className?: string;
 }
 
-/**
- * Header séparé affiché au-dessus de la sidebar.
- * Affiche le logo du workspace actif. Si aucun logo défini → logo Digital Launch par défaut.
- */
 export function WorkspaceHeader({ className }: Props) {
   const { currentWorkspace } = useWorkspaces();
   const logoUrl = currentWorkspace?.logo_url || logo;
@@ -18,7 +16,7 @@ export function WorkspaceHeader({ className }: Props) {
   return (
     <header
       className={cn(
-        'h-16 flex items-center px-6 border-b border-border/50 backdrop-blur-sm fixed top-0 left-0 right-0 z-50',
+        'h-16 flex items-center justify-between px-6 border-b border-border/50 backdrop-blur-sm fixed top-0 left-0 right-0 z-50',
         className
       )}
       style={{
@@ -33,6 +31,10 @@ export function WorkspaceHeader({ className }: Props) {
           (e.currentTarget as HTMLImageElement).src = logo;
         }}
       />
+      <div className="flex items-center gap-1">
+        <HeaderMessages />
+        <HeaderNotifications />
+      </div>
     </header>
   );
 }
