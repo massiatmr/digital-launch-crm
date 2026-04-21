@@ -84,6 +84,27 @@ async function createGoogleCalendarEvent(
   };
 }
 
+async function markLeadBookedAndStopAutomations(admin: any, lead: any, reason: string) {
+  await admin.from("lead_conversation_state").upsert({
+    lead_id: lead.id,
+    owner_id: lead.owner_id,
+    workspace_id: lead.workspace_id ?? null,
+    state: "BOOKED",
+    updated_at: new Date().toISOString(),
+  } as any, { onConflict: "lead_id" });
+
+  await admin
+    .from("lead_followup_tasks")
+    .update({
+      status: "cancelled",
+      error_message: reason,
+      updated_at: new Date().toISOString(),
+    } as any)
+    .eq("lead_id", lead.id)
+    .in("status", ["scheduled", "pending", "processing"])
+    .neq("task_type", "manual_call");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
