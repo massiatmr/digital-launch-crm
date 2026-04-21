@@ -1311,6 +1311,54 @@ export type Database = {
           },
         ]
       }
+      offer_ai_chats: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          offer_id: string
+          owner_id: string
+          role: string
+          snapshot: Json | null
+          workspace_id: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          offer_id: string
+          owner_id?: string
+          role: string
+          snapshot?: Json | null
+          workspace_id?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          offer_id?: string
+          owner_id?: string
+          role?: string
+          snapshot?: Json | null
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "offer_ai_chats_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "offers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offer_ai_chats_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       offer_pages: {
         Row: {
           body_content: Json | null
@@ -1368,12 +1416,14 @@ export type Database = {
           deleted_at: string | null
           description: string | null
           features: Json | null
+          hero_image_url: string | null
           id: string
           is_active: boolean
           name: string
           niche: string | null
           owner_id: string
           price: string | null
+          show_price: boolean
           slug: string
           updated_at: string
           workspace_id: string | null
@@ -1384,12 +1434,14 @@ export type Database = {
           deleted_at?: string | null
           description?: string | null
           features?: Json | null
+          hero_image_url?: string | null
           id?: string
           is_active?: boolean
           name: string
           niche?: string | null
           owner_id?: string
           price?: string | null
+          show_price?: boolean
           slug: string
           updated_at?: string
           workspace_id?: string | null
@@ -1400,12 +1452,14 @@ export type Database = {
           deleted_at?: string | null
           description?: string | null
           features?: Json | null
+          hero_image_url?: string | null
           id?: string
           is_active?: boolean
           name?: string
           niche?: string | null
           owner_id?: string
           price?: string | null
+          show_price?: boolean
           slug?: string
           updated_at?: string
           workspace_id?: string | null
