@@ -264,7 +264,7 @@ export default function PublicOfferPage() {
       )}
 
       {/* ─── Bonuses (Hormozi) ─── */}
-      {bonuses && Array.isArray(bonuses.items) && bonuses.items.length > 0 && (
+      {bonuses && getVisibleOfferItems(bonuses).length > 0 && (
         <section className="py-20 px-4 bg-gradient-to-b from-transparent via-yellow-500/[0.04] to-transparent">
           <div className="max-w-3xl mx-auto">
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
@@ -273,7 +273,7 @@ export default function PublicOfferPage() {
                 <h2 className="text-3xl sm:text-4xl font-bold">{bonuses.title || 'Bonus exclusifs'}</h2>
               </div>
               <div className="space-y-4">
-                {bonuses.items.map((b: any, i: number) => (
+                {getVisibleOfferItems(bonuses).map((b: any, i: number) => (
                   <motion.div key={i} initial={{ opacity: 0, y: 15 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }}
                     className="p-5 rounded-xl bg-yellow-500/[0.05] border border-yellow-500/20">
                     <div className="flex items-start justify-between gap-3">
@@ -314,13 +314,13 @@ export default function PublicOfferPage() {
                 <Sparkles className="h-8 w-8 text-primary mx-auto mb-4" />
                 <h2 className="text-3xl sm:text-4xl font-bold">{solution.title || "Et bien c'est votre jour de chance !"}</h2>
               </div>
-              {Array.isArray(solution.items) && (
+              {getVisibleOfferItems(solution).length > 0 && (
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {solution.items.map((item: string, i: number) => (
+                  {getVisibleOfferItems(solution).map((item: any, i: number) => (
                     <motion.div key={i} initial={{ opacity: 0, y: 15 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }}
                       className="flex items-start gap-3 p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
                       <Check className="h-5 w-5 text-emerald-400 mt-0.5 shrink-0" />
-                      <span className="text-gray-300">{item}</span>
+                      <span className="text-gray-300">{typeof item === 'string' ? item : item.title || item.description}</span>
                     </motion.div>
                   ))}
                 </div>
@@ -355,7 +355,7 @@ export default function PublicOfferPage() {
       )}
 
       {/* ─── Portfolio ─── */}
-      {portfolio && Array.isArray(portfolio.items) && portfolio.items.length > 0 && (
+      {portfolio && getVisibleOfferItems(portfolio).length > 0 && (
         <section className="py-20 px-4 bg-gradient-to-b from-transparent via-white/[0.01] to-transparent">
           <div className="max-w-5xl mx-auto">
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
@@ -364,7 +364,7 @@ export default function PublicOfferPage() {
                 <h2 className="text-3xl sm:text-4xl font-bold">{portfolio.title || 'Nos Réalisations'}</h2>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {portfolio.items.map((item: any, i: number) => (
+                {getVisibleOfferItems(portfolio).map((item: any, i: number) => (
                   <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
                     className="rounded-2xl overflow-hidden border border-white/[0.06] bg-white/[0.02]">
                     {item.image && <img src={item.image} alt={item.title || ''} className="w-full h-48 object-cover" />}
@@ -425,13 +425,13 @@ export default function PublicOfferPage() {
       )}
 
       {/* ─── FAQ (Hormozi) ─── */}
-      {faq && Array.isArray(faq.items) && faq.items.length > 0 && (
+      {faq && getVisibleOfferItems(faq).length > 0 && (
         <section className="py-20 px-4">
           <div className="max-w-3xl mx-auto">
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
               <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12">{faq.title || 'Questions fréquentes'}</h2>
               <div className="space-y-3">
-                {faq.items.map((q: any, i: number) => (
+                {getVisibleOfferItems(faq).map((q: any, i: number) => (
                   <motion.div key={i} initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.05 }}
                     className="p-5 rounded-xl bg-white/[0.03] border border-white/[0.06]">
                     <p className="font-semibold text-white mb-2">{q.question}</p>
