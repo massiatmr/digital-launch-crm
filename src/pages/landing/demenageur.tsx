@@ -10,6 +10,7 @@ import {
 import type { DbOffer } from '@/hooks/useOfferData';
 import { useOfferPage } from '@/hooks/useOfferData';
 import { type OfferBranding, HormoziIcon } from '@/pages/PublicOfferPage';
+import { getVisibleOfferItems, sanitizeOfferSections } from '@/lib/offerContent';
 
 import portfolioParis from '@/assets/portfolio-demenagement-paris.png';
 import portfolioAmydem from '@/assets/portfolio-amydem.png';
@@ -54,7 +55,7 @@ export default function DemenageurLanding({ offer, branding }: Props) {
 
   // ─── Read sections from Studio ───
   const allSections = Array.isArray(offerPage?.sections) ? offerPage!.sections : [];
-  const sections = (allSections as any[]).filter((s) => !s?.hidden);
+  const sections = sanitizeOfferSections((allSections as any[]).filter((s) => !s?.hidden));
   const findSection = (type: string) => sections.find((s) => s.type === type);
 
   const heroHeadline = offerPage?.headline?.trim();
@@ -62,16 +63,18 @@ export default function DemenageurLanding({ offer, branding }: Props) {
   const ctaText = offerPage?.cta_text?.trim() || 'Réserver un Appel';
 
   const painPointsSection = findSection('pain_points');
+  const cleanPainItems = getVisibleOfferItems(painPointsSection);
   const painItems: any[] =
-    Array.isArray(painPointsSection?.items) && painPointsSection.items.length > 0
-      ? painPointsSection.items
+    cleanPainItems.length > 0
+      ? cleanPainItems
       : FALLBACK_PAIN_POINTS;
   const painTitle = painPointsSection?.title || 'Est-ce que cela vous ressemble ?';
 
   const solutionSection = findSection('solution');
+  const cleanSolutionItems = getVisibleOfferItems(solutionSection);
   const solutionItems: string[] =
-    Array.isArray(solutionSection?.items) && solutionSection.items.length > 0
-      ? solutionSection.items.map((it: any) => (typeof it === 'string' ? it : it?.title || it?.description || ''))
+    cleanSolutionItems.length > 0
+      ? cleanSolutionItems.map((it: any) => (typeof it === 'string' ? it : it?.title || it?.description || '')).filter(Boolean)
       : FALLBACK_SOLUTIONS;
   const solutionTitle = solutionSection?.title || "Et bien c'est votre jour de chance !";
 
@@ -286,7 +289,7 @@ export default function DemenageurLanding({ offer, branding }: Props) {
       </section>
 
       {/* ─── Deliverables (data-driven) ─── */}
-      {deliverables && Array.isArray(deliverables.items) && deliverables.items.length > 0 && (
+      {deliverables && getVisibleOfferItems(deliverables).length > 0 && (
         <section className="py-24 px-4">
           <div className="max-w-4xl mx-auto">
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
@@ -299,7 +302,7 @@ export default function DemenageurLanding({ offer, branding }: Props) {
                 </h2>
               </div>
               <div className="space-y-4">
-                {deliverables.items.map((d: any, i: number) => {
+                {getVisibleOfferItems(deliverables).map((d: any, i: number) => {
                   const isObj = d && typeof d === 'object';
                   const iconName = isObj ? (d.icon || 'Check') : 'Check';
                   const title = isObj ? d.title : (typeof d === 'string' ? d : '');
@@ -496,7 +499,7 @@ export default function DemenageurLanding({ offer, branding }: Props) {
       </section>
 
       {/* ─── Bonuses (data-driven) ─── */}
-      {bonuses && Array.isArray(bonuses.items) && bonuses.items.length > 0 && (
+      {bonuses && getVisibleOfferItems(bonuses).length > 0 && (
         <section className="py-24 px-4 bg-gradient-to-b from-transparent via-yellow-500/[0.04] to-transparent">
           <div className="max-w-3xl mx-auto">
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
@@ -505,7 +508,7 @@ export default function DemenageurLanding({ offer, branding }: Props) {
                 <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black">{bonuses.title || 'Bonus exclusifs'}</h2>
               </div>
               <div className="space-y-4">
-                {bonuses.items.map((b: any, i: number) => {
+                {getVisibleOfferItems(bonuses).map((b: any, i: number) => {
                   const isObj = b && typeof b === 'object';
                   const title = isObj ? b.title : (typeof b === 'string' ? b : '');
                   const desc = isObj ? b.description : '';
@@ -575,7 +578,7 @@ export default function DemenageurLanding({ offer, branding }: Props) {
       </section>
 
       {/* ─── FAQ (data-driven, if configured) ─── */}
-      {faq && Array.isArray(faq.items) && faq.items.length > 0 && (
+      {faq && getVisibleOfferItems(faq).length > 0 && (
         <section className="py-24 px-4">
           <div className="max-w-3xl mx-auto">
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
@@ -583,7 +586,7 @@ export default function DemenageurLanding({ offer, branding }: Props) {
                 {faq.title || 'Questions fréquentes'}
               </h2>
               <div className="space-y-4">
-                {faq.items.map((q: any, i: number) => {
+                {getVisibleOfferItems(faq).map((q: any, i: number) => {
                   const isObj = q && typeof q === 'object';
                   const question = isObj ? (q.question || q.title) : (typeof q === 'string' ? q : '');
                   const answer = isObj ? (q.answer || q.description) : '';
