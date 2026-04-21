@@ -387,6 +387,7 @@ Deno.serve(async (req) => {
     await admin.from("whatsapp_messages").insert({
       lead_id: task.lead_id,
       owner_id: ownerId,
+      workspace_id: lead.workspace_id ?? null,
       direction: 'outbound',
       content: messageContent,
       task_id: task_id,
