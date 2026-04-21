@@ -20,6 +20,105 @@ const TASK_LABEL: Record<string, string> = {
 
 const PUBLIC_BASE_URL = "https://digital-launch-crm.lovable.app";
 
+// Créneaux par défaut (cohérent avec check-availability)
+const DEFAULT_SLOTS = [
+  "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30",
+];
+const MEETING_DURATION_MS = 60 * 60 * 1000;
+
+async function refreshGoogleToken(refreshToken: string): Promise<string | null> {
+  const clientId = Deno.env.get("Google_Client_id")!;
+  const clientSecret = Deno.env.get("Client_secret")!;
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, refresh_token: refreshToken, grant_type: "refresh_token" }),
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.access_token || null;
+}
+
+async function getGoogleAccessToken(admin: any, ownerId: string): Promise<string | null> {
+  const { data: tokens } = await admin.from("google_tokens").select("*").eq("user_id", ownerId).maybeSingle();
+  if (!tokens) return null;
+  const expiresAt = new Date(tokens.expires_at);
+  if (expiresAt.getTime() - Date.now() > 5 * 60 * 1000) return tokens.access_token;
+  const newToken = await refreshGoogleToken(tokens.refresh_token);
+  if (newToken) {
+    await admin.from("google_tokens").update({ access_token: newToken, expires_at: new Date(Date.now() + 3500 * 1000).toISOString() } as any).eq("user_id", ownerId);
+  }
+  return newToken;
+}
+
+/**
+ * Retourne les 3 prochains créneaux libres (bookings DB + Google FreeBusy).
+ */
+async function getNextAvailableSlots(admin: any, ownerId: string, workspaceId: string | null): Promise<string[]> {
+  const now = new Date();
+  const searchEnd = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000);
+
+  let bQuery = admin
+    .from("bookings")
+    .select("booking_date, time_slot")
+    .gte("booking_date", now.toISOString().slice(0, 10))
+    .lte("booking_date", searchEnd.toISOString().slice(0, 10))
+    .neq("status", "cancelled")
+    .is("deleted_at", null);
+  if (workspaceId) bQuery = bQuery.eq("workspace_id", workspaceId);
+  else bQuery = bQuery.eq("owner_id", ownerId);
+  const { data: bookings } = await bQuery;
+  const busySet = new Set<string>();
+  (bookings ?? []).forEach((b: any) => busySet.add(`${b.booking_date}|${b.time_slot}`));
+
+  const accessToken = await getGoogleAccessToken(admin, ownerId);
+  let gBusy: Array<{ start: Date; end: Date }> = [];
+  if (accessToken) {
+    try {
+      const res = await fetch("https://www.googleapis.com/calendar/v3/freeBusy", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          timeMin: now.toISOString(),
+          timeMax: searchEnd.toISOString(),
+          timeZone: "Europe/Paris",
+          items: [{ id: "primary" }],
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        gBusy = (data.calendars?.primary?.busy ?? []).map((b: any) => ({ start: new Date(b.start), end: new Date(b.end) }));
+      }
+    } catch (_) { /* ignore */ }
+  }
+
+  const results: string[] = [];
+  const labels = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+  const cursor = new Date(now);
+  cursor.setHours(0, 0, 0, 0);
+  for (let d = 0; d < 10 && results.length < 3; d++) {
+    const date = new Date(cursor.getTime() + d * 24 * 60 * 60 * 1000);
+    const dow = date.getDay();
+    if (dow === 0 || dow === 6) continue;
+    const dateStr = date.toISOString().slice(0, 10);
+    for (const slot of DEFAULT_SLOTS) {
+      if (results.length >= 3) break;
+      if (busySet.has(`${dateStr}|${slot}`)) continue;
+      const [h, m] = slot.split(":").map(Number);
+      const slotStart = new Date(date);
+      slotStart.setHours(h, m, 0, 0);
+      if (slotStart.getTime() < now.getTime() + 2 * 60 * 60 * 1000) continue;
+      const slotEnd = new Date(slotStart.getTime() + MEETING_DURATION_MS);
+      const overlaps = gBusy.some((b) => slotStart < b.end && slotEnd > b.start);
+      if (overlaps) continue;
+      const dayLabel = labels[dow];
+      const dateLabel = date.toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
+      results.push(`${dayLabel} ${dateLabel} à ${slot}`);
+    }
+  }
+  return results;
+}
+
 const DEFAULT_PROMPTS = {
   qualification: "Tu qualifies un lead. Pose UNE seule question essentielle pour comprendre son contexte (problème, urgence ou décideur). Max 2 phrases. Direct, conversationnel.",
   objection: "Le lead a soulevé une objection. Reconnais-la brièvement, retourne-la en avantage, puis propose un mini-engagement (créneau court de 15 min ou démo). Max 2 phrases.",
