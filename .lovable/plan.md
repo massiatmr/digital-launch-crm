@@ -1,72 +1,60 @@
 
 
-## Problème
+## Scope: filtrer toutes les vues "transverses" par workspace
 
-Sur `/offers/:id/studio` et `/settings/:tab`, l'espace utile est écrasé par une double colonne latérale :
-- La sidebar principale de l'app (240px ouverte / 64px réduite)
-- Une seconde colonne interne (420px pour le Studio, ~260px pour Settings)
+Aujourd'hui, plusieurs listes globales (Scripts, Messages générés, Rappels en partie, Séquences, Notifications/Cron tasks) ne sont pas filtrées par `workspace_id`. Quand l'utilisateur change de workspace, les données d'autres espaces apparaissent mélangées. À corriger d'un coup.
 
-Sur un viewport 1061px, il ne reste que ~380px pour le contenu principal (preview Studio ou contenu Settings), ce qui rend l'expérience inutilisable.
+## Tables concernées (toutes possèdent `workspace_id`)
 
-## Solution
+`reminders`, `sales_scripts`, `generated_messages`, `lead_followup_tasks`, `lead_activities`, `lead_qualification`, `client_resources`, `client_activities`, `meta_pages`, `whatsapp_messages`.
 
-Adopter un pattern "focus mode" pour les pages outils qui ont déjà leur propre navigation interne : la sidebar principale se réduit automatiquement (icônes seulement) sur ces routes, libérant ~180px supplémentaires.
+## Corrections côté front (hooks)
 
-### 1. Auto-collapse de la sidebar principale sur les routes "outils"
+### `src/hooks/useLeadData.ts`
+- **`useReminders`** : retirer le fallback OR `workspace_id IS NULL` — ne renvoyer QUE les rappels du `wsId` courant. Filtre strict `.eq('workspace_id', wsId)`.
+- **`useAllScripts`** : ajouter `useCurrentWorkspaceId()` + `.eq('workspace_id', wsId)`, queryKey `['scripts', wsId]`, `enabled: !!wsId`.
+- **`useAllMessages`** : idem (`['messages', wsId]`, filtré par workspace).
+- **`useLeadActivities`** (si présent) : filtrer par workspace courant (déjà bordé par lead, mais sécuriser le cache key).
+- **Inserts auto** (`reminders`, `sales_scripts`, `generated_messages`) lors de la création d'un lead via IA : ajouter `workspace_id: wsId` dans les payloads (actuellement absent → données orphelines).
 
-Dans `AppLayout.tsx`, détecter les routes qui possèdent leur propre navigation interne et forcer `collapsed = true` automatiquement (l'utilisateur peut toujours la rouvrir manuellement).
+### `src/hooks/useFollowupTasks.ts`
+- **`useFollowupTasks(leadId)`** : queryKey inclut `wsId` ; vérifier le cache n'est pas partagé entre workspaces.
+- **`useWhatsAppMessages(leadId)`** : idem queryKey `['wa-messages', wsId, leadId]`.
+- Réinvalidations existantes (`['followup-tasks']`, `['wa-messages']`) restent OK car invalident toutes variantes.
 
-Routes concernées :
-- `/offers/:id/studio` (chat + édition + preview)
-- `/settings/*` (sidebar groupée par scope)
+### `src/hooks/useSequenceSteps.ts`
+- Déjà workspace-scoped ✅ (vérifié).
 
-### 2. Studio : refonte du layout en 3 colonnes ajustables
+### `src/hooks/useFollowupCron.ts` (`useDueTasksCount`)
+- Ajouter filtre `.eq('workspace_id', wsId)` sur le count des tâches dues, pour ne pas afficher des compteurs cross-workspace dans Settings → Automation.
 
-Remplacer la colonne fixe de 420px par un layout responsive :
+### `src/hooks/useNotifications.ts`
+- Reste user-scoped (logs push attachés à `user_id`) ✅ — pas de changement (les notifs sont par utilisateur, pas par workspace).
 
-```text
-┌──┬─────────┬──────────────────────────┐
-│  │ Chat/   │                          │
-│≡ │ Édition │      Preview live        │
-│  │ (340px) │      (flex-1)            │
-└──┴─────────┴──────────────────────────┘
-```
+### `src/hooks/useWhatsAppInbox.ts`
+- Déjà workspace-scoped ✅.
 
-- Sidebar app : auto-collapse en mode icônes (64px)
-- Panneau Studio : 340px au lieu de 420px, avec poignée resize (`react-resizable-panels` déjà installé)
-- Preview : prend tout l'espace restant
-- Sur tablette (<1280px) : panneau Studio passe en `Sheet` overlay déclenché par un bouton, preview en plein écran par défaut
+## Cache / changement de workspace
 
-### 3. Settings : sidebar interne plus compacte
+`WorkspaceProvider.switchWorkspace` appelle déjà `qc.invalidateQueries()` (global). Pour garantir une remise à zéro propre lors du switch, on ajoutera également `qc.removeQueries()` sur les clés transverses ci-dessus afin d'éviter un "flash" de l'ancien workspace.
 
-- Sidebar app auto-collapse (64px)
-- Sidebar interne Settings : passer de boutons larges à une liste plus dense (icône + label court, 200px au lieu de ~260px)
-- Sur mobile : déjà en Select dropdown, on garde
+## Backfill données orphelines
 
-### 4. Bouton de retour explicite
+Migration ponctuelle pour rattacher au bon workspace les enregistrements créés sans `workspace_id` :
+- `reminders`, `sales_scripts`, `generated_messages`, `lead_activities`, `lead_followup_tasks`, `lead_qualification` → set `workspace_id = leads.workspace_id WHERE m.workspace_id IS NULL`.
+- `client_activities`, `client_resources` → idem via `clients.workspace_id`.
 
-Quand la sidebar principale est auto-collapsée, ajouter un bouton "←" dans le header de la page outil pour revenir à la vue normale (re-expand).
-
-## Détails techniques
-
-**`AppLayout.tsx`** :
-- Ajouter `useLocation()` + `useEffect` qui force `setCollapsed(true)` quand `pathname` matche `/offers/*/studio` ou `/settings*`
-- Mémoriser l'état précédent pour le restaurer en quittant la route
-
-**`OfferStudioPage.tsx`** :
-- Retirer `fixed inset-0` (il sort du flux et casse la sidebar) → utiliser `h-[calc(100vh-4rem)]` dans le flux normal
-- Remplacer le split flex par `ResizablePanelGroup` (panneau gauche min 300px / max 500px, défaut 340px)
-- Sur `<1280px` : panneau gauche dans un `Sheet` côté gauche, déclenché par bouton dans le header
-
-**`SettingsPage.tsx`** :
-- Réduire la sidebar interne : `w-52` au lieu de `w-64`, padding réduit, labels en `text-sm`
-- Sticky top à `top-16` (sous le WorkspaceHeader)
-
-**Pas de changement** sur les autres pages (Pipeline, Clients, Bookings…) qui restent avec sidebar principale ouverte par défaut.
+Comme ce sont des UPDATE, ces opérations passent par une migration SQL.
 
 ## Fichiers modifiés
 
-- `src/components/AppLayout.tsx` — auto-collapse selon route
-- `src/pages/OfferStudioPage.tsx` — layout resizable + sortir de `fixed inset-0`
-- `src/pages/SettingsPage.tsx` — sidebar interne compacte
+- `src/hooks/useLeadData.ts` (reminders strict, scripts/messages filtrés, inserts avec wsId)
+- `src/hooks/useFollowupTasks.ts` (queryKeys avec wsId)
+- `src/hooks/useFollowupCron.ts` (compteur dues filtré)
+- `src/hooks/useWorkspaces.ts` (removeQueries des caches transverses au switch)
+- `supabase/migrations/<new>.sql` (backfill workspace_id sur 8 tables)
+
+## Hors-scope (déjà OK)
+
+Leads, Clients, Offers, Bookings, WhatsApp Inbox, Sequence steps, Followup settings, Templates, Notifications push : déjà filtrés correctement.
 
