@@ -1,4 +1,5 @@
 import { useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useOfferBySlug, useOfferPage } from '@/hooks/useOfferData';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
