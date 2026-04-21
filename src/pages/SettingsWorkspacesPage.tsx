@@ -302,6 +302,35 @@ function WorkspaceEditor({ workspace, canManage }: { workspace: any; canManage: 
           <Label className="text-xs">Email de notification du workspace</Label>
           <Input className="h-8 text-sm" type="email" value={form.notification_email} onChange={(e) => setForm({ ...form, notification_email: e.target.value })} placeholder="contact@workspace.com" />
         </div>
+        <div>
+          <Label className="text-xs">Couleur de marque</Label>
+          <div className="flex items-center gap-2 mt-1">
+            <input
+              type="color"
+              value={form.brand_color}
+              onChange={(e) => setForm({ ...form, brand_color: e.target.value })}
+              className="h-9 w-12 rounded-md border border-border/50 bg-transparent cursor-pointer"
+              aria-label="Couleur de marque"
+            />
+            <Input
+              className="h-8 text-sm font-mono uppercase flex-1"
+              value={form.brand_color}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (/^#?[0-9a-fA-F]{0,6}$/.test(v)) {
+                  setForm({ ...form, brand_color: v.startsWith('#') ? v : `#${v}` });
+                }
+              }}
+              placeholder="#7C3AED"
+            />
+            <div
+              className="h-9 w-9 rounded-md border border-border/50 shrink-0"
+              style={{ backgroundColor: form.brand_color }}
+              aria-hidden
+            />
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1">Utilisée comme couleur d'accent sur les landing pages publiques.</p>
+        </div>
       </div>
       <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending} className="w-full">
         {save.isPending ? 'Enregistrement…' : 'Enregistrer'}
