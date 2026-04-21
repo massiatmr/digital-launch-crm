@@ -118,8 +118,24 @@ export default function PublicOfferPage() {
 
   const scrollToBooking = () => document.getElementById('booking-section')?.scrollIntoView({ behavior: 'smooth' });
 
+  // Brand color tokens injected so BookingSection (and any var(--brand) consumer) follows the workspace palette
+  const brand = branding?.brand_color || '#7C3AED';
+  const brandStyle = {
+    '--brand': brand,
+    '--brand-hover': `color-mix(in srgb, ${brand} 88%, white)`,
+    '--brand-soft': `color-mix(in srgb, ${brand} 18%, transparent)`,
+    '--brand-softer': `color-mix(in srgb, ${brand} 10%, transparent)`,
+    '--brand-border': `color-mix(in srgb, ${brand} 30%, transparent)`,
+    '--brand-border-strong': `color-mix(in srgb, ${brand} 50%, transparent)`,
+    '--brand-light': `color-mix(in srgb, ${brand} 70%, white)`,
+    '--brand-glow': `color-mix(in srgb, ${brand} 30%, transparent)`,
+    '--brand-deep': `color-mix(in srgb, ${brand} 25%, black)`,
+    '--brand-deep-border': `color-mix(in srgb, ${brand} 35%, black)`,
+  } as React.CSSProperties;
+
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white overflow-x-hidden">
+    <div className="min-h-screen bg-[#0a0a0f] text-white overflow-x-hidden" style={brandStyle}>
+
       {/* ─── Sticky Navbar ─── */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0a0a0f]/80 backdrop-blur-xl border-b border-white/5">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
