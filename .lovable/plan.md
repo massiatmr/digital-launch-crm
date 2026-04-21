@@ -1,50 +1,49 @@
 
 
-## Plan : Logo workspace, sections éditables, renommage offre
+## Plan : Connecter la landing Déménageur aux données du Studio
 
-### Problèmes identifiés
+### Problème (cause racine)
 
-1. **Logo absent sur landing pages** : Le RPC `get_offer_branding` ne renvoie le logo que si `is_active = true`. Et sur le template générique, quand `logo_url_light` ET `logo_url` sont absents, on tombe sur du texte. Plusieurs workspaces n'ont aucun logo uploadé → texte affiché.
-2. **Texte invisible dans les sections** : L'éditeur Studio gère mal certains types de sections :
-   - `pain_points` (variante "hormozi") attend `{icon, title, description}` mais l'éditeur n'édite que du texte brut → affichage vide.
-   - `bonuses` / `deliverables` n'ont pas de champ `value` (prix) éditable.
-   - Pas de moyen d'éditer `total_value` pour deliverables, ni `anchor`/`final` pour pricing.
-3. **Renommer une offre dans le CRM** : Le titre est éditable uniquement via le Studio (sidebar). Pas d'édition rapide depuis `OffersPage` ou `OfferDetailPage`.
+L'offre "Système Déménageurs" déclenche **automatiquement** la landing page custom `src/pages/landing/demenageur.tsx` (détectée via mot-clé `demenag` dans le slug/niche).
 
----
+Mais ce fichier utilise des **constantes hardcodées** (`painPoints`, `solutions`, deliverables figés en JSX) et **n'utilise jamais** les `sections` éditables stockées dans `offer_pages.sections`. Résultat : tout ce que tu édites dans le Studio (titres, items, icônes, prix, transformation, bonus) **n'apparaît jamais** sur la landing rendue → l'utilisateur voit le template figé "Digital Launch / site déménageur" sans aucun lien avec son offre.
 
-### Corrections
+À l'inverse, le **template générique** (`PublicOfferPage`) lit bien `sections` et affiche correctement tout ce qui est édité — comme le confirment les données en DB qui sont parfaitement structurées (5 pain_points, 5 deliverables avec valeurs, 3 bonuses, transformation avant/après, total_value 6250€).
 
-#### 1. Fiabiliser le logo workspace sur les landing pages
-- **`PublicOfferPage.tsx` (template générique)** : prioriser `logo_url` (logo principal) puis `logo_url_light` (variante claire). Aujourd'hui c'est l'inverse, donc si seul le logo principal existe il s'affiche bien — mais on garde un seul code de sélection clair partagé.
-- **`landing/demenageur.tsx`** : déjà correct, mais on renforce pour ne plus afficher `<span>{brandName}</span>` à côté du logo quand un vrai logo workspace est présent (évite double affichage).
-- **Helper partagé `getBrandLogo(branding)`** dans `PublicOfferPage.tsx` exporté pour cohérence.
-- **Fallback texte** : si vraiment aucun logo, afficher un petit badge stylisé avec l'initiale du `company_name` au lieu du nom complet en plain text.
+### Solution
 
-#### 2. Éditeur de sections complet (Studio sidebar)
-Étendre `OfferStudioSidebar.tsx` pour gérer correctement chaque type :
-- **`pain_points`** : détecter si `variant === 'hormozi'` → afficher trois champs par item : sélecteur d'icône (liste déroulante), titre, description. Sinon : un seul textarea.
-- **`deliverables` / `bonuses`** : ajouter un champ `value` (prix affiché à droite, ex "997€") en plus de titre/description. Pour `deliverables` : ajouter un champ `total_value` au niveau section.
-- **`pricing`** : ajouter champs `anchor` (prix barré) et `final` (prix affiché).
-- **`transformation`** : déjà OK (before/after).
-- **`solution` / `guarantee`** : déjà OK.
-- Bouton "Ajouter" crée un objet structuré correct selon le type (avec `icon: 'AlertCircle'` par défaut pour pain_points hormozi).
+#### 1. Rendre `demenageur.tsx` data-driven (lecture des `sections`)
+- Ajouter `useOfferPage(offer.id)` dans le composant pour récupérer la page.
+- Remplacer les constantes hardcodées par lecture conditionnelle des sections du Studio :
+  - **Hero** : `headline` / `subheadline` / `cta_text` depuis `offer_pages` (fallback aux textes actuels si vides).
+  - **Pain points** : lire `sections[type=pain_points].items` (objets `{icon, title, description}`) au lieu du tableau hardcodé. Garder le visuel actuel (icône rouge + texte).
+  - **Transformation** : lire `sections[type=transformation].before/after` et afficher dans la grille avant/après actuelle (aujourd'hui absente du template déménageur → on l'ajoute).
+  - **Deliverables** : lire `sections[type=deliverables].items` (icône + titre + value + description) et `total_value`. Remplacer la liste figée des "services inclus".
+  - **Bonuses** : lire `sections[type=bonuses].items` et afficher dans la section bonus existante.
+  - **Solution / Garantie / FAQ / Pricing** : afficher si présents, sinon masquer la section.
+  - **CTA** : utiliser `cta_text` édité.
 
-#### 3. Renommer une offre depuis le CRM
-- **`OffersPage.tsx`** : ajouter un menu "⋮" sur chaque carte avec action "Renommer" → ouvre une petite Dialog avec un Input + bouton Enregistrer (utilise `useUpdateOffer`).
-- **`OfferDetailPage.tsx`** : rendre le titre `h1` cliquable → mode édition inline (clic = devient Input, Enter/blur = sauvegarde).
+#### 2. Garder l'identité visuelle "Déménageur" (rouge, photos)
+- On **ne touche pas** au design : background image hero, palette rouge, glow, layout — tout reste identique.
+- Les blocs "portfolio" (4 images projets) restent hardcodés car ce sont des assets locaux Digital Launch (logique : c'est notre vitrine, pas celle du client).
+- Si l'utilisateur n'a aucune section configurée (offre vide), on garde un fallback élégant (textes par défaut actuels) pour éviter une page blanche.
 
----
+#### 3. Helper de mapping icônes partagé
+- Centraliser le map `ICON_MAP` (déjà présent dans `PublicOfferPage`) en helper exportable réutilisé par `demenageur.tsx`. Évite les divergences.
+
+#### 4. Édition autorisée du nom de section (déjà OK)
+- Vérifié : `OfferStudioSidebar` permet déjà d'éditer titre/items/icônes/valeurs correctement → pas de changement côté éditeur.
 
 ### Fichiers modifiés
 
 ```
-src/pages/PublicOfferPage.tsx          (logo: helper + fallback initiale)
-src/pages/landing/demenageur.tsx       (cacher span quand logo workspace)
-src/components/offers/OfferStudioSidebar.tsx  (édition complète des sections)
-src/pages/OffersPage.tsx               (menu Renommer sur cartes)
-src/pages/OfferDetailPage.tsx          (titre éditable inline)
+src/pages/landing/demenageur.tsx     (data-driven : lit offerPage.sections au lieu de constantes hardcodées)
+src/pages/PublicOfferPage.tsx        (export du HormoziIcon/ICON_MAP pour réutilisation)
 ```
 
-Aucune migration DB nécessaire.
+Aucune migration DB. Aucun changement d'éditeur. Aucune perte du look "Déménageur".
+
+### Résultat attendu
+
+Après cette correction, ce que tu édites dans le Studio (titres, points de douleur, icônes, transformation, livrables avec leurs valeurs, bonus, FAQ, etc.) s'affichera **réellement** sur la landing déménageur, tout en conservant son design rouge/photos premium.
 
