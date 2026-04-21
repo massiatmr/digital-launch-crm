@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { DbLead, useUpdateLead } from '@/hooks/useLeadData';
+import { useOffers } from '@/hooks/useOfferData';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -56,6 +57,7 @@ interface LeadEditFormProps {
 
 export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProps) {
   const updateLead = useUpdateLead();
+  const { data: offers = [] } = useOffers();
   const [showLostDialog, setShowLostDialog] = useState(false);
   const [form, setForm] = useState({
     name: lead.name,
@@ -70,6 +72,7 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
     next_action: lead.next_action || '',
     created_at: lead.created_at,
     lost_reason: lead.lost_reason || '',
+    offer_id: lead.offer_id || 'none',
   });
 
   const update = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
@@ -95,7 +98,8 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
       return;
     }
     try {
-      await updateLead.mutateAsync({ id: lead.id, ...form });
+      const payload: any = { id: lead.id, ...form, offer_id: form.offer_id === 'none' ? null : form.offer_id };
+      await updateLead.mutateAsync(payload);
       toast.success('Lead mis à jour !');
       onClose?.();
     } catch {
@@ -190,6 +194,16 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
               />
             </PopoverContent>
           </Popover>
+        </div>
+        <div className="space-y-1.5">
+          <Label>Offre</Label>
+          <Select value={form.offer_id} onValueChange={v => update('offer_id', v)}>
+            <SelectTrigger><SelectValue placeholder="Aucune offre" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Aucune offre</SelectItem>
+              {offers.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-1.5">
           <Label>Présence au RDV</Label>
