@@ -47,6 +47,15 @@ export default function PublicOfferPage() {
   const { slug } = useParams<{ slug: string }>();
   const { data: offer, isLoading, error } = useOfferBySlug(slug);
   const { data: offerPage } = useOfferPage(offer?.id);
+  const { data: branding } = useQuery({
+    queryKey: ['offer-branding', slug],
+    enabled: !!slug,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_offer_branding' as any, { p_slug: slug });
+      if (error) throw error;
+      return data as { logo_url: string | null; company_name: string | null; brand_color: string | null } | null;
+    },
+  });
 
   if (isLoading) {
     return (
