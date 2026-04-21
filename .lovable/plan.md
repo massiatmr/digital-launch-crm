@@ -1,60 +1,50 @@
 
 
-## Scope: filtrer toutes les vues "transverses" par workspace
+## Plan : Logo workspace, sections éditables, renommage offre
 
-Aujourd'hui, plusieurs listes globales (Scripts, Messages générés, Rappels en partie, Séquences, Notifications/Cron tasks) ne sont pas filtrées par `workspace_id`. Quand l'utilisateur change de workspace, les données d'autres espaces apparaissent mélangées. À corriger d'un coup.
+### Problèmes identifiés
 
-## Tables concernées (toutes possèdent `workspace_id`)
+1. **Logo absent sur landing pages** : Le RPC `get_offer_branding` ne renvoie le logo que si `is_active = true`. Et sur le template générique, quand `logo_url_light` ET `logo_url` sont absents, on tombe sur du texte. Plusieurs workspaces n'ont aucun logo uploadé → texte affiché.
+2. **Texte invisible dans les sections** : L'éditeur Studio gère mal certains types de sections :
+   - `pain_points` (variante "hormozi") attend `{icon, title, description}` mais l'éditeur n'édite que du texte brut → affichage vide.
+   - `bonuses` / `deliverables` n'ont pas de champ `value` (prix) éditable.
+   - Pas de moyen d'éditer `total_value` pour deliverables, ni `anchor`/`final` pour pricing.
+3. **Renommer une offre dans le CRM** : Le titre est éditable uniquement via le Studio (sidebar). Pas d'édition rapide depuis `OffersPage` ou `OfferDetailPage`.
 
-`reminders`, `sales_scripts`, `generated_messages`, `lead_followup_tasks`, `lead_activities`, `lead_qualification`, `client_resources`, `client_activities`, `meta_pages`, `whatsapp_messages`.
+---
 
-## Corrections côté front (hooks)
+### Corrections
 
-### `src/hooks/useLeadData.ts`
-- **`useReminders`** : retirer le fallback OR `workspace_id IS NULL` — ne renvoyer QUE les rappels du `wsId` courant. Filtre strict `.eq('workspace_id', wsId)`.
-- **`useAllScripts`** : ajouter `useCurrentWorkspaceId()` + `.eq('workspace_id', wsId)`, queryKey `['scripts', wsId]`, `enabled: !!wsId`.
-- **`useAllMessages`** : idem (`['messages', wsId]`, filtré par workspace).
-- **`useLeadActivities`** (si présent) : filtrer par workspace courant (déjà bordé par lead, mais sécuriser le cache key).
-- **Inserts auto** (`reminders`, `sales_scripts`, `generated_messages`) lors de la création d'un lead via IA : ajouter `workspace_id: wsId` dans les payloads (actuellement absent → données orphelines).
+#### 1. Fiabiliser le logo workspace sur les landing pages
+- **`PublicOfferPage.tsx` (template générique)** : prioriser `logo_url` (logo principal) puis `logo_url_light` (variante claire). Aujourd'hui c'est l'inverse, donc si seul le logo principal existe il s'affiche bien — mais on garde un seul code de sélection clair partagé.
+- **`landing/demenageur.tsx`** : déjà correct, mais on renforce pour ne plus afficher `<span>{brandName}</span>` à côté du logo quand un vrai logo workspace est présent (évite double affichage).
+- **Helper partagé `getBrandLogo(branding)`** dans `PublicOfferPage.tsx` exporté pour cohérence.
+- **Fallback texte** : si vraiment aucun logo, afficher un petit badge stylisé avec l'initiale du `company_name` au lieu du nom complet en plain text.
 
-### `src/hooks/useFollowupTasks.ts`
-- **`useFollowupTasks(leadId)`** : queryKey inclut `wsId` ; vérifier le cache n'est pas partagé entre workspaces.
-- **`useWhatsAppMessages(leadId)`** : idem queryKey `['wa-messages', wsId, leadId]`.
-- Réinvalidations existantes (`['followup-tasks']`, `['wa-messages']`) restent OK car invalident toutes variantes.
+#### 2. Éditeur de sections complet (Studio sidebar)
+Étendre `OfferStudioSidebar.tsx` pour gérer correctement chaque type :
+- **`pain_points`** : détecter si `variant === 'hormozi'` → afficher trois champs par item : sélecteur d'icône (liste déroulante), titre, description. Sinon : un seul textarea.
+- **`deliverables` / `bonuses`** : ajouter un champ `value` (prix affiché à droite, ex "997€") en plus de titre/description. Pour `deliverables` : ajouter un champ `total_value` au niveau section.
+- **`pricing`** : ajouter champs `anchor` (prix barré) et `final` (prix affiché).
+- **`transformation`** : déjà OK (before/after).
+- **`solution` / `guarantee`** : déjà OK.
+- Bouton "Ajouter" crée un objet structuré correct selon le type (avec `icon: 'AlertCircle'` par défaut pour pain_points hormozi).
 
-### `src/hooks/useSequenceSteps.ts`
-- Déjà workspace-scoped ✅ (vérifié).
+#### 3. Renommer une offre depuis le CRM
+- **`OffersPage.tsx`** : ajouter un menu "⋮" sur chaque carte avec action "Renommer" → ouvre une petite Dialog avec un Input + bouton Enregistrer (utilise `useUpdateOffer`).
+- **`OfferDetailPage.tsx`** : rendre le titre `h1` cliquable → mode édition inline (clic = devient Input, Enter/blur = sauvegarde).
 
-### `src/hooks/useFollowupCron.ts` (`useDueTasksCount`)
-- Ajouter filtre `.eq('workspace_id', wsId)` sur le count des tâches dues, pour ne pas afficher des compteurs cross-workspace dans Settings → Automation.
+---
 
-### `src/hooks/useNotifications.ts`
-- Reste user-scoped (logs push attachés à `user_id`) ✅ — pas de changement (les notifs sont par utilisateur, pas par workspace).
+### Fichiers modifiés
 
-### `src/hooks/useWhatsAppInbox.ts`
-- Déjà workspace-scoped ✅.
+```
+src/pages/PublicOfferPage.tsx          (logo: helper + fallback initiale)
+src/pages/landing/demenageur.tsx       (cacher span quand logo workspace)
+src/components/offers/OfferStudioSidebar.tsx  (édition complète des sections)
+src/pages/OffersPage.tsx               (menu Renommer sur cartes)
+src/pages/OfferDetailPage.tsx          (titre éditable inline)
+```
 
-## Cache / changement de workspace
-
-`WorkspaceProvider.switchWorkspace` appelle déjà `qc.invalidateQueries()` (global). Pour garantir une remise à zéro propre lors du switch, on ajoutera également `qc.removeQueries()` sur les clés transverses ci-dessus afin d'éviter un "flash" de l'ancien workspace.
-
-## Backfill données orphelines
-
-Migration ponctuelle pour rattacher au bon workspace les enregistrements créés sans `workspace_id` :
-- `reminders`, `sales_scripts`, `generated_messages`, `lead_activities`, `lead_followup_tasks`, `lead_qualification` → set `workspace_id = leads.workspace_id WHERE m.workspace_id IS NULL`.
-- `client_activities`, `client_resources` → idem via `clients.workspace_id`.
-
-Comme ce sont des UPDATE, ces opérations passent par une migration SQL.
-
-## Fichiers modifiés
-
-- `src/hooks/useLeadData.ts` (reminders strict, scripts/messages filtrés, inserts avec wsId)
-- `src/hooks/useFollowupTasks.ts` (queryKeys avec wsId)
-- `src/hooks/useFollowupCron.ts` (compteur dues filtré)
-- `src/hooks/useWorkspaces.ts` (removeQueries des caches transverses au switch)
-- `supabase/migrations/<new>.sql` (backfill workspace_id sur 8 tables)
-
-## Hors-scope (déjà OK)
-
-Leads, Clients, Offers, Bookings, WhatsApp Inbox, Sequence steps, Followup settings, Templates, Notifications push : déjà filtrés correctement.
+Aucune migration DB nécessaire.
 
