@@ -426,7 +426,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    await admin.from("whatsapp_messages").insert({
+    const { error: insertErr } = await admin.from("whatsapp_messages").insert({
       lead_id: task.lead_id,
       owner_id: ownerId,
       workspace_id: lead.workspace_id ?? null,
@@ -437,6 +437,24 @@ Deno.serve(async (req) => {
       wa_message_id: waMessageId,
       error_message: errorMessage,
     } as any);
+
+    // Anti-doublon : si l'index unique whatsapp_messages_unique_outbound_task rejette l'insert,
+    // c'est qu'un message a déjà été envoyé pour cette tâche (race condition).
+    // On marque la tâche 'sent' (pour éviter qu'elle reste en 'processing') et on stoppe ici.
+    if (insertErr && (insertErr as any).code === "23505") {
+      await admin.from("lead_followup_tasks").update({
+        status: "sent",
+        executed_at: new Date().toISOString(),
+        error_message: "Skipped: message already sent for this task (DB unique constraint)",
+        updated_at: new Date().toISOString(),
+      } as any).eq("id", task_id);
+      return new Response(JSON.stringify({ ok: true, skipped: true, reason: "duplicate_message_blocked" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (insertErr) {
+      console.error("whatsapp_messages insert error", insertErr);
+    }
 
     const newStatus = logStatus === "failed" ? "failed" : (logStatus === "skipped_no_template" ? "skipped" : "sent");
     await admin.from("lead_followup_tasks").update({

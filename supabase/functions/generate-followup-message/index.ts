@@ -216,6 +216,14 @@ Deno.serve(async (req) => {
       ? `\nCRÉNEAUX RÉELLEMENT DISPONIBLES (calendrier synchronisé) :\n${availableSlots.map((s, i) => `  ${i + 1}. ${s}`).join("\n")}\n⚠️ Si tu proposes un RDV, UTILISE EXCLUSIVEMENT 1 ou 2 de ces créneaux. N'invente JAMAIS d'horaire.`
       : "";
 
+    // Email déjà connu dans le CRM : on demande à l'IA de le confirmer au lieu de le redemander.
+    const knownEmail = (lead.email && lead.email.includes("@") && !lead.email.endsWith("@whatsapp.tmp"))
+      ? lead.email.trim()
+      : null;
+    const emailBlock = knownEmail
+      ? `\nEMAIL DU LEAD DÉJÀ CONNU : ${knownEmail}\n⚠️ NE REDEMANDE JAMAIS son email. Si tu dois lui envoyer une invitation/confirmation/détails, écris naturellement : "Je t'envoie ça sur ${knownEmail}, c'est toujours le bon ?" puis enchaîne sans attendre.`
+      : `\nEMAIL DU LEAD : inconnu. Si tu as besoin de l'email pour une invitation, demande-le UNE SEULE FOIS, simplement.`;
+
     const systemPrompt = `${baseInstructions}
 
 MODE CONTEXTUEL : ${promptKey.toUpperCase()}
@@ -227,6 +235,7 @@ RÈGLES STRICTES :
 - Pas de "Bonjour" si déjà dit, pas de signature, 1 emoji max
 - Pour proposer un RDV : propose 1 ou 2 créneaux EXACTS de la liste ci-dessous, ou partage le lien ${bookingLink ?? '(aucun lien)'}
 ${slotsBlock}
+${emailBlock}
 
 CONTEXTE LEAD :
 - Nom : ${lead.name}
