@@ -10,6 +10,7 @@ import SettingsNotificationsPage from './SettingsNotificationsPage';
 import SettingsTrashPage from './SettingsTrashPage';
 import SettingsAuditPage from './SettingsAuditPage';
 import { useIsAdmin, useWorkspaceFeatures } from '@/hooks/useWorkspaceFeatures';
+import { useWorkspaces } from '@/hooks/useWorkspaces';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -20,6 +21,7 @@ type Section = {
   description: string;
   group: 'Personnel' | 'Workspace' | 'Système';
   adminOnly?: boolean;
+  ownerOnly?: boolean;
   feature?: 'whatsapp';
   Component: React.ComponentType;
 };
