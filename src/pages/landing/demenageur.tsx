@@ -117,7 +117,7 @@ export default function DemenageurLanding({ offer, branding }: Props) {
           <Button
             size="sm"
             onClick={scrollToBooking}
-            className="bg-red-600 hover:bg-red-500 text-white rounded-full px-6 shadow-lg shadow-red-600/20"
+            className="bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white rounded-full px-6 shadow-lg shadow-[var(--brand-glow)]"
           >
             {ctaText}
           </Button>
@@ -138,7 +138,7 @@ export default function DemenageurLanding({ offer, branding }: Props) {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.2 }}
-              className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full bg-red-600/15 border border-red-500/25 text-red-400 text-sm font-medium"
+              className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full bg-[var(--brand-soft)] border border-[var(--brand-border)] text-[var(--brand-light)] text-sm font-medium"
             >
               <Truck className="h-4 w-4" />
               {offer.niche || 'Spécialiste Sites Web pour Déménageurs'}
@@ -146,7 +146,7 @@ export default function DemenageurLanding({ offer, branding }: Props) {
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black leading-[1.05] tracking-tight">
               {heroHeadline || (
-                <>Je conçois les sites Web des Déménageurs les plus <span className="text-red-500">FIABLES</span></>
+                <>Je conçois les sites Web des Déménageurs les plus <span className="text-[var(--brand)]">FIABLES</span></>
               )}
             </h1>
 
@@ -156,7 +156,7 @@ export default function DemenageurLanding({ offer, branding }: Props) {
               <p className="mt-6 text-lg text-gray-300 leading-relaxed max-w-lg">
                 Plus de <span className="text-white font-semibold">Leads</span> et{' '}
                 <span className="text-white font-semibold">Devis</span> pour votre société.{' '}
-                Qui gagnent la <span className="text-red-400 font-semibold">CONFIANCE</span> des propriétaires.
+                Qui gagnent la <span className="text-[var(--brand-light)] font-semibold">CONFIANCE</span> des propriétaires.
               </p>
             )}
 
@@ -164,7 +164,7 @@ export default function DemenageurLanding({ offer, branding }: Props) {
               <div className="mt-5 flex flex-col gap-2 text-gray-400 text-sm">
                 {["Pour générer de meilleurs leads…", "Prendre plus de rendez-vous…", "Et faire plus de déménagements…"].map((t, i) => (
                   <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 + i * 0.15 }} className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-red-500 shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 text-[var(--brand)] shrink-0" />
                     <span>{t}</span>
                   </motion.div>
                 ))}
@@ -175,7 +175,7 @@ export default function DemenageurLanding({ offer, branding }: Props) {
               <Button
                 size="lg"
                 onClick={scrollToBooking}
-                className="bg-red-600 hover:bg-red-500 text-white rounded-full px-10 py-7 text-lg font-bold shadow-xl shadow-red-600/30 transition-all hover:shadow-red-600/40 hover:scale-[1.02]"
+                className="bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white rounded-full px-10 py-7 text-lg font-bold shadow-xl shadow-[var(--brand-glow)] transition-all hover:shadow-[var(--brand-glow)] hover:scale-[1.02]"
               >
                 {ctaText} <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
@@ -225,10 +225,10 @@ export default function DemenageurLanding({ offer, branding }: Props) {
                       whileInView={{ opacity: 1, x: 0 }}
                       viewport={{ once: true }}
                       transition={{ delay: i * 0.1 }}
-                      className="flex items-start gap-5 p-6 rounded-2xl bg-gradient-to-r from-white/[0.03] to-transparent border border-white/[0.06] hover:border-red-500/30 transition-all duration-300 group"
+                      className="flex items-start gap-5 p-6 rounded-2xl bg-gradient-to-r from-white/[0.03] to-transparent border border-white/[0.06] hover:border-[var(--brand-border-strong)] transition-all duration-300 group"
                     >
-                      <div className="w-12 h-12 rounded-xl bg-red-600/10 flex items-center justify-center shrink-0 group-hover:bg-red-600/20 transition-colors">
-                        <HormoziIcon name={iconName} className="h-5 w-5 text-red-400" />
+                      <div className="w-12 h-12 rounded-xl bg-[var(--brand-softer)] flex items-center justify-center shrink-0 group-hover:bg-[var(--brand-soft)] transition-colors">
+                        <HormoziIcon name={iconName} className="h-5 w-5 text-[var(--brand-light)]" />
                       </div>
                       <div className="flex-1">
                         {title && <p className="font-bold text-white text-lg mb-1">{title}</p>}
@@ -245,15 +245,15 @@ export default function DemenageurLanding({ offer, branding }: Props) {
 
       {/* ─── Transformation Before/After (if configured) ─── */}
       {transformation && (transformation.before || transformation.after) && (
-        <section className="py-24 px-4 bg-gradient-to-b from-transparent via-red-500/[0.04] to-transparent">
+        <section className="py-24 px-4 bg-gradient-to-b from-transparent via-[var(--brand-softer)] to-transparent">
           <div className="max-w-5xl mx-auto">
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-center mb-12">
                 {transformation.title || 'La transformation'}
               </h2>
               <div className="grid md:grid-cols-2 gap-6">
-                <div className="p-8 rounded-2xl bg-red-950/20 border border-red-900/30">
-                  <p className="text-xs font-bold text-red-400 mb-3 tracking-wider">AVANT</p>
+                <div className="p-8 rounded-2xl bg-[var(--brand-deep)] border border-[var(--brand-deep-border)]">
+                  <p className="text-xs font-bold text-[var(--brand-light)] mb-3 tracking-wider">AVANT</p>
                   <p className="text-gray-200 leading-relaxed text-lg whitespace-pre-line">{transformation.before}</p>
                 </div>
                 <div className="p-8 rounded-2xl bg-emerald-950/20 border border-emerald-900/30">
@@ -311,8 +311,8 @@ export default function DemenageurLanding({ offer, branding }: Props) {
           <div className="max-w-4xl mx-auto">
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
               <div className="text-center mb-14">
-                <div className="w-14 h-14 rounded-2xl bg-red-600/10 border border-red-500/20 flex items-center justify-center mx-auto mb-5">
-                  <Zap className="h-7 w-7 text-red-400" />
+                <div className="w-14 h-14 rounded-2xl bg-[var(--brand-softer)] border border-[var(--brand-border)] flex items-center justify-center mx-auto mb-5">
+                  <Zap className="h-7 w-7 text-[var(--brand-light)]" />
                 </div>
                 <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black">
                   {deliverables.title || 'Tout ce que vous obtenez'}
@@ -332,10 +332,10 @@ export default function DemenageurLanding({ offer, branding }: Props) {
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true }}
                       transition={{ delay: i * 0.06 }}
-                      className="flex items-start gap-4 p-5 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-red-500/20 transition-colors"
+                      className="flex items-start gap-4 p-5 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-[var(--brand-border)] transition-colors"
                     >
-                      <div className="w-11 h-11 rounded-xl bg-red-600/10 flex items-center justify-center shrink-0">
-                        <HormoziIcon name={iconName} className="h-5 w-5 text-red-400" />
+                      <div className="w-11 h-11 rounded-xl bg-[var(--brand-softer)] flex items-center justify-center shrink-0">
+                        <HormoziIcon name={iconName} className="h-5 w-5 text-[var(--brand-light)]" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-3">
@@ -364,7 +364,7 @@ export default function DemenageurLanding({ offer, branding }: Props) {
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
             <div className="text-center mb-16">
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black">
-                Le Système <span className="text-red-500">Complet</span> pour Développer
+                Le Système <span className="text-[var(--brand)]">Complet</span> pour Développer
                 <br className="hidden sm:block" /> votre Société de Déménagement
               </h2>
               <p className="text-gray-400 mt-4 text-lg max-w-2xl mx-auto">
@@ -380,8 +380,8 @@ export default function DemenageurLanding({ offer, branding }: Props) {
               </div>
             </motion.div>
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeRight} transition={{ duration: 0.6 }}>
-              <div className="w-14 h-14 rounded-2xl bg-red-600/10 flex items-center justify-center mb-5">
-                <Globe className="h-7 w-7 text-red-400" />
+              <div className="w-14 h-14 rounded-2xl bg-[var(--brand-softer)] flex items-center justify-center mb-5">
+                <Globe className="h-7 w-7 text-[var(--brand-light)]" />
               </div>
               <h3 className="text-2xl sm:text-3xl font-bold mb-4">Site Web Professionnel</h3>
               <p className="text-gray-400 text-lg leading-relaxed mb-6">
@@ -434,7 +434,7 @@ export default function DemenageurLanding({ offer, branding }: Props) {
                     <motion.div key={i} initial={{ opacity: 0, x: -10 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.3 + i * 0.1 }}
                       className="flex items-center justify-between p-4 rounded-xl bg-white/[0.04] border border-white/[0.08]">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-red-600/20 flex items-center justify-center text-sm font-bold text-red-400">
+                        <div className="w-10 h-10 rounded-full bg-[var(--brand-soft)] flex items-center justify-center text-sm font-bold text-[var(--brand-light)]">
                           {lead.name.split(' ').map(n => n[0]).join('')}
                         </div>
                         <div>
@@ -554,9 +554,9 @@ export default function DemenageurLanding({ offer, branding }: Props) {
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
               <p className="text-sm text-gray-500 uppercase tracking-wider mb-3">{pricing.title || 'Investissement'}</p>
               {pricing.anchor && <p className="text-2xl text-gray-500 line-through mb-2">{pricing.anchor}</p>}
-              {pricing.final && <p className="text-6xl sm:text-7xl font-black text-red-500">{pricing.final}</p>}
+              {pricing.final && <p className="text-6xl sm:text-7xl font-black text-[var(--brand)]">{pricing.final}</p>}
               <Button size="lg" onClick={scrollToBooking}
-                className="mt-8 bg-red-600 hover:bg-red-500 text-white rounded-full px-12 py-7 text-lg font-bold shadow-xl shadow-red-600/30">
+                className="mt-8 bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white rounded-full px-12 py-7 text-lg font-bold shadow-xl shadow-[var(--brand-glow)]">
                 {ctaText} <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </motion.div>
@@ -626,7 +626,7 @@ export default function DemenageurLanding({ offer, branding }: Props) {
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-6">
               Êtes-vous prêt à devenir{' '}
-              <span className="text-red-500">UN ROI</span>
+              <span className="text-[var(--brand)]">UN ROI</span>
               <br /> du Déménagement ?
             </h2>
             <p className="text-gray-400 mb-10 text-lg max-w-xl mx-auto">
@@ -635,7 +635,7 @@ export default function DemenageurLanding({ offer, branding }: Props) {
             <Button
               size="lg"
               onClick={scrollToBooking}
-              className="bg-red-600 hover:bg-red-500 text-white rounded-full px-12 py-7 text-lg font-bold shadow-xl shadow-red-600/30 hover:scale-[1.02] transition-all"
+              className="bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-white rounded-full px-12 py-7 text-lg font-bold shadow-xl shadow-[var(--brand-glow)] hover:scale-[1.02] transition-all"
             >
               {ctaText} <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
