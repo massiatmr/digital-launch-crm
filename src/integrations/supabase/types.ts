@@ -2252,6 +2252,7 @@ export type Database = {
         | "cancelled"
         | "failed"
         | "skipped"
+        | "processing"
       followup_task_type:
         | "initial_message"
         | "followup_1"
@@ -2454,6 +2455,7 @@ export const Constants = {
         "cancelled",
         "failed",
         "skipped",
+        "processing",
       ],
       followup_task_type: [
         "initial_message",

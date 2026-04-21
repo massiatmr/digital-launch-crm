@@ -122,8 +122,9 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Tâches manuelles (appel) : ne rien envoyer, juste marquer comme "à faire"
+    // Tâches manuelles (appel) : ne rien envoyer, marquer 'pending' (à faire par l'humain dans le CRM)
     if (HUMAN_TASK_TYPES.has(task.task_type)) {
+      await admin.from("lead_followup_tasks").update({ status: "pending" } as any).eq("id", task_id);
       return new Response(JSON.stringify({
         ok: true,
         skipped: true,
