@@ -11,6 +11,7 @@ import type { DbOffer } from '@/hooks/useOfferData';
 import { useOfferPage } from '@/hooks/useOfferData';
 import { type OfferBranding, HormoziIcon } from '@/pages/PublicOfferPage';
 import { getVisibleOfferItems, sanitizeOfferSections } from '@/lib/offerContent';
+import { buildBrandCssVars } from '@/lib/brandColor';
 
 import portfolioParis from '@/assets/portfolio-demenagement-paris.png';
 import portfolioAmydem from '@/assets/portfolio-amydem.png';
