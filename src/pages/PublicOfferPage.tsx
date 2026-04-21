@@ -53,7 +53,13 @@ export default function PublicOfferPage() {
     queryFn: async () => {
       const { data, error } = await supabase.rpc('get_offer_branding' as any, { p_slug: slug });
       if (error) throw error;
-      return data as { logo_url: string | null; company_name: string | null; brand_color: string | null } | null;
+      return data as {
+        logo_url: string | null;
+        logo_url_light: string | null;
+        logo_url_dark: string | null;
+        company_name: string | null;
+        brand_color: string | null;
+      } | null;
     },
   });
 
