@@ -239,19 +239,43 @@ ${transcript}`;
       );
     }
 
-    const offerName = (lead as any).offers?.name ?? "Consultation";
+    let resolvedOfferId: string | null = lead.offer_id ?? null;
+    let offerName = (lead as any).offers?.name ?? "Consultation";
 
-    if (!lead.offer_id) {
-      await markLeadBookedAndStopAutomations(admin, lead, "RDV confirmé mais aucune offre liée au lead — création booking ignorée");
+    // Fallback : si le lead n'a pas d'offre liée, on prend la 1ère offre active du workspace/owner
+    if (!resolvedOfferId) {
+      let fallbackQuery = admin
+        .from("offers")
+        .select("id, name")
+        .eq("is_active", true)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: true })
+        .limit(1);
+      if (lead.workspace_id) {
+        fallbackQuery = fallbackQuery.eq("workspace_id", lead.workspace_id);
+      } else {
+        fallbackQuery = fallbackQuery.eq("owner_id", lead.owner_id);
+      }
+      const { data: fallbackOffer } = await fallbackQuery.maybeSingle();
+      if (fallbackOffer) {
+        resolvedOfferId = fallbackOffer.id;
+        offerName = fallbackOffer.name;
+        // Lier l'offre au lead pour les automatisations futures
+        await admin.from("leads").update({ offer_id: resolvedOfferId } as any).eq("id", lead.id);
+      }
+    }
+
+    if (!resolvedOfferId) {
+      await markLeadBookedAndStopAutomations(admin, lead, "RDV confirmé mais aucune offre disponible dans le workspace — création booking ignorée");
       await admin.from("lead_activities").insert({
         lead_id: lead.id,
         owner_id: lead.owner_id,
         workspace_id: lead.workspace_id,
         activity_type: "meeting",
-        description: `📅 RDV confirmé via WhatsApp (${parsed.booking_date} à ${parsed.time_slot}) mais aucune offre n'est liée au lead : booking non créé.`,
+        description: `📅 RDV confirmé via WhatsApp (${parsed.booking_date} à ${parsed.time_slot}) mais aucune offre n'est disponible : booking non créé.`,
       } as any);
       return new Response(
-        JSON.stringify({ ok: true, detected: true, skipped: true, reason: "missing_offer_id" }),
+        JSON.stringify({ ok: true, detected: true, skipped: true, reason: "no_offer_available" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
