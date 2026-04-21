@@ -10,6 +10,7 @@ import {
 import type { DbOffer } from '@/hooks/useOfferData';
 import { useOfferPage } from '@/hooks/useOfferData';
 import { type OfferBranding, HormoziIcon } from '@/pages/PublicOfferPage';
+import { getVisibleOfferItems, sanitizeOfferSections } from '@/lib/offerContent';
 
 import portfolioParis from '@/assets/portfolio-demenagement-paris.png';
 import portfolioAmydem from '@/assets/portfolio-amydem.png';
@@ -54,7 +55,7 @@ export default function DemenageurLanding({ offer, branding }: Props) {
 
   // ─── Read sections from Studio ───
   const allSections = Array.isArray(offerPage?.sections) ? offerPage!.sections : [];
-  const sections = (allSections as any[]).filter((s) => !s?.hidden);
+  const sections = sanitizeOfferSections((allSections as any[]).filter((s) => !s?.hidden));
   const findSection = (type: string) => sections.find((s) => s.type === type);
 
   const heroHeadline = offerPage?.headline?.trim();
@@ -62,16 +63,18 @@ export default function DemenageurLanding({ offer, branding }: Props) {
   const ctaText = offerPage?.cta_text?.trim() || 'Réserver un Appel';
 
   const painPointsSection = findSection('pain_points');
+  const cleanPainItems = getVisibleOfferItems(painPointsSection);
   const painItems: any[] =
-    Array.isArray(painPointsSection?.items) && painPointsSection.items.length > 0
-      ? painPointsSection.items
+    cleanPainItems.length > 0
+      ? cleanPainItems
       : FALLBACK_PAIN_POINTS;
   const painTitle = painPointsSection?.title || 'Est-ce que cela vous ressemble ?';
 
   const solutionSection = findSection('solution');
+  const cleanSolutionItems = getVisibleOfferItems(solutionSection);
   const solutionItems: string[] =
-    Array.isArray(solutionSection?.items) && solutionSection.items.length > 0
-      ? solutionSection.items.map((it: any) => (typeof it === 'string' ? it : it?.title || it?.description || ''))
+    cleanSolutionItems.length > 0
+      ? cleanSolutionItems.map((it: any) => (typeof it === 'string' ? it : it?.title || it?.description || '')).filter(Boolean)
       : FALLBACK_SOLUTIONS;
   const solutionTitle = solutionSection?.title || "Et bien c'est votre jour de chance !";
 
