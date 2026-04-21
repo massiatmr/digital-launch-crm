@@ -23,6 +23,7 @@ export const HormoziIcon = ({ name, className }: { name: string; className?: str
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import DemenageurLanding from '@/pages/landing/demenageur';
+import { getVisibleOfferItems, sanitizeOfferSections } from '@/lib/offerContent';
 
 // Branding shared across landing pages
 export interface OfferBranding {
@@ -100,7 +101,7 @@ export default function PublicOfferPage() {
   const ctaText = offerPage?.cta_text || 'Réserver un Appel';
   const features = Array.isArray(offer.features) ? offer.features : [];
   const allSections = Array.isArray(offerPage?.sections) ? offerPage.sections : [];
-  const sections = allSections.filter((s: any) => !s?.hidden);
+  const sections = sanitizeOfferSections(allSections.filter((s: any) => !s?.hidden));
   const testimonials = Array.isArray(offerPage?.testimonials) ? offerPage.testimonials : [];
   const showPrice = (offer as any).show_price === true;
 
@@ -179,13 +180,13 @@ export default function PublicOfferPage() {
       </section>
 
       {/* ─── Pain Points ─── */}
-      {painPoints && Array.isArray(painPoints.items) && painPoints.items.length > 0 && (
+      {painPoints && getVisibleOfferItems(painPoints).length > 0 && (
         <section className="py-20 px-4">
           <div className="max-w-3xl mx-auto">
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
               <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12">{painPoints.title || 'Est-ce que cela vous ressemble ?'}</h2>
               <div className="space-y-4">
-                {painPoints.items.map((item: any, i: number) => {
+                {getVisibleOfferItems(painPoints).map((item: any, i: number) => {
                   const isObj = isHormoziPain && typeof item === 'object';
                   const iconName = isObj ? item.icon : 'AlertCircle';
                   const title = isObj ? item.title : null;
@@ -229,7 +230,7 @@ export default function PublicOfferPage() {
       )}
 
       {/* ─── Deliverables / Value Stack (Hormozi) ─── */}
-      {deliverables && Array.isArray(deliverables.items) && deliverables.items.length > 0 && (
+      {deliverables && getVisibleOfferItems(deliverables).length > 0 && (
         <section className="py-20 px-4">
           <div className="max-w-4xl mx-auto">
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
@@ -238,7 +239,7 @@ export default function PublicOfferPage() {
                 <h2 className="text-3xl sm:text-4xl font-bold">{deliverables.title || 'Tout ce que tu obtiens'}</h2>
               </div>
               <div className="space-y-4">
-                {deliverables.items.map((d: any, i: number) => (
+                {getVisibleOfferItems(deliverables).map((d: any, i: number) => (
                   <motion.div key={i} initial={{ opacity: 0, y: 15 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.05 }}
                     className="flex items-start gap-4 p-5 rounded-xl bg-white/[0.03] border border-white/[0.06]">
                     <HormoziIcon name={d.icon} className="h-6 w-6 text-primary shrink-0 mt-0.5" />
