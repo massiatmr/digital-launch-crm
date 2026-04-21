@@ -61,8 +61,9 @@ export function useWhatsAppRealtime(leadId?: string) {
 }
 
 export function useFollowupTasks(leadId?: string) {
+  const wsId = useCurrentWorkspaceId();
   return useQuery({
-    queryKey: ['followup-tasks', leadId],
+    queryKey: ['followup-tasks', wsId, leadId],
     queryFn: async () => {
       if (!leadId) return [];
       const { data, error } = await supabase
@@ -78,8 +79,9 @@ export function useFollowupTasks(leadId?: string) {
 }
 
 export function useWhatsAppMessages(leadId?: string) {
+  const wsId = useCurrentWorkspaceId();
   return useQuery({
-    queryKey: ['wa-messages', leadId],
+    queryKey: ['wa-messages', wsId, leadId],
     queryFn: async () => {
       if (!leadId) return [];
       const { data, error } = await supabase
@@ -95,8 +97,9 @@ export function useWhatsAppMessages(leadId?: string) {
 }
 
 export function useConversationState(leadId?: string) {
+  const wsId = useCurrentWorkspaceId();
   return useQuery({
-    queryKey: ['conv-state', leadId],
+    queryKey: ['conv-state', wsId, leadId],
     queryFn: async () => {
       if (!leadId) return null;
       const { data } = await supabase

@@ -143,7 +143,8 @@ export function useCreateLead() {
               lead_id: data.id,
               type: 'whatsapp',
               content: aiData.whatsapp_message,
-            });
+              ...(wsId ? { workspace_id: wsId } : {}),
+            } as any);
           }
 
           // Save sales script
@@ -152,7 +153,8 @@ export function useCreateLead() {
               lead_id: data.id,
               script: aiData.script,
               objections: aiData.objections || [],
-            });
+              ...(wsId ? { workspace_id: wsId } : {}),
+            } as any);
           }
 
           // Create reminder for next action
@@ -163,7 +165,8 @@ export function useCreateLead() {
               lead_id: data.id,
               action: aiData.next_action,
               due_date: dueDate.toISOString(),
-            });
+              ...(wsId ? { workspace_id: wsId } : {}),
+            } as any);
           }
         }
       } catch (e) {
@@ -290,16 +293,17 @@ export function useLeadMessages(leadId: string | undefined) {
 }
 
 export function useAllMessages() {
+  const wsId = useCurrentWorkspaceId();
   return useQuery({
-    queryKey: ['messages'],
+    queryKey: ['messages', wsId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('generated_messages')
-        .select('*, leads(name)')
-        .order('created_at', { ascending: false });
+      let q: any = supabase.from('generated_messages').select('*, leads(name)');
+      if (wsId) q = q.eq('workspace_id', wsId);
+      const { data, error } = await q.order('created_at', { ascending: false });
       if (error) throw error;
       return data;
     },
+    enabled: !!wsId,
   });
 }
 
@@ -326,19 +330,20 @@ export function useLeadScripts(leadId: string | undefined) {
 }
 
 export function useAllScripts() {
+  const wsId = useCurrentWorkspaceId();
   return useQuery({
-    queryKey: ['scripts'],
+    queryKey: ['scripts', wsId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('sales_scripts')
-        .select('*, leads(name)')
-        .order('created_at', { ascending: false });
+      let q: any = supabase.from('sales_scripts').select('*, leads(name)');
+      if (wsId) q = q.eq('workspace_id', wsId);
+      const { data, error } = await q.order('created_at', { ascending: false });
       if (error) throw error;
-      return (data || []).map(s => ({
+      return (data || []).map((s: any) => ({
         ...s,
         objections: (s.objections as any) || [],
       }));
     },
+    enabled: !!wsId,
   });
 }
 
@@ -349,16 +354,12 @@ export function useReminders() {
   return useQuery({
     queryKey: ['reminders', wsId],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [] as DbReminder[];
-      // Inclut les rappels du workspace courant + ceux sans workspace appartenant à l'utilisateur
-      let q: any = supabase.from('reminders').select('*, leads(name)');
-      if (wsId) {
-        q = q.or(`workspace_id.eq.${wsId},and(workspace_id.is.null,owner_id.eq.${user.id})`);
-      } else {
-        q = q.eq('owner_id', user.id);
-      }
-      const { data, error } = await q.order('due_date', { ascending: true });
+      if (!wsId) return [] as DbReminder[];
+      const { data, error } = await supabase
+        .from('reminders')
+        .select('*, leads(name)')
+        .eq('workspace_id', wsId)
+        .order('due_date', { ascending: true });
       if (error) throw error;
       return data as DbReminder[];
     },
@@ -464,6 +465,7 @@ export function useAnalyzeNote() {
 
 export function useApplyProposal() {
   const queryClient = useQueryClient();
+  const wsId = useCurrentWorkspaceId();
   return useMutation({
     mutationFn: async ({ lead, proposal }: { lead: DbLead; proposal: AiProposal }) => {
       const updates: any = {};
@@ -497,6 +499,7 @@ export function useApplyProposal() {
           lead_id: lead.id,
           action: proposal.next_action,
           due_date: dueDate,
+          ...(wsId ? { workspace_id: wsId } : {}),
         } as any);
         if (remErr) console.error('Reminder insert error:', remErr);
       }
@@ -511,8 +514,9 @@ export function useApplyProposal() {
 // ========== LEAD ACTIVITIES ==========
 
 export function useLeadActivities(leadId: string | undefined) {
+  const wsId = useCurrentWorkspaceId();
   return useQuery({
-    queryKey: ['activities', leadId],
+    queryKey: ['activities', wsId, leadId],
     queryFn: async () => {
       if (!leadId) return [];
       const { data, error } = await supabase
@@ -529,6 +533,7 @@ export function useLeadActivities(leadId: string | undefined) {
 
 export function useAddActivity() {
   const queryClient = useQueryClient();
+  const wsId = useCurrentWorkspaceId();
   return useMutation({
     mutationFn: async ({ leadId, activityType, description, leadResponse }: { leadId: string; activityType: DbActivity['activity_type']; description: string; leadResponse?: string }) => {
       const { error } = await supabase
@@ -538,6 +543,7 @@ export function useAddActivity() {
           activity_type: activityType,
           description,
           lead_response: leadResponse || null,
+          ...(wsId ? { workspace_id: wsId } : {}),
         } as any);
       if (error) throw error;
     },
