@@ -9,10 +9,11 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Package, Plus, ExternalLink, Trash2, Eye, EyeOff, Users, CalendarCheck, Loader2, Sparkles } from 'lucide-react';
+import { Package, Plus, ExternalLink, Trash2, Eye, EyeOff, Users, CalendarCheck, Loader2, Sparkles, Pencil } from 'lucide-react';
 import { motion } from 'framer-motion';
 import OfferAIWizard from '@/components/offers/OfferAIWizard';
 import { useNavigate } from 'react-router-dom';
+import { DialogFooter } from '@/components/ui/dialog';
 
 export default function OffersPage() {
   const navigate = useNavigate();
