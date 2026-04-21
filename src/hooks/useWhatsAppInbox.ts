@@ -27,16 +27,19 @@ export function useWhatsAppInbox() {
   const [seenVersion, setSeenVersion] = useState(0);
   const wsId = useCurrentWorkspaceId();
 
-  // Realtime: any new wa message → refetch
+  // Realtime: refetch only on inserts for the current workspace
   useEffect(() => {
-    const channel = supabase.channel(`wa-inbox-${Math.random().toString(36).slice(2)}`);
+    if (!wsId) return;
+    const channel = supabase.channel(`wa-inbox-${wsId}`);
     channel
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages' }, () => {
-        qc.invalidateQueries({ queryKey: ['wa-inbox'] });
-      })
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'whatsapp_messages', filter: `workspace_id=eq.${wsId}` },
+        () => { qc.invalidateQueries({ queryKey: ['wa-inbox', wsId] }); }
+      )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [qc]);
+  }, [qc, wsId]);
 
   const query = useQuery({
     queryKey: ['wa-inbox', wsId],
