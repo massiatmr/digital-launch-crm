@@ -164,7 +164,7 @@ export default function BookingSection({
       {/* Calendar */}
       <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6">
         <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <CalendarIcon className="h-5 w-5 text-red-500" />
+          <CalendarIcon className="h-5 w-5 text-[var(--brand,theme(colors.red.500))]" />
           Choisissez une date
         </h3>
         <Calendar
@@ -173,14 +173,14 @@ export default function BookingSection({
           onSelect={setSelectedDate}
           locale={fr}
           disabled={(date) => isBefore(date, startOfDay(new Date())) || date.getDay() === 0}
-          className="pointer-events-auto mx-auto [&_.rdp-day]:text-white [&_.rdp-head_cell]:text-gray-500 [&_.rdp-caption_label]:text-white [&_.rdp-nav_button]:text-white [&_.rdp-nav_button]:hover:bg-white/10 [&_.rdp-day_selected]:bg-red-600 [&_.rdp-day_selected]:text-white [&_.rdp-day_today]:bg-white/10 [&_.rdp-day:hover]:bg-white/5"
+          className="pointer-events-auto mx-auto [&_.rdp-day]:text-white [&_.rdp-head_cell]:text-gray-500 [&_.rdp-caption_label]:text-white [&_.rdp-nav_button]:text-white [&_.rdp-nav_button]:hover:bg-white/10 [&_.rdp-day_selected]:bg-[var(--brand,theme(colors.red.600))] [&_.rdp-day_selected]:text-white [&_.rdp-day_today]:bg-white/10 [&_.rdp-day:hover]:bg-white/5"
         />
 
         {selectedDate && (
           <div className="mt-6">
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-sm font-medium flex items-center gap-2">
-                <Clock className="h-4 w-4 text-red-500" />
+                <Clock className="h-4 w-4 text-[var(--brand,theme(colors.red.500))]" />
                 Créneaux — {format(selectedDate, 'd MMMM yyyy', { locale: fr })}
               </h4>
               {slotsSynced && (
@@ -191,7 +191,7 @@ export default function BookingSection({
             </div>
             {slotsLoading ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-red-500" />
+                <Loader2 className="h-5 w-5 animate-spin text-[var(--brand,theme(colors.red.500))]" />
                 <span className="ml-2 text-sm text-gray-400">Vérification des disponibilités…</span>
               </div>
             ) : availableSlots.length === 0 ? (
@@ -206,8 +206,8 @@ export default function BookingSection({
                     className={cn(
                       "text-sm py-2.5 rounded-lg border transition-all font-medium",
                       form.time_slot === slot
-                        ? "bg-red-600 text-white border-red-500 shadow-lg shadow-red-600/20"
-                        : "bg-white/[0.03] border-white/[0.08] text-gray-300 hover:border-red-500/40 hover:bg-red-600/10"
+                        ? "bg-[var(--brand,theme(colors.red.600))] text-white border-[var(--brand,theme(colors.red.500))] shadow-lg shadow-[var(--brand-glow,theme(colors.red.600/0.2))]"
+                        : "bg-white/[0.03] border-white/[0.08] text-gray-300 hover:border-[var(--brand-border,theme(colors.red.500/0.4))] hover:bg-[var(--brand-softer,theme(colors.red.600/0.1))]"
                     )}
                   >
                     {slot}
@@ -215,7 +215,7 @@ export default function BookingSection({
                 ))}
               </div>
             )}
-            {errors.time_slot && <p className="text-xs text-red-400 mt-2">{errors.time_slot}</p>}
+            {errors.time_slot && <p className="text-xs text-[var(--brand-light,theme(colors.red.400))] mt-2">{errors.time_slot}</p>}
           </div>
         )}
       </div>
@@ -223,7 +223,7 @@ export default function BookingSection({
       {/* Form */}
       <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6">
         <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
-          <User className="h-5 w-5 text-red-500" />
+          <User className="h-5 w-5 text-[var(--brand,theme(colors.red.500))]" />
           Vos informations
         </h3>
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -235,10 +235,10 @@ export default function BookingSection({
                 placeholder="Jean Dupont"
                 value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                className="pl-10 bg-white/[0.03] border-white/[0.08] text-white placeholder:text-gray-600 focus:border-red-500"
+                className="pl-10 bg-white/[0.03] border-white/[0.08] text-white placeholder:text-gray-600 focus:border-[var(--brand,theme(colors.red.500))]"
               />
             </div>
-            {errors.name && <p className="text-xs text-red-400 mt-1">{errors.name}</p>}
+            {errors.name && <p className="text-xs text-[var(--brand-light,theme(colors.red.400))] mt-1">{errors.name}</p>}
           </div>
           <div>
             <label className="text-sm text-gray-400 mb-1.5 block">Email *</label>
@@ -249,10 +249,10 @@ export default function BookingSection({
                 placeholder="jean@exemple.com"
                 value={form.email}
                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                className="pl-10 bg-white/[0.03] border-white/[0.08] text-white placeholder:text-gray-600 focus:border-red-500"
+                className="pl-10 bg-white/[0.03] border-white/[0.08] text-white placeholder:text-gray-600 focus:border-[var(--brand,theme(colors.red.500))]"
               />
             </div>
-            {errors.email && <p className="text-xs text-red-400 mt-1">{errors.email}</p>}
+            {errors.email && <p className="text-xs text-[var(--brand-light,theme(colors.red.400))] mt-1">{errors.email}</p>}
           </div>
           <div>
             <label className="text-sm text-gray-400 mb-1.5 block">Téléphone *</label>
@@ -263,15 +263,15 @@ export default function BookingSection({
                 placeholder="06 12 34 56 78"
                 value={form.phone}
                 onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                className="pl-10 bg-white/[0.03] border-white/[0.08] text-white placeholder:text-gray-600 focus:border-red-500"
+                className="pl-10 bg-white/[0.03] border-white/[0.08] text-white placeholder:text-gray-600 focus:border-[var(--brand,theme(colors.red.500))]"
               />
             </div>
-            {errors.phone && <p className="text-xs text-red-400 mt-1">{errors.phone}</p>}
+            {errors.phone && <p className="text-xs text-[var(--brand-light,theme(colors.red.400))] mt-1">{errors.phone}</p>}
           </div>
 
           {selectedDate && form.time_slot && (
-            <div className="p-4 rounded-xl bg-red-600/10 border border-red-500/20">
-              <p className="text-sm text-red-300 font-medium">📅 Votre rendez-vous</p>
+            <div className="p-4 rounded-xl bg-[var(--brand-softer,theme(colors.red.600/0.1))] border border-[var(--brand-border,theme(colors.red.500/0.2))]">
+              <p className="text-sm text-[var(--brand-light,theme(colors.red.300))] font-medium">📅 Votre rendez-vous</p>
               <p className="text-white font-semibold mt-1">
                 {format(selectedDate, 'EEEE d MMMM yyyy', { locale: fr })} à {form.time_slot}
               </p>
@@ -281,7 +281,7 @@ export default function BookingSection({
           <Button
             type="submit"
             size="lg"
-            className="w-full bg-red-600 hover:bg-red-500 text-white rounded-xl py-6 text-lg font-semibold shadow-lg shadow-red-600/25"
+            className="w-full bg-[var(--brand,theme(colors.red.600))] hover:bg-[var(--brand-hover,theme(colors.red.500))] text-white rounded-xl py-6 text-lg font-semibold shadow-lg shadow-[var(--brand-glow,theme(colors.red.600/0.25))]"
             disabled={submitting || !form.time_slot || !form.booking_date}
           >
             {submitting ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <CalendarCheck className="h-5 w-5 mr-2" />}
