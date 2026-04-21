@@ -50,8 +50,14 @@ export default function SettingsPage() {
   const navigate = useNavigate();
   const { data: isAdmin = false } = useIsAdmin();
   const { isEnabled } = useWorkspaceFeatures();
+  const { currentWorkspace } = useWorkspaces();
+  const isOwner = currentWorkspace?.role === 'owner' || isAdmin;
 
-  const visible = SECTIONS.filter((s) => (!s.adminOnly || isAdmin) && (!s.feature || isEnabled(s.feature)));
+  const visible = SECTIONS.filter((s) =>
+    (!s.adminOnly || isAdmin) &&
+    (!s.ownerOnly || isOwner) &&
+    (!s.feature || isEnabled(s.feature))
+  );
   const current = visible.find((s) => s.key === tab) || visible[0];
   const Comp = current.Component;
   const Icon = current.icon;
