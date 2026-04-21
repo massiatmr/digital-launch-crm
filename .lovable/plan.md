@@ -1,103 +1,72 @@
 
 
-# Assistant IA — Chat unifié style ChatGPT + confirmation avant action
+## Problème
 
-L'assistant actuel force l'utilisateur à choisir manuellement entre "Action IA" et "Question IA" via un toggle. C'est rigide et peu naturel. Objectif : un **chat conversationnel unique** qui détecte automatiquement l'intention (question, modification, création, RDV, import…) et **confirme toujours** avant toute écriture en base.
+Sur `/offers/:id/studio` et `/settings/:tab`, l'espace utile est écrasé par une double colonne latérale :
+- La sidebar principale de l'app (240px ouverte / 64px réduite)
+- Une seconde colonne interne (420px pour le Studio, ~260px pour Settings)
 
-## Ce que tu vas voir
+Sur un viewport 1061px, il ne reste que ~380px pour le contenu principal (preview Studio ou contenu Settings), ce qui rend l'expérience inutilisable.
 
-### 1. Interface unifiée style ChatGPT
-- Plus de toggle "Action / Question" — un seul chat persistant avec bulles utilisateur à droite, réponses IA à gauche
-- Avatar IA (Sparkles) + typing indicator pendant la réflexion
-- Historique conversationnel gardé en mémoire (l'IA se souvient du contexte sur les 10 derniers tours)
-- Markdown complet, bouton "Copier" par réponse, bouton "Effacer le chat"
-- Suggestions rapides visibles uniquement quand le chat est vide
-- Micro, pièce jointe (📎), drag-drop : **conservés** dans la barre de saisie
+## Solution
 
-### 2. Détection automatique d'intention
-À chaque message, l'IA classe l'intention en une des catégories :
+Adopter un pattern "focus mode" pour les pages outils qui ont déjà leur propre navigation interne : la sidebar principale se réduit automatiquement (icônes seulement) sur ces routes, libérant ~180px supplémentaires.
 
-| Intention | Action |
-|---|---|
-| `question` | Réponse textuelle directe (pas de DB touchée) |
-| `update_lead` | Propose les modifs dans une **carte de confirmation** inline |
-| `create_lead` | Propose la fiche lead à créer avec **bouton Confirmer / Annuler** |
-| `book_meeting` | Affiche les créneaux dispos, confirmation avant création |
-| `create_reminder` | Propose titre + date, confirmation avant insertion |
-| `bulk_import` | Ouvre la preview existante (déjà en place) |
+### 1. Auto-collapse de la sidebar principale sur les routes "outils"
 
-La détection se fait via **tool calling** Gemini : un seul appel retourne `{ intent, payload, assistant_reply }`.
+Dans `AppLayout.tsx`, détecter les routes qui possèdent leur propre navigation interne et forcer `collapsed = true` automatiquement (l'utilisateur peut toujours la rouvrir manuellement).
 
-### 3. Cartes de confirmation inline (la clé)
-Au lieu d'un dialog qui pop, chaque action proposée apparaît **dans le fil de chat** comme une carte :
+Routes concernées :
+- `/offers/:id/studio` (chat + édition + preview)
+- `/settings/*` (sidebar groupée par scope)
+
+### 2. Studio : refonte du layout en 3 colonnes ajustables
+
+Remplacer la colonne fixe de 420px par un layout responsive :
 
 ```text
-[IA] Ok, je vais mettre à jour Marc Dupont :
-  ┌────────────────────────────────┐
-  │ ✎ Modifications proposées      │
-  │ • Statut → Qualifié            │
-  │ • Score → 🔥 Chaud              │
-  │ • Note ajoutée : "Rappel demain"│
-  │ [✓ Confirmer] [✎ Modifier] [✗] │
-  └────────────────────────────────┘
+┌──┬─────────┬──────────────────────────┐
+│  │ Chat/   │                          │
+│≡ │ Édition │      Preview live        │
+│  │ (340px) │      (flex-1)            │
+└──┴─────────┴──────────────────────────┘
 ```
-Rien n'est écrit en base tant que l'utilisateur n'a pas cliqué **Confirmer**. Après confirmation, la carte se transforme en "✅ Appliqué" et le chat continue.
 
-Pour une création de lead, la carte liste nom / email / téléphone / entreprise / source avec champs éditables inline avant confirmation.
+- Sidebar app : auto-collapse en mode icônes (64px)
+- Panneau Studio : 340px au lieu de 420px, avec poignée resize (`react-resizable-panels` déjà installé)
+- Preview : prend tout l'espace restant
+- Sur tablette (<1280px) : panneau Studio passe en `Sheet` overlay déclenché par un bouton, preview en plein écran par défaut
 
-## Architecture technique
+### 3. Settings : sidebar interne plus compacte
 
-### Backend — nouvelle edge function `ai-assistant-chat`
-- Entrée : `{ messages: ChatMessage[], context: { pipeline_summary, leads_index, workspace_id } }`
-- Un seul appel à Gemini 2.5 Flash avec **tool calling** définissant les actions possibles :
-  - `answer_question(text)` 
-  - `propose_update_lead(lead_id, changes, summary[])`
-  - `propose_create_lead(fields)`
-  - `propose_booking(date, time_slot?, contact)`
-  - `propose_reminder(lead_id, action, due_date)`
-- Retourne `{ intent, assistant_reply, payload }` — **jamais** d'écriture DB côté serveur. Le backend ne fait que proposer.
-- Validation JWT (pattern existant)
+- Sidebar app auto-collapse (64px)
+- Sidebar interne Settings : passer de boutons larges à une liste plus dense (icône + label court, 200px au lieu de ~260px)
+- Sur mobile : déjà en Select dropdown, on garde
 
-### Frontend — refonte `GlobalNaturalLanguageInput.tsx`
-- Suppression du state `mode`, `bookingIntent`, `proposal`, `showDialog` (dialog) → remplacés par un tableau unique `messages: ChatMessage[]` où chaque message peut contenir une `action_card` embedded
-- Nouveau type :
-```ts
-type ChatMessage = {
-  role: 'user' | 'assistant';
-  content: string;
-  action?: {
-    type: 'update_lead' | 'create_lead' | 'booking' | 'reminder';
-    payload: any;
-    status: 'pending' | 'confirmed' | 'cancelled';
-  };
-};
-```
-- Nouveau composant `ActionCard` rendu inline dans le chat → bouton Confirmer appelle le hook approprié (`useApplyProposal`, `useCreateLead`, `useCreateReminder`, `handle-booking`)
-- `useRef` d'un `AbortController` pour annuler les requêtes en vol
+### 4. Bouton de retour explicite
 
-### Ce qu'on garde
-- `useSpeechRecognition` (micro)
-- Drag-drop + bouton 📎 + `BulkImportPreview` (intact)
-- `useAnalyzeNote` / `useApplyProposal` / `useCreateLead` / `useCreateReminder` (réutilisés par les confirmations)
-- `check-availability` et `handle-booking` (appelés depuis les cartes RDV)
+Quand la sidebar principale est auto-collapsée, ajouter un bouton "←" dans le header de la page outil pour revenir à la vue normale (re-expand).
 
-### Ce qu'on supprime
-- Toggle Mode Action/Ask
-- Dialog modal de confirmation (`Dialog` actuel)
-- Panneau bookingSlots externe (remplacé par carte inline)
+## Détails techniques
 
-## Fichiers touchés
+**`AppLayout.tsx`** :
+- Ajouter `useLocation()` + `useEffect` qui force `setCollapsed(true)` quand `pathname` matche `/offers/*/studio` ou `/settings*`
+- Mémoriser l'état précédent pour le restaurer en quittant la route
 
-| Fichier | Action |
-|---|---|
-| `supabase/functions/ai-assistant-chat/index.ts` | **Nouveau** — classifier + proposeur |
-| `src/components/GlobalNaturalLanguageInput.tsx` | Refonte UI chat unifié, suppression du mode toggle |
-| `src/components/assistant/ActionCard.tsx` | **Nouveau** — carte de confirmation inline (update / create / booking / reminder) |
+**`OfferStudioPage.tsx`** :
+- Retirer `fixed inset-0` (il sort du flux et casse la sidebar) → utiliser `h-[calc(100vh-4rem)]` dans le flux normal
+- Remplacer le split flex par `ResizablePanelGroup` (panneau gauche min 300px / max 500px, défaut 340px)
+- Sur `<1280px` : panneau gauche dans un `Sheet` côté gauche, déclenché par bouton dans le header
 
-## Étapes de livraison
+**`SettingsPage.tsx`** :
+- Réduire la sidebar interne : `w-52` au lieu de `w-64`, padding réduit, labels en `text-sm`
+- Sticky top à `top-16` (sous le WorkspaceHeader)
 
-1. Edge function `ai-assistant-chat` avec tool calling multi-intentions
-2. Composant `ActionCard` (variantes update / create / booking / reminder) avec boutons Confirmer / Modifier / Annuler
-3. Refonte `GlobalNaturalLanguageInput` en chat unique avec rendu des cartes dans le fil
-4. Test end-to-end : question, modification de lead, création, RDV, rappel, import fichier
+**Pas de changement** sur les autres pages (Pipeline, Clients, Bookings…) qui restent avec sidebar principale ouverte par défaut.
+
+## Fichiers modifiés
+
+- `src/components/AppLayout.tsx` — auto-collapse selon route
+- `src/pages/OfferStudioPage.tsx` — layout resizable + sortir de `fixed inset-0`
+- `src/pages/SettingsPage.tsx` — sidebar interne compacte
 
