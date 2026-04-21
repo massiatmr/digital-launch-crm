@@ -45,8 +45,59 @@ export default function ResetPasswordPage() {
         toast.error(error.message);
         return;
       }
+
+      // Si l'utilisateur a une invitation en attente (ex: arrivé ici via un lien d'invitation
+      // qui a déclenché un flux recovery), on la consomme automatiquement pour le rattacher
+      // à son workspace — sinon il resterait bloqué sur "En attente d'invitation".
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        const storedToken = (() => {
+          try { return localStorage.getItem('pending_invite_token'); } catch { return null; }
+        })();
+
+        let consumed = false;
+        if (user && storedToken) {
+          const { data } = await (supabase.rpc as any)('consume_workspace_invitation', {
+            p_token: storedToken,
+            p_user_id: user.id,
+          });
+          if (data?.success) {
+            consumed = true;
+            if (data.workspace_id) {
+              try { localStorage.setItem('current_workspace_id', data.workspace_id); } catch {}
+            }
+          }
+          try { localStorage.removeItem('pending_invite_token'); } catch {}
+        }
+
+        // Fallback : chercher une invitation en attente pour l'email de l'utilisateur
+        if (user && !consumed) {
+          const { data: inv } = await (supabase as any)
+            .from('invitations')
+            .select('token')
+            .ilike('email', user.email || '')
+            .is('used_at', null)
+            .gt('expires_at', new Date().toISOString())
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (inv?.token) {
+            const { data } = await (supabase.rpc as any)('consume_workspace_invitation', {
+              p_token: inv.token,
+              p_user_id: user.id,
+            });
+            if (data?.success && data.workspace_id) {
+              try { localStorage.setItem('current_workspace_id', data.workspace_id); } catch {}
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[reset-password] invitation auto-consume skipped', err);
+      }
+
       toast.success('Mot de passe mis à jour');
-      navigate('/', { replace: true });
+      // Reload pour forcer le refresh des workspaces avec le nouveau membership
+      window.location.replace('/');
     } finally {
       setSubmitting(false);
     }
