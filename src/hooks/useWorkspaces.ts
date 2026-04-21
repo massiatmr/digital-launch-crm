@@ -110,6 +110,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     [workspaces, currentId]
   );
 
+  // Apply the workspace brand color globally so the entire CRM follows it.
+  useEffect(() => {
+    applyBrandToElement(currentWorkspace?.brand_color || null);
+  }, [currentWorkspace?.brand_color]);
+
   const value: WorkspaceContextValue = {
     workspaces,
     currentWorkspace,
