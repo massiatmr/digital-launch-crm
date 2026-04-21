@@ -109,13 +109,13 @@ export default function SettingsPage() {
                           key={s.key}
                           onClick={() => navigate(`/settings/${s.key}`)}
                           className={cn(
-                            'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors text-left',
+                            'flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] transition-colors text-left',
                             active
                               ? 'bg-primary/10 text-primary font-medium'
                               : 'text-foreground/80 hover:bg-muted/50'
                           )}
                         >
-                          <SIcon className={cn('h-4 w-4 shrink-0', active && 'text-primary')} />
+                          <SIcon className={cn('h-3.5 w-3.5 shrink-0', active && 'text-primary')} />
                           <span className="truncate">{s.label}</span>
                         </button>
                       );
