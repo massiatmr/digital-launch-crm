@@ -28,6 +28,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useWorkspaceFeatures } from '@/hooks/useWorkspaceFeatures';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,6 +55,8 @@ export function LeadDetailContent({
   const { data: lead, isLoading } = useLead(leadId);
   const deleteLead = useDeleteLead();
   const updateLead = useUpdateLead();
+  const { isEnabled } = useWorkspaceFeatures();
+  const whatsappEnabled = isEnabled('whatsapp');
 
   const AI_BLOCK_REGEX = /<!-- AI_NOTES_START -->([\s\S]*?)<!-- AI_NOTES_END -->/;
   const fullNotes = lead?.notes ?? '';
@@ -146,15 +149,17 @@ export function LeadDetailContent({
       </AlertDialog>
 
       <Tabs defaultValue="overview" className="mt-3 flex min-h-0 flex-1 flex-col">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className={cn('grid w-full', whatsappEnabled ? 'grid-cols-3' : 'grid-cols-2')}>
           <TabsTrigger value="overview" className="gap-1 text-xs">
             <LayoutGrid className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Détails</span>
           </TabsTrigger>
-          <TabsTrigger value="followup" className="gap-1 text-xs">
-            <Smartphone className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">WhatsApp</span>
-          </TabsTrigger>
+          {whatsappEnabled && (
+            <TabsTrigger value="followup" className="gap-1 text-xs">
+              <Smartphone className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">WhatsApp</span>
+            </TabsTrigger>
+          )}
           <TabsTrigger value="activities" className="gap-1 text-xs">
             <Activity className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Activités</span>
@@ -166,7 +171,7 @@ export function LeadDetailContent({
             <TabsContent value="overview" className="mt-0 space-y-4">
               <div className="space-y-2 rounded-xl border border-border bg-card p-3">
                 <div className="flex flex-wrap gap-2">
-                  {lead.phone && (
+                  {lead.phone && whatsappEnabled && (
                     <Button asChild variant="outline" size="sm" className="gap-1.5">
                       <a href={toWhatsAppUrl(lead.phone)} target="_blank" rel="noopener noreferrer">
                         <Smartphone className="h-3.5 w-3.5" />
@@ -303,9 +308,11 @@ export function LeadDetailContent({
               <NaturalLanguageInput leadId={lead.id} lead={lead} />
             </TabsContent>
 
-            <TabsContent value="followup" className="mt-0">
-              <FollowupTimeline leadId={lead.id} />
-            </TabsContent>
+            {whatsappEnabled && (
+              <TabsContent value="followup" className="mt-0">
+                <FollowupTimeline leadId={lead.id} />
+              </TabsContent>
+            )}
 
             <TabsContent value="activities" className="mt-0">
               <LeadActivityTimeline leadId={lead.id} />
