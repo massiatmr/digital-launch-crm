@@ -12,8 +12,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Package, Plus, ExternalLink, Trash2, Eye, EyeOff, Users, CalendarCheck, Loader2, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import OfferAIWizard from '@/components/offers/OfferAIWizard';
+import { useNavigate } from 'react-router-dom';
 
 export default function OffersPage() {
+  const navigate = useNavigate();
   const { data: offers, isLoading } = useOffers();
   const { data: leads } = useLeads();
   const { data: bookings } = useBookings();
@@ -118,9 +120,12 @@ export default function OffersPage() {
                     <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" />{stats.leads} leads</span>
                     <span className="flex items-center gap-1"><CalendarCheck className="h-3.5 w-3.5" />{stats.bookings} RDV</span>
                   </div>
-                  <div className="flex gap-2 pt-2">
-                    <Link to={`/offers/${offer.id}`} className="flex-1">
-                      <Button variant="outline" size="sm" className="w-full">Modifier</Button>
+                    <div className="flex gap-2 pt-2">
+                    <Link to={`/offers/${offer.id}/studio`} className="flex-1">
+                      <Button variant="outline" size="sm" className="w-full">
+                        <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                        Studio
+                      </Button>
                     </Link>
                     {offer.is_active && (
                       <Link to={`/offers/${offer.slug}/page`} target="_blank">
@@ -143,7 +148,11 @@ export default function OffersPage() {
         )}
       </div>
 
-      <OfferAIWizard open={aiOpen} onOpenChange={setAiOpen} />
+      <OfferAIWizard
+        open={aiOpen}
+        onOpenChange={setAiOpen}
+        onCreated={(offerId) => navigate(`/offers/${offerId}/studio`)}
+      />
     </div>
   );
 }

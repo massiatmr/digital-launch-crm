@@ -74,8 +74,10 @@ export default function PublicOfferPage() {
   const subheadline = offerPage?.subheadline || offer.description;
   const ctaText = offerPage?.cta_text || 'Réserver un Appel';
   const features = Array.isArray(offer.features) ? offer.features : [];
-  const sections = Array.isArray(offerPage?.sections) ? offerPage.sections : [];
+  const allSections = Array.isArray(offerPage?.sections) ? offerPage.sections : [];
+  const sections = allSections.filter((s: any) => !s?.hidden);
   const testimonials = Array.isArray(offerPage?.testimonials) ? offerPage.testimonials : [];
+  const showPrice = (offer as any).show_price === true;
 
   const painPoints = sections.find((s: any) => s.type === 'pain_points');
   const isHormoziPain = painPoints?.variant === 'hormozi';
@@ -84,7 +86,7 @@ export default function PublicOfferPage() {
   const deliverables = sections.find((s: any) => s.type === 'deliverables');
   const bonuses = sections.find((s: any) => s.type === 'bonuses');
   const faq = sections.find((s: any) => s.type === 'faq');
-  const pricing = sections.find((s: any) => s.type === 'pricing');
+  const pricing = showPrice ? sections.find((s: any) => s.type === 'pricing') : null;
   const guarantee = sections.find((s: any) => s.type === 'guarantee');
   const portfolio = sections.find((s: any) => s.type === 'portfolio');
 
@@ -117,7 +119,7 @@ export default function PublicOfferPage() {
             <Button size="lg" onClick={scrollToBooking} className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-full px-10 py-6 text-lg font-semibold shadow-lg">
               {ctaText} <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
-            {offer.price && <span className="text-sm text-gray-500">{offer.price}</span>}
+            {(offer as any).show_price && offer.price && <span className="text-sm text-gray-500">{offer.price}</span>}
           </div>
           {guarantee && (
             <div className="mt-8 flex items-center justify-center gap-2 text-sm text-emerald-400">

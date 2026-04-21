@@ -16,6 +16,7 @@ import PipelinePage from "@/pages/PipelinePage";
 import ImportPage from "@/pages/ImportPage";
 import OffersPage from "@/pages/OffersPage";
 import OfferDetailPage from "@/pages/OfferDetailPage";
+import OfferStudioPage from "@/pages/OfferStudioPage";
 import BookingsPage from "@/pages/BookingsPage";
 import PublicOfferPage from "@/pages/PublicOfferPage";
 import PublicSignaturePage from "@/pages/PublicSignaturePage";
@@ -64,6 +65,7 @@ const App = () => (
                 <Route path="/clients/:id" element={<ClientDetailPage />} />
                 <Route path="/offers" element={<OffersPage />} />
                 <Route path="/offers/:id" element={<OfferDetailPage />} />
+                <Route path="/offers/:id/studio" element={<OfferStudioPage />} />
                 <Route path="/bookings" element={<BookingsPage />} />
                 <Route path="/conversations" element={<ConversationsPage />} />
                 <Route path="/reminders" element={<RemindersPage />} />
