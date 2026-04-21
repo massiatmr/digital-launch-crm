@@ -266,12 +266,36 @@ function WorkspaceEditor({ workspace, canManage }: { workspace: any; canManage: 
           <Input className="h-8 text-sm" value={form.slug} onChange={(e) => setForm({ ...form, slug: slugify(e.target.value) })} />
         </div>
         <div>
-          <Label className="text-xs">Logo du workspace</Label>
+          <Label className="text-xs">Logo principal</Label>
           <LogoUploader
             workspaceId={workspace.id}
             currentLogoUrl={form.logo_url}
+            field="logo_url"
             onChange={(url) => setForm({ ...form, logo_url: url })}
           />
+          <p className="text-[10px] text-muted-foreground mt-1">Utilisé dans l'app et en repli sur les pages publiques.</p>
+        </div>
+        <div>
+          <Label className="text-xs">Logo clair (pour fonds sombres)</Label>
+          <LogoUploader
+            workspaceId={workspace.id}
+            currentLogoUrl={form.logo_url_light}
+            field="logo_url_light"
+            variant="light"
+            onChange={(url) => setForm({ ...form, logo_url_light: url })}
+          />
+          <p className="text-[10px] text-muted-foreground mt-1">Affiché sur les landing pages d'offres (fond noir).</p>
+        </div>
+        <div>
+          <Label className="text-xs">Logo sombre (pour fonds clairs)</Label>
+          <LogoUploader
+            workspaceId={workspace.id}
+            currentLogoUrl={form.logo_url_dark}
+            field="logo_url_dark"
+            variant="dark"
+            onChange={(url) => setForm({ ...form, logo_url_dark: url })}
+          />
+          <p className="text-[10px] text-muted-foreground mt-1">Utilisé pour les PDF (factures, contrats) et impressions.</p>
         </div>
         <div>
           <Label className="text-xs">Email de notification du workspace</Label>
