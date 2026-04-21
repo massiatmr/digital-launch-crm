@@ -1,4 +1,5 @@
 import { useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useOfferBySlug, useOfferPage } from '@/hooks/useOfferData';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -46,6 +47,15 @@ export default function PublicOfferPage() {
   const { slug } = useParams<{ slug: string }>();
   const { data: offer, isLoading, error } = useOfferBySlug(slug);
   const { data: offerPage } = useOfferPage(offer?.id);
+  const { data: branding } = useQuery({
+    queryKey: ['offer-branding', slug],
+    enabled: !!slug,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_offer_branding' as any, { p_slug: slug });
+      if (error) throw error;
+      return data as { logo_url: string | null; company_name: string | null; brand_color: string | null } | null;
+    },
+  });
 
   if (isLoading) {
     return (
@@ -97,7 +107,17 @@ export default function PublicOfferPage() {
       {/* ─── Sticky Navbar ─── */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0a0a0f]/80 backdrop-blur-xl border-b border-white/5">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <span className="font-bold text-lg tracking-tight">{offer.name}</span>
+          <div className="flex items-center gap-3 min-w-0">
+            {branding?.logo_url ? (
+              <img
+                src={branding.logo_url}
+                alt={branding.company_name || offer.name}
+                className="h-9 w-auto max-w-[160px] object-contain"
+              />
+            ) : (
+              <span className="font-bold text-lg tracking-tight truncate">{branding?.company_name || offer.name}</span>
+            )}
+          </div>
           <Button size="sm" onClick={scrollToBooking} className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-full px-6">
             {ctaText}
           </Button>
