@@ -29,6 +29,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWorkspaceFeatures } from '@/hooks/useWorkspaceFeatures';
+import { cn } from '@/lib/utils';
 import {
   AlertDialog,
   AlertDialogAction,
