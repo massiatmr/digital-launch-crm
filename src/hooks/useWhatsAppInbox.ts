@@ -30,8 +30,9 @@ export function useWhatsAppInbox() {
   // Realtime: refetch only on inserts for the current workspace
   useEffect(() => {
     if (!wsId) return;
+    const channelName = `wa-inbox-${wsId}-${Math.random().toString(36).slice(2, 10)}`;
     const channel = supabase
-      .channel(`wa-inbox-${wsId}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'whatsapp_messages', filter: `workspace_id=eq.${wsId}` },
