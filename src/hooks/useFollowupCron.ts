@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useCurrentWorkspaceId } from './useWorkspaces';
 
 export function useCronStatus() {
   return useQuery({
@@ -15,18 +16,22 @@ export function useCronStatus() {
 }
 
 export function useDueTasksCount(ownerId?: string) {
+  const wsId = useCurrentWorkspaceId();
   return useQuery({
-    queryKey: ['due-tasks-count', ownerId],
+    queryKey: ['due-tasks-count', wsId, ownerId],
     queryFn: async () => {
-      const { count, error } = await supabase
+      let q: any = supabase
         .from('lead_followup_tasks')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'scheduled')
         .lte('scheduled_at', new Date().toISOString());
+      if (wsId) q = q.eq('workspace_id', wsId);
+      const { count, error } = await q;
       if (error) throw error;
       return count ?? 0;
     },
     refetchInterval: 30_000,
+    enabled: !!wsId,
   });
 }
 

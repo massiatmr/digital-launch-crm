@@ -92,6 +92,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const switchWorkspace = (id: string) => {
     setCurrentId(id);
     try { localStorage.setItem(STORAGE_KEY, id); } catch {}
+    // Remove caches scoped to a specific workspace to avoid flashing previous data
+    const scopedKeys = [
+      'leads', 'reminders', 'scripts', 'messages', 'activities',
+      'followup-tasks', 'wa-messages', 'conv-state', 'wa-inbox',
+      'due-tasks-count', 'followup-settings', 'sequence-steps',
+      'clients', 'offers', 'bookings', 'meta-pages',
+    ];
+    scopedKeys.forEach((k) => qc.removeQueries({ queryKey: [k] }));
     // Invalidate all queries so data refetches with new workspace context
     qc.invalidateQueries();
   };
