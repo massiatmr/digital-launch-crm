@@ -2146,6 +2146,7 @@ export type Database = {
       get_followup_cron_status: { Args: never; Returns: Json }
       get_invitation_by_token: { Args: { p_token: string }; Returns: Json }
       get_invoice_by_token: { Args: { p_token: string }; Returns: Json }
+      get_offer_branding: { Args: { p_slug: string }; Returns: Json }
       get_onboarding_by_token: { Args: { p_token: string }; Returns: Json }
       has_role: {
         Args: {
