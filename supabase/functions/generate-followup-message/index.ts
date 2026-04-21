@@ -175,10 +175,13 @@ Deno.serve(async (req) => {
       settings = data;
     }
 
-    const [{ data: history }, { data: offer }, { data: qualification }] = await Promise.all([
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+    const [{ data: history }, { data: offer }, { data: qualification }, availableSlots] = await Promise.all([
       supabase.from("whatsapp_messages").select("direction,content,sent_at").eq("lead_id", lead_id).order("sent_at", { ascending: true }).limit(20),
       supabase.from("leads").select("offer_id, offers(name, description, price, slug)").eq("id", lead_id).maybeSingle(),
       supabase.from("lead_qualification").select("*").eq("lead_id", lead_id).maybeSingle(),
+      getNextAvailableSlots(admin, ownerId!, lead.workspace_id),
     ]);
 
     const offerData = (offer as any)?.offers;
@@ -190,7 +193,6 @@ Deno.serve(async (req) => {
     const inboundCount = (history ?? []).filter((m: any) => m.direction === 'inbound').length;
     const historyText = (history ?? []).slice(-10).map(m => `${m.direction === 'inbound' ? 'LEAD' : 'MOI'}: ${m.content}`).join("\n") || "Aucun échange précédent.";
 
-    // Sélection du prompt contextuel
     const promptKey = pickPromptKey(qualification, task_type);
     const customPrompt = settings?.[`prompt_${promptKey}`]?.trim();
     const contextualPrompt = customPrompt || DEFAULT_PROMPTS[promptKey];
@@ -210,6 +212,10 @@ Deno.serve(async (req) => {
 
     const variantHint = variant === "B" ? "\n\n⚠️ VARIANTE B : adopte un angle différent de ce que tu écrirais habituellement (autre accroche, autre question)." : "";
 
+    const slotsBlock = availableSlots.length > 0
+      ? `\nCRÉNEAUX RÉELLEMENT DISPONIBLES (calendrier synchronisé) :\n${availableSlots.map((s, i) => `  ${i + 1}. ${s}`).join("\n")}\n⚠️ Si tu proposes un RDV, UTILISE EXCLUSIVEMENT 1 ou 2 de ces créneaux. N'invente JAMAIS d'horaire.`
+      : "";
+
     const systemPrompt = `${baseInstructions}
 
 MODE CONTEXTUEL : ${promptKey.toUpperCase()}
@@ -219,7 +225,8 @@ RÈGLES STRICTES :
 - MAX 2 phrases
 - 1 SEULE question par message (jamais 2 ou 3)
 - Pas de "Bonjour" si déjà dit, pas de signature, 1 emoji max
-- Pour proposer un RDV : ${bookingLink ? `partage ce lien → ${bookingLink}` : "propose 2 créneaux concrets cette semaine (ex: 'Mardi 14h ou Jeudi 10h ?')"}
+- Pour proposer un RDV : propose 1 ou 2 créneaux EXACTS de la liste ci-dessous, ou partage le lien ${bookingLink ?? '(aucun lien)'}
+${slotsBlock}
 
 CONTEXTE LEAD :
 - Nom : ${lead.name}
