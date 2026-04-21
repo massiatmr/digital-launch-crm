@@ -124,6 +124,33 @@ async function createGoogleCalendarEvent(
   };
 }
 
+async function markLeadBookedAndStopAutomations(supabase: any, leadId: string, ownerId: string) {
+  const { data: lead } = await supabase
+    .from("leads")
+    .select("id, workspace_id")
+    .eq("id", leadId)
+    .maybeSingle();
+
+  await supabase.from("lead_conversation_state").upsert({
+    lead_id: leadId,
+    owner_id: ownerId,
+    workspace_id: lead?.workspace_id ?? null,
+    state: "BOOKED",
+    updated_at: new Date().toISOString(),
+  } as any, { onConflict: "lead_id" });
+
+  await supabase
+    .from("lead_followup_tasks")
+    .update({
+      status: "cancelled",
+      error_message: "Skipped: booking already exists from public link",
+      updated_at: new Date().toISOString(),
+    } as any)
+    .eq("lead_id", leadId)
+    .in("status", ["scheduled", "pending", "processing"])
+    .neq("task_type", "manual_call");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -218,7 +245,7 @@ Deno.serve(async (req) => {
       leadId = existingLead.id;
       await supabase
         .from("leads")
-        .update({ offer_id, last_contacted_at: new Date().toISOString() })
+        .update({ offer_id, status: "qualified", last_contacted_at: new Date().toISOString() })
         .eq("id", leadId);
     } else {
       leadId = crypto.randomUUID();
@@ -230,7 +257,7 @@ Deno.serve(async (req) => {
         phone: phone || "",
         source: "website",
         score: "warm",
-        status: "new",
+        status: "qualified",
         offer_id,
         message: `Réservation RDV le ${booking_date} à ${time_slot}`,
       });
@@ -241,6 +268,8 @@ Deno.serve(async (req) => {
       .from("bookings")
       .update({ lead_id: leadId })
       .eq("id", bookingId);
+
+    await markLeadBookedAndStopAutomations(supabase, leadId, owner_id);
 
     // 3. Schedule nurturing emails
     const bookingDateTime = new Date(`${booking_date}T${time_slot}:00`);

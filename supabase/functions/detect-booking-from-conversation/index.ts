@@ -84,6 +84,27 @@ async function createGoogleCalendarEvent(
   };
 }
 
+async function markLeadBookedAndStopAutomations(admin: any, lead: any, reason: string) {
+  await admin.from("lead_conversation_state").upsert({
+    lead_id: lead.id,
+    owner_id: lead.owner_id,
+    workspace_id: lead.workspace_id ?? null,
+    state: "BOOKED",
+    updated_at: new Date().toISOString(),
+  } as any, { onConflict: "lead_id" });
+
+  await admin
+    .from("lead_followup_tasks")
+    .update({
+      status: "cancelled",
+      error_message: reason,
+      updated_at: new Date().toISOString(),
+    } as any)
+    .eq("lead_id", lead.id)
+    .in("status", ["scheduled", "pending", "processing"])
+    .neq("task_type", "manual_call");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -108,6 +129,23 @@ Deno.serve(async (req) => {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    const { data: alreadyBooked } = await admin
+      .from("bookings")
+      .select("id, booking_date, time_slot")
+      .eq("lead_id", lead_id)
+      .neq("status", "cancelled")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (alreadyBooked) {
+      await markLeadBookedAndStopAutomations(admin, lead, `Booking already exists (${alreadyBooked.id})`);
+      return new Response(
+        JSON.stringify({ ok: true, detected: true, skipped: true, reason: "lead_already_booked", booking_id: alreadyBooked.id }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     // Récupère les 10 derniers messages (contexte conversation)
@@ -194,6 +232,7 @@ ${transcript}`;
       .is("deleted_at", null)
       .maybeSingle();
     if (existing) {
+      await markLeadBookedAndStopAutomations(admin, lead, `Booking already exists (${existing.id})`);
       return new Response(
         JSON.stringify({ ok: true, detected: true, skipped: true, reason: "booking_already_exists", booking_id: existing.id }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -201,6 +240,21 @@ ${transcript}`;
     }
 
     const offerName = (lead as any).offers?.name ?? "Consultation";
+
+    if (!lead.offer_id) {
+      await markLeadBookedAndStopAutomations(admin, lead, "RDV confirmé mais aucune offre liée au lead — création booking ignorée");
+      await admin.from("lead_activities").insert({
+        lead_id: lead.id,
+        owner_id: lead.owner_id,
+        workspace_id: lead.workspace_id,
+        activity_type: "meeting",
+        description: `📅 RDV confirmé via WhatsApp (${parsed.booking_date} à ${parsed.time_slot}) mais aucune offre n'est liée au lead : booking non créé.`,
+      } as any);
+      return new Response(
+        JSON.stringify({ ok: true, detected: true, skipped: true, reason: "missing_offer_id" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     // Créer event Google Calendar si token disponible
     let googleEventId: string | null = null;
@@ -248,6 +302,8 @@ ${transcript}`;
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    await markLeadBookedAndStopAutomations(admin, lead, `Booking auto-created (${bookingId})`);
 
     // Activity + notif owner
     await admin.from("lead_activities").insert({
