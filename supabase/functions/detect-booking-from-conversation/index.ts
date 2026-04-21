@@ -241,6 +241,21 @@ ${transcript}`;
 
     const offerName = (lead as any).offers?.name ?? "Consultation";
 
+    if (!lead.offer_id) {
+      await markLeadBookedAndStopAutomations(admin, lead, "RDV confirmé mais aucune offre liée au lead — création booking ignorée");
+      await admin.from("lead_activities").insert({
+        lead_id: lead.id,
+        owner_id: lead.owner_id,
+        workspace_id: lead.workspace_id,
+        activity_type: "meeting",
+        description: `📅 RDV confirmé via WhatsApp (${parsed.booking_date} à ${parsed.time_slot}) mais aucune offre n'est liée au lead : booking non créé.`,
+      } as any);
+      return new Response(
+        JSON.stringify({ ok: true, detected: true, skipped: true, reason: "missing_offer_id" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     // Créer event Google Calendar si token disponible
     let googleEventId: string | null = null;
     let meetLink: string | null = null;
@@ -287,6 +302,8 @@ ${transcript}`;
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    await markLeadBookedAndStopAutomations(admin, lead, `Booking auto-created (${bookingId})`);
 
     // Activity + notif owner
     await admin.from("lead_activities").insert({
