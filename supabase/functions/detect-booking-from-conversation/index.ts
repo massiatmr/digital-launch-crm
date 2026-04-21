@@ -131,6 +131,23 @@ Deno.serve(async (req) => {
       });
     }
 
+    const { data: alreadyBooked } = await admin
+      .from("bookings")
+      .select("id, booking_date, time_slot")
+      .eq("lead_id", lead_id)
+      .neq("status", "cancelled")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (alreadyBooked) {
+      await markLeadBookedAndStopAutomations(admin, lead, `Booking already exists (${alreadyBooked.id})`);
+      return new Response(
+        JSON.stringify({ ok: true, detected: true, skipped: true, reason: "lead_already_booked", booking_id: alreadyBooked.id }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     // Récupère les 10 derniers messages (contexte conversation)
     const { data: history } = await admin
       .from("whatsapp_messages")
@@ -215,6 +232,7 @@ ${transcript}`;
       .is("deleted_at", null)
       .maybeSingle();
     if (existing) {
+      await markLeadBookedAndStopAutomations(admin, lead, `Booking already exists (${existing.id})`);
       return new Response(
         JSON.stringify({ ok: true, detected: true, skipped: true, reason: "booking_already_exists", booking_id: existing.id }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
