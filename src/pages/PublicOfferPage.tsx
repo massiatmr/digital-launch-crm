@@ -24,6 +24,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import DemenageurLanding from '@/pages/landing/demenageur';
 import { getVisibleOfferItems, sanitizeOfferSections } from '@/lib/offerContent';
+import { buildBrandCssVars } from '@/lib/brandColor';
 
 // Branding shared across landing pages
 export interface OfferBranding {
