@@ -31,7 +31,7 @@ const SECTIONS: Section[] = [
   { key: 'notifications', label: 'Notifications', icon: Bell, description: 'Push, emails, appareils', group: 'Personnel', Component: SettingsNotificationsPage },
   { key: 'workspaces', label: 'Espaces de travail', icon: Building2, description: 'Membres, modules, branding', group: 'Workspace', Component: SettingsWorkspacesPage },
   { key: 'automation', label: 'Automatisation', icon: Bot, description: 'Séquences, IA, templates', group: 'Workspace', feature: 'whatsapp', Component: SettingsAutomationPage },
-  { key: 'integrations', label: 'Intégrations', icon: Plug, description: 'WhatsApp, Meta, Google Calendar', group: 'Workspace', Component: SettingsIntegrationsPage },
+  { key: 'integrations', label: 'Intégrations', icon: Plug, description: 'WhatsApp, Meta, Google Calendar', group: 'Workspace', ownerOnly: true, Component: SettingsIntegrationsPage },
   { key: 'trash', label: 'Corbeille', icon: Trash2, description: 'Restaurer les éléments supprimés (30 jours)', group: 'Workspace', Component: SettingsTrashPage },
   { key: 'audit', label: 'Journal d\'audit', icon: History, description: 'Historique complet des suppressions', group: 'Système', adminOnly: true, Component: SettingsAuditPage },
   { key: 'tests', label: 'Tests système', icon: FlaskConical, description: 'Diagnostic des envois', group: 'Système', adminOnly: true, Component: SettingsTestsPage },
