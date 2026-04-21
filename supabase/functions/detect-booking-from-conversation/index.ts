@@ -305,7 +305,7 @@ ${transcript}`;
       id: bookingId,
       owner_id: lead.owner_id,
       workspace_id: lead.workspace_id,
-      offer_id: lead.offer_id,
+      offer_id: resolvedOfferId,
       lead_id: lead.id,
       name: lead.name,
       email: lead.email || `${lead.phone}@whatsapp.tmp`,
