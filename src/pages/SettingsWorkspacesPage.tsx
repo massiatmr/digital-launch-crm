@@ -198,6 +198,8 @@ function WorkspaceEditor({ workspace, canManage }: { workspace: any; canManage: 
     company_name: workspace.company_name || '',
     slug: workspace.slug || '',
     logo_url: workspace.logo_url || '',
+    logo_url_light: workspace.logo_url_light || '',
+    logo_url_dark: workspace.logo_url_dark || '',
     notification_email: workspace.notification_email || '',
   });
   const [confirmName, setConfirmName] = useState('');
