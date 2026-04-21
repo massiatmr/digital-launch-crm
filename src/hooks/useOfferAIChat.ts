@@ -53,11 +53,12 @@ export function useSendOfferChatMessage(offerId: string | undefined) {
       } as any);
 
       // 2) Call AI
+      const cleanPage = sanitizeOfferPageContent(params.page);
       const { data, error } = await supabase.functions.invoke('edit-offer-ai', {
         body: {
           instruction: params.instruction,
           offer: params.offer,
-          page: params.page,
+          page: cleanPage,
           history: params.history,
         },
       });
