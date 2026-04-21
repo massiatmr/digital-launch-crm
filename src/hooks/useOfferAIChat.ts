@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentWorkspaceId } from './useWorkspaces';
 import { toast } from 'sonner';
+import { sanitizeOfferPageContent } from '@/lib/offerContent';
 
 export type OfferChatMessage = {
   id: string;
@@ -64,7 +65,8 @@ export function useSendOfferChatMessage(offerId: string | undefined) {
       if (data?.error) throw new Error(data.error);
 
       // 3) Apply changes
-      const { offer: newOffer, page: newPage, summary } = data;
+      const { offer: newOffer, page: rawPage, summary } = data;
+      const newPage = sanitizeOfferPageContent(rawPage || {});
 
       const offerUpdates: any = {};
       if (newOffer.name && newOffer.name !== params.offer.name) {
