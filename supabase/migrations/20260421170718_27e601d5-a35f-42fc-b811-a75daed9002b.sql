@@ -1,0 +1,1 @@
+ALTER TYPE public.followup_task_status ADD VALUE IF NOT EXISTS 'processing';
