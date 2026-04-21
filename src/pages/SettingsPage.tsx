@@ -86,10 +86,10 @@ export default function SettingsPage() {
         </Select>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-[240px_1fr]">
+      <div className="grid gap-6 md:grid-cols-[200px_1fr]">
         {/* Desktop sidebar */}
         <aside className="hidden md:block">
-          <nav className="space-y-6 sticky top-4">
+          <nav className="space-y-5 sticky top-20">
             {GROUP_ORDER.map((g) => {
               const items = visible.filter((s) => s.group === g);
               if (items.length === 0) return null;
