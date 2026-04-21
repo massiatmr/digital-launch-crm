@@ -46,7 +46,8 @@ const FIELD_MAP: Record<string, string> = {
 
 function extractLeadFields(fieldData: FacebookFieldData[]) {
   const mapped: Record<string, string> = {};
-  const extras: string[] = [];
+  // extras = paires { label, value } pour préserver l'intitulé original lisible
+  const extras: Array<{ label: string; value: string }> = [];
 
   for (const field of fieldData) {
     const key = field.name.toLowerCase().trim();
@@ -56,15 +57,27 @@ function extractLeadFields(fieldData: FacebookFieldData[]) {
     const target = FIELD_MAP[key];
     if (target && !mapped[target]) {
       mapped[target] = value;
-    } else if (target && mapped[target]) {
-      // Already mapped, store as extra
-      extras.push(`${field.name}: ${value}`);
     } else {
-      extras.push(`${field.name}: ${value}`);
+      extras.push({ label: prettyLabel(field.name), value: prettyValue(value) });
     }
   }
 
   return { mapped, extras };
+}
+
+// "ville_d'arrivée" → "Ville d'arrivée"
+function prettyLabel(raw: string): string {
+  let s = raw.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  s = s.replace(/:+\s*$/g, "").trim();
+  if (s.length > 0) s = s.charAt(0).toUpperCase() + s.slice(1);
+  return s;
+}
+
+// "1_k€_-_2_k€_(lancement)" → "1 k€ - 2 k€ (lancement)"
+function prettyValue(raw: string): string {
+  let s = raw.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  if (s.length > 0) s = s.charAt(0).toUpperCase() + s.slice(1);
+  return s;
 }
 
 function normalizePhone(phone: string): string {
@@ -357,12 +370,23 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
           extrasCount: extras.length,
         });
 
-        let notesContent = `📘 Facebook Lead Ads\n- Form ID: ${formId ?? "N/A"}`;
+        // Format structuré et lisible pour les notes (markdown léger)
+        const receivedAt = leadData.created_time ?? new Date().toISOString();
+        const lines: string[] = [];
+        lines.push("📘 Lead Facebook Ads");
+        lines.push("");
         if (extras.length > 0) {
-          notesContent += "\n- " + extras.join("\n- ");
+          lines.push("📋 Réponses au formulaire");
+          for (const { label, value } of extras) {
+            lines.push(`• ${label} : ${value}`);
+          }
+          lines.push("");
         }
-        notesContent += `\n- Leadgen ID: ${leadgenId}`;
-        notesContent += `\n- Reçu le: ${leadData.created_time ?? new Date().toISOString()}`;
+        lines.push("ℹ️ Source");
+        lines.push(`• Form ID : ${formId ?? "N/A"}`);
+        lines.push(`• Leadgen ID : ${leadgenId}`);
+        lines.push(`• Reçu le : ${new Date(receivedAt).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Paris" })}`);
+        const notesContent = lines.join("\n");
 
         let existingLead: LeadLookupResult | null = null;
 
