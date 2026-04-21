@@ -27,6 +27,40 @@ function escapeHtml(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 }
 
+// Parse les notes structurées générées par facebook-webhook
+// Sections balisées par "📋 Réponses au formulaire" et "ℹ️ Source"
+// Renvoie { formAnswers: [{label,value}], sourceMeta: [{label,value}], rawFallback?: string }
+function parseStructuredNotes(notes: string | null): {
+  formAnswers: Array<{ label: string; value: string }>;
+  sourceMeta: Array<{ label: string; value: string }>;
+  rawFallback: string | null;
+} {
+  if (!notes) return { formAnswers: [], sourceMeta: [], rawFallback: null };
+  const isStructured = notes.includes("📋 Réponses au formulaire") || notes.includes("ℹ️ Source");
+  if (!isStructured) {
+    return { formAnswers: [], sourceMeta: [], rawFallback: notes };
+  }
+  const formAnswers: Array<{ label: string; value: string }> = [];
+  const sourceMeta: Array<{ label: string; value: string }> = [];
+  let section: "form" | "source" | null = null;
+  for (const rawLine of notes.split("\n")) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (line.startsWith("📋")) { section = "form"; continue; }
+    if (line.startsWith("ℹ️")) { section = "source"; continue; }
+    if (line.startsWith("📘")) continue; // header
+    if (!line.startsWith("•")) continue;
+    const content = line.replace(/^•\s*/, "");
+    const idx = content.indexOf(" : ");
+    if (idx === -1) continue;
+    const label = content.slice(0, idx).trim();
+    const value = content.slice(idx + 3).trim();
+    if (section === "form") formAnswers.push({ label, value });
+    else if (section === "source") sourceMeta.push({ label, value });
+  }
+  return { formAnswers, sourceMeta, rawFallback: null };
+}
+
 function buildEmailHtml(lead: any, leadUrl: string, sourceLabel: string, workspaceName: string | null) {
   const mailLink = lead.email ? `mailto:${lead.email}` : null;
   const telLink = lead.phone ? `tel:${lead.phone}` : null;
@@ -37,18 +71,19 @@ function buildEmailHtml(lead: any, leadUrl: string, sourceLabel: string, workspa
       ? `<a href="${href}" style="color:#2563eb;text-decoration:none">${escapeHtml(value)}</a>`
       : `<span style="color:#111827">${escapeHtml(value)}</span>`;
     return `<tr>
-      <td style="padding:8px 12px 8px 0;font-size:13px;color:#6b7280;font-weight:500;vertical-align:top;width:120px">${label}</td>
+      <td style="padding:8px 12px 8px 0;font-size:13px;color:#6b7280;font-weight:500;vertical-align:top;width:160px">${escapeHtml(label)}</td>
       <td style="padding:8px 0;font-size:14px;color:#111827;vertical-align:top">${valueHtml}</td>
     </tr>`;
   };
 
-  // Tous les champs additionnels du formulaire (notes, message, etc.)
+  // Tous les champs additionnels du lead (hors champs connus)
   const extraFields: Array<[string, string]> = [];
   const knownKeys = new Set([
     "id", "name", "email", "phone", "company_name", "source", "message", "owner_id",
     "workspace_id", "created_at", "updated_at", "status", "score", "show_status",
     "notes", "next_action", "next_action_date", "sales_angle", "ai_summary",
     "last_contacted_at", "first_contacted_at", "lost_reason", "offer_id",
+    "deleted_at", "whatsapp_engagement_score",
   ]);
   for (const [k, v] of Object.entries(lead)) {
     if (knownKeys.has(k)) continue;
@@ -59,15 +94,32 @@ function buildEmailHtml(lead: any, leadUrl: string, sourceLabel: string, workspa
 
   const messageBlock = lead.message
     ? `<tr><td colspan="2" style="padding:16px 0 8px">
-        <div style="font-size:12px;color:#6b7280;font-weight:500;margin-bottom:6px">Message</div>
+        <div style="font-size:12px;color:#6b7280;font-weight:500;margin-bottom:6px">Message initial</div>
         <div style="padding:12px 14px;background:#f9fafb;border-left:3px solid #d1d5db;border-radius:4px;font-size:14px;color:#374151;line-height:1.5;white-space:pre-wrap">${escapeHtml(lead.message)}</div>
       </td></tr>`
     : "";
 
-  const notesBlock = lead.notes
+  // Parsing des notes : si structurées (Facebook), on étale les réponses dans le tableau.
+  const { formAnswers, sourceMeta, rawFallback } = parseStructuredNotes(lead.notes);
+
+  const formAnswersBlock = formAnswers.length
+    ? `<tr><td colspan="2" style="padding:18px 0 4px">
+        <div style="font-size:12px;color:#7c3aed;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">📋 Réponses au formulaire</div>
+       </td></tr>` + formAnswers.map(({ label, value }) => row(label, value)).join("")
+    : "";
+
+  const sourceMetaBlock = sourceMeta.length
+    ? `<tr><td colspan="2" style="padding:18px 0 4px">
+        <div style="font-size:12px;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">ℹ️ Métadonnées</div>
+       </td></tr>` + sourceMeta.map(({ label, value }) =>
+        `<tr><td style="padding:4px 12px 4px 0;font-size:12px;color:#9ca3af;vertical-align:top;width:160px">${escapeHtml(label)}</td><td style="padding:4px 0;font-size:12px;color:#6b7280;vertical-align:top">${escapeHtml(value)}</td></tr>`
+      ).join("")
+    : "";
+
+  const notesFallbackBlock = rawFallback
     ? `<tr><td colspan="2" style="padding:8px 0">
         <div style="font-size:12px;color:#6b7280;font-weight:500;margin-bottom:6px">Notes</div>
-        <div style="padding:12px 14px;background:#f9fafb;border-left:3px solid #d1d5db;border-radius:4px;font-size:14px;color:#374151;line-height:1.5;white-space:pre-wrap">${escapeHtml(lead.notes)}</div>
+        <div style="padding:12px 14px;background:#f9fafb;border-left:3px solid #d1d5db;border-radius:4px;font-size:14px;color:#374151;line-height:1.5;white-space:pre-wrap">${escapeHtml(rawFallback)}</div>
       </td></tr>`
     : "";
 
@@ -94,7 +146,9 @@ function buildEmailHtml(lead: any, leadUrl: string, sourceLabel: string, workspa
           ${row("Téléphone", lead.phone, telLink)}
           ${extrasBlock}
           ${messageBlock}
-          ${notesBlock}
+          ${formAnswersBlock}
+          ${notesFallbackBlock}
+          ${sourceMetaBlock}
         </table>
 
         <div style="margin-top:24px">
