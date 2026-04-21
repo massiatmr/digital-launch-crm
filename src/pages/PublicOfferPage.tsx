@@ -82,7 +82,7 @@ export default function PublicOfferPage() {
   // Check for custom landing page
   const CustomPage = getCustomPage(offer.slug, offer.niche);
   if (CustomPage) {
-    return <CustomPage offer={offer} />;
+    return <CustomPage offer={offer} branding={branding ?? null} />;
   }
 
   // ─── Generic template (fallback) ───
