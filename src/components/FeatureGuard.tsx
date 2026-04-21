@@ -6,6 +6,7 @@ const ROUTE_FEATURES: { prefix: string; feature: FeatureKey }[] = [
   { prefix: '/offers', feature: 'offers' },
   { prefix: '/bookings', feature: 'bookings' },
   { prefix: '/clients', feature: 'clients' },
+  { prefix: '/settings/automation', feature: 'whatsapp' },
 ];
 
 export function FeatureGuard() {

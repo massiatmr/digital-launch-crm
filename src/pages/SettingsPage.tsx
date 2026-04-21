@@ -9,7 +9,7 @@ import SettingsAccountPage from './SettingsAccountPage';
 import SettingsNotificationsPage from './SettingsNotificationsPage';
 import SettingsTrashPage from './SettingsTrashPage';
 import SettingsAuditPage from './SettingsAuditPage';
-import { useIsAdmin } from '@/hooks/useWorkspaceFeatures';
+import { useIsAdmin, useWorkspaceFeatures } from '@/hooks/useWorkspaceFeatures';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -20,6 +20,7 @@ type Section = {
   description: string;
   group: 'Personnel' | 'Workspace' | 'Système';
   adminOnly?: boolean;
+  feature?: 'whatsapp';
   Component: React.ComponentType;
 };
 
@@ -27,7 +28,7 @@ const SECTIONS: Section[] = [
   { key: 'account', label: 'Mon compte', icon: User, description: 'Profil, identité légale, sécurité, sauvegarde', group: 'Personnel', Component: SettingsAccountPage },
   { key: 'notifications', label: 'Notifications', icon: Bell, description: 'Push, emails, appareils', group: 'Personnel', Component: SettingsNotificationsPage },
   { key: 'workspaces', label: 'Espaces de travail', icon: Building2, description: 'Membres, modules, branding', group: 'Workspace', Component: SettingsWorkspacesPage },
-  { key: 'automation', label: 'Automatisation', icon: Bot, description: 'Séquences, IA, templates', group: 'Workspace', Component: SettingsAutomationPage },
+  { key: 'automation', label: 'Automatisation', icon: Bot, description: 'Séquences, IA, templates', group: 'Workspace', feature: 'whatsapp', Component: SettingsAutomationPage },
   { key: 'integrations', label: 'Intégrations', icon: Plug, description: 'WhatsApp, Meta, Google Calendar', group: 'Workspace', Component: SettingsIntegrationsPage },
   { key: 'trash', label: 'Corbeille', icon: Trash2, description: 'Restaurer les éléments supprimés (30 jours)', group: 'Workspace', Component: SettingsTrashPage },
   { key: 'audit', label: 'Journal d\'audit', icon: History, description: 'Historique complet des suppressions', group: 'Système', adminOnly: true, Component: SettingsAuditPage },
@@ -46,8 +47,9 @@ export default function SettingsPage() {
   const { tab } = useParams<{ tab?: string }>();
   const navigate = useNavigate();
   const { data: isAdmin = false } = useIsAdmin();
+  const { isEnabled } = useWorkspaceFeatures();
 
-  const visible = SECTIONS.filter((s) => !s.adminOnly || isAdmin);
+  const visible = SECTIONS.filter((s) => (!s.adminOnly || isAdmin) && (!s.feature || isEnabled(s.feature)));
   const current = visible.find((s) => s.key === tab) || visible[0];
   const Comp = current.Component;
   const Icon = current.icon;
