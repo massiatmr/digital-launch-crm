@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useSmartBack } from '@/hooks/useSmartBack';
 import { useOffer, useUpdateOffer, useBookings } from '@/hooks/useOfferData';
@@ -7,8 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, ExternalLink, Users, CalendarCheck, Loader2, Sparkles, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Users, CalendarCheck, Loader2, Sparkles, Eye, EyeOff, Pencil } from 'lucide-react';
 
 export default function OfferDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -17,6 +19,24 @@ export default function OfferDetailPage() {
   const { data: leads } = useLeads();
   const { data: bookings } = useBookings();
   const updateOffer = useUpdateOffer();
+
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
+
+  useEffect(() => {
+    if (offer) setTitleDraft(offer.name);
+  }, [offer?.id, offer?.name]);
+
+  const saveTitle = async () => {
+    const trimmed = titleDraft.trim();
+    if (!offer || !trimmed || trimmed === offer.name) {
+      setEditingTitle(false);
+      if (offer) setTitleDraft(offer.name);
+      return;
+    }
+    await updateOffer.mutateAsync({ id: offer.id, name: trimmed });
+    setEditingTitle(false);
+  };
 
   const offerLeads = leads?.filter((l) => (l as any).offer_id === id) || [];
   const offerBookings = bookings?.filter((b) => b.offer_id === id) || [];
@@ -37,8 +57,29 @@ export default function OfferDetailPage() {
         <Button variant="ghost" size="icon" onClick={goBack}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-foreground">{offer.name}</h1>
+        <div className="flex-1 min-w-0">
+          {editingTitle ? (
+            <Input
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onBlur={saveTitle}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') saveTitle();
+                if (e.key === 'Escape') { setTitleDraft(offer.name); setEditingTitle(false); }
+              }}
+              autoFocus
+              className="text-2xl font-bold h-auto py-1"
+            />
+          ) : (
+            <button
+              onClick={() => setEditingTitle(true)}
+              className="group/title flex items-center gap-2 text-left"
+              title="Cliquer pour renommer"
+            >
+              <h1 className="text-2xl font-bold text-foreground">{offer.name}</h1>
+              <Pencil className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover/title:opacity-100 transition-opacity" />
+            </button>
+          )}
           <div className="flex items-center gap-3 mt-1">
             {offer.niche && <Badge variant="secondary">{offer.niche}</Badge>}
             <Badge variant={offer.is_active ? 'default' : 'outline'}>
