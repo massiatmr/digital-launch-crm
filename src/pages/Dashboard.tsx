@@ -293,6 +293,32 @@ export default function Dashboard() {
                   </div>
                 </PopoverContent>
               </Popover>
+            ) : opt.key === 'since_anchor' ? (
+              <Popover key={opt.key}>
+                <PopoverTrigger asChild>
+                  <button
+                    className={cn(
+                      'flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200',
+                      period === 'since_anchor'
+                        ? 'gradient-primary text-white shadow-sm'
+                        : 'bg-muted text-muted-foreground hover:text-foreground'
+                    )}
+                    onClick={() => setPeriod('since_anchor')}
+                  >
+                    <CalendarIcon className="h-3 w-3" />
+                    Depuis {format(anchorDate, 'dd MMM yyyy', { locale: fr })}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-3 space-y-2" align="end">
+                  <p className="text-xs font-medium text-muted-foreground">Date de référence sauvegardée</p>
+                  <Calendar
+                    mode="single"
+                    selected={anchorDate}
+                    onSelect={handleSaveAnchor}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             ) : (
               <button
                 key={opt.key}
