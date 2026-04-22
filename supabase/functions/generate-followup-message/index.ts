@@ -124,9 +124,16 @@ const DEFAULT_PROMPTS = {
   objection: "Le lead a soulevé une objection. Reconnais-la brièvement, retourne-la en avantage, puis propose un mini-engagement (créneau court de 15 min ou démo). Max 2 phrases.",
   closing: "Le lead est qualifié et chaud. Propose IMMÉDIATEMENT 2 créneaux concrets cette semaine OU partage le lien de réservation. Aucune nouvelle question. Max 2 phrases.",
   reactivation: "Le lead est silencieux. Réveille la conversation avec une question ouverte, valeur, sans pression. Max 2 phrases. Pas de relance générique style 'tu es là ?'.",
+  slot_confirmation: `Le lead vient de CONFIRMER un créneau de RDV que tu lui avais proposé. Tu dois lui envoyer un message de CONFIRMATION chaleureux et structuré qui contient EXACTEMENT ces éléments dans cet ordre :
+1. "Parfait, c'est noté pour [JOUR + DATE + HEURE EXACTE qu'il a confirmé]" — relis l'historique pour identifier précisément le créneau accepté.
+2. "Je t'envoie l'invitation sur [EMAIL connu si dispo, sinon demande l'email]. Dis-moi si tu l'as bien reçue."
+3. "Je t'envoie aussi quelques ressources et détails sur nos services d'ici là."
+4. Termine par : "On se retrouve [JOUR DATE HEURE] 🙌" ou équivalent chaleureux.
+Pas de question supplémentaire (sauf si email inconnu). 4-5 phrases max, ton humain et confiant. UN seul emoji max à la fin.`,
 };
 
-function pickPromptKey(qualification: any, taskType: string): keyof typeof DEFAULT_PROMPTS {
+function pickPromptKey(qualification: any, taskType: string, variant?: string | null): keyof typeof DEFAULT_PROMPTS {
+  if (variant === "slot_confirmation") return "slot_confirmation";
   if (taskType === "reactivation" || taskType === "template_24h") return "reactivation";
   if (taskType === "propose_meeting") return "closing";
   const intent = qualification?.intent;
@@ -193,7 +200,8 @@ Deno.serve(async (req) => {
     const inboundCount = (history ?? []).filter((m: any) => m.direction === 'inbound').length;
     const historyText = (history ?? []).slice(-10).map(m => `${m.direction === 'inbound' ? 'LEAD' : 'MOI'}: ${m.content}`).join("\n") || "Aucun échange précédent.";
 
-    const promptKey = pickPromptKey(qualification, task_type);
+    const promptKey = pickPromptKey(qualification, task_type, variant);
+    const isSlotConfirmation = promptKey === "slot_confirmation";
     const customPrompt = settings?.[`prompt_${promptKey}`]?.trim();
     const contextualPrompt = customPrompt || DEFAULT_PROMPTS[promptKey];
 
@@ -230,11 +238,11 @@ MODE CONTEXTUEL : ${promptKey.toUpperCase()}
 ${contextualPrompt}${variantHint}
 
 RÈGLES STRICTES :
-- MAX 2 phrases
-- 1 SEULE question par message (jamais 2 ou 3)
+- ${isSlotConfirmation ? "4-5 phrases max — message de confirmation structuré" : "MAX 2 phrases"}
+- ${isSlotConfirmation ? "Aucune nouvelle question (sauf si email inconnu)" : "1 SEULE question par message (jamais 2 ou 3)"}
 - Pas de "Bonjour" si déjà dit, pas de signature, 1 emoji max
-- Pour proposer un RDV : propose 1 ou 2 créneaux EXACTS de la liste ci-dessous, ou partage le lien ${bookingLink ?? '(aucun lien)'}
-${slotsBlock}
+- ${isSlotConfirmation ? "Récapitule le créneau EXACT que le lead vient d'accepter en relisant l'historique" : `Pour proposer un RDV : propose 1 ou 2 créneaux EXACTS de la liste ci-dessous, ou partage le lien ${bookingLink ?? '(aucun lien)'}`}
+${isSlotConfirmation ? "" : slotsBlock}
 ${emailBlock}
 
 CONTEXTE LEAD :
