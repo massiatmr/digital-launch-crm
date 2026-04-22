@@ -24,21 +24,23 @@ const item = {
   show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.4, ease: [0.25, 0.1, 0.25, 1] as const } },
 };
 
-type PeriodKey = '7d' | '30d' | '90d' | 'year' | 'since_apr14' | 'all' | 'custom';
+type PeriodKey = '7d' | '30d' | '90d' | 'year' | 'since_anchor' | 'all' | 'custom';
 
-const SINCE_APR14_DATE = new Date(2026, 3, 14); // 14 avril 2026
+const ANCHOR_STORAGE_KEY = 'dashboard_anchor_date';
+const DEFAULT_ANCHOR = new Date(2026, 3, 14); // 14 avril 2026 par défaut
 
-const PERIOD_OPTIONS: { key: PeriodKey; label: string }[] = [
-  { key: '7d', label: '7 jours' },
-  { key: '30d', label: '30 jours' },
-  { key: '90d', label: 'Trimestre' },
-  { key: 'year', label: 'Année' },
-  { key: 'since_apr14', label: 'Depuis 14 avr. 2026' },
-  { key: 'all', label: 'Tout' },
-  { key: 'custom', label: 'Personnalisé' },
-];
+function loadAnchorDate(): Date {
+  try {
+    const stored = localStorage.getItem(ANCHOR_STORAGE_KEY);
+    if (stored) {
+      const d = new Date(stored);
+      if (!isNaN(d.getTime())) return d;
+    }
+  } catch {}
+  return DEFAULT_ANCHOR;
+}
 
-function getDateRange(period: PeriodKey, customFrom?: Date, customTo?: Date): { from: Date; to: Date } {
+function getDateRange(period: PeriodKey, anchorDate: Date, customFrom?: Date, customTo?: Date): { from: Date; to: Date } {
   const now = new Date();
   const to = endOfDay(now);
   switch (period) {
@@ -46,7 +48,7 @@ function getDateRange(period: PeriodKey, customFrom?: Date, customTo?: Date): { 
     case '30d': return { from: startOfDay(subDays(now, 30)), to };
     case '90d': return { from: startOfDay(subMonths(now, 3)), to };
     case 'year': return { from: startOfYear(now), to };
-    case 'since_apr14': return { from: startOfDay(SINCE_APR14_DATE), to };
+    case 'since_anchor': return { from: startOfDay(anchorDate), to };
     case 'all': return { from: new Date(2000, 0, 1), to };
     case 'custom': return {
       from: customFrom ? startOfDay(customFrom) : startOfDay(subDays(now, 30)),
