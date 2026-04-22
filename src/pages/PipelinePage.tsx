@@ -79,7 +79,7 @@ function PipelineCard({
     <motion.div
       layout
       initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: lead.status === 'lost' ? 0.45 : lead.status === 'ghost' ? 0.7 : 1, scale: 1 }}
+      animate={{ opacity: lead.status === 'lost' ? 0.45 : lead.status === 'ghost' ? 0.82 : 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.2 }}
       draggable={!isMobileDevice}
