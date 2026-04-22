@@ -24,21 +24,23 @@ const item = {
   show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.4, ease: [0.25, 0.1, 0.25, 1] as const } },
 };
 
-type PeriodKey = '7d' | '30d' | '90d' | 'year' | 'since_apr14' | 'all' | 'custom';
+type PeriodKey = '7d' | '30d' | '90d' | 'year' | 'since_anchor' | 'all' | 'custom';
 
-const SINCE_APR14_DATE = new Date(2026, 3, 14); // 14 avril 2026
+const ANCHOR_STORAGE_KEY = 'dashboard_anchor_date';
+const DEFAULT_ANCHOR = new Date(2026, 3, 14); // 14 avril 2026 par défaut
 
-const PERIOD_OPTIONS: { key: PeriodKey; label: string }[] = [
-  { key: '7d', label: '7 jours' },
-  { key: '30d', label: '30 jours' },
-  { key: '90d', label: 'Trimestre' },
-  { key: 'year', label: 'Année' },
-  { key: 'since_apr14', label: 'Depuis 14 avr. 2026' },
-  { key: 'all', label: 'Tout' },
-  { key: 'custom', label: 'Personnalisé' },
-];
+function loadAnchorDate(): Date {
+  try {
+    const stored = localStorage.getItem(ANCHOR_STORAGE_KEY);
+    if (stored) {
+      const d = new Date(stored);
+      if (!isNaN(d.getTime())) return d;
+    }
+  } catch {}
+  return DEFAULT_ANCHOR;
+}
 
-function getDateRange(period: PeriodKey, customFrom?: Date, customTo?: Date): { from: Date; to: Date } {
+function getDateRange(period: PeriodKey, anchorDate: Date, customFrom?: Date, customTo?: Date): { from: Date; to: Date } {
   const now = new Date();
   const to = endOfDay(now);
   switch (period) {
@@ -46,7 +48,7 @@ function getDateRange(period: PeriodKey, customFrom?: Date, customTo?: Date): { 
     case '30d': return { from: startOfDay(subDays(now, 30)), to };
     case '90d': return { from: startOfDay(subMonths(now, 3)), to };
     case 'year': return { from: startOfYear(now), to };
-    case 'since_apr14': return { from: startOfDay(SINCE_APR14_DATE), to };
+    case 'since_anchor': return { from: startOfDay(anchorDate), to };
     case 'all': return { from: new Date(2000, 0, 1), to };
     case 'custom': return {
       from: customFrom ? startOfDay(customFrom) : startOfDay(subDays(now, 30)),
@@ -84,11 +86,29 @@ export default function Dashboard() {
   const toggleReminder = useToggleReminder();
   const isMobile = useIsMobile();
 
-  const [period, setPeriod] = useState<PeriodKey>('since_apr14');
+  const [anchorDate, setAnchorDate] = useState<Date>(() => loadAnchorDate());
+  const [period, setPeriod] = useState<PeriodKey>('since_anchor');
   const [customFrom, setCustomFrom] = useState<Date | undefined>();
   const [customTo, setCustomTo] = useState<Date | undefined>();
 
-  const { from: rangeFrom, to: rangeTo } = getDateRange(period, customFrom, customTo);
+  const PERIOD_OPTIONS: { key: PeriodKey; label: string }[] = [
+    { key: '7d', label: '7 jours' },
+    { key: '30d', label: '30 jours' },
+    { key: '90d', label: 'Trimestre' },
+    { key: 'year', label: 'Année' },
+    { key: 'since_anchor', label: `Depuis ${format(anchorDate, 'dd MMM yyyy', { locale: fr })}` },
+    { key: 'all', label: 'Tout' },
+    { key: 'custom', label: 'Personnalisé' },
+  ];
+
+  const handleSaveAnchor = (d: Date | undefined) => {
+    if (!d) return;
+    setAnchorDate(d);
+    try { localStorage.setItem(ANCHOR_STORAGE_KEY, d.toISOString()); } catch {}
+    setPeriod('since_anchor');
+  };
+
+  const { from: rangeFrom, to: rangeTo } = getDateRange(period, anchorDate, customFrom, customTo);
 
   // Filter leads by period
   const leads = useMemo(() =>
@@ -271,6 +291,32 @@ export default function Dashboard() {
                       </Popover>
                     </div>
                   </div>
+                </PopoverContent>
+              </Popover>
+            ) : opt.key === 'since_anchor' ? (
+              <Popover key={opt.key}>
+                <PopoverTrigger asChild>
+                  <button
+                    className={cn(
+                      'flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200',
+                      period === 'since_anchor'
+                        ? 'gradient-primary text-white shadow-sm'
+                        : 'bg-muted text-muted-foreground hover:text-foreground'
+                    )}
+                    onClick={() => setPeriod('since_anchor')}
+                  >
+                    <CalendarIcon className="h-3 w-3" />
+                    Depuis {format(anchorDate, 'dd MMM yyyy', { locale: fr })}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-3 space-y-2" align="end">
+                  <p className="text-xs font-medium text-muted-foreground">Date de référence sauvegardée</p>
+                  <Calendar
+                    mode="single"
+                    selected={anchorDate}
+                    onSelect={handleSaveAnchor}
+                    initialFocus
+                  />
                 </PopoverContent>
               </Popover>
             ) : (
