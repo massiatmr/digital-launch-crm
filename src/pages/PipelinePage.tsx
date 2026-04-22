@@ -406,7 +406,7 @@ export default function PipelinePage() {
           </Select>
         )}
         <Select value={period} onValueChange={(v) => setPeriod(v as PeriodKey)}>
-          <SelectTrigger className="w-[140px] h-9 text-xs border-border/50 bg-card/80">
+          <SelectTrigger className="w-[170px] h-9 text-xs border-border/50 bg-card/80">
             <CalendarDays className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
             <SelectValue />
           </SelectTrigger>
@@ -416,10 +416,30 @@ export default function PipelinePage() {
             <SelectItem value="30d">30 jours</SelectItem>
             <SelectItem value="90d">Trimestre</SelectItem>
             <SelectItem value="year">Année</SelectItem>
-            <SelectItem value="since_apr14">Depuis 14 avr. 2026</SelectItem>
+            <SelectItem value="since_anchor">Depuis {format(anchorDate, 'dd MMM yyyy', { locale: fr })}</SelectItem>
             <SelectItem value="custom">Personnalisé</SelectItem>
           </SelectContent>
         </Select>
+        {period === 'since_anchor' && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 text-xs border-border/50 bg-card/80">
+                <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
+                {format(anchorDate, 'dd MMM yyyy', { locale: fr })}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="single"
+                selected={anchorDate}
+                onSelect={handleSaveAnchor}
+                locale={fr}
+                initialFocus
+                className="p-3 pointer-events-auto"
+              />
+            </PopoverContent>
+          </Popover>
+        )}
         {period === 'custom' && (
           <Popover>
             <PopoverTrigger asChild>
