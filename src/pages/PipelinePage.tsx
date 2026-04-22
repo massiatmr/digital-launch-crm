@@ -90,7 +90,7 @@ function PipelineCard({
       className={cn(
         "group relative glass-card-hover cursor-pointer overflow-hidden",
         lead.status === 'lost' && "grayscale",
-        lead.status === 'ghost' && "saturate-[0.4]",
+        lead.status === 'ghost' && "saturate-[0.6]",
         lead.status === 'won' && "bg-emerald-500/10 border-emerald-500/40 ring-1 ring-emerald-500/30 shadow-[0_0_20px_-5px_hsl(152_70%_45%/0.4)]",
       )}
     >
