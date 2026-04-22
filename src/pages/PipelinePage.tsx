@@ -87,10 +87,14 @@ function PipelineCard({
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onClick={() => { if (isMobileDevice) onClick(lead); }}
-      className={cn("group relative glass-card-hover cursor-pointer overflow-hidden", lead.status === 'lost' && "grayscale")}
+      className={cn(
+        "group relative glass-card-hover cursor-pointer overflow-hidden",
+        lead.status === 'lost' && "grayscale",
+        lead.status === 'won' && "bg-emerald-500/10 border-emerald-500/40 ring-1 ring-emerald-500/30 shadow-[0_0_20px_-5px_hsl(152_70%_45%/0.4)]",
+      )}
     >
       {/* Score color bar */}
-      <div className={cn('absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl', scoreBarColors[lead.score])} />
+      <div className={cn('absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl', lead.status === 'won' ? 'bg-emerald-400' : scoreBarColors[lead.score])} />
 
         <div className="p-3.5 pl-4">
         <div className="flex items-start justify-between gap-2">
