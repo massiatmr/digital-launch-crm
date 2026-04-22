@@ -61,6 +61,15 @@ async function getValidAccessToken(supabase: any, ownerId: string): Promise<stri
   return refreshed.access_token;
 }
 
+// Add `hours` to a "HH:MM" time string, returning "HH:MM" (24h, wraps within same day expected for our 11-15h window).
+function addHoursToTimeSlot(timeSlot: string, hours: number): string {
+  const [h, m] = timeSlot.split(":").map(Number);
+  const total = h * 60 + m + hours * 60;
+  const nh = Math.floor(total / 60) % 24;
+  const nm = total % 60;
+  return `${String(nh).padStart(2, "0")}:${String(nm).padStart(2, "0")}`;
+}
+
 async function createGoogleCalendarEvent(
   accessToken: string,
   name: string,
@@ -69,19 +78,23 @@ async function createGoogleCalendarEvent(
   timeSlot: string,
   offerName: string
 ): Promise<{ eventId: string; meetLink: string | null } | null> {
-  const startDateTime = `${bookingDate}T${timeSlot}:00`;
-  const start = new Date(startDateTime);
-  const end = new Date(start.getTime() + 60 * 60 * 1000); // 1 hour
+  // IMPORTANT: Send the local Paris wall-clock time WITHOUT a Z suffix.
+  // When `timeZone: "Europe/Paris"` is provided, Google interprets the
+  // dateTime as local time in that zone (handling DST automatically).
+  // Using `.toISOString()` would force UTC and shift the event by 1-2h.
+  const endTimeSlot = addHoursToTimeSlot(timeSlot, 1);
+  const startLocal = `${bookingDate}T${timeSlot}:00`;
+  const endLocal = `${bookingDate}T${endTimeSlot}:00`;
 
   const event = {
     summary: `RDV - ${name} (${offerName})`,
     description: `Rendez-vous avec ${name} (${email}) pour l'offre "${offerName}"`,
     start: {
-      dateTime: start.toISOString(),
+      dateTime: startLocal,
       timeZone: "Europe/Paris",
     },
     end: {
-      dateTime: end.toISOString(),
+      dateTime: endLocal,
       timeZone: "Europe/Paris",
     },
     attendees: [{ email }],
