@@ -79,7 +79,7 @@ function PipelineCard({
     <motion.div
       layout
       initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: lead.status === 'lost' ? 0.45 : lead.status === 'ghost' ? 0.7 : 1, scale: 1 }}
+      animate={{ opacity: lead.status === 'lost' ? 0.45 : lead.status === 'ghost' ? 0.82 : 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.2 }}
       draggable={!isMobileDevice}
@@ -90,7 +90,7 @@ function PipelineCard({
       className={cn(
         "group relative glass-card-hover cursor-pointer overflow-hidden",
         lead.status === 'lost' && "grayscale",
-        lead.status === 'ghost' && "saturate-[0.4]",
+        lead.status === 'ghost' && "saturate-[0.6]",
         lead.status === 'won' && "bg-emerald-500/10 border-emerald-500/40 ring-1 ring-emerald-500/30 shadow-[0_0_20px_-5px_hsl(152_70%_45%/0.4)]",
       )}
     >
