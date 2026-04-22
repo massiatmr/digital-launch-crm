@@ -186,13 +186,17 @@ Analyse maintenant.`;
       }
       actions.push("auto_stop_lost");
     } else if (q.intent === "ready_to_book") {
-      // Créer une tâche immédiate "propose_meeting" si aucune n'existe
+      // Anti-doublon : on ne crée une nouvelle tâche propose_meeting QUE si
+      // (a) aucune n'est déjà en cours/programmée
+      // (b) aucune n'a été exécutée dans les 10 dernières minutes (évite double envoi
+      //     quand le webhook Meta fire plusieurs fois ou quand le lead enchaîne 2 réponses)
+      const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
       const { data: existing } = await admin
         .from("lead_followup_tasks")
-        .select("id")
+        .select("id, status, executed_at, created_at")
         .eq("lead_id", lead_id)
         .eq("task_type", "propose_meeting")
-        .in("status", ["pending", "scheduled"])
+        .or(`status.in.(pending,scheduled,processing),and(status.eq.sent,executed_at.gte.${tenMinAgo}),and(created_at.gte.${tenMinAgo})`)
         .limit(1);
       if (!existing?.length) {
         await admin.from("lead_followup_tasks").insert({
@@ -205,6 +209,8 @@ Analyse maintenant.`;
           step_order: 80,
         } as any);
         actions.push("scheduled_booking_push");
+      } else {
+        actions.push("skipped_duplicate_propose_meeting");
       }
     }
 
