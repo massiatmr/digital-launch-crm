@@ -115,6 +115,15 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
   const [input, setInput] = useState('');
   const [pending, setPending] = useState<PendingMsg[]>([]);
   const endRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Auto-resize textarea based on content
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = 'auto';
+    ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`;
+  }, [input]);
 
   const [recording, setRecording] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
@@ -315,6 +324,7 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
             onInsert={(text) => setInput((cur) => cur ? `${cur}\n\n${text}` : text)}
           />
           <Textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -322,7 +332,7 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
             }}
             placeholder="Écris un message... (Entrée pour envoyer)"
             rows={1}
-            className="min-h-[40px] max-h-32 resize-none border-0 bg-transparent focus-visible:ring-0"
+            className="min-h-[40px] max-h-40 resize-none border-0 bg-transparent focus-visible:ring-0 py-2 leading-snug overflow-y-auto"
           />
           {input.trim() ? (
             <Button size="icon" onClick={handleSend} disabled={sendWA.isPending} className="shrink-0">
