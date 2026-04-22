@@ -237,11 +237,30 @@ export default function PipelinePage() {
   const draggedLead = useRef<DbLead | null>(null);
   const isMobile = useIsMobile();
 
-  type PeriodKey = '7d' | '30d' | '90d' | 'year' | 'since_apr14' | 'all' | 'custom';
-  const SINCE_APR14_DATE = new Date(2026, 3, 14);
+  type PeriodKey = '7d' | '30d' | '90d' | 'year' | 'since_anchor' | 'all' | 'custom';
+  const ANCHOR_STORAGE_KEY = 'dashboard_anchor_date';
+  const DEFAULT_ANCHOR = new Date(2026, 3, 14);
+  const loadAnchor = (): Date => {
+    try {
+      const stored = localStorage.getItem(ANCHOR_STORAGE_KEY);
+      if (stored) {
+        const d = new Date(stored);
+        if (!isNaN(d.getTime())) return d;
+      }
+    } catch {}
+    return DEFAULT_ANCHOR;
+  };
+  const [anchorDate, setAnchorDate] = useState<Date>(() => loadAnchor());
   const [period, setPeriod] = useState<PeriodKey>('all');
   const [customFrom, setCustomFrom] = useState<Date | undefined>();
   const [customTo, setCustomTo] = useState<Date | undefined>();
+
+  const handleSaveAnchor = (d: Date | undefined) => {
+    if (!d) return;
+    setAnchorDate(d);
+    try { localStorage.setItem(ANCHOR_STORAGE_KEY, d.toISOString()); } catch {}
+    setPeriod('since_anchor');
+  };
 
   const { from: rangeFrom, to: rangeTo } = useMemo(() => {
     const now = new Date();
@@ -250,11 +269,11 @@ export default function PipelinePage() {
       case '30d': return { from: subDays(now, 30), to: now };
       case '90d': return { from: subMonths(now, 3), to: now };
       case 'year': return { from: startOfYear(now), to: now };
-      case 'since_apr14': return { from: SINCE_APR14_DATE, to: now };
+      case 'since_anchor': return { from: anchorDate, to: now };
       case 'custom': return { from: customFrom || subDays(now, 30), to: customTo || now };
       default: return { from: new Date(0), to: now };
     }
-  }, [period, customFrom, customTo]);
+  }, [period, customFrom, customTo, anchorDate]);
 
   const leads = useMemo(() => {
     if (period === 'all') return allLeads;
@@ -387,7 +406,7 @@ export default function PipelinePage() {
           </Select>
         )}
         <Select value={period} onValueChange={(v) => setPeriod(v as PeriodKey)}>
-          <SelectTrigger className="w-[140px] h-9 text-xs border-border/50 bg-card/80">
+          <SelectTrigger className="w-[170px] h-9 text-xs border-border/50 bg-card/80">
             <CalendarDays className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
             <SelectValue />
           </SelectTrigger>
@@ -397,10 +416,30 @@ export default function PipelinePage() {
             <SelectItem value="30d">30 jours</SelectItem>
             <SelectItem value="90d">Trimestre</SelectItem>
             <SelectItem value="year">Année</SelectItem>
-            <SelectItem value="since_apr14">Depuis 14 avr. 2026</SelectItem>
+            <SelectItem value="since_anchor">Depuis {format(anchorDate, 'dd MMM yyyy', { locale: fr })}</SelectItem>
             <SelectItem value="custom">Personnalisé</SelectItem>
           </SelectContent>
         </Select>
+        {period === 'since_anchor' && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 text-xs border-border/50 bg-card/80">
+                <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
+                {format(anchorDate, 'dd MMM yyyy', { locale: fr })}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="single"
+                selected={anchorDate}
+                onSelect={handleSaveAnchor}
+                locale={fr}
+                initialFocus
+                className="p-3 pointer-events-auto"
+              />
+            </PopoverContent>
+          </Popover>
+        )}
         {period === 'custom' && (
           <Popover>
             <PopoverTrigger asChild>
