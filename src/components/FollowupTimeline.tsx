@@ -30,7 +30,7 @@ const STATUS_META: Record<string, { label: string; icon: any; className: string 
   skipped: { label: 'Ignorée', icon: XCircle, className: 'bg-muted/50 text-muted-foreground' },
 };
 
-export function FollowupTimeline({ leadId }: { leadId: string }) {
+export function FollowupTimeline({ leadId, leadName }: { leadId: string; leadName?: string }) {
   const { data: tasks = [], isLoading } = useFollowupTasks(leadId);
   const { data: convState } = useConversationState(leadId);
   const sendNow = useSendNow();
@@ -71,7 +71,7 @@ export function FollowupTimeline({ leadId }: { leadId: string }) {
         )}
       </div>
 
-      <WhatsAppChat leadId={leadId} className="max-h-[420px]" />
+      <WhatsAppChat leadId={leadId} leadName={leadName} className="max-h-[420px]" />
 
       {/* Marquer une réponse manuelle */}
       <Button
