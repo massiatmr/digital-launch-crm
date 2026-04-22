@@ -125,9 +125,25 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Query Google Calendar FreeBusy API
-    const timeMin = `${date}T00:00:00+02:00`;
-    const timeMax = `${date}T23:59:59+02:00`;
+    // Compute Paris UTC offset for that date (handles DST: +1 winter / +2 summer).
+    const parisOffsetHours = (() => {
+      const probe = new Date(`${date}T12:00:00Z`);
+      const parisHour = Number(
+        new Intl.DateTimeFormat("en-GB", {
+          timeZone: "Europe/Paris",
+          hour: "2-digit",
+          hour12: false,
+        }).format(probe)
+      );
+      let diff = parisHour - probe.getUTCHours();
+      if (diff > 12) diff -= 24;
+      if (diff < -12) diff += 24;
+      return diff;
+    })();
+    const offsetStr = `${parisOffsetHours >= 0 ? "+" : "-"}${String(Math.abs(parisOffsetHours)).padStart(2, "0")}:00`;
+
+    const timeMin = `${date}T00:00:00${offsetStr}`;
+    const timeMax = `${date}T23:59:59${offsetStr}`;
 
     const freeBusyRes = await fetch(
       "https://www.googleapis.com/calendar/v3/freeBusy",
@@ -148,7 +164,6 @@ Deno.serve(async (req) => {
 
     if (!freeBusyRes.ok) {
       console.error("FreeBusy API error:", await freeBusyRes.text());
-      // Fallback
       return new Response(
         JSON.stringify({ slots: DEFAULT_SLOTS, synced: false }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -159,26 +174,20 @@ Deno.serve(async (req) => {
     const busyPeriods: Array<{ start: string; end: string }> =
       freeBusyData.calendars?.primary?.busy || [];
 
-    console.log(`Found ${busyPeriods.length} busy periods for ${date}`);
+    console.log(`Found ${busyPeriods.length} busy periods for ${date} (Paris offset ${offsetStr})`);
 
-    // Filter available slots
+    // Interpret each slot as Paris local time using the computed offset.
     const availableSlots = DEFAULT_SLOTS.filter((slot) => {
-      const slotStart = new Date(`${date}T${slot}:00`);
-      // Adjust for Europe/Paris - the Date constructor uses local/UTC
-      // We work with the raw times as Europe/Paris
+      const slotStart = new Date(`${date}T${slot}:00${offsetStr}`);
       const slotEnd = new Date(slotStart.getTime() + MEETING_DURATION_MS);
 
-      // Check if this slot overlaps with any busy period
       for (const busy of busyPeriods) {
         const busyStart = new Date(busy.start);
         const busyEnd = new Date(busy.end);
-
-        // Overlap if slotStart < busyEnd AND slotEnd > busyStart
         if (slotStart < busyEnd && slotEnd > busyStart) {
           return false;
         }
       }
-
       return true;
     });
 
