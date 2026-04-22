@@ -285,7 +285,30 @@ Deno.serve(async (req) => {
     await markLeadBookedAndStopAutomations(supabase, leadId, owner_id);
 
     // 3. Schedule nurturing emails
-    const bookingDateTime = new Date(`${booking_date}T${time_slot}:00`);
+    // Convert Paris wall-clock (booking_date + time_slot) to a real UTC instant.
+    // Paris is UTC+1 in winter, UTC+2 in summer (DST). We compute the offset by
+    // formatting a probe Date with the Europe/Paris timezone.
+    const parisOffsetHours = (() => {
+      const probe = new Date(`${booking_date}T${time_slot}:00Z`);
+      // Get the wall-clock hour Paris would show for that UTC instant.
+      const parisHour = Number(
+        new Intl.DateTimeFormat("en-GB", {
+          timeZone: "Europe/Paris",
+          hour: "2-digit",
+          hour12: false,
+        }).format(probe)
+      );
+      const utcHour = probe.getUTCHours();
+      // Difference (handles day wrap)
+      let diff = parisHour - utcHour;
+      if (diff > 12) diff -= 24;
+      if (diff < -12) diff += 24;
+      return diff; // 1 (CET) or 2 (CEST)
+    })();
+    const [hh, mm] = time_slot.split(":").map(Number);
+    const bookingDateTime = new Date(
+      `${booking_date}T${String(hh - parisOffsetHours).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00Z`
+    );
 
     const emailSchedules: Array<{
       type: "confirmation" | "24h_before" | "12h_before" | "1h_before";
