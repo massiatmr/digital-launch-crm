@@ -86,11 +86,29 @@ export default function Dashboard() {
   const toggleReminder = useToggleReminder();
   const isMobile = useIsMobile();
 
-  const [period, setPeriod] = useState<PeriodKey>('since_apr14');
+  const [anchorDate, setAnchorDate] = useState<Date>(() => loadAnchorDate());
+  const [period, setPeriod] = useState<PeriodKey>('since_anchor');
   const [customFrom, setCustomFrom] = useState<Date | undefined>();
   const [customTo, setCustomTo] = useState<Date | undefined>();
 
-  const { from: rangeFrom, to: rangeTo } = getDateRange(period, customFrom, customTo);
+  const PERIOD_OPTIONS: { key: PeriodKey; label: string }[] = [
+    { key: '7d', label: '7 jours' },
+    { key: '30d', label: '30 jours' },
+    { key: '90d', label: 'Trimestre' },
+    { key: 'year', label: 'Année' },
+    { key: 'since_anchor', label: `Depuis ${format(anchorDate, 'dd MMM yyyy', { locale: fr })}` },
+    { key: 'all', label: 'Tout' },
+    { key: 'custom', label: 'Personnalisé' },
+  ];
+
+  const handleSaveAnchor = (d: Date | undefined) => {
+    if (!d) return;
+    setAnchorDate(d);
+    try { localStorage.setItem(ANCHOR_STORAGE_KEY, d.toISOString()); } catch {}
+    setPeriod('since_anchor');
+  };
+
+  const { from: rangeFrom, to: rangeTo } = getDateRange(period, anchorDate, customFrom, customTo);
 
   // Filter leads by period
   const leads = useMemo(() =>
