@@ -66,13 +66,15 @@ Schéma:
 - decision_maker: "yes" | "no" | "unknown"
 - objections: tableau de strings (objections explicitement formulées : "trop cher", "pas le bon moment", "déjà un prestataire", etc.)
 - interest_level: 0-100 (0 = veut être laissé tranquille, 100 = prêt à signer)
-- intent: "ready_to_book" | "objection" | "not_interested" | "info_request" | "wrong_person" | "qualification_in_progress" | "unknown"
-  • ready_to_book = lead demande créneau/lien/RDV ou dit oui clairement
+- intent: "ready_to_book" | "confirms_slot" | "objection" | "not_interested" | "info_request" | "wrong_person" | "qualification_in_progress" | "unknown"
+  • ready_to_book = lead demande un créneau/lien/RDV pour la PREMIÈRE fois OU refuse les créneaux proposés et en redemande d'autres
+  • confirms_slot = MOI ai proposé un ou plusieurs créneaux dans les messages précédents ET le lead vient d'en accepter UN explicitement (ex: "ok pour mardi 14h", "parfait le 15 à 11h", "ça marche pour le premier", "oui ce créneau")
   • not_interested = "non merci", "stop", "pas intéressé", "ne me contactez plus"
   • wrong_person = "ce n'est pas moi", "mauvais numéro"
 - summary: 1-2 phrases résumant l'état actuel pour préparer la prochaine réponse
 
-Sois STRICT : si le lead n'a rien dit clairement, mets "unknown" / "unclear" / 0.`;
+Sois STRICT : si le lead n'a rien dit clairement, mets "unknown" / "unclear" / 0.
+IMPORTANT pour confirms_slot : le créneau accepté doit avoir été PROPOSÉ par MOI auparavant. Si le lead propose lui-même un créneau pour la première fois, c'est ready_to_book, pas confirms_slot.`;
 
     const userPrompt = `Lead : ${lead.name}
 Message initial du formulaire : ${lead.message || "(aucun)"}
@@ -106,7 +108,7 @@ Analyse maintenant.`;
                 decision_maker: { type: "string", enum: ["yes", "no", "unknown"] },
                 objections: { type: "array", items: { type: "string" } },
                 interest_level: { type: "integer", minimum: 0, maximum: 100 },
-                intent: { type: "string", enum: ["ready_to_book", "objection", "not_interested", "info_request", "wrong_person", "qualification_in_progress", "unknown"] },
+                intent: { type: "string", enum: ["ready_to_book", "confirms_slot", "objection", "not_interested", "info_request", "wrong_person", "qualification_in_progress", "unknown"] },
                 summary: { type: "string" },
               },
               required: ["pain_point", "urgency", "budget_signal", "decision_maker", "objections", "interest_level", "intent", "summary"],
