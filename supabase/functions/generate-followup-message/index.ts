@@ -200,7 +200,8 @@ Deno.serve(async (req) => {
     const inboundCount = (history ?? []).filter((m: any) => m.direction === 'inbound').length;
     const historyText = (history ?? []).slice(-10).map(m => `${m.direction === 'inbound' ? 'LEAD' : 'MOI'}: ${m.content}`).join("\n") || "Aucun échange précédent.";
 
-    const promptKey = pickPromptKey(qualification, task_type);
+    const promptKey = pickPromptKey(qualification, task_type, variant);
+    const isSlotConfirmation = promptKey === "slot_confirmation";
     const customPrompt = settings?.[`prompt_${promptKey}`]?.trim();
     const contextualPrompt = customPrompt || DEFAULT_PROMPTS[promptKey];
 
@@ -237,11 +238,11 @@ MODE CONTEXTUEL : ${promptKey.toUpperCase()}
 ${contextualPrompt}${variantHint}
 
 RÈGLES STRICTES :
-- MAX 2 phrases
-- 1 SEULE question par message (jamais 2 ou 3)
+- ${isSlotConfirmation ? "4-5 phrases max — message de confirmation structuré" : "MAX 2 phrases"}
+- ${isSlotConfirmation ? "Aucune nouvelle question (sauf si email inconnu)" : "1 SEULE question par message (jamais 2 ou 3)"}
 - Pas de "Bonjour" si déjà dit, pas de signature, 1 emoji max
-- Pour proposer un RDV : propose 1 ou 2 créneaux EXACTS de la liste ci-dessous, ou partage le lien ${bookingLink ?? '(aucun lien)'}
-${slotsBlock}
+- ${isSlotConfirmation ? "Récapitule le créneau EXACT que le lead vient d'accepter en relisant l'historique" : `Pour proposer un RDV : propose 1 ou 2 créneaux EXACTS de la liste ci-dessous, ou partage le lien ${bookingLink ?? '(aucun lien)'}`}
+${isSlotConfirmation ? "" : slotsBlock}
 ${emailBlock}
 
 CONTEXTE LEAD :
