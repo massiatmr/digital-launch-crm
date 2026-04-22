@@ -311,7 +311,7 @@ export function LeadDetailContent({
 
             {whatsappEnabled && (
               <TabsContent value="followup" className="mt-0">
-                <FollowupTimeline leadId={lead.id} />
+                <FollowupTimeline leadId={lead.id} leadName={lead.name} />
               </TabsContent>
             )}
 

@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { LiveAudioVisualizer } from '@/components/LiveAudioVisualizer';
 import { VoiceMessagePlayer } from '@/components/VoiceMessagePlayer';
+import { FollowupScriptsPicker } from '@/components/FollowupScriptsPicker';
 import { Mp3Encoder } from 'lamejs';
 
 type PendingMsg = { tempId: string; content: string; at: number; status: 'sending' | 'failed' };
@@ -106,7 +107,7 @@ function encodeMp3FromFloat32(samples: Float32Array, sampleRate: number) {
   return new Blob(mp3Parts, { type: 'audio/mpeg' });
 }
 
-export function WhatsAppChat({ leadId, className }: { leadId: string; className?: string }) {
+export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; leadName?: string; className?: string }) {
   useWhatsAppRealtime(leadId);
   const { data: messages = [] } = useWhatsAppMessages(leadId);
   const sendWA = useSendWhatsAppMessage();
@@ -309,6 +310,10 @@ export function WhatsAppChat({ leadId, className }: { leadId: string; className?
       {/* Input texte */}
       {!recording && !recordedUrl && (
         <div className="border-t border-border p-2 flex items-end gap-2">
+          <FollowupScriptsPicker
+            leadName={leadName}
+            onInsert={(text) => setInput((cur) => cur ? `${cur}\n\n${text}` : text)}
+          />
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}

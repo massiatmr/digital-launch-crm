@@ -134,7 +134,7 @@ export default function ConversationsPage() {
                 </Button>
               </header>
               <div className="flex-1 min-h-0 p-2">
-                <WhatsAppChat leadId={selected.lead_id} className="h-full" />
+                <WhatsAppChat leadId={selected.lead_id} leadName={selected.lead_name} className="h-full" />
               </div>
             </div>
           )}

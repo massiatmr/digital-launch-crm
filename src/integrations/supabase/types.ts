@@ -680,6 +680,53 @@ export type Database = {
           },
         ]
       }
+      followup_scripts: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          is_enabled: boolean
+          owner_id: string
+          phase: Database["public"]["Enums"]["followup_script_phase"]
+          sort_order: number
+          title: string
+          updated_at: string
+          workspace_id: string | null
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          owner_id?: string
+          phase?: Database["public"]["Enums"]["followup_script_phase"]
+          sort_order?: number
+          title?: string
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          owner_id?: string
+          phase?: Database["public"]["Enums"]["followup_script_phase"]
+          sort_order?: number
+          title?: string
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "followup_scripts_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       followup_sequence_steps: {
         Row: {
           created_at: string
@@ -2209,6 +2256,10 @@ export type Database = {
         Args: { p_completed?: boolean; p_responses: Json; p_token: string }
         Returns: undefined
       }
+      seed_default_followup_scripts: {
+        Args: { p_owner: string; p_workspace: string }
+        Returns: undefined
+      }
       update_workspace_member_role: {
         Args: {
           _role: Database["public"]["Enums"]["workspace_role"]
@@ -2251,6 +2302,13 @@ export type Database = {
         | "QUALIFIED"
         | "BOOKED"
         | "CLOSED"
+      followup_script_phase:
+        | "missed_appointment"
+        | "no_response_3d"
+        | "no_response_10d"
+        | "final_attempt"
+        | "post_offer"
+        | "custom"
       followup_task_status:
         | "pending"
         | "scheduled"
@@ -2453,6 +2511,14 @@ export const Constants = {
         "QUALIFIED",
         "BOOKED",
         "CLOSED",
+      ],
+      followup_script_phase: [
+        "missed_appointment",
+        "no_response_3d",
+        "no_response_10d",
+        "final_attempt",
+        "post_offer",
+        "custom",
       ],
       followup_task_status: [
         "pending",
