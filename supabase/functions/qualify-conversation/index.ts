@@ -214,6 +214,35 @@ Analyse maintenant.`;
       } else {
         actions.push("skipped_duplicate_propose_meeting");
       }
+    } else if (q.intent === "confirms_slot") {
+      // Le lead vient d'accepter un créneau précédemment proposé.
+      // On crée une tâche de CONFIRMATION immédiate (séparée de propose_meeting),
+      // qui doit envoyer un message de récap : créneau confirmé + invitation email + ressources à venir.
+      // Anti-doublon léger : pas plus d'une confirmation envoyée dans les 5 dernières minutes.
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const { data: existingConfirm } = await admin
+        .from("lead_followup_tasks")
+        .select("id")
+        .eq("lead_id", lead_id)
+        .eq("task_type", "qualification")
+        .eq("message_variant", "slot_confirmation")
+        .or(`status.in.(pending,scheduled,processing),and(created_at.gte.${fiveMinAgo})`)
+        .limit(1);
+      if (!existingConfirm?.length) {
+        await admin.from("lead_followup_tasks").insert({
+          lead_id,
+          owner_id: lead.owner_id,
+          workspace_id: lead.workspace_id,
+          task_type: "qualification",
+          message_variant: "slot_confirmation",
+          status: "scheduled",
+          scheduled_at: new Date().toISOString(),
+          step_order: 85,
+        } as any);
+        actions.push("scheduled_slot_confirmation");
+      } else {
+        actions.push("skipped_duplicate_confirmation");
+      }
     }
 
     return new Response(JSON.stringify({ ok: true, qualification: q, actions }), {
