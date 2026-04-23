@@ -55,9 +55,20 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
   ({ side = "right", className, children, ...props }, ref) => (
     <SheetPortal>
       <SheetOverlay />
-      <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
+      <SheetPrimitive.Content
+        ref={ref}
+        className={cn(sheetVariants({ side }), className)}
+        style={{
+          paddingTop: 'max(1.5rem, env(safe-area-inset-top, 0px))',
+          paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px))',
+        }}
+        {...props}
+      >
         {children}
-        <SheetPrimitive.Close className="absolute right-3 top-3 z-50 flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background/90 shadow-md ring-offset-background transition hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+        <SheetPrimitive.Close
+          className="absolute right-3 z-50 flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background/90 shadow-md ring-offset-background transition hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}
+        >
           <X className="h-5 w-5" />
           <span className="sr-only">Close</span>
         </SheetPrimitive.Close>
