@@ -1,6 +1,6 @@
 {
   "name": "Digital Launch CRM",
-  "short_name": "DL CRM",
+  "short_name": "Digital Launch CRM",
   "description": "CRM pour gérer vos leads, clients et rendez-vous",
   "start_url": "/",
   "display": "standalone",
