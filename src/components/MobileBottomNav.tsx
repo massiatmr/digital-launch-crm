@@ -10,19 +10,22 @@ import {
 } from '@/components/ui/sheet';
 import { useAuth } from '@/hooks/useAuth';
 import { useWhatsAppInbox } from '@/hooks/useWhatsAppInbox';
+import { useWorkspaceFeatures, type FeatureKey } from '@/hooks/useWorkspaceFeatures';
 import { GlobalNaturalLanguageInput } from './GlobalNaturalLanguageInput';
 
-const mainLinks = [
+type NavItem = { to: string; icon: any; label: string; feature?: FeatureKey };
+
+const mainLinksAll: NavItem[] = [
   { to: '/', icon: Kanban, label: 'Pipeline' },
-  { to: '/conversations', icon: MessageCircle, label: 'Chats' },
-  { to: '/clients', icon: UserCheck, label: 'Clients' },
+  { to: '/conversations', icon: MessageCircle, label: 'Chats', feature: 'conversations' },
+  { to: '/clients', icon: UserCheck, label: 'Clients', feature: 'clients' },
   { to: '/reminders', icon: Bell, label: 'Tâches' },
 ];
 
-const moreLinks = [
+const moreLinksAll: NavItem[] = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/offers', icon: Package, label: 'Offres' },
-  { to: '/bookings', icon: CalendarCheck, label: 'Rendez-vous' },
+  { to: '/offers', icon: Package, label: 'Offres', feature: 'offers' },
+  { to: '/bookings', icon: CalendarCheck, label: 'Rendez-vous', feature: 'bookings' },
   { to: '/settings', icon: Settings, label: 'Paramètres' },
 ];
 
