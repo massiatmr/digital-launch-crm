@@ -16,14 +16,14 @@ import { GlobalNaturalLanguageInput } from './GlobalNaturalLanguageInput';
 type NavItem = { to: string; icon: any; label: string; feature?: FeatureKey };
 
 const mainLinksAll: NavItem[] = [
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/', icon: Kanban, label: 'Pipeline' },
   { to: '/conversations', icon: MessageCircle, label: 'Chats', feature: 'conversations' },
-  { to: '/clients', icon: UserCheck, label: 'Clients', feature: 'clients' },
   { to: '/reminders', icon: Bell, label: 'Tâches' },
 ];
 
 const moreLinksAll: NavItem[] = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/clients', icon: UserCheck, label: 'Clients', feature: 'clients' },
   { to: '/offers', icon: Package, label: 'Offres', feature: 'offers' },
   { to: '/bookings', icon: CalendarCheck, label: 'Rendez-vous', feature: 'bookings' },
   { to: '/settings', icon: Settings, label: 'Paramètres' },
