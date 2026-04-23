@@ -16,11 +16,13 @@ export function WorkspaceHeader({ className }: Props) {
   return (
     <header
       className={cn(
-        'h-16 flex items-center justify-between px-6 border-b border-border/50 backdrop-blur-sm sticky top-0 z-50',
+        'flex items-center justify-between px-6 border-b border-border/50 backdrop-blur-sm sticky top-0 z-50',
         className
       )}
       style={{
         background: 'linear-gradient(90deg, hsl(225 15% 5%) 0%, hsl(225 15% 4%) 100%)',
+        paddingTop: 'env(safe-area-inset-top, 0px)',
+        height: 'calc(4rem + env(safe-area-inset-top, 0px))',
       }}
     >
       <img
