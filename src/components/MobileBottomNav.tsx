@@ -35,6 +35,9 @@ export function MobileBottomNav() {
   const [showAi, setShowAi] = useState(false);
   const { signOut } = useAuth();
   const { unreadCount } = useWhatsAppInbox();
+  const { isEnabled } = useWorkspaceFeatures();
+  const mainLinks = mainLinksAll.filter((l) => !l.feature || isEnabled(l.feature));
+  const moreLinks = moreLinksAll.filter((l) => !l.feature || isEnabled(l.feature));
 
   return (
     <>
