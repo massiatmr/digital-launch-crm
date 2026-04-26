@@ -71,8 +71,8 @@ export default function SettingsPage() {
         <p className="text-xs sm:text-sm text-muted-foreground">Gère ton compte, tes espaces et tes intégrations</p>
       </div>
 
-      {/* Mobile: select dropdown */}
-      <div className="md:hidden mb-4">
+      {/* Mobile/tablet: select dropdown */}
+      <div className="lg:hidden mb-4">
         <Select value={current.key} onValueChange={(v) => navigate(`/settings/${v}`)}>
           <SelectTrigger>
             <SelectValue />
@@ -96,9 +96,9 @@ export default function SettingsPage() {
         </Select>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-[200px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[200px_1fr]">
         {/* Desktop sidebar */}
-        <aside className="hidden md:block">
+        <aside className="hidden lg:block">
           <nav className="space-y-5 sticky top-20">
             {GROUP_ORDER.map((g) => {
               const items = visible.filter((s) => s.group === g);
