@@ -1311,17 +1311,56 @@ export type Database = {
           },
         ]
       }
+      meta_form_offer_mapping: {
+        Row: {
+          created_at: string
+          form_id: string
+          form_name: string
+          id: string
+          offer_id: string
+          owner_id: string
+          page_id: string
+          updated_at: string
+          workspace_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          form_id: string
+          form_name?: string
+          id?: string
+          offer_id: string
+          owner_id?: string
+          page_id: string
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          form_id?: string
+          form_name?: string
+          id?: string
+          offer_id?: string
+          owner_id?: string
+          page_id?: string
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Relationships: []
+      }
       meta_pages: {
         Row: {
           created_at: string
           forms: Json
           id: string
           is_active: boolean
+          last_token_notified_at: string | null
           owner_id: string
           page_access_token: string
           page_id: string
           page_name: string
           subscribed: boolean
+          token_invalidated_at: string | null
+          token_valid: boolean
           updated_at: string
           workspace_id: string | null
         }
@@ -1330,11 +1369,14 @@ export type Database = {
           forms?: Json
           id?: string
           is_active?: boolean
+          last_token_notified_at?: string | null
           owner_id?: string
           page_access_token: string
           page_id: string
           page_name?: string
           subscribed?: boolean
+          token_invalidated_at?: string | null
+          token_valid?: boolean
           updated_at?: string
           workspace_id?: string | null
         }
@@ -1343,11 +1385,14 @@ export type Database = {
           forms?: Json
           id?: string
           is_active?: boolean
+          last_token_notified_at?: string | null
           owner_id?: string
           page_access_token?: string
           page_id?: string
           page_name?: string
           subscribed?: boolean
+          token_invalidated_at?: string | null
+          token_valid?: boolean
           updated_at?: string
           workspace_id?: string | null
         }
