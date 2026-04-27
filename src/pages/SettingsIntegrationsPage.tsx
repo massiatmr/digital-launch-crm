@@ -160,6 +160,7 @@ export default function SettingsIntegrationsPage() {
 
   useEffect(() => {
     loadPages();
+    loadOffers();
     loadWaNumbers();
     const fb = params.get("fb");
     if (fb === "connected") {
