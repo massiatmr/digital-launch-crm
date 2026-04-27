@@ -379,23 +379,62 @@ export default function SettingsIntegrationsPage() {
                         onClick={() => setExpanded((s) => ({ ...s, [p.id]: !s[p.id] }))}
                       >
                         {expanded[p.id] ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                        {p.forms.length} formulaire(s) en cache
+                        {p.forms.length} formulaire(s) — associer une offre
                       </button>
                       {expanded[p.id] && (
-                        <ul className="mt-2 space-y-1 pl-4">
-                          {p.forms.map((f) => (
-                            <li key={f.id} className="text-xs flex items-center gap-2">
-                              <span className="font-mono text-muted-foreground">{f.id}</span>
-                              <span>—</span>
-                              <span>{f.name}</span>
-                              {f.status && (
-                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                  {f.status}
-                                </Badge>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
+                        <div className="mt-3 space-y-2">
+                          {p.forms.map((f) => {
+                            const mapping = formOfferMappings.find((m) => m.form_id === f.id);
+                            const currentOfferId = mapping?.offer_id || "";
+                            return (
+                              <div
+                                key={f.id}
+                                className="flex flex-wrap items-center gap-2 p-2 rounded-md bg-muted/30 border"
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-sm font-medium truncate">{f.name}</div>
+                                  <div className="text-[10px] font-mono text-muted-foreground flex items-center gap-2">
+                                    {f.id}
+                                    {f.status && (
+                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                        {f.status}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <Select
+                                    value={currentOfferId || "__none__"}
+                                    onValueChange={(v) =>
+                                      setFormOffer(f.id, f.name, p.page_id, v === "__none__" ? null : v)
+                                    }
+                                    disabled={busy === `map:${f.id}`}
+                                  >
+                                    <SelectTrigger className="w-[220px] h-8 text-xs">
+                                      <SelectValue placeholder="Aucune offre" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="__none__">— Aucune —</SelectItem>
+                                      {offers.map((o) => (
+                                        <SelectItem key={o.id} value={o.id}>
+                                          {o.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  {busy === `map:${f.id}` && (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {offers.length === 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              Aucune offre dans cet espace. Créez d'abord des offres dans la section Offres.
+                            </p>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}
