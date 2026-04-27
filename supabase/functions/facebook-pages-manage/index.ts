@@ -79,9 +79,48 @@ Deno.serve(async (req) => {
         ? apps.some((entry: { id?: string }) => entry?.id === appId)
         : false;
 
-      await admin.from("meta_pages").update({ subscribed } as any).eq("id", page.id);
+      // Detect expired/invalid token (Meta error code 190 or HTTP 401)
+      const errCode = (checkJson as any)?.error?.code;
+      const errSubcode = (checkJson as any)?.error?.error_subcode;
+      const tokenInvalid = checkRes.status === 401 || errCode === 190 || errCode === 102 || errSubcode === 463 || errSubcode === 467;
 
-      return { subscribed, checkJson };
+      const updatePayload: any = { subscribed };
+      if (tokenInvalid) {
+        updatePayload.token_valid = false;
+        updatePayload.token_invalidated_at = new Date().toISOString();
+      } else if (checkRes.ok) {
+        updatePayload.token_valid = true;
+        updatePayload.token_invalidated_at = null;
+      }
+      await admin.from("meta_pages").update(updatePayload as any).eq("id", page.id);
+
+      // Notify owner once per 24h when token expires
+      if (tokenInvalid) {
+        const { data: pageRow } = await admin
+          .from("meta_pages")
+          .select("owner_id, page_name, last_token_notified_at, workspace_id")
+          .eq("id", page.id)
+          .maybeSingle();
+        const last = pageRow?.last_token_notified_at ? new Date(pageRow.last_token_notified_at).getTime() : 0;
+        if (Date.now() - last > 24 * 60 * 60 * 1000) {
+          try {
+            await admin.functions.invoke("send-onesignal-notification", {
+              body: {
+                user_id: pageRow?.owner_id,
+                title: "Connexion Facebook expirée",
+                message: `La page "${pageRow?.page_name || page.page_id}" doit être reconnectée. Allez dans Paramètres → Intégrations.`,
+                url: "/settings/integrations",
+              },
+            });
+          } catch (_) { /* non-blocking */ }
+          await admin
+            .from("meta_pages")
+            .update({ last_token_notified_at: new Date().toISOString() } as any)
+            .eq("id", page.id);
+        }
+      }
+
+      return { subscribed, checkJson, tokenInvalid };
     };
 
     if (action === "list") {
