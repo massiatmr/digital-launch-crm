@@ -237,7 +237,7 @@ Deno.serve(async (req) => {
     console.log(`[fb-callback] total WA numbers detected: ${waNumbersFound}`);
 
     return Response.redirect(
-      `${redirectBase}?fb=connected&count=${pages.length}&subscribed=${subscribedPages}&wa=${waNumbersFound}`,
+      `${redirectBase}?fb=connected&count=${pages.length}&subscribed=${subscribedPages}&wa=${waNumbersFound}&skipped_pages=${skippedPages}&skipped_wa=${waNumbersSkipped}`,
       302,
     );
   } catch (err) {
