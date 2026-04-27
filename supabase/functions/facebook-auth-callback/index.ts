@@ -140,9 +140,28 @@ Deno.serve(async (req) => {
     }
 
     let waNumbersFound = 0;
+    let waNumbersSkipped = 0;
     const wabaSeen = new Set<string>();
     const upsertPhones = async (waba: { id: string; name?: string }, phones: any[]) => {
       for (const ph of phones) {
+        // Isolation stricte : ignorer les numéros déjà rattachés à un autre workspace.
+        const { data: takenElsewhere } = await supabase
+          .from("whatsapp_config")
+          .select("id, workspace_id, owner_id")
+          .eq("phone_number_id", ph.id);
+        const conflict = (takenElsewhere || []).some((row: any) => {
+          if (workspace_id) return row.workspace_id && row.workspace_id !== workspace_id;
+          return row.workspace_id !== null || row.owner_id !== userId;
+        });
+        if (conflict) {
+          waNumbersSkipped++;
+          console.log("[fb-callback] WA number already in another workspace, skipping", {
+            phoneNumberId: ph.id,
+            displayPhoneNumber: ph.display_phone_number,
+          });
+          continue;
+        }
+
         waNumbersFound++;
         const existQ = supabase
           .from("whatsapp_config")
