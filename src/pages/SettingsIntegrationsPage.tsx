@@ -98,8 +98,40 @@ export default function SettingsIntegrationsPage() {
       toast.error("Erreur de chargement", { description: error.message });
     } else {
       setPages(data?.pages || []);
+      setFormOfferMappings(data?.form_offer_mappings || []);
     }
     setLoading(false);
+  };
+
+  const loadOffers = async () => {
+    let q = supabase.from("offers").select("id, name").is("deleted_at", null).order("name");
+    if (workspaceId) q = q.eq("workspace_id", workspaceId);
+    const { data } = await q;
+    setOffers((data as OfferLite[]) || []);
+  };
+
+  const setFormOffer = async (form_id: string, form_name: string, page_id: string, offer_id: string | null) => {
+    setBusy(`map:${form_id}`);
+    const { error } = await supabase.functions.invoke("facebook-pages-manage", {
+      body: {
+        action: "set_form_offer",
+        workspace_id: workspaceId,
+        form_id,
+        form_name,
+        page_id,
+        offer_id,
+      },
+    });
+    setBusy(null);
+    if (error) {
+      toast.error("Échec mappage", { description: error.message });
+      return;
+    }
+    toast.success(offer_id ? "Formulaire associé à l'offre" : "Association supprimée");
+    setFormOfferMappings((prev) => {
+      const filtered = prev.filter((m) => m.form_id !== form_id);
+      return offer_id ? [...filtered, { form_id, offer_id, page_id }] : filtered;
+    });
   };
 
   const loadWaNumbers = async () => {
