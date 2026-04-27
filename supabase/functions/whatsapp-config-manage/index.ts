@@ -134,6 +134,22 @@ Deno.serve(async (req) => {
         return json({ error: "Token ou phone_number_id invalide", details: phoneData }, 400);
       }
 
+      // Isolation stricte : empêcher d'attacher un numéro déjà pris dans un autre workspace
+      const { data: conflicts } = await admin
+        .from("whatsapp_config")
+        .select("id, workspace_id, owner_id")
+        .eq("phone_number_id", phone_number_id);
+      const hasConflict = (conflicts || []).some((row: any) => {
+        if (workspace_id) return row.workspace_id && row.workspace_id !== workspace_id;
+        return row.workspace_id !== null || row.owner_id !== user.id;
+      });
+      if (hasConflict) {
+        return json(
+          { error: "Ce numéro WhatsApp est déjà rattaché à un autre espace de travail. Supprimez-le d'abord depuis cet autre espace." },
+          409,
+        );
+      }
+
       const { data: existing } = await applyScope(
         admin.from("whatsapp_config").select("id"),
       ).maybeSingle();
