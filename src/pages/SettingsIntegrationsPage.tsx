@@ -22,7 +22,9 @@ import {
   Power,
   Phone,
   Plus,
+  AlertTriangle,
 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCurrentWorkspaceId, useWorkspaces } from "@/hooks/useWorkspaces";
 
 interface WhatsappNumber {
