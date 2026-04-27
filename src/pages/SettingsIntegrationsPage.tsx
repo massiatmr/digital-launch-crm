@@ -303,6 +303,12 @@ export default function SettingsIntegrationsPage() {
                           {p.subscribed ? "Abonnée aux leads" : "Non abonnée"}
                         </Badge>
                         {!p.is_active && <Badge variant="outline">Désactivée</Badge>}
+                        {p.token_valid === false && (
+                          <Badge variant="destructive" className="gap-1">
+                            <AlertTriangle className="h-3 w-3" />
+                            Token expiré · Reconnecter Meta
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-1 font-mono">ID: {p.page_id}</p>
                     </div>
