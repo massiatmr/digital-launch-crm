@@ -70,8 +70,31 @@ Deno.serve(async (req) => {
     );
 
     let subscribedPages = 0;
+    let skippedPages = 0;
 
     for (const p of pages) {
+      // Isolation stricte : si la page est déjà rattachée à un AUTRE workspace
+      // (ou à un autre owner pour les rows legacy), on l'ignore complètement.
+      const { data: takenElsewhere } = await supabase
+        .from("meta_pages")
+        .select("id, workspace_id, owner_id")
+        .eq("page_id", p.id);
+      const conflict = (takenElsewhere || []).some((row: any) => {
+        if (workspace_id) {
+          return row.workspace_id && row.workspace_id !== workspace_id;
+        }
+        // legacy scope: owner-only / workspace null
+        return row.workspace_id !== null || row.owner_id !== userId;
+      });
+      if (conflict) {
+        skippedPages++;
+        console.log("[fb-callback] page already attached to another workspace, skipping", {
+          pageId: p.id,
+          pageName: p.name,
+        });
+        continue;
+      }
+
       const query = supabase.from("meta_pages").select("id").eq("page_id", p.id);
       const scoped = workspace_id
         ? query.eq("workspace_id", workspace_id)
@@ -117,9 +140,28 @@ Deno.serve(async (req) => {
     }
 
     let waNumbersFound = 0;
+    let waNumbersSkipped = 0;
     const wabaSeen = new Set<string>();
     const upsertPhones = async (waba: { id: string; name?: string }, phones: any[]) => {
       for (const ph of phones) {
+        // Isolation stricte : ignorer les numéros déjà rattachés à un autre workspace.
+        const { data: takenElsewhere } = await supabase
+          .from("whatsapp_config")
+          .select("id, workspace_id, owner_id")
+          .eq("phone_number_id", ph.id);
+        const conflict = (takenElsewhere || []).some((row: any) => {
+          if (workspace_id) return row.workspace_id && row.workspace_id !== workspace_id;
+          return row.workspace_id !== null || row.owner_id !== userId;
+        });
+        if (conflict) {
+          waNumbersSkipped++;
+          console.log("[fb-callback] WA number already in another workspace, skipping", {
+            phoneNumberId: ph.id,
+            displayPhoneNumber: ph.display_phone_number,
+          });
+          continue;
+        }
+
         waNumbersFound++;
         const existQ = supabase
           .from("whatsapp_config")
@@ -195,7 +237,7 @@ Deno.serve(async (req) => {
     console.log(`[fb-callback] total WA numbers detected: ${waNumbersFound}`);
 
     return Response.redirect(
-      `${redirectBase}?fb=connected&count=${pages.length}&subscribed=${subscribedPages}&wa=${waNumbersFound}`,
+      `${redirectBase}?fb=connected&count=${pages.length}&subscribed=${subscribedPages}&wa=${waNumbersFound}&skipped_pages=${skippedPages}&skipped_wa=${waNumbersSkipped}`,
       302,
     );
   } catch (err) {

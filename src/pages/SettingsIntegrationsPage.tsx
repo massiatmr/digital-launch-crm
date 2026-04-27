@@ -120,9 +120,17 @@ export default function SettingsIntegrationsPage() {
       const count = params.get("count") || "0";
       const subscribed = params.get("subscribed") || "0";
       const wa = params.get("wa") || "0";
+      const skippedPages = parseInt(params.get("skipped_pages") || "0", 10);
+      const skippedWa = parseInt(params.get("skipped_wa") || "0", 10);
       toast.success("Meta connecté", {
         description: `${count} page(s) détectée(s) · ${subscribed} abonnée(s) · ${wa} numéro(s) WhatsApp`,
       });
+      if (skippedPages > 0 || skippedWa > 0) {
+        toast.info("Éléments ignorés (déjà attribués à un autre espace)", {
+          description: `${skippedPages} page(s) Facebook · ${skippedWa} numéro(s) WhatsApp non importés. Supprimez-les d'abord de l'autre espace si vous voulez les déplacer.`,
+          duration: 8000,
+        });
+      }
       setParams({}, { replace: true });
     } else if (fb === "error") {
       toast.error("Connexion Meta échouée", { description: params.get("reason") || "Erreur inconnue" });
