@@ -496,6 +496,23 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
             });
           }
         } else {
+          // Lookup offer_id from form mapping
+          let mappedOfferId: string | null = null;
+          if (formId) {
+            let mq = supabase
+              .from("meta_form_offer_mapping")
+              .select("offer_id")
+              .eq("form_id", String(formId));
+            mq = effectiveWorkspaceId
+              ? mq.eq("workspace_id", effectiveWorkspaceId)
+              : mq.eq("owner_id", effectiveOwnerId).is("workspace_id", null);
+            const { data: mapping } = await mq.maybeSingle();
+            mappedOfferId = mapping?.offer_id ?? null;
+            if (mappedOfferId) {
+              logInfo(requestId, "Form mapped to offer", { formId, offerId: mappedOfferId });
+            }
+          }
+
           const insertPayload = {
             name,
             email,
@@ -507,6 +524,7 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
             score: "cold" as any,
             owner_id: effectiveOwnerId,
             workspace_id: effectiveWorkspaceId,
+            offer_id: mappedOfferId,
             message: `Lead Facebook Ads – ${mapped.name ?? "Nouveau lead"}`,
           };
 

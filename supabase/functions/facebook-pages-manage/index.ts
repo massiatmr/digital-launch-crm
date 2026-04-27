@@ -79,30 +79,133 @@ Deno.serve(async (req) => {
         ? apps.some((entry: { id?: string }) => entry?.id === appId)
         : false;
 
-      await admin.from("meta_pages").update({ subscribed } as any).eq("id", page.id);
+      // Detect expired/invalid token (Meta error code 190 or HTTP 401)
+      const errCode = (checkJson as any)?.error?.code;
+      const errSubcode = (checkJson as any)?.error?.error_subcode;
+      const tokenInvalid = checkRes.status === 401 || errCode === 190 || errCode === 102 || errSubcode === 463 || errSubcode === 467;
 
-      return { subscribed, checkJson };
+      const updatePayload: any = { subscribed };
+      if (tokenInvalid) {
+        updatePayload.token_valid = false;
+        updatePayload.token_invalidated_at = new Date().toISOString();
+      } else if (checkRes.ok) {
+        updatePayload.token_valid = true;
+        updatePayload.token_invalidated_at = null;
+      }
+      await admin.from("meta_pages").update(updatePayload as any).eq("id", page.id);
+
+      // Notify owner once per 24h when token expires
+      if (tokenInvalid) {
+        const { data: pageRow } = await admin
+          .from("meta_pages")
+          .select("owner_id, page_name, last_token_notified_at, workspace_id")
+          .eq("id", page.id)
+          .maybeSingle();
+        const last = pageRow?.last_token_notified_at ? new Date(pageRow.last_token_notified_at).getTime() : 0;
+        if (Date.now() - last > 24 * 60 * 60 * 1000) {
+          try {
+            await admin.functions.invoke("send-onesignal-notification", {
+              body: {
+                user_id: pageRow?.owner_id,
+                title: "Connexion Facebook expirée",
+                message: `La page "${pageRow?.page_name || page.page_id}" doit être reconnectée. Allez dans Paramètres → Intégrations.`,
+                url: "/settings/integrations",
+              },
+            });
+          } catch (_) { /* non-blocking */ }
+          await admin
+            .from("meta_pages")
+            .update({ last_token_notified_at: new Date().toISOString() } as any)
+            .eq("id", page.id);
+        }
+      }
+
+      return { subscribed, checkJson, tokenInvalid };
     };
 
     if (action === "list") {
       const { data, error } = await scope(
         admin
           .from("meta_pages")
-          .select("id, page_id, page_name, is_active, subscribed, forms, created_at, updated_at, page_access_token")
-          .order("created_at", { ascending: false }),
+          .select("id, page_id, page_name, is_active, subscribed, forms, created_at, updated_at, page_access_token, token_valid"),
       );
       if (error) throw error;
+      const sorted = (data || []).sort((a: any, b: any) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
 
-      const pages = await Promise.all((data || []).map(async (page: any) => {
+      const pages = await Promise.all(sorted.map(async (page: any) => {
         try {
           const verification = await getSubscriptionState(page);
-          return { ...page, subscribed: verification.subscribed };
+          return { ...page, subscribed: verification.subscribed, token_valid: !verification.tokenInvalid };
         } catch {
           return page;
         }
       }));
 
-      return new Response(JSON.stringify({ pages: pages.map(({ page_access_token, ...page }) => page) }), {
+      // Fetch form->offer mappings for this scope
+      const { data: mappings } = await scope(
+        admin.from("meta_form_offer_mapping").select("form_id, offer_id, page_id"),
+      );
+
+      return new Response(JSON.stringify({
+        pages: pages.map(({ page_access_token, ...page }) => page),
+        form_offer_mappings: mappings || [],
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "set_form_offer") {
+      const { form_id, form_name, page_id: fp_page_id, offer_id } = body;
+      if (!form_id || !fp_page_id) {
+        return new Response(JSON.stringify({ error: "form_id et page_id requis" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (!offer_id) {
+        // Remove mapping
+        const del = scope(admin.from("meta_form_offer_mapping").delete().eq("form_id", form_id));
+        const { error } = await del;
+        if (error) throw error;
+        return new Response(JSON.stringify({ ok: true, removed: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Verify offer belongs to this scope
+      const { data: offer } = await scope(
+        admin.from("offers").select("id").eq("id", offer_id),
+      ).maybeSingle();
+      if (!offer) {
+        return new Response(JSON.stringify({ error: "Offre introuvable dans cet espace" }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Upsert
+      const { data: existing } = await scope(
+        admin.from("meta_form_offer_mapping").select("id").eq("form_id", form_id),
+      ).maybeSingle();
+
+      const payload: any = {
+        owner_id: user.id,
+        workspace_id,
+        form_id,
+        form_name: form_name || "",
+        page_id: fp_page_id,
+        offer_id,
+      };
+
+      if (existing) {
+        const { error } = await admin.from("meta_form_offer_mapping").update(payload).eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await admin.from("meta_form_offer_mapping").insert(payload);
+        if (error) throw error;
+      }
+      return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

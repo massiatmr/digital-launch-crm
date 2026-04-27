@@ -22,7 +22,9 @@ import {
   Power,
   Phone,
   Plus,
+  AlertTriangle,
 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCurrentWorkspaceId, useWorkspaces } from "@/hooks/useWorkspaces";
 
 interface WhatsappNumber {
@@ -44,6 +46,18 @@ interface MetaPage {
   subscribed: boolean;
   forms: Array<{ id: string; name: string; status?: string }>;
   created_at: string;
+  token_valid?: boolean;
+}
+
+interface FormOfferMapping {
+  form_id: string;
+  offer_id: string;
+  page_id: string;
+}
+
+interface OfferLite {
+  id: string;
+  name: string;
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
@@ -55,6 +69,8 @@ export default function SettingsIntegrationsPage() {
   const workspaceId = useCurrentWorkspaceId();
   const { currentWorkspace } = useWorkspaces();
   const [pages, setPages] = useState<MetaPage[]>([]);
+  const [formOfferMappings, setFormOfferMappings] = useState<FormOfferMapping[]>([]);
+  const [offers, setOffers] = useState<OfferLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -84,8 +100,40 @@ export default function SettingsIntegrationsPage() {
       toast.error("Erreur de chargement", { description: error.message });
     } else {
       setPages(data?.pages || []);
+      setFormOfferMappings(data?.form_offer_mappings || []);
     }
     setLoading(false);
+  };
+
+  const loadOffers = async () => {
+    let q = supabase.from("offers").select("id, name").is("deleted_at", null).order("name");
+    if (workspaceId) q = q.eq("workspace_id", workspaceId);
+    const { data } = await q;
+    setOffers((data as OfferLite[]) || []);
+  };
+
+  const setFormOffer = async (form_id: string, form_name: string, page_id: string, offer_id: string | null) => {
+    setBusy(`map:${form_id}`);
+    const { error } = await supabase.functions.invoke("facebook-pages-manage", {
+      body: {
+        action: "set_form_offer",
+        workspace_id: workspaceId,
+        form_id,
+        form_name,
+        page_id,
+        offer_id,
+      },
+    });
+    setBusy(null);
+    if (error) {
+      toast.error("Échec mappage", { description: error.message });
+      return;
+    }
+    toast.success(offer_id ? "Formulaire associé à l'offre" : "Association supprimée");
+    setFormOfferMappings((prev) => {
+      const filtered = prev.filter((m) => m.form_id !== form_id);
+      return offer_id ? [...filtered, { form_id, offer_id, page_id }] : filtered;
+    });
   };
 
   const loadWaNumbers = async () => {
@@ -114,6 +162,7 @@ export default function SettingsIntegrationsPage() {
 
   useEffect(() => {
     loadPages();
+    loadOffers();
     loadWaNumbers();
     const fb = params.get("fb");
     if (fb === "connected") {
@@ -254,6 +303,12 @@ export default function SettingsIntegrationsPage() {
                           {p.subscribed ? "Abonnée aux leads" : "Non abonnée"}
                         </Badge>
                         {!p.is_active && <Badge variant="outline">Désactivée</Badge>}
+                        {p.token_valid === false && (
+                          <Badge variant="destructive" className="gap-1">
+                            <AlertTriangle className="h-3 w-3" />
+                            Token expiré · Reconnecter Meta
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-1 font-mono">ID: {p.page_id}</p>
                     </div>
@@ -324,23 +379,62 @@ export default function SettingsIntegrationsPage() {
                         onClick={() => setExpanded((s) => ({ ...s, [p.id]: !s[p.id] }))}
                       >
                         {expanded[p.id] ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                        {p.forms.length} formulaire(s) en cache
+                        {p.forms.length} formulaire(s) — associer une offre
                       </button>
                       {expanded[p.id] && (
-                        <ul className="mt-2 space-y-1 pl-4">
-                          {p.forms.map((f) => (
-                            <li key={f.id} className="text-xs flex items-center gap-2">
-                              <span className="font-mono text-muted-foreground">{f.id}</span>
-                              <span>—</span>
-                              <span>{f.name}</span>
-                              {f.status && (
-                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                  {f.status}
-                                </Badge>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
+                        <div className="mt-3 space-y-2">
+                          {p.forms.map((f) => {
+                            const mapping = formOfferMappings.find((m) => m.form_id === f.id);
+                            const currentOfferId = mapping?.offer_id || "";
+                            return (
+                              <div
+                                key={f.id}
+                                className="flex flex-wrap items-center gap-2 p-2 rounded-md bg-muted/30 border"
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-sm font-medium truncate">{f.name}</div>
+                                  <div className="text-[10px] font-mono text-muted-foreground flex items-center gap-2">
+                                    {f.id}
+                                    {f.status && (
+                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                        {f.status}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <Select
+                                    value={currentOfferId || "__none__"}
+                                    onValueChange={(v) =>
+                                      setFormOffer(f.id, f.name, p.page_id, v === "__none__" ? null : v)
+                                    }
+                                    disabled={busy === `map:${f.id}`}
+                                  >
+                                    <SelectTrigger className="w-[220px] h-8 text-xs">
+                                      <SelectValue placeholder="Aucune offre" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="__none__">— Aucune —</SelectItem>
+                                      {offers.map((o) => (
+                                        <SelectItem key={o.id} value={o.id}>
+                                          {o.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  {busy === `map:${f.id}` && (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {offers.length === 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              Aucune offre dans cet espace. Créez d'abord des offres dans la section Offres.
+                            </p>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}
