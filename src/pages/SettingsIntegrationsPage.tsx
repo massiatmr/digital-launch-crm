@@ -44,6 +44,18 @@ interface MetaPage {
   subscribed: boolean;
   forms: Array<{ id: string; name: string; status?: string }>;
   created_at: string;
+  token_valid?: boolean;
+}
+
+interface FormOfferMapping {
+  form_id: string;
+  offer_id: string;
+  page_id: string;
+}
+
+interface OfferLite {
+  id: string;
+  name: string;
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
@@ -55,6 +67,8 @@ export default function SettingsIntegrationsPage() {
   const workspaceId = useCurrentWorkspaceId();
   const { currentWorkspace } = useWorkspaces();
   const [pages, setPages] = useState<MetaPage[]>([]);
+  const [formOfferMappings, setFormOfferMappings] = useState<FormOfferMapping[]>([]);
+  const [offers, setOffers] = useState<OfferLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
