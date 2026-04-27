@@ -127,21 +127,85 @@ Deno.serve(async (req) => {
       const { data, error } = await scope(
         admin
           .from("meta_pages")
-          .select("id, page_id, page_name, is_active, subscribed, forms, created_at, updated_at, page_access_token")
-          .order("created_at", { ascending: false }),
+          .select("id, page_id, page_name, is_active, subscribed, forms, created_at, updated_at, page_access_token, token_valid"),
       );
       if (error) throw error;
+      const sorted = (data || []).sort((a: any, b: any) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
 
-      const pages = await Promise.all((data || []).map(async (page: any) => {
+      const pages = await Promise.all(sorted.map(async (page: any) => {
         try {
           const verification = await getSubscriptionState(page);
-          return { ...page, subscribed: verification.subscribed };
+          return { ...page, subscribed: verification.subscribed, token_valid: !verification.tokenInvalid };
         } catch {
           return page;
         }
       }));
 
-      return new Response(JSON.stringify({ pages: pages.map(({ page_access_token, ...page }) => page) }), {
+      // Fetch form->offer mappings for this scope
+      const { data: mappings } = await scope(
+        admin.from("meta_form_offer_mapping").select("form_id, offer_id, page_id"),
+      );
+
+      return new Response(JSON.stringify({
+        pages: pages.map(({ page_access_token, ...page }) => page),
+        form_offer_mappings: mappings || [],
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "set_form_offer") {
+      const { form_id, form_name, page_id: fp_page_id, offer_id } = body;
+      if (!form_id || !fp_page_id) {
+        return new Response(JSON.stringify({ error: "form_id et page_id requis" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (!offer_id) {
+        // Remove mapping
+        const del = scope(admin.from("meta_form_offer_mapping").delete().eq("form_id", form_id));
+        const { error } = await del;
+        if (error) throw error;
+        return new Response(JSON.stringify({ ok: true, removed: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Verify offer belongs to this scope
+      const { data: offer } = await scope(
+        admin.from("offers").select("id").eq("id", offer_id),
+      ).maybeSingle();
+      if (!offer) {
+        return new Response(JSON.stringify({ error: "Offre introuvable dans cet espace" }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Upsert
+      const { data: existing } = await scope(
+        admin.from("meta_form_offer_mapping").select("id").eq("form_id", form_id),
+      ).maybeSingle();
+
+      const payload: any = {
+        owner_id: user.id,
+        workspace_id,
+        form_id,
+        form_name: form_name || "",
+        page_id: fp_page_id,
+        offer_id,
+      };
+
+      if (existing) {
+        const { error } = await admin.from("meta_form_offer_mapping").update(payload).eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await admin.from("meta_form_offer_mapping").insert(payload);
+        if (error) throw error;
+      }
+      return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
