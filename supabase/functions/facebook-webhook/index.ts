@@ -14,6 +14,10 @@ interface FacebookFieldData {
 interface FacebookLeadData {
   field_data: FacebookFieldData[];
   created_time: string;
+  ad_id?: string;
+  adset_id?: string;
+  campaign_id?: string;
+  form_id?: string;
 }
 
 type LeadLookupResult = {
@@ -307,7 +311,7 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
             });
 
             const fbRes = await fetch(
-              `https://graph.facebook.com/v25.0/${leadgenId}?fields=field_data,created_time&access_token=${effectiveToken}`
+              `https://graph.facebook.com/v25.0/${leadgenId}?fields=field_data,created_time,ad_id,adset_id,campaign_id,form_id&access_token=${effectiveToken}`
             );
 
             if (!fbRes.ok) {
@@ -526,6 +530,11 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
             workspace_id: effectiveWorkspaceId,
             offer_id: mappedOfferId,
             message: `Lead Facebook Ads – ${mapped.name ?? "Nouveau lead"}`,
+            meta_page_id: pageId,
+            meta_form_id: leadData.form_id ?? (formId ? String(formId) : null),
+            meta_ad_id: leadData.ad_id ?? null,
+            meta_adset_id: leadData.adset_id ?? null,
+            meta_campaign_id: leadData.campaign_id ?? null,
           };
 
           logInfo(requestId, "Creating new lead in CRM", {
