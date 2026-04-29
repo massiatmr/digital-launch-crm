@@ -1,49 +1,136 @@
+# Dashboard Meta Ads — Campagnes, Leads et Coût par Lead
 
+## Objectif
 
-## Plan : Connecter la landing Déménageur aux données du Studio
+Ajouter une section "Campagnes Meta Ads" sur le Dashboard qui affiche, pour chaque page Facebook connectée du workspace actif :
+- la liste des campagnes (statut ACTIVE / PAUSED)
+- le nombre de leads reçus depuis chaque campagne
+- la dépense et le coût par lead (CPL)
+- un toggle pour inclure les campagnes désactivées
 
-### Problème (cause racine)
+Période synchronisée avec le sélecteur de période existant du Dashboard (7j, 30j, 90j, etc.).
 
-L'offre "Système Déménageurs" déclenche **automatiquement** la landing page custom `src/pages/landing/demenageur.tsx` (détectée via mot-clé `demenag` dans le slug/niche).
+## Ce qui est en place
 
-Mais ce fichier utilise des **constantes hardcodées** (`painPoints`, `solutions`, deliverables figés en JSX) et **n'utilise jamais** les `sections` éditables stockées dans `offer_pages.sections`. Résultat : tout ce que tu édites dans le Studio (titres, items, icônes, prix, transformation, bonus) **n'apparaît jamais** sur la landing rendue → l'utilisateur voit le template figé "Digital Launch / site déménageur" sans aucun lien avec son offre.
+- Pages Facebook connectées via OAuth dans `meta_pages` (avec `page_access_token`).
+- Scopes OAuth déjà demandés : `pages_manage_ads` et `business_management` (pas encore `ads_read`, à ajouter).
+- Webhook Facebook Lead Ads écrit les leads avec `source = 'facebook'` mais ne stocke pas encore `ad_id` / `campaign_id`.
 
-À l'inverse, le **template générique** (`PublicOfferPage`) lit bien `sections` et affiche correctement tout ce qui est édité — comme le confirment les données en DB qui sont parfaitement structurées (5 pain_points, 5 deliverables avec valeurs, 3 bonuses, transformation avant/après, total_value 6250€).
+## Plan d'implémentation
 
-### Solution
+### 1. Base de données (migration)
 
-#### 1. Rendre `demenageur.tsx` data-driven (lecture des `sections`)
-- Ajouter `useOfferPage(offer.id)` dans le composant pour récupérer la page.
-- Remplacer les constantes hardcodées par lecture conditionnelle des sections du Studio :
-  - **Hero** : `headline` / `subheadline` / `cta_text` depuis `offer_pages` (fallback aux textes actuels si vides).
-  - **Pain points** : lire `sections[type=pain_points].items` (objets `{icon, title, description}`) au lieu du tableau hardcodé. Garder le visuel actuel (icône rouge + texte).
-  - **Transformation** : lire `sections[type=transformation].before/after` et afficher dans la grille avant/après actuelle (aujourd'hui absente du template déménageur → on l'ajoute).
-  - **Deliverables** : lire `sections[type=deliverables].items` (icône + titre + value + description) et `total_value`. Remplacer la liste figée des "services inclus".
-  - **Bonuses** : lire `sections[type=bonuses].items` et afficher dans la section bonus existante.
-  - **Solution / Garantie / FAQ / Pricing** : afficher si présents, sinon masquer la section.
-  - **CTA** : utiliser `cta_text` édité.
+Ajouter sur `leads` les colonnes d'attribution Meta :
+- `meta_ad_id text`
+- `meta_adset_id text`
+- `meta_campaign_id text`
+- `meta_form_id text` (déjà partiellement présent côté webhook, on persiste explicitement)
+- `meta_page_id text`
 
-#### 2. Garder l'identité visuelle "Déménageur" (rouge, photos)
-- On **ne touche pas** au design : background image hero, palette rouge, glow, layout — tout reste identique.
-- Les blocs "portfolio" (4 images projets) restent hardcodés car ce sont des assets locaux Digital Launch (logique : c'est notre vitrine, pas celle du client).
-- Si l'utilisateur n'a aucune section configurée (offre vide), on garde un fallback élégant (textes par défaut actuels) pour éviter une page blanche.
+Index combiné `(workspace_id, meta_campaign_id, created_at)` pour les agrégations dashboard.
 
-#### 3. Helper de mapping icônes partagé
-- Centraliser le map `ICON_MAP` (déjà présent dans `PublicOfferPage`) en helper exportable réutilisé par `demenageur.tsx`. Évite les divergences.
-
-#### 4. Édition autorisée du nom de section (déjà OK)
-- Vérifié : `OfferStudioSidebar` permet déjà d'éditer titre/items/icônes/valeurs correctement → pas de changement côté éditeur.
-
-### Fichiers modifiés
-
+Créer une table de cache pour éviter d'appeler l'API Meta à chaque chargement :
 ```
-src/pages/landing/demenageur.tsx     (data-driven : lit offerPage.sections au lieu de constantes hardcodées)
-src/pages/PublicOfferPage.tsx        (export du HormoziIcon/ICON_MAP pour réutilisation)
+meta_campaigns_cache (
+  id uuid pk,
+  workspace_id uuid,
+  page_id text,
+  campaign_id text,
+  campaign_name text,
+  status text,           -- ACTIVE / PAUSED / ARCHIVED
+  objective text,
+  daily_budget numeric,
+  fetched_at timestamptz
+)
+meta_campaign_insights_cache (
+  id uuid pk,
+  workspace_id uuid,
+  campaign_id text,
+  date_from date,
+  date_to date,
+  spend numeric,
+  impressions int,
+  clicks int,
+  leads_meta int,        -- leads comptés par Meta
+  fetched_at timestamptz
+)
 ```
 
-Aucune migration DB. Aucun changement d'éditeur. Aucune perte du look "Déménageur".
+RLS : lecture/écriture limitée au workspace (mêmes patterns que `meta_pages`).
 
-### Résultat attendu
+### 2. Scope OAuth
 
-Après cette correction, ce que tu édites dans le Studio (titres, points de douleur, icônes, transformation, livrables avec leurs valeurs, bonus, FAQ, etc.) s'affichera **réellement** sur la landing déménageur, tout en conservant son design rouge/photos premium.
+Ajouter `ads_read` à `facebook-auth-init/index.ts`. Les utilisateurs déjà connectés devront se reconnecter une fois pour autoriser ce scope (badge déjà existant pour reconnexion).
 
+### 3. Webhook Facebook Lead Ads
+
+Dans `facebook-webhook/index.ts`, lors de la récupération du lead via Graph API, persister sur la ligne insérée :
+- `meta_ad_id`, `meta_adset_id`, `meta_campaign_id`, `meta_form_id`, `meta_page_id`
+
+(Ces champs sont déjà retournés par l'endpoint `/{lead_id}` quand on demande les champs `ad_id,adset_id,campaign_id,form_id`.)
+
+### 4. Nouvelle edge function `meta-ads-insights`
+
+Authentifiée (JWT user). Paramètres : `workspace_id`, `date_from`, `date_to`, optionnel `include_paused`.
+
+Logique :
+1. Charger `meta_pages` du workspace avec `token_valid = true`.
+2. Pour chaque page, appeler `GET /{page_id}/?fields=...` puis parcourir les ad accounts liés via `business_management` ou directement `/{page_id}/leadgen_forms` + `/act_{account_id}/campaigns`.
+3. Récupérer `campaigns?fields=id,name,status,objective,daily_budget&effective_status=...` (filtrer ACTIVE/PAUSED selon toggle).
+4. Récupérer `insights?fields=spend,impressions,clicks,actions&time_range={...}&level=campaign`.
+5. Mettre à jour `meta_campaigns_cache` et `meta_campaign_insights_cache` (TTL 30 min — si `fetched_at` récent, retourner le cache directement).
+6. Calculer côté SQL le nb de leads CRM par `meta_campaign_id` dans la période, puis renvoyer un JSON :
+```
+[{
+  campaign_id, campaign_name, status, page_name,
+  spend, currency, leads_crm, leads_meta,
+  cpl_crm, cpl_meta
+}]
+```
+
+Si une page a son `token_valid = false`, on saute et on remonte un flag `needs_reconnect` au front.
+
+### 5. Frontend Dashboard
+
+Nouvelle section dans `src/pages/Dashboard.tsx`, sous les KPIs existants :
+
+```text
+┌─ Campagnes Meta Ads ──────────────── [✓ Actives uniquement] [↻] ┐
+│ Page          Campagne         Statut   Leads  Dépense   CPL   │
+│ Digital L.    Déménageurs FR   ACTIVE     12   240 €    20 €   │
+│ Digital L.    B2B SaaS         PAUSED      3    45 €    15 €   │
+│ HKSN          Coachs Sport     ACTIVE      8   180 €    22 €   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+- Composant `<MetaCampaignsSection workspaceId={...} period={...} />`.
+- Hook `useMetaCampaigns(workspaceId, dateRange, includePaused)` qui appelle l'edge function via `supabase.functions.invoke`.
+- Toggle Switch shadcn "Inclure désactivées" (off par défaut).
+- Bouton refresh manuel (force-refresh côté edge function).
+- État vide propre :
+  - aucune page Meta connectée → CTA "Connecter Meta" → `/settings/integrations`
+  - token expiré → bandeau orange "Reconnecter Meta"
+  - aucune campagne sur la période → message neutre.
+- Mobile : passage en stack de cards au lieu du tableau.
+
+Style : `glass-card`, mono pour les chiffres (Geist Mono déjà en place), badge purple/gris pour le statut.
+
+### 6. Mémoire projet
+
+Ajouter `mem://features/dashboard/meta-ads-insights` documentant : scopes requis, tables cache (TTL 30min), attribution via `meta_campaign_id` sur leads, refresh manuel disponible.
+
+## Limitations connues
+
+- Le CPL CRM ne couvre que les nouveaux leads (avec `meta_campaign_id` rempli) ; les anciens leads n'auront pas l'attribution. Affiché tel quel, avec une note "depuis le déploiement".
+- L'API Meta Insights n'est pas temps réel (latence 15-60 min côté Meta).
+- Si l'utilisateur n'a pas de compte Business Manager lié à la page, l'API renverra une liste vide → message clair dans l'UI.
+
+## Fichiers touchés
+
+- migration SQL (nouvelles colonnes `leads` + 2 tables cache)
+- `supabase/functions/facebook-auth-init/index.ts` (scope `ads_read`)
+- `supabase/functions/facebook-webhook/index.ts` (persist ad/campaign ids)
+- `supabase/functions/meta-ads-insights/index.ts` (nouvelle)
+- `src/pages/Dashboard.tsx` (intégration section)
+- `src/components/dashboard/MetaCampaignsSection.tsx` (nouveau)
+- `src/hooks/useMetaCampaigns.ts` (nouveau)
