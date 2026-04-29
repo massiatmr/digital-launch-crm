@@ -15,6 +15,8 @@ import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
+import { MetaCampaignsSection } from '@/components/dashboard/MetaCampaignsSection';
+import { useCurrentWorkspaceId } from '@/hooks/useWorkspaces';
 
 const container = {
   hidden: { opacity: 0 },
@@ -89,6 +91,7 @@ export default function Dashboard() {
 
   const [anchorDate, setAnchorDate] = useState<Date>(() => loadAnchorDate());
   const [period, setPeriod] = useState<PeriodKey>('since_anchor');
+  const currentWorkspaceId = useCurrentWorkspaceId();
   const [customFrom, setCustomFrom] = useState<Date | undefined>();
   const [customTo, setCustomTo] = useState<Date | undefined>();
 
@@ -456,6 +459,15 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+      </motion.div>
+
+      {/* Meta Ads campaigns */}
+      <motion.div variants={item}>
+        <MetaCampaignsSection
+          workspaceId={currentWorkspaceId}
+          dateFrom={rangeFrom}
+          dateTo={rangeTo}
+        />
       </motion.div>
 
       {/* Score distribution + Recent leads */}
