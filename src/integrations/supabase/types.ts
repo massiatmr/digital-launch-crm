@@ -1224,6 +1224,11 @@ export type Database = {
           last_contacted_at: string | null
           lost_reason: string | null
           message: string | null
+          meta_ad_id: string | null
+          meta_adset_id: string | null
+          meta_campaign_id: string | null
+          meta_form_id: string | null
+          meta_page_id: string | null
           name: string
           next_action: string | null
           next_action_date: string | null
@@ -1251,6 +1256,11 @@ export type Database = {
           last_contacted_at?: string | null
           lost_reason?: string | null
           message?: string | null
+          meta_ad_id?: string | null
+          meta_adset_id?: string | null
+          meta_campaign_id?: string | null
+          meta_form_id?: string | null
+          meta_page_id?: string | null
           name: string
           next_action?: string | null
           next_action_date?: string | null
@@ -1278,6 +1288,11 @@ export type Database = {
           last_contacted_at?: string | null
           lost_reason?: string | null
           message?: string | null
+          meta_ad_id?: string | null
+          meta_adset_id?: string | null
+          meta_campaign_id?: string | null
+          meta_form_id?: string | null
+          meta_page_id?: string | null
           name?: string
           next_action?: string | null
           next_action_date?: string | null
@@ -1310,6 +1325,111 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      meta_campaign_insights_cache: {
+        Row: {
+          campaign_id: string
+          clicks: number
+          created_at: string
+          currency: string | null
+          date_from: string
+          date_to: string
+          fetched_at: string
+          id: string
+          impressions: number
+          leads_meta: number
+          owner_id: string
+          spend: number
+          updated_at: string
+          workspace_id: string | null
+        }
+        Insert: {
+          campaign_id: string
+          clicks?: number
+          created_at?: string
+          currency?: string | null
+          date_from: string
+          date_to: string
+          fetched_at?: string
+          id?: string
+          impressions?: number
+          leads_meta?: number
+          owner_id?: string
+          spend?: number
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Update: {
+          campaign_id?: string
+          clicks?: number
+          created_at?: string
+          currency?: string | null
+          date_from?: string
+          date_to?: string
+          fetched_at?: string
+          id?: string
+          impressions?: number
+          leads_meta?: number
+          owner_id?: string
+          spend?: number
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Relationships: []
+      }
+      meta_campaigns_cache: {
+        Row: {
+          ad_account_id: string | null
+          campaign_id: string
+          campaign_name: string
+          created_at: string
+          daily_budget: number | null
+          effective_status: string | null
+          fetched_at: string
+          id: string
+          lifetime_budget: number | null
+          objective: string | null
+          owner_id: string
+          page_id: string
+          status: string
+          updated_at: string
+          workspace_id: string | null
+        }
+        Insert: {
+          ad_account_id?: string | null
+          campaign_id: string
+          campaign_name?: string
+          created_at?: string
+          daily_budget?: number | null
+          effective_status?: string | null
+          fetched_at?: string
+          id?: string
+          lifetime_budget?: number | null
+          objective?: string | null
+          owner_id?: string
+          page_id: string
+          status?: string
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Update: {
+          ad_account_id?: string | null
+          campaign_id?: string
+          campaign_name?: string
+          created_at?: string
+          daily_budget?: number | null
+          effective_status?: string | null
+          fetched_at?: string
+          id?: string
+          lifetime_budget?: number | null
+          objective?: string | null
+          owner_id?: string
+          page_id?: string
+          status?: string
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Relationships: []
       }
       meta_form_offer_mapping: {
         Row: {
