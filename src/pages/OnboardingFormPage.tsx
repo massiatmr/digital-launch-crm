@@ -3,7 +3,7 @@ import type { ErrorInfo } from 'react';
 import { X } from 'lucide-react';
 import logo from '@/assets/logo.webp';
 import { useSearchParams } from 'react-router-dom';
-import { Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Loader2, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
