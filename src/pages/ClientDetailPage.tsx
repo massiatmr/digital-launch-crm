@@ -1,7 +1,9 @@
 import { useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSmartBack } from '@/hooks/useSmartBack';
-import { ArrowLeft, Copy, ExternalLink, Plus, Trash2, Upload, Link as LinkIcon, FileText, Clock, Receipt, FileSignature, Mail } from 'lucide-react';
+import { ArrowLeft, Copy, ExternalLink, Plus, Trash2, Upload, Link as LinkIcon, FileText, Clock, Receipt, FileSignature, Mail, Download } from 'lucide-react';
+import { getOnboardingSteps } from '@/lib/onboardingSteps';
+import { generateOnboardingPDF } from '@/lib/generateOnboardingPDF';
 import InvoiceGenerator, { type BillingInfo } from '@/components/InvoiceGenerator';
 import InvoicesHistory from '@/components/InvoicesHistory';
 import ContractGenerator from '@/components/ContractGenerator';
