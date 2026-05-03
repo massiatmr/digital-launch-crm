@@ -33,8 +33,6 @@ import { useOffers } from '@/hooks/useOfferData';
 
 const ALL_STATUSES: ClientStatus[] = ['nouveau', 'signe', 'onboarding_envoye', 'onboarding_complete', 'en_preparation', 'en_cours', 'actif'];
 
-type FormLabel = { title: string; fields: { id: string; label: string }[] };
-
 
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
