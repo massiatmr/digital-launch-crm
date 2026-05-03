@@ -309,14 +309,35 @@ export default function ClientDetailPage() {
                 <div className="mt-4 space-y-4">
                   <p className="text-sm font-medium text-primary">Réponses reçues</p>
                   {onboardings.filter(o => o.completed).map(ob => {
-                    const formType = ob.form_type;
-                    const steps = formType === 'website' ? WEBSITE_FORM_LABELS : ADS_FORM_LABELS;
+                    const formType = ob.form_type as 'website' | 'ads';
+                    const steps = getOnboardingSteps(formType);
                     const responses = ob.responses as Record<string, any>;
+                    const handleDownload = async () => {
+                      try {
+                        const pdf = await generateOnboardingPDF({
+                          formType,
+                          steps,
+                          responses,
+                          companyName: client.company_name || client.name,
+                          completedAt: format(new Date(ob.updated_at), 'dd/MM/yyyy HH:mm'),
+                        });
+                        const fileName = `onboarding-${formType}-${(client.company_name || client.name).replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.pdf`;
+                        pdf.save(fileName);
+                      } catch (e) {
+                        console.error(e);
+                        toast.error('Erreur lors de la génération du PDF');
+                      }
+                    };
                     return (
                       <div key={ob.id} className="space-y-3">
-                        <h4 className="text-sm font-semibold border-b border-border pb-1">
-                          {formType === 'website' ? 'Site Web' : 'Campagnes Publicitaires'}
-                        </h4>
+                        <div className="flex items-center justify-between border-b border-border pb-1">
+                          <h4 className="text-sm font-semibold">
+                            {formType === 'website' ? 'Site Web' : 'Campagnes Publicitaires'}
+                          </h4>
+                          <Button variant="outline" size="sm" onClick={handleDownload}>
+                            <Download className="h-3 w-3 mr-1" />Télécharger PDF
+                          </Button>
+                        </div>
                         {steps.map((step, stepIdx) => {
                           const stepFields = step.fields.filter(f => {
                             const key = `step${stepIdx}_${f.id}`;
