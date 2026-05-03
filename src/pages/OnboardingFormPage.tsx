@@ -15,6 +15,8 @@ import { Card } from '@/components/ui/card';
 import { useOnboardingByToken, useSaveOnboardingResponses } from '@/hooks/useClientData';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { WEBSITE_STEPS, ADS_STEPS, type FormField, type FormStep } from '@/lib/onboardingSteps';
+import { generateOnboardingPDF } from '@/lib/generateOnboardingPDF';
 
 type FieldType = 'text' | 'email' | 'tel' | 'textarea' | 'radio' | 'checkbox-multi' | 'file-or-link' | 'select';
 
