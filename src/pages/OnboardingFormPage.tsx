@@ -245,6 +245,10 @@ function OnboardingFormContent() {
         </div>
         <h2 className="text-xl font-bold">Merci !</h2>
         <p className="text-muted-foreground">Vos informations ont été enregistrées avec succès. Notre équipe va les analyser et reviendra vers vous rapidement.</p>
+        <Button onClick={handleDownloadPDF} variant="outline" className="w-full rounded-xl h-11">
+          <Download className="h-4 w-4 mr-2" />
+          Télécharger une copie en PDF
+        </Button>
       </Card>
     </div>
   );
