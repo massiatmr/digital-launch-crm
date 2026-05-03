@@ -1,7 +1,9 @@
 import { useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSmartBack } from '@/hooks/useSmartBack';
-import { ArrowLeft, Copy, ExternalLink, Plus, Trash2, Upload, Link as LinkIcon, FileText, Clock, Receipt, FileSignature, Mail } from 'lucide-react';
+import { ArrowLeft, Copy, ExternalLink, Plus, Trash2, Upload, Link as LinkIcon, FileText, Clock, Receipt, FileSignature, Mail, Download } from 'lucide-react';
+import { getOnboardingSteps } from '@/lib/onboardingSteps';
+import { generateOnboardingPDF } from '@/lib/generateOnboardingPDF';
 import InvoiceGenerator, { type BillingInfo } from '@/components/InvoiceGenerator';
 import InvoicesHistory from '@/components/InvoicesHistory';
 import ContractGenerator from '@/components/ContractGenerator';
@@ -31,29 +33,6 @@ import { useOffers } from '@/hooks/useOfferData';
 
 const ALL_STATUSES: ClientStatus[] = ['nouveau', 'signe', 'onboarding_envoye', 'onboarding_complete', 'en_preparation', 'en_cours', 'actif'];
 
-type FormLabel = { title: string; fields: { id: string; label: string }[] };
-
-const WEBSITE_FORM_LABELS: FormLabel[] = [
-  { title: 'Informations générales', fields: [{ id: 'company_name', label: "Nom de l'entreprise" }, { id: 'company_email', label: "Email de l'entreprise" }, { id: 'company_phone', label: "Téléphone de l'entreprise" }, { id: 'company_whatsapp', label: "WhatsApp de l'entreprise" }, { id: 'current_website', label: 'Site web actuel' }] },
-  { title: 'Objectif du site', fields: [{ id: 'site_type', label: 'Type de site' }, { id: 'main_goal', label: 'Objectif principal' }, { id: 'main_service', label: 'Service principal' }, { id: 'main_offer', label: 'Offre principale' }, { id: 'expected_result', label: 'Résultat attendu' }] },
-  { title: 'Offre et contenu', fields: [{ id: 'services', label: 'Services proposés' }, { id: 'avg_price', label: 'Prix moyen' }, { id: 'main_advantage', label: 'Avantage principal' }, { id: 'why_choose', label: 'Pourquoi vous choisir' }, { id: 'testimonials', label: 'Témoignages' }] },
-  { title: 'Design', fields: [{ id: 'logo', label: 'Logo' }, { id: 'brand_colors', label: 'Couleurs de la marque' }, { id: 'reference_sites', label: 'Sites de référence' }, { id: 'style', label: 'Style souhaité' }] },
-  { title: 'Fonctionnalités', fields: [{ id: 'features', label: 'Fonctionnalités' }] },
-  { title: 'Accès techniques', fields: [{ id: 'hosting_access', label: 'Accès hébergement' }, { id: 'wordpress_access', label: 'Accès CMS / WordPress' }, { id: 'email_access', label: 'Accès email professionnel' }] },
-  { title: 'Ressources', fields: [{ id: 'photos', label: 'Photos' }, { id: 'videos', label: 'Vidéos' }, { id: 'commercial_docs', label: 'Documents commerciaux' }] },
-];
-
-const ADS_FORM_LABELS: FormLabel[] = [
-  { title: 'Informations générales', fields: [{ id: 'company_name', label: "Nom de l'entreprise" }, { id: 'company_email', label: "Email" }, { id: 'company_phone', label: "Téléphone" }, { id: 'company_whatsapp', label: "WhatsApp" }, { id: 'website', label: 'Site web' }, { id: 'landing_page', label: 'Landing page' }] },
-  { title: 'Activité', fields: [{ id: 'activity_type', label: "Type d'activité" }, { id: 'services', label: 'Services proposés' }, { id: 'main_offer', label: 'Offre principale' }, { id: 'main_advantage', label: 'Avantage principal' }, { id: 'client_guarantee', label: 'Garantie client' }] },
-  { title: 'Offre à promouvoir', fields: [{ id: 'promoted_offer', label: 'Offre à promouvoir' }, { id: 'main_message', label: 'Message principal' }, { id: 'current_promo', label: 'Promotion actuelle' }, { id: 'special_offer', label: 'Offre spéciale' }, { id: 'why_choose', label: 'Pourquoi vous choisir' }] },
-  { title: 'Zone géographique', fields: [{ id: 'main_city', label: 'Ville principale' }, { id: 'served_areas', label: 'Zones desservies' }, { id: 'max_distance', label: 'Distance maximale' }, { id: 'most_profitable_area', label: 'Zone la plus rentable' }] },
-  { title: 'Client cible', fields: [{ id: 'client_type', label: 'Type de clients' }, { id: 'ideal_client', label: 'Client idéal' }, { id: 'min_budget', label: 'Budget minimum client' }, { id: 'request_type', label: 'Type de demande' }, { id: 'avoid_clients', label: 'Clients à éviter' }] },
-  { title: 'Objectifs', fields: [{ id: 'main_objective', label: 'Objectif principal' }, { id: 'monthly_leads', label: 'Leads/mois' }, { id: 'monthly_clients', label: 'Clients/mois' }, { id: 'monthly_budget', label: 'Budget pub/mois' }] },
-  { title: 'Gestion des leads', fields: [{ id: 'who_responds', label: 'Qui répond' }, { id: 'response_time', label: 'Temps de réponse' }, { id: 'main_contact_method', label: 'Contact préféré' }, { id: 'availability', label: 'Disponibilité' }] },
-  { title: 'Contenu marketing', fields: [{ id: 'photos', label: 'Photos' }, { id: 'videos', label: 'Vidéos' }, { id: 'testimonials', label: 'Témoignages' }, { id: 'logo', label: 'Logo' }, { id: 'commercial_docs', label: 'Documents commerciaux' }] },
-  { title: 'Accès techniques', fields: [{ id: 'fb_business_manager', label: 'Business Manager' }, { id: 'fb_page', label: 'Page Facebook' }, { id: 'ad_account', label: 'Compte publicitaire' }, { id: 'pixel', label: 'Pixel Facebook' }, { id: 'site_access', label: 'Accès site web' }, { id: 'google_analytics', label: 'Google Analytics' }, { id: 'google_tag_manager', label: 'Google Tag Manager' }] },
-];
 
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -328,14 +307,35 @@ export default function ClientDetailPage() {
                 <div className="mt-4 space-y-4">
                   <p className="text-sm font-medium text-primary">Réponses reçues</p>
                   {onboardings.filter(o => o.completed).map(ob => {
-                    const formType = ob.form_type;
-                    const steps = formType === 'website' ? WEBSITE_FORM_LABELS : ADS_FORM_LABELS;
+                    const formType = ob.form_type as 'website' | 'ads';
+                    const steps = getOnboardingSteps(formType);
                     const responses = ob.responses as Record<string, any>;
+                    const handleDownload = async () => {
+                      try {
+                        const pdf = await generateOnboardingPDF({
+                          formType,
+                          steps,
+                          responses,
+                          companyName: client.company_name || client.name,
+                          completedAt: format(new Date(ob.updated_at), 'dd/MM/yyyy HH:mm'),
+                        });
+                        const fileName = `onboarding-${formType}-${(client.company_name || client.name).replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.pdf`;
+                        pdf.save(fileName);
+                      } catch (e) {
+                        console.error(e);
+                        toast.error('Erreur lors de la génération du PDF');
+                      }
+                    };
                     return (
                       <div key={ob.id} className="space-y-3">
-                        <h4 className="text-sm font-semibold border-b border-border pb-1">
-                          {formType === 'website' ? 'Site Web' : 'Campagnes Publicitaires'}
-                        </h4>
+                        <div className="flex items-center justify-between border-b border-border pb-1">
+                          <h4 className="text-sm font-semibold">
+                            {formType === 'website' ? 'Site Web' : 'Campagnes Publicitaires'}
+                          </h4>
+                          <Button variant="outline" size="sm" onClick={handleDownload}>
+                            <Download className="h-3 w-3 mr-1" />Télécharger PDF
+                          </Button>
+                        </div>
                         {steps.map((step, stepIdx) => {
                           const stepFields = step.fields.filter(f => {
                             const key = `step${stepIdx}_${f.id}`;
