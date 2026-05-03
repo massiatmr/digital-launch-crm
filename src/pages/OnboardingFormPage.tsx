@@ -204,6 +204,24 @@ function OnboardingFormContent() {
     setSkippedSteps(prev => ({ ...prev, [stepIdx]: !prev[stepIdx] }));
   };
 
+  const handleDownloadPDF = async () => {
+    try {
+      const allData = { ...responses, _skippedSteps: skippedSteps };
+      const pdf = await generateOnboardingPDF({
+        formType: formTypeFromUrl as 'website' | 'ads',
+        steps,
+        responses: allData,
+        companyName: onboarding?.clients?.company_name,
+        completedAt: new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }),
+      });
+      const fileName = `onboarding-${formTypeFromUrl}-${(onboarding?.clients?.company_name || 'client').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.pdf`;
+      pdf.save(fileName);
+    } catch (e) {
+      console.error('PDF generation error:', e);
+      toast.error('Erreur lors de la génération du PDF');
+    }
+  };
+
   if (isLoading) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <Loader2 className="h-8 w-8 animate-spin text-primary" />
