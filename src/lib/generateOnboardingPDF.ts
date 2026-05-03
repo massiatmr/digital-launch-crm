@@ -35,14 +35,14 @@ function formatValue(val: any): string {
   return String(val);
 }
 
-export function generateOnboardingPDF({
+export async function generateOnboardingPDF({
   formType,
   steps,
   responses,
   clientName,
   companyName,
   completedAt,
-}: GenerateParams): jsPDF {
+}: GenerateParams): Promise<jsPDF> {
   const doc = new jsPDF('p', 'mm', 'a4');
   const pageWidth = 210;
   const pageHeight = 297;
@@ -52,8 +52,9 @@ export function generateOnboardingPDF({
 
   // Header avec logo
   try {
-    if (logoBase64) {
-      doc.addImage(logoBase64, 'PNG', margin, y, 50, 10);
+    const logo = await getLogoBase64();
+    if (logo) {
+      doc.addImage(logo, 'PNG', margin, y, 50, 10);
     }
   } catch {}
   y += 16;
