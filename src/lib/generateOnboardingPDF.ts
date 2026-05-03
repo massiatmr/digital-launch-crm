@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import { logoBase64 } from './logoBase64';
+import { getLogoBase64 } from './logoBase64';
 
 export type OnboardingFormType = 'website' | 'ads';
 
