@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const { lead_id, message } = await req.json();
+    const { lead_id, message, reply_to_wa_id } = await req.json();
     if (!lead_id || !message?.trim()) {
       return new Response(JSON.stringify({ error: "Missing lead_id or message" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -67,15 +67,17 @@ Deno.serve(async (req) => {
           errorMessage = "Téléphone du lead invalide";
           logStatus = "failed";
         } else {
+          const payload: any = {
+            messaging_product: "whatsapp",
+            to: phone,
+            type: "text",
+            text: { body: message },
+          };
+          if (reply_to_wa_id) payload.context = { message_id: reply_to_wa_id };
           const resp = await fetch(`${GRAPH}/${config.phone_number_id}/messages`, {
             method: "POST",
             headers: { Authorization: `Bearer ${config.access_token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              messaging_product: "whatsapp",
-              to: phone,
-              type: "text",
-              text: { body: message },
-            }),
+            body: JSON.stringify(payload),
           });
           const data = await resp.json();
           if (!resp.ok) { errorMessage = JSON.stringify(data); logStatus = "failed"; }
@@ -84,14 +86,34 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Snapshot du message cité (pour affichage immédiat dans la bulle reply)
+    let replySnapshot: any = null;
+    if (reply_to_wa_id) {
+      const { data: orig } = await admin.from("whatsapp_messages")
+        .select("content, direction, message_type")
+        .eq("wa_message_id", reply_to_wa_id).maybeSingle();
+      if (orig) {
+        replySnapshot = {
+          wa_id: reply_to_wa_id,
+          direction: (orig as any).direction,
+          excerpt: ((orig as any).content || "").slice(0, 120),
+          type: (orig as any).message_type,
+        };
+      }
+    }
+
     await admin.from("whatsapp_messages").insert({
       lead_id,
       owner_id: user.id,
+      workspace_id: lead.workspace_id ?? null,
       direction: 'outbound',
       content: message,
+      message_type: 'text',
       status: logStatus,
       wa_message_id: waMessageId,
       error_message: errorMessage,
+      reply_to_wa_id: reply_to_wa_id ?? null,
+      reply_to_snapshot: replySnapshot,
     } as any);
 
     return new Response(JSON.stringify({ success: logStatus !== "failed", dry_run: dryRun, status: logStatus, error: errorMessage }), {
