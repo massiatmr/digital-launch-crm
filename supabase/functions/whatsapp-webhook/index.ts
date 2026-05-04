@@ -44,33 +44,119 @@ Deno.serve(async (req) => {
     for (const entry of body.entry ?? []) {
       for (const change of entry.changes ?? []) {
         const value = change.value;
-        if (!value?.messages) continue;
-        const phone_number_id = value.metadata?.phone_number_id;
+        const phone_number_id = value?.metadata?.phone_number_id;
         if (!phone_number_id) continue;
 
-        // Plusieurs workspaces peuvent partager le même phone_number_id (legacy).
-        // On prend en priorité la config active, sinon la plus récente.
+        // Récupère config (active prioritaire)
         const { data: cfgs, error: cfgErr } = await admin
           .from("whatsapp_config")
-          .select("owner_id, is_active, workspace_id, access_token")
+          .select("owner_id, is_active, workspace_id, access_token, phone_number_id")
           .eq("phone_number_id", phone_number_id)
           .order("is_active", { ascending: false })
           .order("updated_at", { ascending: false })
           .limit(1);
-        if (cfgErr) {
-          console.error("whatsapp_config lookup error:", cfgErr);
-          continue;
-        }
+        if (cfgErr) { console.error("whatsapp_config lookup error:", cfgErr); continue; }
         const cfg = cfgs?.[0];
-        if (!cfg) {
-          console.warn(`No whatsapp_config found for phone_number_id=${phone_number_id}`);
-          continue;
-        }
-        if (!cfg.is_active) {
-          console.warn(`whatsapp_config inactive for phone_number_id=${phone_number_id}, skipping`);
-          continue;
-        }
+        if (!cfg) { console.warn(`No whatsapp_config for ${phone_number_id}`); continue; }
+        if (!cfg.is_active) continue;
         const accessToken = cfg.access_token;
+
+        // ====== STATUSES (sent/delivered/read/failed) ======
+        if (value.statuses) {
+          for (const st of value.statuses) {
+            const waId = st.id;
+            const status = st.status; // sent | delivered | read | failed
+            if (!waId) continue;
+            const ts = st.timestamp ? new Date(parseInt(st.timestamp, 10) * 1000).toISOString() : new Date().toISOString();
+            const update: any = {};
+            if (status === "delivered") update.delivered_at = ts;
+            else if (status === "read") { update.read_at = ts; update.delivered_at = ts; }
+            else if (status === "failed") { update.status = "failed"; update.error_message = JSON.stringify(st.errors || st); }
+            else if (status === "sent") update.status = "sent";
+            if (Object.keys(update).length) {
+              await (admin.from("whatsapp_messages") as any).update(update).eq("wa_message_id", waId);
+            }
+          }
+          continue;
+        }
+
+        // ====== CALLS (Calling API beta) ======
+        if (value.calls) {
+          for (const call of value.calls) {
+            const waCallId = call.id;
+            const event = call.event; // ringing | accepted | terminated | failed
+            const fromPhone = (call.from || "").replace(/[^0-9]/g, "");
+            const tail = fromPhone.slice(-9);
+
+            // Trouver le lead
+            let leadQuery = admin.from("leads").select("id, name, workspace_id").ilike("phone", `%${tail}%`).limit(1);
+            if (cfg.workspace_id) leadQuery = leadQuery.eq("workspace_id", cfg.workspace_id);
+            else leadQuery = leadQuery.eq("owner_id", cfg.owner_id);
+            const { data: leadsArr } = await leadQuery;
+            const lead = leadsArr?.[0];
+
+            if (event === "ringing") {
+              if (!lead) continue;
+              // Crée call inbound ringing
+              const { data: existing } = await admin.from("whatsapp_calls").select("id").eq("wa_call_id", waCallId).maybeSingle();
+              if (!existing) {
+                await admin.from("whatsapp_calls").insert({
+                  lead_id: lead.id,
+                  owner_id: cfg.owner_id,
+                  workspace_id: cfg.workspace_id ?? lead.workspace_id ?? null,
+                  direction: "inbound",
+                  status: "ringing",
+                  wa_call_id: waCallId,
+                } as any);
+              }
+              // Push notif "appel entrant"
+              try {
+                await fetch(`${SUPABASE_URL}/functions/v1/send-onesignal-notification`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+                  body: JSON.stringify({
+                    user_id: cfg.owner_id,
+                    title: `📞 Appel WhatsApp — ${lead.name}`,
+                    body: "Appel entrant en cours…",
+                    url: `/conversations?lead=${lead.id}&call=${waCallId}`,
+                    tag: `wa-call-${waCallId}`.slice(0, 32),
+                  }),
+                });
+              } catch (e) { console.error("call ringing push", e); }
+            } else if (event === "accepted") {
+              await (admin.from("whatsapp_calls") as any).update({ status: "answered", answered_at: new Date().toISOString() }).eq("wa_call_id", waCallId);
+            } else if (event === "terminated" || event === "failed") {
+              const { data: existing } = await admin.from("whatsapp_calls").select("status, answered_at").eq("wa_call_id", waCallId).maybeSingle();
+              const wasAnswered = !!(existing as any)?.answered_at;
+              const finalStatus = event === "failed" ? "failed" : (wasAnswered ? "ended" : "missed");
+              const update: any = { status: finalStatus, ended_at: new Date().toISOString() };
+              if (wasAnswered && (existing as any)?.answered_at) {
+                update.duration_seconds = Math.round((Date.now() - new Date((existing as any).answered_at).getTime()) / 1000);
+              }
+              await (admin.from("whatsapp_calls") as any).update(update).eq("wa_call_id", waCallId);
+
+              // Si missed → push notif appel manqué
+              if (finalStatus === "missed" && lead) {
+                try {
+                  await fetch(`${SUPABASE_URL}/functions/v1/send-onesignal-notification`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+                    body: JSON.stringify({
+                      user_id: cfg.owner_id,
+                      title: `📵 Appel manqué — ${lead.name}`,
+                      body: "Tape pour rappeler",
+                      url: `/leads/${lead.id}`,
+                      tag: `wa-missed-${lead.id}`.slice(0, 32),
+                    }),
+                  });
+                } catch (e) { console.error("missed call push", e); }
+              }
+            }
+          }
+          continue;
+        }
+
+        if (!value?.messages) continue;
 
         for (const msg of value.messages) {
           const from = normalizePhone(msg.from);
