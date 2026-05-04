@@ -1998,6 +1998,75 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_calls: {
+        Row: {
+          answered_at: string | null
+          created_at: string
+          direction: string
+          duration_seconds: number | null
+          ended_at: string | null
+          id: string
+          lead_id: string
+          notes: string | null
+          owner_id: string
+          recording_path: string | null
+          started_at: string
+          status: string
+          updated_at: string
+          wa_call_id: string | null
+          workspace_id: string | null
+        }
+        Insert: {
+          answered_at?: string | null
+          created_at?: string
+          direction: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          lead_id: string
+          notes?: string | null
+          owner_id?: string
+          recording_path?: string | null
+          started_at?: string
+          status?: string
+          updated_at?: string
+          wa_call_id?: string | null
+          workspace_id?: string | null
+        }
+        Update: {
+          answered_at?: string | null
+          created_at?: string
+          direction?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          lead_id?: string
+          notes?: string | null
+          owner_id?: string
+          recording_path?: string | null
+          started_at?: string
+          status?: string
+          updated_at?: string
+          wa_call_id?: string | null
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_calls_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_calls_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_config: {
         Row: {
           access_token: string
@@ -2064,16 +2133,26 @@ export type Database = {
         Row: {
           content: string
           created_at: string
+          delivered_at: string | null
           direction: Database["public"]["Enums"]["wa_direction"]
           duration_seconds: number | null
           error_message: string | null
           id: string
           intent: string | null
+          is_pinned: boolean
           lead_id: string
+          media_filename: string | null
+          media_size_bytes: number | null
           media_storage_path: string | null
+          media_thumbnail_path: string | null
           media_type: string | null
           media_url: string | null
+          message_type: string
           owner_id: string
+          reactions: Json
+          read_at: string | null
+          reply_to_snapshot: Json | null
+          reply_to_wa_id: string | null
           sent_at: string
           status: string
           task_id: string | null
@@ -2084,16 +2163,26 @@ export type Database = {
         Insert: {
           content: string
           created_at?: string
+          delivered_at?: string | null
           direction: Database["public"]["Enums"]["wa_direction"]
           duration_seconds?: number | null
           error_message?: string | null
           id?: string
           intent?: string | null
+          is_pinned?: boolean
           lead_id: string
+          media_filename?: string | null
+          media_size_bytes?: number | null
           media_storage_path?: string | null
+          media_thumbnail_path?: string | null
           media_type?: string | null
           media_url?: string | null
+          message_type?: string
           owner_id?: string
+          reactions?: Json
+          read_at?: string | null
+          reply_to_snapshot?: Json | null
+          reply_to_wa_id?: string | null
           sent_at?: string
           status?: string
           task_id?: string | null
@@ -2104,16 +2193,26 @@ export type Database = {
         Update: {
           content?: string
           created_at?: string
+          delivered_at?: string | null
           direction?: Database["public"]["Enums"]["wa_direction"]
           duration_seconds?: number | null
           error_message?: string | null
           id?: string
           intent?: string | null
+          is_pinned?: boolean
           lead_id?: string
+          media_filename?: string | null
+          media_size_bytes?: number | null
           media_storage_path?: string | null
+          media_thumbnail_path?: string | null
           media_type?: string | null
           media_url?: string | null
+          message_type?: string
           owner_id?: string
+          reactions?: Json
+          read_at?: string | null
+          reply_to_snapshot?: Json | null
+          reply_to_wa_id?: string | null
           sent_at?: string
           status?: string
           task_id?: string | null
@@ -2420,6 +2519,17 @@ export type Database = {
       save_onboarding_by_token: {
         Args: { p_completed?: boolean; p_responses: Json; p_token: string }
         Returns: undefined
+      }
+      search_wa_messages: {
+        Args: { p_lead_id: string; p_query: string }
+        Returns: {
+          content: string
+          direction: Database["public"]["Enums"]["wa_direction"]
+          id: string
+          rank: number
+          sent_at: string
+          transcript: string
+        }[]
       }
       seed_default_followup_scripts: {
         Args: { p_owner: string; p_workspace: string }
