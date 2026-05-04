@@ -1,136 +1,210 @@
-# Dashboard Meta Ads — Campagnes, Leads et Coût par Lead
-
 ## Objectif
 
-Ajouter une section "Campagnes Meta Ads" sur le Dashboard qui affiche, pour chaque page Facebook connectée du workspace actif :
-- la liste des campagnes (statut ACTIVE / PAUSED)
-- le nombre de leads reçus depuis chaque campagne
-- la dépense et le coût par lead (CPL)
-- un toggle pour inclure les campagnes désactivées
+Transformer l'écran `/conversations` en expérience type WhatsApp natif (style hybride bulles WA + accents néon), 100% mobile-first, avec :
+- Médias riches (image, vidéo, document, sticker)
+- Citation/réponse à un message + réactions emoji
+- Statuts de livraison ✓ envoyé · ✓✓ livré · ✓✓ bleu lu
+- Recherche dans la conversation
+- Vocaux améliorés (waveform, vitesse, transcription)
+- **Appels voix entrants + sortants** via la WhatsApp Calling API (Meta, beta)
 
-Période synchronisée avec le sélecteur de période existant du Dashboard (7j, 30j, 90j, etc.).
+---
 
-## Ce qui est en place
+## 1. Base de données (1 migration)
 
-- Pages Facebook connectées via OAuth dans `meta_pages` (avec `page_access_token`).
-- Scopes OAuth déjà demandés : `pages_manage_ads` et `business_management` (pas encore `ads_read`, à ajouter).
-- Webhook Facebook Lead Ads écrit les leads avec `source = 'facebook'` mais ne stocke pas encore `ad_id` / `campaign_id`.
+Enrichir `whatsapp_messages` :
+- `message_type` text (`text` | `image` | `video` | `document` | `sticker` | `audio` | `call_event`)
+- `reply_to_wa_id` text (id du message cité)
+- `reply_to_snapshot` jsonb (preview figé : auteur + extrait)
+- `reactions` jsonb (`[{emoji, by, at}]`)
+- `delivered_at`, `read_at` timestamptz
+- `is_pinned` bool
+- `media_filename`, `media_size_bytes`, `media_thumbnail_path`
+- Index FTS : `tsvector` sur `content + transcript` pour recherche
 
-## Plan d'implémentation
+Nouvelle table `whatsapp_calls` :
+- `id`, `lead_id`, `owner_id`, `workspace_id`
+- `direction` (`inbound`/`outbound`), `status` (`ringing`/`answered`/`missed`/`declined`/`ended`/`failed`)
+- `wa_call_id`, `started_at`, `answered_at`, `ended_at`, `duration_seconds`
+- `recording_path` (optionnel), `notes`
+- RLS workspace, realtime activé
 
-### 1. Base de données (migration)
+Trigger : à l'INSERT d'un appel `missed` → notif push owner + entrée timeline lead.
 
-Ajouter sur `leads` les colonnes d'attribution Meta :
-- `meta_ad_id text`
-- `meta_adset_id text`
-- `meta_campaign_id text`
-- `meta_form_id text` (déjà partiellement présent côté webhook, on persiste explicitement)
-- `meta_page_id text`
+---
 
-Index combiné `(workspace_id, meta_campaign_id, created_at)` pour les agrégations dashboard.
+## 2. Edge functions
 
-Créer une table de cache pour éviter d'appeler l'API Meta à chaque chargement :
-```
-meta_campaigns_cache (
-  id uuid pk,
-  workspace_id uuid,
-  page_id text,
-  campaign_id text,
-  campaign_name text,
-  status text,           -- ACTIVE / PAUSED / ARCHIVED
-  objective text,
-  daily_budget numeric,
-  fetched_at timestamptz
-)
-meta_campaign_insights_cache (
-  id uuid pk,
-  workspace_id uuid,
-  campaign_id text,
-  date_from date,
-  date_to date,
-  spend numeric,
-  impressions int,
-  clicks int,
-  leads_meta int,        -- leads comptés par Meta
-  fetched_at timestamptz
-)
-```
+**Modifier**
+- `whatsapp-webhook` : parser `messages.context` (reply), `messages.reactions`, `statuses` (sent/delivered/read → MAJ `delivered_at`/`read_at`), `messages.image|video|document|sticker` (download → storage), événements `calls` (inbound ringing/ended).
+- `send-whatsapp-message` : accepter `reply_to_wa_id` + envoyer `context.message_id` à l'API Meta.
 
-RLS : lecture/écriture limitée au workspace (mêmes patterns que `meta_pages`).
+**Nouvelles**
+- `send-whatsapp-media` : upload fichier client → storage `wa-media` → upload Meta → envoi message `image/video/document`.
+- `send-whatsapp-reaction` : POST réaction emoji sur un wa_message_id.
+- `whatsapp-call-initiate` : déclenche un appel sortant via Calling API (`POST /{phone_number_id}/call`).
+- `whatsapp-call-action` : accept/reject/end un appel entrant (depuis la UI ou push notif).
+- `whatsapp-call-webrtc-signal` : relais SDP/ICE pour la session WebRTC (Meta Calling API utilise WebRTC standard).
+- `mark-conversation-read` : marque tous les inbounds d'un lead comme lus (envoie `read` receipts à Meta).
 
-### 2. Scope OAuth
+---
 
-Ajouter `ads_read` à `facebook-auth-init/index.ts`. Les utilisateurs déjà connectés devront se reconnecter une fois pour autoriser ce scope (badge déjà existant pour reconnexion).
+## 3. Storage
 
-### 3. Webhook Facebook Lead Ads
+Nouveau bucket privé `wa-media` pour images/vidéos/docs entrants & sortants. Policies RLS workspace-scopées (lecture via signed URL 1h, comme `wa-audio`).
 
-Dans `facebook-webhook/index.ts`, lors de la récupération du lead via Graph API, persister sur la ligne insérée :
-- `meta_ad_id`, `meta_adset_id`, `meta_campaign_id`, `meta_form_id`, `meta_page_id`
+---
 
-(Ces champs sont déjà retournés par l'endpoint `/{lead_id}` quand on demande les champs `ad_id,adset_id,campaign_id,form_id`.)
+## 4. UI/UX — refonte `WhatsAppChat` + `ConversationsPage`
 
-### 4. Nouvelle edge function `meta-ads-insights`
-
-Authentifiée (JWT user). Paramètres : `workspace_id`, `date_from`, `date_to`, optionnel `include_paused`.
-
-Logique :
-1. Charger `meta_pages` du workspace avec `token_valid = true`.
-2. Pour chaque page, appeler `GET /{page_id}/?fields=...` puis parcourir les ad accounts liés via `business_management` ou directement `/{page_id}/leadgen_forms` + `/act_{account_id}/campaigns`.
-3. Récupérer `campaigns?fields=id,name,status,objective,daily_budget&effective_status=...` (filtrer ACTIVE/PAUSED selon toggle).
-4. Récupérer `insights?fields=spend,impressions,clicks,actions&time_range={...}&level=campaign`.
-5. Mettre à jour `meta_campaigns_cache` et `meta_campaign_insights_cache` (TTL 30 min — si `fetched_at` récent, retourner le cache directement).
-6. Calculer côté SQL le nb de leads CRM par `meta_campaign_id` dans la période, puis renvoyer un JSON :
-```
-[{
-  campaign_id, campaign_name, status, page_name,
-  spend, currency, leads_crm, leads_meta,
-  cpl_crm, cpl_meta
-}]
-```
-
-Si une page a son `token_valid = false`, on saute et on remonte un flag `needs_reconnect` au front.
-
-### 5. Frontend Dashboard
-
-Nouvelle section dans `src/pages/Dashboard.tsx`, sous les KPIs existants :
+### Layout responsive
 
 ```text
-┌─ Campagnes Meta Ads ──────────────── [✓ Actives uniquement] [↻] ┐
-│ Page          Campagne         Statut   Leads  Dépense   CPL   │
-│ Digital L.    Déménageurs FR   ACTIVE     12   240 €    20 €   │
-│ Digital L.    B2B SaaS         PAUSED      3    45 €    15 €   │
-│ HKSN          Coachs Sport     ACTIVE      8   180 €    22 €   │
-└─────────────────────────────────────────────────────────────────┘
+DESKTOP (≥768px)            MOBILE (<768px)
+┌──────────┬──────────┐     ┌──────────────┐
+│  Inbox   │  Chat    │     │ Inbox  OU    │
+│  320px   │  1fr     │     │ Chat (full)  │
+└──────────┴──────────┘     └──────────────┘
 ```
 
-- Composant `<MetaCampaignsSection workspaceId={...} period={...} />`.
-- Hook `useMetaCampaigns(workspaceId, dateRange, includePaused)` qui appelle l'edge function via `supabase.functions.invoke`.
-- Toggle Switch shadcn "Inclure désactivées" (off par défaut).
-- Bouton refresh manuel (force-refresh côté edge function).
-- État vide propre :
-  - aucune page Meta connectée → CTA "Connecter Meta" → `/settings/integrations`
-  - token expiré → bandeau orange "Reconnecter Meta"
-  - aucune campagne sur la période → message neutre.
-- Mobile : passage en stack de cards au lieu du tableau.
+Mobile : navigation à la WhatsApp (liste → tap → chat plein écran avec back button, header sticky).
 
-Style : `glass-card`, mono pour les chiffres (Geist Mono déjà en place), badge purple/gris pour le statut.
+### Header de conversation (sticky)
+- Avatar (initiales colorées), nom, statut (`en ligne` / `vu il y a X` si dispo)
+- Boutons : 📞 Appel · 🔍 Recherche · ⋮ Menu (épingler, vider, ouvrir fiche)
 
-### 6. Mémoire projet
+### Zone messages
+- Bulles : inbound = `bg-card`, outbound = `bg-primary/15` avec accent néon `border-primary/30`
+- Groupement par auteur + date (séparateurs `Aujourd'hui` / `Hier` / `JJ MMM`)
+- **Tap long / hover** sur un message → barre d'actions flottante : Répondre · Réagir (😀❤️👍😂😮😢) · Copier · Épingler · Supprimer
+- **Reply** : preview citée au-dessus du composer + dans la bulle (border-l-2 + nom + extrait, tap = scroll vers original)
+- **Réactions** : pastille `❤️ 1` sous la bulle, tap pour voir détails
+- **Statuts** : ⏱ envoi · ✓ envoyé · ✓✓ livré · ✓✓ (bleu/cyan) lu · ⚠ échec → tap pour réessayer
+- **Auto-scroll bottom** sauf si l'utilisateur a scrollé vers le haut → bouton flottant `↓ N nouveaux`
+- Lazy-load infinite scroll vers le haut (50 messages par page)
 
-Ajouter `mem://features/dashboard/meta-ads-insights` documentant : scopes requis, tables cache (TTL 30min), attribution via `meta_campaign_id` sur leads, refresh manuel disponible.
+### Médias
+- Images : grid carré preview, plein écran tap (Lightbox)
+- Vidéos : player inline avec poster
+- Documents : carte type WA (icône fichier + nom + taille + télécharger)
+- Vocaux : waveform + scrubber + vitesse 1×/1.5×/2× + transcription dépliable
 
-## Limitations connues
+### Composer (bottom)
+```text
+[😊][📎][📜scripts]  [textarea auto-grow]  [🎤 / ➤]
+```
+- 😊 picker emoji (lib `emoji-mart` léger ou custom)
+- 📎 menu : Photo · Vidéo · Document · Caméra (mobile)
+- Drag & drop fichier sur la zone chat
+- Indicateur "en train d'écrire" envoyé seulement si Meta le supporte (sinon omis pour ne pas mentir)
 
-- Le CPL CRM ne couvre que les nouveaux leads (avec `meta_campaign_id` rempli) ; les anciens leads n'auront pas l'attribution. Affiché tel quel, avec une note "depuis le déploiement".
-- L'API Meta Insights n'est pas temps réel (latence 15-60 min côté Meta).
-- Si l'utilisateur n'a pas de compte Business Manager lié à la page, l'API renverra une liste vide → message clair dans l'UI.
+### Recherche
+- Icône 🔍 → barre full-width au-dessus du chat → highlight des matches + navigation `↑ ↓ N/M`
+- Recherche backend FTS pour gros volumes
 
-## Fichiers touchés
+### Mobile-first sans faille
+- 100dvh + `safe-area-inset-bottom` pour iPhone (composer ne passe pas sous la barre home)
+- `touch-action: pan-y` sur la liste, swipe-right sur un message = action "Répondre" (interaction WA native)
+- Hauteur clavier gérée via `visualViewport` API (composer reste visible)
+- Tap targets ≥ 44px, `select-text` désactivé sur les contrôles, activé sur les messages
+- Bottom tab bar masquée quand un chat est ouvert sur mobile
 
-- migration SQL (nouvelles colonnes `leads` + 2 tables cache)
-- `supabase/functions/facebook-auth-init/index.ts` (scope `ads_read`)
-- `supabase/functions/facebook-webhook/index.ts` (persist ad/campaign ids)
-- `supabase/functions/meta-ads-insights/index.ts` (nouvelle)
-- `src/pages/Dashboard.tsx` (intégration section)
-- `src/components/dashboard/MetaCampaignsSection.tsx` (nouveau)
-- `src/hooks/useMetaCampaigns.ts` (nouveau)
+---
+
+## 5. Appels (WhatsApp Calling API — beta Meta)
+
+⚠️ **Important utilisateur** : la Calling API est en beta restreinte. Elle nécessite :
+1. Activation manuelle dans le Business Manager Meta (demande d'accès)
+2. Le numéro WA doit être enrôlé pour les appels
+3. WebRTC navigateur compatible (Chrome/Safari récents)
+
+Si non disponible au runtime → **fallback automatique** : bouton appel ouvre `tel:+33...` (app native) et on log un `call_event` manuel.
+
+### Flux sortant
+1. Tap 📞 dans le header → modal `CallDialog` plein écran (avatar pulsant, nom, "Appel en cours…")
+2. Front appelle `whatsapp-call-initiate` → Meta retourne offer SDP
+3. Connexion WebRTC peer-to-peer (RTCPeerConnection) avec `whatsapp-call-webrtc-signal` comme serveur de signalisation
+4. Affichage : durée live, mute, haut-parleur, raccrocher
+5. Fin → INSERT dans `whatsapp_calls` + entrée timeline du lead
+
+### Flux entrant
+1. Webhook `calls` reçoit `ringing` → push notif OneSignal "📞 Appel de {lead}" avec actions Accepter/Refuser
+2. Si app ouverte → composant global `IncomingCallOverlay` (sonnerie + accept/decline)
+3. Accept → mêmes échanges WebRTC, modal d'appel actif
+
+### Composants nouveaux
+- `src/components/calls/CallDialog.tsx` — UI modale d'appel actif (sortant + entrant accepté)
+- `src/components/calls/IncomingCallOverlay.tsx` — overlay global monté dans `AppLayout`
+- `src/hooks/useWhatsAppCall.ts` — gestion WebRTC (peer connection, ICE, mute, end)
+- `src/components/CallHistorySection.tsx` — historique d'appels dans la fiche lead
+
+---
+
+## 6. Realtime & notifications
+
+- Subscriptions Postgres realtime sur `whatsapp_messages` (déjà en place) + nouvelle sur `whatsapp_calls`
+- Push OneSignal :
+  - Nouveau message inbound (déjà fait) — enrichi avec preview média ("📷 Photo")
+  - Appel manqué → push haute priorité avec deeplink `/leads/:id?tab=calls`
+  - Appel entrant en cours → push critique (action buttons accept/decline)
+
+---
+
+## 7. Détails techniques
+
+- **Lib emoji** : `emoji-mart` (~30kB) ou implémentation custom légère (top 30 emojis fréquents)
+- **Lib lightbox image** : `yet-another-react-lightbox` ou simple Dialog plein écran custom
+- **WebRTC** : API navigateur native, pas de lib, ICE servers STUN publics Google
+- **Recherche FTS** : générée côté SQL (`tsvector` français + GIN index), exposée via RPC `search_wa_messages(lead_id, q)`
+- **Optimistic UI** : déjà en place pour texte, à étendre aux médias (preview local + barre upload)
+- **Accessibilité** : ARIA labels, focus trap dans CallDialog, `prefers-reduced-motion` respecté pour les animations bulles
+
+---
+
+## 8. Fichiers impactés
+
+### Migration
+- `supabase/migrations/<timestamp>_chat_whatsapp_native.sql`
+
+### Edge functions (nouvelles)
+- `supabase/functions/send-whatsapp-media/index.ts`
+- `supabase/functions/send-whatsapp-reaction/index.ts`
+- `supabase/functions/whatsapp-call-initiate/index.ts`
+- `supabase/functions/whatsapp-call-action/index.ts`
+- `supabase/functions/whatsapp-call-webrtc-signal/index.ts`
+- `supabase/functions/mark-conversation-read/index.ts`
+
+### Edge functions (modifiées)
+- `supabase/functions/whatsapp-webhook/index.ts` (médias, reactions, statuses, calls)
+- `supabase/functions/send-whatsapp-message/index.ts` (reply_to)
+
+### Frontend
+- `src/components/WhatsAppChat.tsx` (refonte majeure, splitté en sous-composants)
+- `src/components/chat/MessageBubble.tsx` *(nouveau)*
+- `src/components/chat/MessageActions.tsx` *(nouveau)*
+- `src/components/chat/ReplyPreview.tsx` *(nouveau)*
+- `src/components/chat/MediaPicker.tsx` *(nouveau)*
+- `src/components/chat/EmojiPicker.tsx` *(nouveau)*
+- `src/components/chat/SearchBar.tsx` *(nouveau)*
+- `src/components/chat/ConversationHeader.tsx` *(nouveau)*
+- `src/components/calls/CallDialog.tsx` *(nouveau)*
+- `src/components/calls/IncomingCallOverlay.tsx` *(nouveau)*
+- `src/hooks/useWhatsAppCall.ts` *(nouveau)*
+- `src/hooks/useWhatsAppInbox.ts` (preview médias + dernier appel)
+- `src/hooks/useFollowupTasks.ts` (nouveaux mutateurs : reply, react, sendMedia, markRead)
+- `src/pages/ConversationsPage.tsx` (gestion mobile fullscreen, safe-area)
+- `src/components/AppLayout.tsx` (monter `IncomingCallOverlay`)
+
+### Mémoires à mettre à jour
+- `mem://features/whatsapp-conversations` → étendue
+- Nouveau : `mem://features/whatsapp-calls` (Calling API + fallback tel:)
+
+---
+
+## 9. Découpage en livraisons
+
+1. **Phase 1 — Chat moderne** : migration, médias, reply, réactions, statuts ✓✓, recherche, refonte UI bulles + composer
+2. **Phase 2 — Appels** : table calls, edge functions Calling API, CallDialog, IncomingCallOverlay, fallback tel:
+3. **Phase 3 — Polish mobile** : safe-area, swipe-to-reply, gestion clavier visualViewport, optimisations FTS
+
+Phase 1 implémentable immédiatement après approbation. Phase 2 dépend de l'activation de la Calling API côté Meta — à lancer en parallèle.
