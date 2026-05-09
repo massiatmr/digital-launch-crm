@@ -1,0 +1,1 @@
+UPDATE public.followup_automation_settings SET dry_run = false WHERE dry_run = true;
