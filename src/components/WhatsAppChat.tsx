@@ -12,6 +12,9 @@ import { LiveAudioVisualizer } from '@/components/LiveAudioVisualizer';
 import { VoiceMessagePlayer } from '@/components/VoiceMessagePlayer';
 import { FollowupScriptsPicker } from '@/components/FollowupScriptsPicker';
 import { TemplatePickerDialog } from '@/components/conversations/TemplatePickerDialog';
+import { NextFollowupBanner } from '@/components/conversations/NextFollowupBanner';
+import { SuggestedReplies } from '@/components/conversations/SuggestedReplies';
+import { useConvControls } from '@/hooks/useConversationControls';
 import { Mp3Encoder } from 'lamejs';
 
 type PendingMsg = { tempId: string; content: string; at: number; status: 'sending' | 'failed' };
@@ -111,6 +114,7 @@ function encodeMp3FromFloat32(samples: Float32Array, sampleRate: number) {
 export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; leadName?: string; className?: string }) {
   useWhatsAppRealtime(leadId);
   const { data: messages = [] } = useWhatsAppMessages(leadId);
+  const { data: ctl } = useConvControls(leadId);
   const sendWA = useSendWhatsAppMessage();
   const sendAudio = useSendWhatsAppAudio();
   const [input, setInput] = useState('');
@@ -118,6 +122,7 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
   const [templateOpen, setTemplateOpen] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const lastIsInbound = messages.length > 0 && (messages[messages.length - 1] as any).direction === 'inbound';
 
   // Fenêtre 24h Meta : on ne peut envoyer du texte libre que si le lead a écrit dans les dernières 24h
   const isWithin24h = useMemo(() => {
@@ -270,6 +275,12 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
 
   return (
     <div className={cn('rounded-xl border border-border bg-muted/10 flex flex-col', className)}>
+      <NextFollowupBanner leadId={leadId} paused={!!ctl?.automation_paused_at} />
+      {ctl?.automation_paused_at && (
+        <div className="border-b border-border bg-amber-500/10 px-3 py-1.5 flex items-center gap-2 text-xs text-amber-300">
+          <Lock className="h-3 w-3" /> Automation en pause pour ce lead — tu gardes la main.
+        </div>
+      )}
       <div className="flex-1 min-h-[200px] overflow-y-auto p-3 space-y-2">
         {messages.length === 0 && pending.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">Aucun message. Écris ci-dessous pour démarrer.</p>

@@ -138,7 +138,7 @@ Deno.serve(async (req) => {
     if (!lead) return new Response(JSON.stringify({ error: "Lead not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const [{ data: conversationState }, { data: activeBooking }] = await Promise.all([
-      admin.from("lead_conversation_state").select("state").eq("lead_id", task.lead_id).maybeSingle(),
+      admin.from("lead_conversation_state").select("state, automation_paused_at, snoozed_until, resolved_at").eq("lead_id", task.lead_id).maybeSingle(),
       admin
         .from("bookings")
         .select("id")
@@ -155,6 +155,32 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString(),
       } as any).eq("id", task_id);
       return new Response(JSON.stringify({ ok: true, skipped: true, reason: "already_booked" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Filet de sécurité : automation manuellement pausée, conv snoozée ou résolue → skip
+    const nowMs = Date.now();
+    const isSnoozed = conversationState?.snoozed_until && new Date(conversationState.snoozed_until).getTime() > nowMs;
+    const isPaused = !!conversationState?.automation_paused_at;
+    const isResolved = !!conversationState?.resolved_at;
+    if (isPaused || isSnoozed || isResolved) {
+      const reason = isPaused ? "automation_paused" : isSnoozed ? "snoozed" : "resolved";
+      // On garde la tâche en scheduled si snoozée (elle pourra repartir après), sinon cancel
+      if (isSnoozed) {
+        const newDate = new Date(new Date(conversationState!.snoozed_until!).getTime() + 5 * 60 * 1000).toISOString();
+        await admin.from("lead_followup_tasks").update({
+          scheduled_at: newDate,
+          updated_at: new Date().toISOString(),
+        } as any).eq("id", task_id);
+      } else {
+        await admin.from("lead_followup_tasks").update({
+          status: "cancelled",
+          error_message: `Skipped: ${reason}`,
+          updated_at: new Date().toISOString(),
+        } as any).eq("id", task_id);
+      }
+      return new Response(JSON.stringify({ ok: true, skipped: true, reason }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
