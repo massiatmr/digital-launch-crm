@@ -21,10 +21,13 @@ export function TemplatePickerDialog({
   onSent?: () => void;
 }) {
   const { data: templates = [], isLoading } = useWhatsAppTemplates();
+  const activeWaba = useActiveWhatsAppBusinessAccountId();
   const approved = useMemo(
     () => templates.filter((t) => (t.status || '').toUpperCase() === 'APPROVED' || t.is_synced),
     [templates],
   );
+  const isOtherWaba = (t: { business_account_id: string | null }) =>
+    !!activeWaba && !!t.business_account_id && t.business_account_id !== activeWaba;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = approved.find((t) => t.id === selectedId) || null;
   const [vars, setVars] = useState<string[]>([]);
