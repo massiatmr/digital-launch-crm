@@ -123,13 +123,22 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Pour un envoi template, on stocke un texte rendu lisible (template:nom + variables)
+    let storedContent = message || "";
+    let storedType = "text";
+    if (template) {
+      storedType = "template";
+      const vars = Array.isArray(template.variables) ? template.variables : [];
+      storedContent = `[Template: ${template.name}]${vars.length ? ` ${vars.join(" | ")}` : ""}`;
+    }
+
     await admin.from("whatsapp_messages").insert({
       lead_id,
       owner_id: user.id,
       workspace_id: lead.workspace_id ?? null,
       direction: 'outbound',
-      content: message,
-      message_type: 'text',
+      content: storedContent,
+      message_type: storedType,
       status: logStatus,
       wa_message_id: waMessageId,
       error_message: errorMessage,
