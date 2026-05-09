@@ -29,7 +29,6 @@ async function cloneTable(
   remap: Record<string, Record<string, string>>,
   refs: { col: string; from: string }[] = [],
   excludeCols: string[] = [],
-  onConflict?: string,
 ) {
   const { data: rows, error } = await admin.from(table).select('*').match(filter);
   if (error) throw new Error(`select ${table}: ${error.message}`);
@@ -64,10 +63,7 @@ async function cloneTable(
   // bulk insert in chunks of 500
   for (let i = 0; i < inserts.length; i += 500) {
     const chunk = inserts.slice(i, i + 500);
-    const q = onConflict
-      ? admin.from(table).upsert(chunk, { onConflict, ignoreDuplicates: false })
-      : admin.from(table).insert(chunk);
-    const { error: insErr } = await q;
+    const { error: insErr } = await admin.from(table).insert(chunk);
     if (insErr) throw new Error(`insert ${table}: ${insErr.message}`);
   }
   remap[table] = idMap;
