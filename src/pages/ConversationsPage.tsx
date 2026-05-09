@@ -18,6 +18,7 @@ export default function ConversationsPage() {
   const { data: settings } = useFollowupSettings();
   const [search, setSearch] = useState('');
   const [flash, setFlash] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
   const selectedId = params.get('lead');
   const highlight = params.get('highlight') === '1';
 
