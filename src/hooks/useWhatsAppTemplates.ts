@@ -12,8 +12,25 @@ export interface WhatsAppTemplate {
   status: string;
   is_synced: boolean;
   meta_template_id: string | null;
+  business_account_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export function useActiveWhatsAppBusinessAccountId() {
+  const { data } = useQuery({
+    queryKey: ["wa-active-config"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("whatsapp_config" as any)
+        .select("business_account_id")
+        .eq("is_active", true)
+        .maybeSingle();
+      if (error) return null;
+      return (data as any)?.business_account_id as string | null;
+    },
+  });
+  return data ?? null;
 }
 
 async function call(action: string, payload: Record<string, unknown> = {}) {

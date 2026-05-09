@@ -108,6 +108,7 @@ Deno.serve(async (req) => {
               .upsert({
                 owner_id: user.id,
                 workspace_id: workspaceId,
+                business_account_id: config.business_account_id,
                 name: t.name,
                 language: t.language,
                 category: t.category,
@@ -117,7 +118,7 @@ Deno.serve(async (req) => {
                 is_synced: true,
                 meta_template_id: t.id,
                 updated_at: new Date().toISOString(),
-              }, { onConflict: "owner_id,name,language" });
+              }, { onConflict: "owner_id,business_account_id,name,language" });
             if (upErr) {
               console.error(`[wa-templates-sync] upsert error ${t.name}:`, upErr.message);
               errors.push({ template: t.name, error: upErr.message });

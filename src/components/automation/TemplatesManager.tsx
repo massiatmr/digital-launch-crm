@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   useWhatsAppTemplates, useSyncTemplates, useCreateLocalTemplate,
-  useUpdateTemplate, useDeleteTemplate, WhatsAppTemplate,
+  useUpdateTemplate, useDeleteTemplate, useActiveWhatsAppBusinessAccountId, WhatsAppTemplate,
 } from '@/hooks/useWhatsAppTemplates';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,6 +76,7 @@ function TemplateDialog({ template, onClose }: { template?: WhatsAppTemplate; on
 
 export function TemplatesManager() {
   const { data: templates = [], isLoading } = useWhatsAppTemplates();
+  const activeWaba = useActiveWhatsAppBusinessAccountId();
   const sync = useSyncTemplates();
   const del = useDeleteTemplate();
   const [search, setSearch] = useState('');
@@ -136,32 +137,44 @@ export function TemplatesManager() {
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((t) => (
-            <div key={t.id} className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border bg-background/50 hover:border-primary/30 transition-colors">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium text-sm font-mono">{t.name}</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase">{t.language}</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{t.category}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                    t.status === 'APPROVED' ? 'bg-green-500/20 text-green-400' :
-                    t.status === 'REJECTED' ? 'bg-red-500/20 text-red-400' :
-                    'bg-yellow-500/20 text-yellow-400'
-                  }`}>{t.status}</span>
-                  {t.variables_count > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary">{t.variables_count} var.</span>}
+          {filtered.map((t) => {
+            const otherWaba = !!activeWaba && !!t.business_account_id && t.business_account_id !== activeWaba;
+            return (
+              <div
+                key={t.id}
+                className={`flex items-start justify-between gap-3 p-3 rounded-lg border border-border bg-background/50 transition-colors ${
+                  otherWaba ? 'opacity-50 grayscale' : 'hover:border-primary/30'
+                }`}
+                title={otherWaba ? "Template d'un autre numéro WhatsApp — non utilisable avec le numéro actif" : undefined}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-sm font-mono">{t.name}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase">{t.language}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{t.category}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                      t.status === 'APPROVED' ? 'bg-green-500/20 text-green-400' :
+                      t.status === 'REJECTED' ? 'bg-red-500/20 text-red-400' :
+                      'bg-yellow-500/20 text-yellow-400'
+                    }`}>{t.status}</span>
+                    {t.variables_count > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary">{t.variables_count} var.</span>}
+                    {otherWaba && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded border border-amber-500/40 text-amber-400">autre numéro</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{t.body_text}</p>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{t.body_text}</p>
+                <div className="flex gap-1 shrink-0">
+                  <Button size="icon" variant="ghost" onClick={() => { setEditing(t); setDialogOpen(true); }}>
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => confirm('Supprimer ce template ?') && del.mutate(t.id)}>
+                    <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                  </Button>
+                </div>
               </div>
-              <div className="flex gap-1 shrink-0">
-                <Button size="icon" variant="ghost" onClick={() => { setEditing(t); setDialogOpen(true); }}>
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-                <Button size="icon" variant="ghost" onClick={() => confirm('Supprimer ce template ?') && del.mutate(t.id)}>
-                  <Trash2 className="h-3.5 w-3.5 text-red-400" />
-                </Button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
