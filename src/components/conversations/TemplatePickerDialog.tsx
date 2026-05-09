@@ -99,25 +99,39 @@ export function TemplatePickerDialog({
           ) : (
             <>
               <div className="space-y-1">
-                {approved.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setSelectedId(t.id)}
-                    className={cn(
-                      'w-full text-left px-3 py-2 rounded-lg border transition-colors',
-                      selectedId === t.id ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted/40'
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm">{t.name}</span>
-                      <Badge variant="outline" className="text-[10px] h-4 px-1">{t.language}</Badge>
-                      {t.variables_count > 0 && (
-                        <Badge variant="secondary" className="text-[10px] h-4 px-1">{t.variables_count} var.</Badge>
+                {approved.map((t) => {
+                  const other = isOtherWaba(t);
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => !other && setSelectedId(t.id)}
+                      disabled={other}
+                      title={other ? 'Template d\'un autre numéro WhatsApp — non utilisable avec le numéro actif' : undefined}
+                      className={cn(
+                        'w-full text-left px-3 py-2 rounded-lg border transition-colors',
+                        other
+                          ? 'border-border opacity-40 grayscale cursor-not-allowed'
+                          : selectedId === t.id
+                            ? 'border-primary bg-primary/10'
+                            : 'border-border hover:bg-muted/40',
                       )}
-                    </div>
-                    <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{t.body_text}</p>
-                  </button>
-                ))}
+                    >
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm">{t.name}</span>
+                        <Badge variant="outline" className="text-[10px] h-4 px-1">{t.language}</Badge>
+                        {t.variables_count > 0 && (
+                          <Badge variant="secondary" className="text-[10px] h-4 px-1">{t.variables_count} var.</Badge>
+                        )}
+                        {other && (
+                          <Badge variant="outline" className="text-[10px] h-4 px-1 border-amber-500/40 text-amber-400">
+                            autre numéro
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{t.body_text}</p>
+                    </button>
+                  );
+                })}
               </div>
 
               {selected && selected.variables_count > 0 && (
