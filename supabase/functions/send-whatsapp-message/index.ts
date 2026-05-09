@@ -34,9 +34,10 @@ Deno.serve(async (req) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const { lead_id, message, reply_to_wa_id } = await req.json();
-    if (!lead_id || !message?.trim()) {
-      return new Response(JSON.stringify({ error: "Missing lead_id or message" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const { lead_id, message, reply_to_wa_id, template } = await req.json();
+    // template: { name, language, variables: string[] }  → envoi template HSM (hors fenêtre 24h)
+    if (!lead_id || (!template && !message?.trim())) {
+      return new Response(JSON.stringify({ error: "Missing lead_id or message/template" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const { data: lead } = await supabase.from("leads").select("*").eq("id", lead_id).maybeSingle();
