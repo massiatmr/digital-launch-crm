@@ -69,11 +69,6 @@ async function cloneTable(
   remap[table] = idMap;
 }
 
-async function clearWorkspaceRows(admin: any, table: string, workspaceId: string) {
-  const { error } = await admin.from(table).delete().eq('workspace_id', workspaceId);
-  if (error) throw new Error(`clear ${table}: ${error.message}`);
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
