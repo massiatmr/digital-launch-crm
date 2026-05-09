@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { Kanban, Bell, MoreHorizontal, LogOut, LayoutDashboard, Package, CalendarCheck, UserCheck, MessageCircle, Settings, Sparkles } from 'lucide-react';
+import { Kanban, Bell, MoreHorizontal, LogOut, LayoutDashboard, Package, CalendarCheck, UserCheck, MessageCircle, Settings, Sparkles, Building2, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import {
@@ -11,6 +11,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { useWhatsAppInbox } from '@/hooks/useWhatsAppInbox';
 import { useWorkspaceFeatures, type FeatureKey } from '@/hooks/useWorkspaceFeatures';
+import { useWorkspaces } from '@/hooks/useWorkspaces';
 import { GlobalNaturalLanguageInput } from './GlobalNaturalLanguageInput';
 
 type NavItem = { to: string; icon: any; label: string; feature?: FeatureKey };
