@@ -9,7 +9,6 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const NOTIFY_EMAIL = "contact@digitallaunch-llc.com";
 const APP_BASE_URL = "https://digital-launch-crm.lovable.app";
 
 const sourceLabels: Record<string, string> = {
@@ -196,23 +195,20 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Récupère le workspace : nom + email de notification
+    // Récupère le workspace (juste pour le nom dans l'email)
     let workspaceName: string | null = null;
-    let workspaceEmail: string | null = null;
     const memberEmails: string[] = [];
     const memberUserIds: string[] = [];
     if (lead.workspace_id) {
       const { data: ws } = await supabase
         .from("workspaces")
-        .select("company_name, notification_email, email")
+        .select("company_name")
         .eq("id", lead.workspace_id)
         .maybeSingle();
       workspaceName = ws?.company_name || null;
-      workspaceEmail = (ws?.notification_email || ws?.email || "").trim() || null;
 
-      // Récupère TOUS les membres du workspace (owner + members)
-      // NB: on n'utilise pas la RPC list_workspace_members car elle exige auth.uid()
-      // (forbidden en contexte service_role). On lit directement la table avec la service key.
+      // Récupère UNIQUEMENT les membres ACTUELS du workspace (owner + members)
+      // Les membres retirés ne doivent plus recevoir de notifications.
       const { data: members, error: memErr } = await supabase
         .from("workspace_members")
         .select("user_id")
@@ -223,7 +219,6 @@ Deno.serve(async (req) => {
         const userIds = members.map((m: any) => m.user_id).filter(Boolean);
         for (const uid of userIds) memberUserIds.push(uid);
 
-        // Résout les emails depuis auth.users via l'admin API
         for (const uid of userIds) {
           try {
             const { data: u } = await (supabase as any).auth.admin.getUserById(uid);
@@ -236,17 +231,23 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Destinataires email : admin global + email workspace + tous les membres
+    // Destinataires email : UNIQUEMENT les membres actuels du workspace.
+    // (Plus de NOTIFY_EMAIL hardcodé ni de workspace.email pour éviter les fuites
+    // vers d'anciens membres retirés.)
     const recipients = Array.from(new Set(
-      [NOTIFY_EMAIL, workspaceEmail, ...memberEmails]
-        .filter((e): e is string => !!e && e.trim().toLowerCase() !== "")
-        .map((e) => e.trim())
+      memberEmails
+        .filter((e): e is string => !!e && e.trim() !== "")
+        .map((e) => e.trim().toLowerCase())
     ));
 
-    // Destinataires push : tous les membres (fallback sur owner)
+    // Destinataires push : tous les membres actuels (fallback sur owner si aucun)
     const pushUserIds = Array.from(new Set(
       memberUserIds.length ? memberUserIds : [lead.owner_id].filter(Boolean)
     ));
+
+    if (recipients.length === 0) {
+      console.warn("notify-new-lead: no recipients for lead", lead.id);
+    }
 
     const leadUrl = `${APP_BASE_URL}/leads/${lead.id}`;
     const sourceLabel = sourceLabels[lead.source] || lead.source || "Inconnue";
