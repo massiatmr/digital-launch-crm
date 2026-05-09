@@ -29,7 +29,6 @@ async function cloneTable(
   remap: Record<string, Record<string, string>>,
   refs: { col: string; from: string }[] = [],
   excludeCols: string[] = [],
-  onConflict?: string,
 ) {
   const { data: rows, error } = await admin.from(table).select('*').match(filter);
   if (error) throw new Error(`select ${table}: ${error.message}`);
@@ -64,10 +63,7 @@ async function cloneTable(
   // bulk insert in chunks of 500
   for (let i = 0; i < inserts.length; i += 500) {
     const chunk = inserts.slice(i, i + 500);
-    const q = onConflict
-      ? admin.from(table).upsert(chunk, { onConflict, ignoreDuplicates: false })
-      : admin.from(table).insert(chunk);
-    const { error: insErr } = await q;
+    const { error: insErr } = await admin.from(table).insert(chunk);
     if (insErr) throw new Error(`insert ${table}: ${insErr.message}`);
   }
   remap[table] = idMap;
@@ -75,6 +71,9 @@ async function cloneTable(
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
+
+  let admin: any = null;
+  let newWsId: string | null = null;
 
   try {
     const auth = req.headers.get('Authorization') || '';
@@ -92,7 +91,7 @@ Deno.serve(async (req) => {
     const sourceId: string | undefined = body.source_workspace_id;
     if (!sourceId || typeof sourceId !== 'string') return json({ error: 'source_workspace_id required' }, 400);
 
-    const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+    admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
@@ -133,7 +132,7 @@ Deno.serve(async (req) => {
       .select()
       .single();
     if (wsErr) throw new Error(`create workspace: ${wsErr.message}`);
-    const newWsId = ws.id;
+    newWsId = ws.id;
 
     // Add caller as owner
     const { error: memErr } = await admin
@@ -222,6 +221,10 @@ Deno.serve(async (req) => {
     return json({ ok: true, workspace: ws });
   } catch (e: any) {
     console.error('duplicate-workspace error:', e);
+    if (admin && newWsId) {
+      const { error: cleanupErr } = await admin.from('workspaces').delete().eq('id', newWsId);
+      if (cleanupErr) console.error('duplicate-workspace cleanup error:', cleanupErr);
+    }
     return json({ error: e?.message || 'Internal error' }, 500);
   }
 });
