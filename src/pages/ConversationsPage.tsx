@@ -78,6 +78,15 @@ export default function ConversationsPage() {
               <MessageCircle className="h-4 w-4 text-primary" />
               <h2 className="font-heading text-sm">Conversations</h2>
               <Badge variant="outline" className="ml-auto text-xs">{items.length}</Badge>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7"
+                onClick={() => setComposeOpen(true)}
+                title="Nouvelle conversation"
+              >
+                <PenSquare className="h-3.5 w-3.5" />
+              </Button>
             </div>
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
