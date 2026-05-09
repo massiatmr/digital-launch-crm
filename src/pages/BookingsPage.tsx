@@ -2,10 +2,10 @@ import { useState, useEffect, useMemo } from 'react';
 import { useBookings, useUpdateBooking, useOffers } from '@/hooks/useOfferData';
 import { ShowStatusToggle } from '@/components/ShowStatusToggle';
 import { AvailabilityPanel } from '@/components/bookings/AvailabilityPanel';
+import { WeekAvailabilityView } from '@/components/bookings/WeekAvailabilityView';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CalendarCheck, Clock, Mail, Phone, User, Loader2, Filter, Video, CheckCircle2 } from 'lucide-react';
 import { format, parseISO, isSameDay, isAfter, isToday } from 'date-fns';
@@ -70,10 +70,6 @@ export default function BookingsPage() {
     return map;
   }, [filtered]);
 
-  const datesWithBookings = useMemo(
-    () => Array.from(bookingsByDate.keys()).map(d => parseISO(d)),
-    [bookingsByDate]
-  );
 
   const selectedKey = format(selectedDate, 'yyyy-MM-dd');
   const dayBookings = bookingsByDate.get(selectedKey) || [];
@@ -118,18 +114,7 @@ export default function BookingsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-5">
         {/* LEFT: calendrier toujours visible + détail jour sélectionné */}
         <div className="space-y-4">
-          <Card className="border-white/5 bg-card/50 backdrop-blur">
-            <CardContent className="pt-4 flex justify-center">
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={(d) => d && setSelectedDate(d)}
-                modifiers={{ booked: datesWithBookings }}
-                modifiersClassNames={{ booked: 'relative font-bold text-primary after:content-[""] after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:rounded-full after:bg-primary' }}
-                locale={fr}
-              />
-            </CardContent>
-          </Card>
+          <WeekAvailabilityView selectedDate={selectedDate} onSelectDate={setSelectedDate} />
 
           <Card className="border-white/5 bg-card/50 backdrop-blur">
             <CardHeader className="pb-3">
