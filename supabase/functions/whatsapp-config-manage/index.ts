@@ -317,6 +317,39 @@ Deno.serve(async (req) => {
       const errors: any[] = [];
       const liveIds = new Set<string>();
 
+      // 1) Découverte de nouveaux WABA via les tokens existants (parcours Businesses → WABAs)
+      const uniqueTokens = Array.from(new Set(rows.map((r) => r.access_token).filter(Boolean)));
+      for (const token of uniqueTokens) {
+        try {
+          for (const bizType of ["", "?type=client_business"]) {
+            const bizRes = await fetch(
+              `${GRAPH}/me/businesses${bizType}&fields=id,name&access_token=${token}`.replace("?&", "?"),
+            );
+            const bizJson = await bizRes.json();
+            if (!bizRes.ok) {
+              errors.push({ step: "list_businesses", token_tail: token.slice(-6), error: bizJson });
+              continue;
+            }
+            for (const biz of (bizJson.data || [])) {
+              for (const edge of ["owned_whatsapp_business_accounts", "client_whatsapp_business_accounts"]) {
+                const wabaRes = await fetch(
+                  `${GRAPH}/${biz.id}/${edge}?fields=id,name&access_token=${token}`,
+                );
+                const wabaJson = await wabaRes.json();
+                if (!wabaRes.ok) continue;
+                for (const waba of (wabaJson.data || [])) {
+                  if (!wabaMap.has(waba.id)) {
+                    wabaMap.set(waba.id, { token, rows: [] });
+                  }
+                }
+              }
+            }
+          }
+        } catch (e) {
+          errors.push({ step: "discover", error: String(e) });
+        }
+      }
+
       for (const [wabaId, { token, rows: wabaRows }] of wabaMap.entries()) {
         const r = await fetch(
           `${GRAPH}/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name&access_token=${token}`,
@@ -340,6 +373,19 @@ Deno.serve(async (req) => {
             await admin.from("whatsapp_config").update(payload as any).eq("id", match.id);
             updated++;
           } else {
+            // Vérifier qu'il n'est pas déjà rattaché à un autre workspace
+            const { data: takenElsewhere } = await admin
+              .from("whatsapp_config")
+              .select("id, workspace_id, owner_id")
+              .eq("phone_number_id", ph.id);
+            const conflict = (takenElsewhere || []).some((row: any) => {
+              if (workspace_id) return row.workspace_id && row.workspace_id !== workspace_id;
+              return row.workspace_id !== null || row.owner_id !== user.id;
+            });
+            if (conflict) {
+              errors.push({ phone_number_id: ph.id, reason: "already_in_other_workspace" });
+              continue;
+            }
             await admin.from("whatsapp_config").insert({
               owner_id: user.id,
               workspace_id,
@@ -354,15 +400,23 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Remove stale numbers (existed in DB but no longer returned by Meta)
+      // Remove stale numbers ONLY for WABAs we successfully fetched (don't delete on transient API errors)
+      const fetchedWabas = new Set<string>();
+      for (const [wid] of wabaMap.entries()) fetchedWabas.add(wid);
+      const failedWabas = new Set(errors.filter((e: any) => e.waba).map((e: any) => e.waba));
       for (const r of rows) {
-        if (r.phone_number_id && !liveIds.has(r.phone_number_id)) {
+        if (
+          r.phone_number_id &&
+          !liveIds.has(r.phone_number_id) &&
+          fetchedWabas.has(r.business_account_id) &&
+          !failedWabas.has(r.business_account_id)
+        ) {
           await admin.from("whatsapp_config").delete().eq("id", r.id);
           removed++;
         }
       }
 
-      return json({ ok: true, added, updated, removed, errors });
+      return json({ ok: true, added, updated, removed, discovered_wabas: wabaMap.size, errors });
     }
 
     return json({ error: "Unknown action" }, 400);
