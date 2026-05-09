@@ -239,6 +239,29 @@ Deno.serve(async (req) => {
       });
     }
 
+    // 4. Anti-flood : si un outbound a été envoyé dans les 60 dernières secondes pour ce lead
+    // (par une autre tâche), on annule celle-ci pour éviter les doublons. Cas typique :
+    // webhook Meta retry → 2 qualify-conversation → 2 propose_meeting tasks créées en race.
+    const sixtySecAgo = new Date(Date.now() - 60 * 1000).toISOString();
+    const { data: recentOutbound } = await admin
+      .from("whatsapp_messages")
+      .select("id, task_id, sent_at")
+      .eq("lead_id", task.lead_id)
+      .eq("direction", "outbound")
+      .gte("sent_at", sixtySecAgo)
+      .neq("task_id", task_id)
+      .limit(1);
+    if (recentOutbound && recentOutbound.length > 0) {
+      await admin.from("lead_followup_tasks").update({
+        status: "cancelled",
+        error_message: "Skipped: outbound récent (<60s) pour ce lead (anti-doublon)",
+        updated_at: new Date().toISOString(),
+      } as any).eq("id", task_id);
+      return new Response(JSON.stringify({ ok: true, skipped: true, reason: "recent_outbound_cooldown" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Helper : récupère la config WhatsApp ACTIVE scopée au workspace du lead
     // (sinon fallback sur l'owner_id si lead sans workspace — legacy)
     const getActiveWaConfig = async () => {
