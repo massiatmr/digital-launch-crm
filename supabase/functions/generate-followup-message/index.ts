@@ -20,10 +20,9 @@ const TASK_LABEL: Record<string, string> = {
 
 const PUBLIC_BASE_URL = "https://digital-launch-crm.lovable.app";
 
-// Créneaux par défaut (cohérent avec check-availability)
-const DEFAULT_SLOTS = [
-  "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30",
-];
+const DEFAULT_MORNING = "11:30";
+const DEFAULT_AFTERNOON = "14:30";
+const DEFAULT_WORKING_DAYS = [1, 2, 3, 4, 5];
 const MEETING_DURATION_MS = 60 * 60 * 1000;
 
 async function refreshGoogleToken(refreshToken: string): Promise<string | null> {
