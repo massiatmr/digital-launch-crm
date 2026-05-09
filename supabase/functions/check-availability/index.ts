@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
     if (!freeBusyRes.ok) {
       console.error("FreeBusy API error:", await freeBusyRes.text());
       return new Response(
-        JSON.stringify({ slots: DEFAULT_SLOTS, synced: false }),
+        JSON.stringify({ slots: ownerSlots, synced: false }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -205,19 +205,13 @@ Deno.serve(async (req) => {
     const busyPeriods: Array<{ start: string; end: string }> =
       freeBusyData.calendars?.primary?.busy || [];
 
-    console.log(`Found ${busyPeriods.length} busy periods for ${date} (Paris offset ${offsetStr})`);
-
-    // Interpret each slot as Paris local time using the computed offset.
-    const availableSlots = DEFAULT_SLOTS.filter((slot) => {
+    const availableSlots = ownerSlots.filter((slot) => {
       const slotStart = new Date(`${date}T${slot}:00${offsetStr}`);
       const slotEnd = new Date(slotStart.getTime() + MEETING_DURATION_MS);
-
       for (const busy of busyPeriods) {
         const busyStart = new Date(busy.start);
         const busyEnd = new Date(busy.end);
-        if (slotStart < busyEnd && slotEnd > busyStart) {
-          return false;
-        }
+        if (slotStart < busyEnd && slotEnd > busyStart) return false;
       }
       return true;
     });
