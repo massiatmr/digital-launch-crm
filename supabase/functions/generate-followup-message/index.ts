@@ -249,12 +249,15 @@ Deno.serve(async (req) => {
 
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    const [{ data: history }, { data: offer }, { data: qualification }, availableSlots] = await Promise.all([
+    const [{ data: history }, { data: offer }, { data: qualification }] = await Promise.all([
       supabase.from("whatsapp_messages").select("direction,content,sent_at").eq("lead_id", lead_id).order("sent_at", { ascending: true }).limit(20),
       supabase.from("leads").select("offer_id, offers(name, description, price, slug)").eq("id", lead_id).maybeSingle(),
       supabase.from("lead_qualification").select("*").eq("lead_id", lead_id).maybeSingle(),
-      getNextAvailableSlots(admin, ownerId!, lead.workspace_id),
     ]);
+
+    // Détecte les jours déjà proposés dans l'historique pour les éviter
+    const proposedDates = extractProposedDates(history ?? []);
+    const nextSlot = await getNextAvailableSlots(admin, ownerId!, lead.workspace_id, proposedDates);
 
     const offerData = (offer as any)?.offers;
     const offerInfo = offerData
@@ -285,9 +288,9 @@ Deno.serve(async (req) => {
 
     const variantHint = variant === "B" ? "\n\n⚠️ VARIANTE B : adopte un angle différent de ce que tu écrirais habituellement (autre accroche, autre question)." : "";
 
-    const slotsBlock = availableSlots.length > 0
-      ? `\nCRÉNEAUX RÉELLEMENT DISPONIBLES (calendrier synchronisé, JOURS différents) :\n${availableSlots.map((s, i) => `  ${i + 1}. ${s}`).join("\n")}\n⚠️ Si tu proposes un RDV, UTILISE EXCLUSIVEMENT 1 ou 2 de ces créneaux. N'invente JAMAIS d'horaire.\n⚠️ Si le lead vient de DEMANDER UNE AUTRE DATE (refus d'un créneau précédent), propose des créneaux d'un AUTRE JOUR que ceux déjà proposés dans l'historique.`
-      : "";
+    const slotsBlock = nextSlot
+      ? `\nPROCHAIN JOUR DISPONIBLE (calendrier + Google sync) : **${nextSlot.label}**\nCréneaux libres ce jour-là : ${nextSlot.slots.map(s => `${s}`).join(" ou ")}\n⚠️ Si tu proposes un RDV : propose UNIQUEMENT ${nextSlot.slots.length === 2 ? "ces 2 créneaux du même jour (un en fin de matinée + un l'après-midi)" : "ce créneau"}. N'invente JAMAIS d'autre horaire/jour.\n⚠️ Les jours déjà proposés dans l'historique ont été automatiquement évités — ce jour est NOUVEAU.`
+      : "\n⚠️ Aucun créneau disponible dans les 30 prochains jours travaillés. Propose au lead de choisir une autre semaine ou de te contacter.";
 
     // Email déjà connu dans le CRM : on demande à l'IA de le confirmer au lieu de le redemander.
     const knownEmail = (lead.email && lead.email.includes("@") && !lead.email.endsWith("@whatsapp.tmp"))
