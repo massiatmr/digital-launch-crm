@@ -43,7 +43,24 @@ Deno.serve(async (req) => {
     const { data: lead } = await supabase.from("leads").select("*").eq("id", lead_id).maybeSingle();
     if (!lead) return new Response(JSON.stringify({ error: "Lead not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const { data: settings } = await admin.from("followup_automation_settings").select("dry_run").eq("owner_id", user.id).maybeSingle();
+    let settings: any = null;
+    if (lead.workspace_id) {
+      const { data } = await admin
+        .from("followup_automation_settings")
+        .select("dry_run")
+        .eq("workspace_id", lead.workspace_id)
+        .maybeSingle();
+      settings = data;
+    }
+    if (!settings) {
+      const { data } = await admin
+        .from("followup_automation_settings")
+        .select("dry_run")
+        .eq("owner_id", user.id)
+        .is("workspace_id", null)
+        .maybeSingle();
+      settings = data;
+    }
     const dryRun = settings?.dry_run !== false;
 
     let waMessageId: string | null = null;
