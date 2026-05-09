@@ -146,6 +146,52 @@ export function MobileBottomNav() {
           </div>
         </SheetContent>
       </Sheet>
+
+      <Sheet open={showWs} onOpenChange={setShowWs}>
+        <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh] overflow-y-auto custom-scrollbar">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-primary" />
+              Mes espaces
+            </SheetTitle>
+          </SheetHeader>
+          <div className="space-y-1.5 py-3">
+            {workspaces.map((w) => {
+              const isCurrent = w.id === currentWorkspace?.id;
+              return (
+                <button
+                  key={w.id}
+                  onClick={() => { switchWorkspace(w.id); setShowWs(false); }}
+                  className={cn(
+                    'w-full flex items-center gap-3 rounded-xl border px-3 py-3 text-left transition-colors',
+                    isCurrent ? 'border-primary/50 bg-primary/10' : 'border-border bg-muted/30 hover:bg-accent/50'
+                  )}
+                >
+                  {w.logo_url ? (
+                    <img src={w.logo_url} alt="" className="h-8 w-8 rounded-md object-cover shrink-0" />
+                  ) : (
+                    <div className="h-8 w-8 rounded-md bg-primary/15 flex items-center justify-center shrink-0">
+                      <Building2 className="h-4 w-4 text-primary" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate text-sm font-medium">{w.company_name || 'Sans nom'}</div>
+                    {w.role && <div className="text-[10px] text-muted-foreground capitalize">{w.role}</div>}
+                  </div>
+                  {isCurrent && <Check className="h-4 w-4 text-primary shrink-0" />}
+                </button>
+              );
+            })}
+            <NavLink
+              to="/settings/workspaces"
+              onClick={() => setShowWs(false)}
+              className="block w-full text-center text-xs text-primary hover:underline pt-2"
+            >
+              Gérer les espaces →
+            </NavLink>
+          </div>
+        </SheetContent>
+      </Sheet>
     </>
   );
 }
