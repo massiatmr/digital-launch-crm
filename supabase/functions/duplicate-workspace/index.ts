@@ -226,6 +226,10 @@ Deno.serve(async (req) => {
     return json({ ok: true, workspace: ws });
   } catch (e: any) {
     console.error('duplicate-workspace error:', e);
+    if (admin && newWsId) {
+      const { error: cleanupErr } = await admin.from('workspaces').delete().eq('id', newWsId);
+      if (cleanupErr) console.error('duplicate-workspace cleanup error:', cleanupErr);
+    }
     return json({ error: e?.message || 'Internal error' }, 500);
   }
 });
