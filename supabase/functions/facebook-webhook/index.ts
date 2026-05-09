@@ -192,14 +192,27 @@ Deno.serve(async (req) => {
     });
 
     // Respond immediately to Facebook; resolve page → token+owner inside processWebhook
-    const processPromise = processWebhook(body, FB_PAGE_ACCESS_TOKEN ?? "", FB_LEAD_OWNER_ID ?? "", requestId);
-    
-    // Use waitUntil pattern - process in background but don't block response
-    processPromise.catch((err) =>
-      logError(requestId, "Background processing error", {
-        error: err instanceof Error ? err.message : String(err),
-      })
-    );
+    const processPromise = processWebhook(body, FB_PAGE_ACCESS_TOKEN ?? "", FB_LEAD_OWNER_ID ?? "", requestId)
+      .catch((err) =>
+        logError(requestId, "Background processing error", {
+          error: err instanceof Error ? err.message : String(err),
+        })
+      );
+
+    // Keep the isolate alive until background processing completes
+    // (without this, Deno kills the worker as soon as the 200 response is returned,
+    // and no lead is ever created in the DB).
+    try {
+      // @ts-ignore - EdgeRuntime is provided by Supabase Edge Runtime
+      if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
+        // @ts-ignore
+        EdgeRuntime.waitUntil(processPromise);
+      } else {
+        await processPromise;
+      }
+    } catch (_) {
+      // ignore
+    }
 
     return new Response("OK", { status: 200 });
   }
