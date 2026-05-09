@@ -6,7 +6,8 @@ import { WhatsAppChat } from '@/components/WhatsAppChat';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, MessageCircle, Search, ExternalLink, FlaskConical, Loader2 } from 'lucide-react';
+import { ArrowLeft, MessageCircle, Search, ExternalLink, FlaskConical, Loader2, PenSquare } from 'lucide-react';
+import { NewConversationSheet } from '@/components/conversations/NewConversationSheet';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -17,6 +18,7 @@ export default function ConversationsPage() {
   const { data: settings } = useFollowupSettings();
   const [search, setSearch] = useState('');
   const [flash, setFlash] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
   const selectedId = params.get('lead');
   const highlight = params.get('highlight') === '1';
 
@@ -76,6 +78,15 @@ export default function ConversationsPage() {
               <MessageCircle className="h-4 w-4 text-primary" />
               <h2 className="font-heading text-sm">Conversations</h2>
               <Badge variant="outline" className="ml-auto text-xs">{items.length}</Badge>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7"
+                onClick={() => setComposeOpen(true)}
+                title="Nouvelle conversation"
+              >
+                <PenSquare className="h-3.5 w-3.5" />
+              </Button>
             </div>
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -140,6 +151,12 @@ export default function ConversationsPage() {
           )}
         </section>
       </div>
+
+      <NewConversationSheet
+        open={composeOpen}
+        onOpenChange={setComposeOpen}
+        onPicked={(leadId) => setParams({ lead: leadId })}
+      />
     </div>
   );
 }

@@ -34,9 +34,10 @@ Deno.serve(async (req) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const { lead_id, message, reply_to_wa_id } = await req.json();
-    if (!lead_id || !message?.trim()) {
-      return new Response(JSON.stringify({ error: "Missing lead_id or message" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const { lead_id, message, reply_to_wa_id, template } = await req.json();
+    // template: { name, language, variables: string[] }  → envoi template HSM (hors fenêtre 24h)
+    if (!lead_id || (!template && !message?.trim())) {
+      return new Response(JSON.stringify({ error: "Missing lead_id or message/template" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const { data: lead } = await supabase.from("leads").select("*").eq("id", lead_id).maybeSingle();
@@ -67,13 +68,33 @@ Deno.serve(async (req) => {
           errorMessage = "Téléphone du lead invalide";
           logStatus = "failed";
         } else {
-          const payload: any = {
-            messaging_product: "whatsapp",
-            to: phone,
-            type: "text",
-            text: { body: message },
-          };
-          if (reply_to_wa_id) payload.context = { message_id: reply_to_wa_id };
+          let payload: any;
+          if (template) {
+            const vars = Array.isArray(template.variables) ? template.variables : [];
+            payload = {
+              messaging_product: "whatsapp",
+              to: phone,
+              type: "template",
+              template: {
+                name: template.name,
+                language: { code: template.language || "fr" },
+                ...(vars.length > 0 ? {
+                  components: [{
+                    type: "body",
+                    parameters: vars.map((v: string) => ({ type: "text", text: String(v) })),
+                  }],
+                } : {}),
+              },
+            };
+          } else {
+            payload = {
+              messaging_product: "whatsapp",
+              to: phone,
+              type: "text",
+              text: { body: message },
+            };
+            if (reply_to_wa_id) payload.context = { message_id: reply_to_wa_id };
+          }
           const resp = await fetch(`${GRAPH}/${config.phone_number_id}/messages`, {
             method: "POST",
             headers: { Authorization: `Bearer ${config.access_token}`, "Content-Type": "application/json" },
@@ -102,13 +123,22 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Pour un envoi template, on stocke un texte rendu lisible (template:nom + variables)
+    let storedContent = message || "";
+    let storedType = "text";
+    if (template) {
+      storedType = "template";
+      const vars = Array.isArray(template.variables) ? template.variables : [];
+      storedContent = `[Template: ${template.name}]${vars.length ? ` ${vars.join(" | ")}` : ""}`;
+    }
+
     await admin.from("whatsapp_messages").insert({
       lead_id,
       owner_id: user.id,
       workspace_id: lead.workspace_id ?? null,
       direction: 'outbound',
-      content: message,
-      message_type: 'text',
+      content: storedContent,
+      message_type: storedType,
       status: logStatus,
       wa_message_id: waMessageId,
       error_message: errorMessage,

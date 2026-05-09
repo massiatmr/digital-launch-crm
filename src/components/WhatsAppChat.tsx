@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Send, CheckCircle2, AlertCircle, Clock, Mic, Square, Trash2 } from 'lucide-react';
+import { Loader2, Send, CheckCircle2, AlertCircle, Clock, Mic, Square, Trash2, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { LiveAudioVisualizer } from '@/components/LiveAudioVisualizer';
 import { VoiceMessagePlayer } from '@/components/VoiceMessagePlayer';
 import { FollowupScriptsPicker } from '@/components/FollowupScriptsPicker';
+import { TemplatePickerDialog } from '@/components/conversations/TemplatePickerDialog';
 import { Mp3Encoder } from 'lamejs';
 
 type PendingMsg = { tempId: string; content: string; at: number; status: 'sending' | 'failed' };
@@ -114,8 +115,18 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
   const sendAudio = useSendWhatsAppAudio();
   const [input, setInput] = useState('');
   const [pending, setPending] = useState<PendingMsg[]>([]);
+  const [templateOpen, setTemplateOpen] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Fenêtre 24h Meta : on ne peut envoyer du texte libre que si le lead a écrit dans les dernières 24h
+  const isWithin24h = useMemo(() => {
+    const lastInbound = (messages as any[])
+      .filter((m) => m.direction === 'inbound')
+      .reduce<number>((max, m) => Math.max(max, new Date(m.sent_at).getTime()), 0);
+    if (!lastInbound) return false;
+    return Date.now() - lastInbound < 24 * 60 * 60 * 1000;
+  }, [messages]);
 
   // Auto-resize textarea based on content
   useEffect(() => {
@@ -152,13 +163,25 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
   const handleSend = async () => {
     const msg = input.trim();
     if (!msg) return;
+    if (!isWithin24h) {
+      // Hors fenêtre : on force l'usage d'un template
+      toast.info('Hors fenêtre 24h : envoie un template approuvé.');
+      setTemplateOpen(true);
+      return;
+    }
     setInput('');
     const tempId = `tmp-${Date.now()}`;
     setPending((p) => [...p, { tempId, content: msg, at: Date.now(), status: 'sending' }]);
     try {
       await sendWA.mutateAsync({ leadId, message: msg });
-    } catch {
+    } catch (e: any) {
       setPending((p) => p.map((x) => x.tempId === tempId ? { ...x, status: 'failed' } : x));
+      // Détection erreur Meta hors fenêtre 24h (131047 / 131051)
+      const txt = (e?.message || '').toString();
+      if (/131047|131051|24 hours|messaging window/i.test(txt)) {
+        toast.error('Fenêtre 24h fermée — utilise un template.');
+        setTemplateOpen(true);
+      }
     }
   };
 
@@ -318,33 +341,63 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
 
       {/* Input texte */}
       {!recording && !recordedUrl && (
-        <div className="border-t border-border p-2 flex items-end gap-2">
-          <FollowupScriptsPicker
-            leadName={leadName}
-            onInsert={(text) => setInput((cur) => cur ? `${cur}\n\n${text}` : text)}
-          />
-          <Textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
-            }}
-            placeholder="Écris un message... (Entrée pour envoyer)"
-            rows={1}
-            className="min-h-[40px] max-h-40 resize-none border-0 bg-transparent focus-visible:ring-0 py-2 leading-snug overflow-y-auto"
-          />
-          {input.trim() ? (
-            <Button size="icon" onClick={handleSend} disabled={sendWA.isPending} className="shrink-0">
-              {sendWA.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            </Button>
-          ) : (
-            <Button size="icon" variant="secondary" onClick={startRecording} className="shrink-0" title="Enregistrer un vocal">
-              <Mic className="h-4 w-4" />
-            </Button>
+        <>
+          {!isWithin24h && messages.length > 0 && (
+            <div className="border-t border-border bg-amber-500/10 px-3 py-2 flex items-center gap-2 text-xs text-amber-300">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+              <span className="flex-1">Hors fenêtre 24h Meta — seuls les templates approuvés peuvent être envoyés.</span>
+              <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={() => setTemplateOpen(true)}>
+                <FileText className="h-3 w-3 mr-1" /> Template
+              </Button>
+            </div>
           )}
-        </div>
+          {!isWithin24h && messages.length === 0 && (
+            <div className="border-t border-border bg-primary/10 px-3 py-2 flex items-center gap-2 text-xs text-primary-foreground/90">
+              <FileText className="h-3.5 w-3.5 shrink-0 text-primary" />
+              <span className="flex-1">Premier message : utilise un template approuvé pour démarrer la conversation.</span>
+              <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={() => setTemplateOpen(true)}>
+                Choisir un template
+              </Button>
+            </div>
+          )}
+          <div className="border-t border-border p-2 flex items-end gap-2">
+            <FollowupScriptsPicker
+              leadName={leadName}
+              onInsert={(text) => setInput((cur) => cur ? `${cur}\n\n${text}` : text)}
+            />
+            <Textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+              }}
+              placeholder={isWithin24h ? 'Écris un message... (Entrée pour envoyer)' : 'Hors fenêtre 24h — utilise un template'}
+              rows={1}
+              className="min-h-[40px] max-h-40 resize-none border-0 bg-transparent focus-visible:ring-0 py-2 leading-snug overflow-y-auto"
+            />
+            {input.trim() ? (
+              <Button size="icon" onClick={handleSend} disabled={sendWA.isPending} className="shrink-0">
+                {sendWA.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </Button>
+            ) : isWithin24h ? (
+              <Button size="icon" variant="secondary" onClick={startRecording} className="shrink-0" title="Enregistrer un vocal">
+                <Mic className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button size="icon" variant="secondary" onClick={() => setTemplateOpen(true)} className="shrink-0" title="Envoyer un template">
+                <FileText className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </>
       )}
+
+      <TemplatePickerDialog
+        open={templateOpen}
+        onOpenChange={setTemplateOpen}
+        leadId={leadId}
+      />
     </div>
   );
 }
