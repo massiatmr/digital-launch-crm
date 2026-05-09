@@ -101,6 +101,23 @@ export function MobileBottomNav() {
             <SheetTitle>Menu</SheetTitle>
           </SheetHeader>
           <div className="grid grid-cols-2 gap-3 py-4">
+            {workspaces.length > 0 && (
+              <button
+                onClick={() => { setShowMore(false); setShowWs(true); }}
+                className="col-span-2 flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm font-medium transition-colors hover:bg-primary/10"
+              >
+                {currentWorkspace?.logo_url ? (
+                  <img src={currentWorkspace.logo_url} alt="" className="h-6 w-6 rounded object-cover shrink-0" />
+                ) : (
+                  <Building2 className="h-5 w-5 text-primary shrink-0" />
+                )}
+                <div className="flex-1 min-w-0 text-left">
+                  <div className="text-[10px] uppercase text-muted-foreground tracking-wide">Espace actif</div>
+                  <div className="truncate text-sm font-semibold">{currentWorkspace?.company_name || 'Aucun'}</div>
+                </div>
+                <span className="text-[11px] text-primary shrink-0">Changer</span>
+              </button>
+            )}
             <button
               onClick={() => { setShowMore(false); setShowAi(true); }}
               className="col-span-2 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-white gradient-primary shadow-[0_4px_16px_hsl(var(--primary)/0.35)]"
