@@ -162,7 +162,7 @@ Deno.serve(async (req) => {
       { col: 'template_followup_2_id', from: 'whatsapp_templates' },
       { col: 'template_last_followup_id', from: 'whatsapp_templates' },
       { col: 'template_reactivation_id', from: 'whatsapp_templates' },
-    ]);
+    ], [], 'workspace_id');
     await cloneTable(admin, 'followup_sequence_steps', filter, newWsId, userId, remap, [
       { col: 'template_id', from: 'whatsapp_templates' },
     ]);
