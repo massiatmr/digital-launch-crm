@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { Kanban, Bell, MoreHorizontal, LogOut, LayoutDashboard, Package, CalendarCheck, UserCheck, MessageCircle, Settings, Sparkles } from 'lucide-react';
+import { Kanban, Bell, MoreHorizontal, LogOut, LayoutDashboard, Package, CalendarCheck, UserCheck, MessageCircle, Settings, Sparkles, Building2, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import {
@@ -11,6 +11,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { useWhatsAppInbox } from '@/hooks/useWhatsAppInbox';
 import { useWorkspaceFeatures, type FeatureKey } from '@/hooks/useWorkspaceFeatures';
+import { useWorkspaces } from '@/hooks/useWorkspaces';
 import { GlobalNaturalLanguageInput } from './GlobalNaturalLanguageInput';
 
 type NavItem = { to: string; icon: any; label: string; feature?: FeatureKey };
@@ -33,9 +34,11 @@ export function MobileBottomNav() {
   const location = useLocation();
   const [showMore, setShowMore] = useState(false);
   const [showAi, setShowAi] = useState(false);
+  const [showWs, setShowWs] = useState(false);
   const { signOut } = useAuth();
   const { unreadCount } = useWhatsAppInbox();
   const { isEnabled } = useWorkspaceFeatures();
+  const { workspaces, currentWorkspace, switchWorkspace } = useWorkspaces();
   const mainLinks = mainLinksAll.filter((l) => !l.feature || isEnabled(l.feature));
   const moreLinks = moreLinksAll.filter((l) => !l.feature || isEnabled(l.feature));
 
@@ -98,6 +101,23 @@ export function MobileBottomNav() {
             <SheetTitle>Menu</SheetTitle>
           </SheetHeader>
           <div className="grid grid-cols-2 gap-3 py-4">
+            {workspaces.length > 0 && (
+              <button
+                onClick={() => { setShowMore(false); setShowWs(true); }}
+                className="col-span-2 flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm font-medium transition-colors hover:bg-primary/10"
+              >
+                {currentWorkspace?.logo_url ? (
+                  <img src={currentWorkspace.logo_url} alt="" className="h-6 w-6 rounded object-cover shrink-0" />
+                ) : (
+                  <Building2 className="h-5 w-5 text-primary shrink-0" />
+                )}
+                <div className="flex-1 min-w-0 text-left">
+                  <div className="text-[10px] uppercase text-muted-foreground tracking-wide">Espace actif</div>
+                  <div className="truncate text-sm font-semibold">{currentWorkspace?.company_name || 'Aucun'}</div>
+                </div>
+                <span className="text-[11px] text-primary shrink-0">Changer</span>
+              </button>
+            )}
             <button
               onClick={() => { setShowMore(false); setShowAi(true); }}
               className="col-span-2 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-white gradient-primary shadow-[0_4px_16px_hsl(var(--primary)/0.35)]"
@@ -123,6 +143,52 @@ export function MobileBottomNav() {
               <LogOut className="h-5 w-5" />
               Déconnexion
             </button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={showWs} onOpenChange={setShowWs}>
+        <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh] overflow-y-auto custom-scrollbar">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-primary" />
+              Mes espaces
+            </SheetTitle>
+          </SheetHeader>
+          <div className="space-y-1.5 py-3">
+            {workspaces.map((w) => {
+              const isCurrent = w.id === currentWorkspace?.id;
+              return (
+                <button
+                  key={w.id}
+                  onClick={() => { switchWorkspace(w.id); setShowWs(false); }}
+                  className={cn(
+                    'w-full flex items-center gap-3 rounded-xl border px-3 py-3 text-left transition-colors',
+                    isCurrent ? 'border-primary/50 bg-primary/10' : 'border-border bg-muted/30 hover:bg-accent/50'
+                  )}
+                >
+                  {w.logo_url ? (
+                    <img src={w.logo_url} alt="" className="h-8 w-8 rounded-md object-cover shrink-0" />
+                  ) : (
+                    <div className="h-8 w-8 rounded-md bg-primary/15 flex items-center justify-center shrink-0">
+                      <Building2 className="h-4 w-4 text-primary" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate text-sm font-medium">{w.company_name || 'Sans nom'}</div>
+                    {w.role && <div className="text-[10px] text-muted-foreground capitalize">{w.role}</div>}
+                  </div>
+                  {isCurrent && <Check className="h-4 w-4 text-primary shrink-0" />}
+                </button>
+              );
+            })}
+            <NavLink
+              to="/settings/workspaces"
+              onClick={() => setShowWs(false)}
+              className="block w-full text-center text-xs text-primary hover:underline pt-2"
+            >
+              Gérer les espaces →
+            </NavLink>
           </div>
         </SheetContent>
       </Sheet>
