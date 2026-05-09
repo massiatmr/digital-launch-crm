@@ -478,6 +478,26 @@ export default function SettingsIntegrationsPage() {
               </CardDescription>
             </div>
             {activeWa && <Badge variant="default">Actif : {activeWa.display_phone_number}</Badge>}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                const res = await callWa("resync", {}, undefined);
+                if (res?.ok) {
+                  toast.success("Numéros resynchronisés", {
+                    description: `${res.added} ajouté(s) · ${res.updated} mis à jour · ${res.removed} supprimé(s)`,
+                  });
+                }
+              }}
+              disabled={waBusy?.startsWith("resync") ?? false}
+            >
+              {waBusy?.startsWith("resync") ? (
+                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+              ) : (
+                <RefreshCw className="h-3 w-3 mr-1" />
+              )}
+              Resynchroniser
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
