@@ -136,6 +136,7 @@ Deno.serve(async (req) => {
                 {
                   owner_id: user.id,
                   workspace_id,
+                  business_account_id: cfg.business_account_id,
                   name: t.name,
                   language: t.language,
                   category: t.category,
@@ -146,7 +147,7 @@ Deno.serve(async (req) => {
                   meta_template_id: t.id,
                   updated_at: new Date().toISOString(),
                 },
-                { onConflict: "owner_id,name,language" },
+                { onConflict: "owner_id,business_account_id,name,language" },
               );
               if (!upErr) templates_synced++;
             }
