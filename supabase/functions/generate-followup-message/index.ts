@@ -223,7 +223,7 @@ Deno.serve(async (req) => {
     const variantHint = variant === "B" ? "\n\n⚠️ VARIANTE B : adopte un angle différent de ce que tu écrirais habituellement (autre accroche, autre question)." : "";
 
     const slotsBlock = availableSlots.length > 0
-      ? `\nCRÉNEAUX RÉELLEMENT DISPONIBLES (calendrier synchronisé) :\n${availableSlots.map((s, i) => `  ${i + 1}. ${s}`).join("\n")}\n⚠️ Si tu proposes un RDV, UTILISE EXCLUSIVEMENT 1 ou 2 de ces créneaux. N'invente JAMAIS d'horaire.`
+      ? `\nCRÉNEAUX RÉELLEMENT DISPONIBLES (calendrier synchronisé, JOURS différents) :\n${availableSlots.map((s, i) => `  ${i + 1}. ${s}`).join("\n")}\n⚠️ Si tu proposes un RDV, UTILISE EXCLUSIVEMENT 1 ou 2 de ces créneaux. N'invente JAMAIS d'horaire.\n⚠️ Si le lead vient de DEMANDER UNE AUTRE DATE (refus d'un créneau précédent), propose des créneaux d'un AUTRE JOUR que ceux déjà proposés dans l'historique.`
       : "";
 
     // Email déjà connu dans le CRM : on demande à l'IA de le confirmer au lieu de le redemander.
