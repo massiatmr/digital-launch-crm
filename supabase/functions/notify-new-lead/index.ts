@@ -9,7 +9,6 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const NOTIFY_EMAIL = "contact@digitallaunch-llc.com";
 const APP_BASE_URL = "https://digital-launch-crm.lovable.app";
 
 const sourceLabels: Record<string, string> = {
