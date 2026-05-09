@@ -75,8 +75,12 @@ export type Database = {
         Row: {
           afternoon_slot: string
           created_at: string
+          day_end_time: string
+          day_start_time: string
+          max_future_days: number
           morning_slot: string
           owner_id: string
+          slot_duration_minutes: number
           timezone: string
           updated_at: string
           working_days: number[]
@@ -84,8 +88,12 @@ export type Database = {
         Insert: {
           afternoon_slot?: string
           created_at?: string
+          day_end_time?: string
+          day_start_time?: string
+          max_future_days?: number
           morning_slot?: string
           owner_id?: string
+          slot_duration_minutes?: number
           timezone?: string
           updated_at?: string
           working_days?: number[]
@@ -93,8 +101,12 @@ export type Database = {
         Update: {
           afternoon_slot?: string
           created_at?: string
+          day_end_time?: string
+          day_start_time?: string
+          max_future_days?: number
           morning_slot?: string
           owner_id?: string
+          slot_duration_minutes?: number
           timezone?: string
           updated_at?: string
           working_days?: number[]
