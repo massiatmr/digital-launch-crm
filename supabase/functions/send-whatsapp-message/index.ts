@@ -161,6 +161,7 @@ Deno.serve(async (req) => {
       error_message: errorMessage,
       reply_to_wa_id: reply_to_wa_id ?? null,
       reply_to_snapshot: replySnapshot,
+      metadata: { sent_by_user: true },
     } as any);
 
     return new Response(JSON.stringify({ success: logStatus !== "failed", dry_run: dryRun, status: logStatus, error: errorMessage }), {

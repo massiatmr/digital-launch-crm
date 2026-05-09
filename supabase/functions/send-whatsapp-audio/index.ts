@@ -236,6 +236,7 @@ Deno.serve(async (req) => {
       media_type: metaMime,
       media_storage_path: storagePath,
       transcript,
+      metadata: { sent_by_user: true },
     } as any);
 
     return new Response(
