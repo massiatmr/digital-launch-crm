@@ -163,13 +163,25 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
   const handleSend = async () => {
     const msg = input.trim();
     if (!msg) return;
+    if (!isWithin24h) {
+      // Hors fenêtre : on force l'usage d'un template
+      toast.info('Hors fenêtre 24h : envoie un template approuvé.');
+      setTemplateOpen(true);
+      return;
+    }
     setInput('');
     const tempId = `tmp-${Date.now()}`;
     setPending((p) => [...p, { tempId, content: msg, at: Date.now(), status: 'sending' }]);
     try {
       await sendWA.mutateAsync({ leadId, message: msg });
-    } catch {
+    } catch (e: any) {
       setPending((p) => p.map((x) => x.tempId === tempId ? { ...x, status: 'failed' } : x));
+      // Détection erreur Meta hors fenêtre 24h (131047 / 131051)
+      const txt = (e?.message || '').toString();
+      if (/131047|131051|24 hours|messaging window/i.test(txt)) {
+        toast.error('Fenêtre 24h fermée — utilise un template.');
+        setTemplateOpen(true);
+      }
     }
   };
 
