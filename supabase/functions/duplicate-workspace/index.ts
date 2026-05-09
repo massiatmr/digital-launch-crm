@@ -34,11 +34,16 @@ async function cloneTable(
   if (error) throw new Error(`select ${table}: ${error.message}`);
   if (!rows || rows.length === 0) return;
   const idMap: Record<string, string> = {};
+  const hasIdCol = rows[0] && Object.prototype.hasOwnProperty.call(rows[0], 'id') && !excludeCols.includes('id');
   const inserts = rows.map((row: any) => {
-    const newId = crypto.randomUUID();
-    if (row.id) idMap[row.id] = newId;
     const next: any = { ...row };
-    next.id = newId;
+    if (hasIdCol) {
+      const newId = crypto.randomUUID();
+      if (row.id) idMap[row.id] = newId;
+      next.id = newId;
+    } else {
+      delete next.id;
+    }
     next.workspace_id = newWorkspaceId;
     if ('owner_id' in next) next.owner_id = ownerId;
     if ('created_at' in next) delete next.created_at;
