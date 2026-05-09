@@ -12,6 +12,9 @@ import { LiveAudioVisualizer } from '@/components/LiveAudioVisualizer';
 import { VoiceMessagePlayer } from '@/components/VoiceMessagePlayer';
 import { FollowupScriptsPicker } from '@/components/FollowupScriptsPicker';
 import { TemplatePickerDialog } from '@/components/conversations/TemplatePickerDialog';
+import { NextFollowupBanner } from '@/components/conversations/NextFollowupBanner';
+import { SuggestedReplies } from '@/components/conversations/SuggestedReplies';
+import { useConvControls } from '@/hooks/useConversationControls';
 import { Mp3Encoder } from 'lamejs';
 
 type PendingMsg = { tempId: string; content: string; at: number; status: 'sending' | 'failed' };
