@@ -70,10 +70,6 @@ export default function BookingsPage() {
     return map;
   }, [filtered]);
 
-  const datesWithBookings = useMemo(
-    () => Array.from(bookingsByDate.keys()).map(d => parseISO(d)),
-    [bookingsByDate]
-  );
 
   const selectedKey = format(selectedDate, 'yyyy-MM-dd');
   const dayBookings = bookingsByDate.get(selectedKey) || [];
