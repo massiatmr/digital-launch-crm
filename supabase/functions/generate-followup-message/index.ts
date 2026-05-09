@@ -20,10 +20,9 @@ const TASK_LABEL: Record<string, string> = {
 
 const PUBLIC_BASE_URL = "https://digital-launch-crm.lovable.app";
 
-// Créneaux par défaut (cohérent avec check-availability)
-const DEFAULT_SLOTS = [
-  "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30",
-];
+const DEFAULT_MORNING = "11:30";
+const DEFAULT_AFTERNOON = "14:30";
+const DEFAULT_WORKING_DAYS = [1, 2, 3, 4, 5];
 const MEETING_DURATION_MS = 60 * 60 * 1000;
 
 async function refreshGoogleToken(refreshToken: string): Promise<string | null> {
@@ -52,12 +51,39 @@ async function getGoogleAccessToken(admin: any, ownerId: string): Promise<string
 }
 
 /**
- * Retourne les 3 prochains créneaux libres (bookings DB + Google FreeBusy).
+ * Retourne 2 créneaux (matin + après-midi) du PROCHAIN jour disponible,
+ * en sautant les jours déjà proposés dans l'historique passé en paramètre.
  */
-async function getNextAvailableSlots(admin: any, ownerId: string, workspaceId: string | null): Promise<string[]> {
+async function getNextAvailableSlots(
+  admin: any,
+  ownerId: string,
+  workspaceId: string | null,
+  alreadyProposedDates: Set<string>, // YYYY-MM-DD set
+): Promise<{ date: string; slots: string[]; label: string } | null> {
   const now = new Date();
-  const searchEnd = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000);
+  const searchEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
+  // Settings owner
+  const { data: settings } = await admin
+    .from("availability_settings")
+    .select("working_days, morning_slot, afternoon_slot")
+    .eq("owner_id", ownerId)
+    .maybeSingle();
+  const workingDays: number[] = settings?.working_days ?? DEFAULT_WORKING_DAYS;
+  const morningSlot: string = settings?.morning_slot ?? DEFAULT_MORNING;
+  const afternoonSlot: string = settings?.afternoon_slot ?? DEFAULT_AFTERNOON;
+  const ownerSlots = [morningSlot, afternoonSlot];
+
+  // Blackouts
+  const { data: blackoutsData } = await admin
+    .from("availability_blackouts")
+    .select("blackout_date")
+    .eq("owner_id", ownerId)
+    .gte("blackout_date", now.toISOString().slice(0, 10))
+    .lte("blackout_date", searchEnd.toISOString().slice(0, 10));
+  const blackoutSet = new Set<string>((blackoutsData ?? []).map((b: any) => b.blackout_date));
+
+  // Bookings DB
   let bQuery = admin
     .from("bookings")
     .select("booking_date, time_slot")
@@ -71,6 +97,7 @@ async function getNextAvailableSlots(admin: any, ownerId: string, workspaceId: s
   const busySet = new Set<string>();
   (bookings ?? []).forEach((b: any) => busySet.add(`${b.booking_date}|${b.time_slot}`));
 
+  // Google FreeBusy
   const accessToken = await getGoogleAccessToken(admin, ownerId);
   let gBusy: Array<{ start: Date; end: Date }> = [];
   if (accessToken) {
@@ -92,18 +119,20 @@ async function getNextAvailableSlots(admin: any, ownerId: string, workspaceId: s
     } catch (_) { /* ignore */ }
   }
 
-  // On garde MAX 1 créneau par jour pour proposer plusieurs JOURS différents (variété),
-  // sinon l'IA propose 3 horaires du même jour quand le lead demande "une autre date".
-  const results: string[] = [];
   const labels = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
   const cursor = new Date(now);
   cursor.setHours(0, 0, 0, 0);
-  for (let d = 0; d < 10 && results.length < 3; d++) {
+
+  for (let d = 0; d < 30; d++) {
     const date = new Date(cursor.getTime() + d * 24 * 60 * 60 * 1000);
     const dow = date.getDay();
-    if (dow === 0 || dow === 6) continue;
+    if (!workingDays.includes(dow)) continue;
     const dateStr = date.toISOString().slice(0, 10);
-    for (const slot of DEFAULT_SLOTS) {
+    if (blackoutSet.has(dateStr)) continue;
+    if (alreadyProposedDates.has(dateStr)) continue;
+
+    const freeSlots: string[] = [];
+    for (const slot of ownerSlots) {
       if (busySet.has(`${dateStr}|${slot}`)) continue;
       const [h, m] = slot.split(":").map(Number);
       const slotStart = new Date(date);
@@ -112,13 +141,47 @@ async function getNextAvailableSlots(admin: any, ownerId: string, workspaceId: s
       const slotEnd = new Date(slotStart.getTime() + MEETING_DURATION_MS);
       const overlaps = gBusy.some((b) => slotStart < b.end && slotEnd > b.start);
       if (overlaps) continue;
-      const dayLabel = labels[dow];
-      const dateLabel = date.toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
-      results.push(`${dayLabel} ${dateLabel} à ${slot}`);
-      break; // 1 créneau par jour suffit → on passe au jour suivant
+      freeSlots.push(slot);
+    }
+    if (freeSlots.length === 0) continue;
+
+    const dayLabel = labels[dow];
+    const dateLabel = date.toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
+    return {
+      date: dateStr,
+      slots: freeSlots,
+      label: `${dayLabel} ${dateLabel}`,
+    };
+  }
+  return null;
+}
+
+/**
+ * Détecte les dates (YYYY-MM-DD) déjà proposées par MOI dans l'historique outbound.
+ * Heuristique simple : matchs sur "lundi 12 mai", "mardi 14", patterns FR.
+ */
+function extractProposedDates(history: any[]): Set<string> {
+  const set = new Set<string>();
+  const months = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+  const now = new Date();
+  const year = now.getFullYear();
+  for (const m of history ?? []) {
+    if (m.direction !== "outbound") continue;
+    const text = (m.content || "").toLowerCase();
+    for (let mi = 0; mi < 12; mi++) {
+      const re = new RegExp(`(\\d{1,2})\\s+${months[mi]}`, "g");
+      let match;
+      while ((match = re.exec(text)) !== null) {
+        const day = parseInt(match[1], 10);
+        if (day >= 1 && day <= 31) {
+          const candidate = new Date(year, mi, day);
+          if (candidate.getTime() < now.getTime() - 7 * 24 * 60 * 60 * 1000) candidate.setFullYear(year + 1);
+          set.add(candidate.toISOString().slice(0, 10));
+        }
+      }
     }
   }
-  return results;
+  return set;
 }
 
 const DEFAULT_PROMPTS = {
@@ -186,12 +249,15 @@ Deno.serve(async (req) => {
 
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    const [{ data: history }, { data: offer }, { data: qualification }, availableSlots] = await Promise.all([
+    const [{ data: history }, { data: offer }, { data: qualification }] = await Promise.all([
       supabase.from("whatsapp_messages").select("direction,content,sent_at").eq("lead_id", lead_id).order("sent_at", { ascending: true }).limit(20),
       supabase.from("leads").select("offer_id, offers(name, description, price, slug)").eq("id", lead_id).maybeSingle(),
       supabase.from("lead_qualification").select("*").eq("lead_id", lead_id).maybeSingle(),
-      getNextAvailableSlots(admin, ownerId!, lead.workspace_id),
     ]);
+
+    // Détecte les jours déjà proposés dans l'historique pour les éviter
+    const proposedDates = extractProposedDates(history ?? []);
+    const nextSlot = await getNextAvailableSlots(admin, ownerId!, lead.workspace_id, proposedDates);
 
     const offerData = (offer as any)?.offers;
     const offerInfo = offerData
@@ -222,9 +288,9 @@ Deno.serve(async (req) => {
 
     const variantHint = variant === "B" ? "\n\n⚠️ VARIANTE B : adopte un angle différent de ce que tu écrirais habituellement (autre accroche, autre question)." : "";
 
-    const slotsBlock = availableSlots.length > 0
-      ? `\nCRÉNEAUX RÉELLEMENT DISPONIBLES (calendrier synchronisé, JOURS différents) :\n${availableSlots.map((s, i) => `  ${i + 1}. ${s}`).join("\n")}\n⚠️ Si tu proposes un RDV, UTILISE EXCLUSIVEMENT 1 ou 2 de ces créneaux. N'invente JAMAIS d'horaire.\n⚠️ Si le lead vient de DEMANDER UNE AUTRE DATE (refus d'un créneau précédent), propose des créneaux d'un AUTRE JOUR que ceux déjà proposés dans l'historique.`
-      : "";
+    const slotsBlock = nextSlot
+      ? `\nPROCHAIN JOUR DISPONIBLE (calendrier + Google sync) : **${nextSlot.label}**\nCréneaux libres ce jour-là : ${nextSlot.slots.map(s => `${s}`).join(" ou ")}\n⚠️ Si tu proposes un RDV : propose UNIQUEMENT ${nextSlot.slots.length === 2 ? "ces 2 créneaux du même jour (un en fin de matinée + un l'après-midi)" : "ce créneau"}. N'invente JAMAIS d'autre horaire/jour.\n⚠️ Les jours déjà proposés dans l'historique ont été automatiquement évités — ce jour est NOUVEAU.`
+      : "\n⚠️ Aucun créneau disponible dans les 30 prochains jours travaillés. Propose au lead de choisir une autre semaine ou de te contacter.";
 
     // Email déjà connu dans le CRM : on demande à l'IA de le confirmer au lieu de le redemander.
     const knownEmail = (lead.email && lead.email.includes("@") && !lead.email.endsWith("@whatsapp.tmp"))

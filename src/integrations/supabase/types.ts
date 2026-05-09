@@ -47,6 +47,60 @@ export type Database = {
         }
         Relationships: []
       }
+      availability_blackouts: {
+        Row: {
+          blackout_date: string
+          created_at: string
+          id: string
+          owner_id: string
+          reason: string
+        }
+        Insert: {
+          blackout_date: string
+          created_at?: string
+          id?: string
+          owner_id?: string
+          reason?: string
+        }
+        Update: {
+          blackout_date?: string
+          created_at?: string
+          id?: string
+          owner_id?: string
+          reason?: string
+        }
+        Relationships: []
+      }
+      availability_settings: {
+        Row: {
+          afternoon_slot: string
+          created_at: string
+          morning_slot: string
+          owner_id: string
+          timezone: string
+          updated_at: string
+          working_days: number[]
+        }
+        Insert: {
+          afternoon_slot?: string
+          created_at?: string
+          morning_slot?: string
+          owner_id?: string
+          timezone?: string
+          updated_at?: string
+          working_days?: number[]
+        }
+        Update: {
+          afternoon_slot?: string
+          created_at?: string
+          morning_slot?: string
+          owner_id?: string
+          timezone?: string
+          updated_at?: string
+          working_days?: number[]
+        }
+        Relationships: []
+      }
       booking_emails: {
         Row: {
           booking_id: string
