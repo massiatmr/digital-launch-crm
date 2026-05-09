@@ -34,9 +34,11 @@ export function MobileBottomNav() {
   const location = useLocation();
   const [showMore, setShowMore] = useState(false);
   const [showAi, setShowAi] = useState(false);
+  const [showWs, setShowWs] = useState(false);
   const { signOut } = useAuth();
   const { unreadCount } = useWhatsAppInbox();
   const { isEnabled } = useWorkspaceFeatures();
+  const { workspaces, currentWorkspace, switchWorkspace } = useWorkspaces();
   const mainLinks = mainLinksAll.filter((l) => !l.feature || isEnabled(l.feature));
   const moreLinks = moreLinksAll.filter((l) => !l.feature || isEnabled(l.feature));
 
