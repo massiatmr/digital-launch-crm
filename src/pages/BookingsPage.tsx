@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useBookings, useUpdateBooking, useOffers } from '@/hooks/useOfferData';
 import { ShowStatusToggle } from '@/components/ShowStatusToggle';
+import { AvailabilityPanel } from '@/components/bookings/AvailabilityPanel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CalendarCheck, Clock, Mail, Phone, User, Loader2, Filter, Video, CheckCircle2 } from 'lucide-react';
-import { format, parseISO, isAfter, isBefore, isToday } from 'date-fns';
+import { format, parseISO, isSameDay, isAfter, isToday } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { motion } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,7 +21,6 @@ const statusColors: Record<string, string> = {
   cancelled: 'bg-destructive/10 text-destructive border-destructive/20',
   completed: 'bg-primary/10 text-primary border-primary/20',
 };
-
 const statusLabels: Record<string, string> = {
   pending: 'En attente',
   confirmed: 'Confirmé',
@@ -32,72 +33,80 @@ export default function BookingsPage() {
   const { data: offers } = useOffers();
   const updateBooking = useUpdateBooking();
   const [offerFilter, setOfferFilter] = useState<string>('all');
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [searchParams] = useSearchParams();
   const [googleConnected, setGoogleConnected] = useState(false);
   const [checkingGoogle, setCheckingGoogle] = useState(true);
 
   useEffect(() => {
-    if (searchParams.get('google') === 'connected') {
-      toast.success('Google Calendar connecté avec succès !');
-    }
+    if (searchParams.get('google') === 'connected') toast.success('Google Calendar connecté !');
   }, [searchParams]);
 
   useEffect(() => {
-    async function checkGoogleConnection() {
+    (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setCheckingGoogle(false); return; }
-      const { data } = await supabase
-        .from('google_tokens')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      const { data } = await supabase.from('google_tokens').select('id').eq('user_id', user.id).maybeSingle();
       setGoogleConnected(!!data);
       setCheckingGoogle(false);
-    }
-    checkGoogleConnection();
+    })();
   }, [searchParams]);
 
   const handleConnectGoogle = async () => {
     const { data, error } = await supabase.functions.invoke('google-auth');
-    if (error) {
-      toast.error('Erreur lors de la connexion Google');
-      return;
-    }
+    if (error) { toast.error('Erreur Google'); return; }
     window.location.href = data.url;
   };
 
   const filtered = bookings?.filter(b => offerFilter === 'all' || b.offer_id === offerFilter) || [];
-  const upcoming = filtered.filter(b => b.status !== 'cancelled' && b.status !== 'completed' && isAfter(parseISO(b.booking_date), new Date()) || isToday(parseISO(b.booking_date)));
-  const past = filtered.filter(b => b.status === 'completed' || (!isToday(parseISO(b.booking_date)) && isBefore(parseISO(b.booking_date), new Date())));
+
+  const bookingsByDate = useMemo(() => {
+    const map = new Map<string, typeof filtered>();
+    filtered.forEach(b => {
+      const key = b.booking_date;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(b);
+    });
+    return map;
+  }, [filtered]);
+
+  const datesWithBookings = useMemo(
+    () => Array.from(bookingsByDate.keys()).map(d => parseISO(d)),
+    [bookingsByDate]
+  );
+
+  const selectedKey = format(selectedDate, 'yyyy-MM-dd');
+  const dayBookings = bookingsByDate.get(selectedKey) || [];
+  const upcoming = filtered
+    .filter(b => b.status !== 'cancelled' && b.status !== 'completed' && (isToday(parseISO(b.booking_date)) || isAfter(parseISO(b.booking_date), new Date())))
+    .sort((a, b) => a.booking_date.localeCompare(b.booking_date) || a.time_slot.localeCompare(b.time_slot));
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-5">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Rendez-vous</h1>
           <p className="text-muted-foreground text-sm mt-1">{upcoming.length} à venir</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {!checkingGoogle && (
             googleConnected ? (
               <Badge className="bg-green-500/10 text-green-400 border-green-500/20 flex items-center gap-1">
-                <CheckCircle2 className="h-3 w-3" />
-                Google Calendar
+                <CheckCircle2 className="h-3 w-3" /> Google Calendar
               </Badge>
             ) : (
               <Button variant="outline" size="sm" onClick={handleConnectGoogle}>
-                <CalendarCheck className="h-4 w-4 mr-1" />
-                Connecter Google Calendar
+                <CalendarCheck className="h-4 w-4 mr-1" /> Connecter Google Calendar
               </Button>
             )
           )}
           <Filter className="h-4 w-4 text-muted-foreground" />
           <Select value={offerFilter} onValueChange={setOfferFilter}>
-            <SelectTrigger className="w-48"><SelectValue placeholder="Toutes les offres" /></SelectTrigger>
+            <SelectTrigger className="w-44 h-9"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Toutes les offres</SelectItem>
               {offers?.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
@@ -106,94 +115,122 @@ export default function BookingsPage() {
         </div>
       </div>
 
-      {upcoming.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">À venir</h2>
-          <div className="grid gap-3">
-            {upcoming.map((b, i) => (
-              <motion.div key={b.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
-                <Card className="hover:border-primary/20 transition-all">
-                  <CardContent className="pt-4">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">{b.name}</span>
-                          <Badge className={statusColors[b.status]}>{statusLabels[b.status]}</Badge>
-                        </div>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <span className="flex items-center gap-1"><CalendarCheck className="h-3.5 w-3.5" />{format(parseISO(b.booking_date), 'dd MMM yyyy', { locale: fr })}</span>
-                          <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{b.time_slot}</span>
-                        </div>
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{b.email}</span>
-                          {b.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{b.phone}</span>}
-                        </div>
-                        {b.lead_id && (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] text-muted-foreground">Présence :</span>
-                            <ShowStatusToggle leadId={b.lead_id} currentStatus={(b as any).leads?.show_status || 'pending'} size="sm" />
-                          </div>
-                        )}
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-5">
+        {/* LEFT: calendrier toujours visible + détail jour sélectionné */}
+        <div className="space-y-4">
+          <Card className="border-white/5 bg-card/50 backdrop-blur">
+            <CardContent className="pt-4 flex justify-center">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={(d) => d && setSelectedDate(d)}
+                modifiers={{ booked: datesWithBookings }}
+                modifiersClassNames={{ booked: 'relative font-bold text-primary after:content-[""] after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:rounded-full after:bg-primary' }}
+                locale={fr}
+              />
+            </CardContent>
+          </Card>
+
+          <Card className="border-white/5 bg-card/50 backdrop-blur">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">
+                {format(selectedDate, 'EEEE dd MMMM yyyy', { locale: fr })}
+                <span className="ml-2 text-xs text-muted-foreground font-normal">
+                  ({dayBookings.length} RDV)
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {dayBookings.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">Aucun rendez-vous ce jour-là.</p>
+              ) : (
+                dayBookings.map((b, i) => (
+                  <motion.div
+                    key={b.id}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.03 }}
+                    className="rounded-lg border border-white/5 bg-background/40 p-3 flex items-start justify-between gap-3"
+                  >
+                    <div className="space-y-1.5 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="font-medium truncate">{b.name}</span>
+                        <Badge className={statusColors[b.status]}>{statusLabels[b.status]}</Badge>
+                      </div>
+                      <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
+                        <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{b.time_slot}</span>
+                        <span className="flex items-center gap-1 truncate"><Mail className="h-3 w-3" />{b.email}</span>
+                        {b.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{b.phone}</span>}
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
                         {b.offers?.name && <Badge variant="outline" className="text-xs">{b.offers.name}</Badge>}
                         {b.meet_link && (
                           <a href={b.meet_link} target="_blank" rel="noopener noreferrer">
                             <Badge className="bg-primary/10 text-primary border-primary/20 flex items-center gap-1 cursor-pointer hover:bg-primary/20">
-                              <Video className="h-3 w-3" />
-                              Google Meet
+                              <Video className="h-3 w-3" /> Meet
                             </Badge>
                           </a>
                         )}
-                      </div>
-                      <div className="flex gap-1">
-                        {b.status === 'pending' && (
-                          <Button size="sm" onClick={() => updateBooking.mutate({ id: b.id, status: 'confirmed' })}>Confirmer</Button>
-                        )}
-                        {(b.status === 'pending' || b.status === 'confirmed') && (
-                          <Button size="sm" variant="outline" onClick={() => updateBooking.mutate({ id: b.id, status: 'cancelled' })}>Annuler</Button>
-                        )}
-                        {b.status === 'confirmed' && (
-                          <Button size="sm" variant="secondary" onClick={() => updateBooking.mutate({ id: b.id, status: 'completed' })}>Terminé</Button>
+                        {b.lead_id && (
+                          <ShowStatusToggle leadId={b.lead_id} currentStatus={(b as any).leads?.show_status || 'pending'} size="sm" />
                         )}
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {past.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Passés</h2>
-          <div className="grid gap-3">
-            {past.map(b => (
-              <Card key={b.id} className="opacity-60">
-                <CardContent className="pt-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="font-medium text-sm">{b.name}</span>
-                      <span className="text-xs text-muted-foreground">{format(parseISO(b.booking_date), 'dd MMM yyyy', { locale: fr })} à {b.time_slot}</span>
-                      {b.offers?.name && <Badge variant="outline" className="text-xs">{b.offers.name}</Badge>}
+                    <div className="flex flex-col gap-1 shrink-0">
+                      {b.status === 'pending' && (
+                        <Button size="sm" onClick={() => updateBooking.mutate({ id: b.id, status: 'confirmed' })}>Confirmer</Button>
+                      )}
+                      {(b.status === 'pending' || b.status === 'confirmed') && (
+                        <Button size="sm" variant="outline" onClick={() => updateBooking.mutate({ id: b.id, status: 'cancelled' })}>Annuler</Button>
+                      )}
+                      {b.status === 'confirmed' && (
+                        <Button size="sm" variant="secondary" onClick={() => updateBooking.mutate({ id: b.id, status: 'completed' })}>Terminé</Button>
+                      )}
                     </div>
-                    <Badge className={statusColors[b.status]}>{statusLabels[b.status]}</Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  </motion.div>
+                ))
+              )}
+            </CardContent>
+          </Card>
         </div>
-      )}
 
-      {filtered.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <CalendarCheck className="h-12 w-12 text-muted-foreground/50 mb-4" />
-          <h3 className="font-medium text-foreground">Aucun rendez-vous</h3>
-          <p className="text-sm text-muted-foreground mt-1">Les réservations via tes landing pages apparaîtront ici</p>
+        {/* RIGHT: Dispos + Prochains RDV */}
+        <div className="space-y-4">
+          <AvailabilityPanel />
+
+          <Card className="border-white/5 bg-card/50 backdrop-blur">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Prochains RDV</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 max-h-[400px] overflow-y-auto">
+              {upcoming.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">Aucun RDV à venir.</p>
+              ) : (
+                upcoming.slice(0, 12).map(b => {
+                  const d = parseISO(b.booking_date);
+                  const isSel = isSameDay(d, selectedDate);
+                  return (
+                    <button
+                      key={b.id}
+                      onClick={() => setSelectedDate(d)}
+                      className={`w-full text-left rounded-lg border p-2.5 transition-all ${isSel ? 'border-primary/40 bg-primary/5' : 'border-white/5 bg-background/40 hover:border-white/20'}`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-medium truncate">{b.name}</span>
+                        <Badge className={`${statusColors[b.status]} text-[10px]`}>{statusLabels[b.status]}</Badge>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {format(d, 'dd MMM', { locale: fr })} · {b.time_slot}
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </CardContent>
+          </Card>
         </div>
-      )}
+      </div>
     </div>
   );
 }
