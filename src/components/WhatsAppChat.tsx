@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Send, CheckCircle2, AlertCircle, Clock, Mic, Square, Trash2 } from 'lucide-react';
+import { Loader2, Send, CheckCircle2, AlertCircle, Clock, Mic, Square, Trash2, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { LiveAudioVisualizer } from '@/components/LiveAudioVisualizer';
 import { VoiceMessagePlayer } from '@/components/VoiceMessagePlayer';
 import { FollowupScriptsPicker } from '@/components/FollowupScriptsPicker';
+import { TemplatePickerDialog } from '@/components/conversations/TemplatePickerDialog';
 import { Mp3Encoder } from 'lamejs';
 
 type PendingMsg = { tempId: string; content: string; at: number; status: 'sending' | 'failed' };
