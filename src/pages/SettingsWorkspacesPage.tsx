@@ -349,18 +349,19 @@ function WorkspaceEditor({ workspace, canManage }: { workspace: any; canManage: 
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-3 text-sm">
-                <p>L'espace sera déplacé vers la <strong>corbeille pendant 30 jours</strong>, puis purgé automatiquement.
-                Pendant ce délai, tu peux le restaurer depuis Paramètres → Corbeille.</p>
+                <p className="text-destructive font-medium">
+                  ⚠️ Suppression définitive et immédiate. Toutes les données ci-dessous seront effacées et ne pourront pas être récupérées.
+                </p>
                 {impact && (
                   <div className="rounded-md bg-muted/50 p-2 text-xs">
-                    <div className="font-semibold mb-1">Impact :</div>
+                    <div className="font-semibold mb-1">Sera supprimé :</div>
                     <ul className="space-y-0.5">
                       <li>• {impact.leads} prospect(s)</li>
                       <li>• {impact.clients} client(s)</li>
                       <li>• {impact.offers} offre(s)</li>
                       <li>• {impact.invoices} facture(s)</li>
                     </ul>
-                    <div className="mt-2 text-muted-foreground">Ces données restent intactes en base pendant la période de récupération.</div>
+                    <div className="mt-2 text-muted-foreground">+ rendez-vous, contrats, conversations WhatsApp, tâches, relances et toutes les configurations.</div>
                   </div>
                 )}
                 <div>
@@ -377,7 +378,7 @@ function WorkspaceEditor({ workspace, canManage }: { workspace: any; canManage: 
               onClick={() => softDelete.mutate()}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Déplacer vers la corbeille
+              Supprimer définitivement
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
