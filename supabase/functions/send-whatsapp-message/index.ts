@@ -68,13 +68,33 @@ Deno.serve(async (req) => {
           errorMessage = "Téléphone du lead invalide";
           logStatus = "failed";
         } else {
-          const payload: any = {
-            messaging_product: "whatsapp",
-            to: phone,
-            type: "text",
-            text: { body: message },
-          };
-          if (reply_to_wa_id) payload.context = { message_id: reply_to_wa_id };
+          let payload: any;
+          if (template) {
+            const vars = Array.isArray(template.variables) ? template.variables : [];
+            payload = {
+              messaging_product: "whatsapp",
+              to: phone,
+              type: "template",
+              template: {
+                name: template.name,
+                language: { code: template.language || "fr" },
+                ...(vars.length > 0 ? {
+                  components: [{
+                    type: "body",
+                    parameters: vars.map((v: string) => ({ type: "text", text: String(v) })),
+                  }],
+                } : {}),
+              },
+            };
+          } else {
+            payload = {
+              messaging_product: "whatsapp",
+              to: phone,
+              type: "text",
+              text: { body: message },
+            };
+            if (reply_to_wa_id) payload.context = { message_id: reply_to_wa_id };
+          }
           const resp = await fetch(`${GRAPH}/${config.phone_number_id}/messages`, {
             method: "POST",
             headers: { Authorization: `Bearer ${config.access_token}`, "Content-Type": "application/json" },
