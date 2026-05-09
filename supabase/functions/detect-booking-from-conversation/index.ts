@@ -421,6 +421,13 @@ ${transcript}`;
 
     await markLeadBookedAndStopAutomations(admin, lead, `Booking auto-created (${bookingId})`);
 
+    // Envoie un message de confirmation chaleureux au prospect (évite l'effet "ghosted")
+    try {
+      await sendBookingConfirmationWhatsApp(admin, lead, parsed.booking_date, parsed.time_slot, offerName, meetLink);
+    } catch (e) {
+      console.error("booking confirmation WA failed:", e);
+    }
+
     // Activity + notif owner
     await admin.from("lead_activities").insert({
       lead_id: lead.id,
