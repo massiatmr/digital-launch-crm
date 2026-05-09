@@ -5,9 +5,14 @@ import { useAuth } from './useAuth';
 export interface AvailabilitySettings {
   owner_id: string;
   working_days: number[]; // 0=Sun .. 6=Sat
-  morning_slot: string;   // "HH:MM"
-  afternoon_slot: string; // "HH:MM"
+  day_start_time: string;       // "HH:MM"
+  day_end_time: string;         // "HH:MM"
+  slot_duration_minutes: number;
+  max_future_days: number;
   timezone: string;
+  // legacy (ignorés par l'UI mais lus depuis la table)
+  morning_slot?: string;
+  afternoon_slot?: string;
 }
 
 export interface Blackout {
@@ -19,8 +24,10 @@ export interface Blackout {
 
 const DEFAULT: Omit<AvailabilitySettings, 'owner_id'> = {
   working_days: [1, 2, 3, 4, 5],
-  morning_slot: '11:30',
-  afternoon_slot: '14:30',
+  day_start_time: '11:00',
+  day_end_time: '15:00',
+  slot_duration_minutes: 45,
+  max_future_days: 14,
   timezone: 'Europe/Paris',
 };
 
@@ -35,7 +42,7 @@ export function useAvailabilitySettings() {
         .select('*')
         .eq('owner_id', user!.id)
         .maybeSingle();
-      return (data as AvailabilitySettings) ?? { owner_id: user!.id, ...DEFAULT };
+      return { owner_id: user!.id, ...DEFAULT, ...(data ?? {}) } as AvailabilitySettings;
     },
   });
 }
@@ -46,12 +53,21 @@ export function useUpsertAvailabilitySettings() {
   return useMutation({
     mutationFn: async (patch: Partial<Omit<AvailabilitySettings, 'owner_id'>>) => {
       if (!user?.id) throw new Error('not_authed');
+      const { data: existing } = await (supabase as any)
+        .from('availability_settings')
+        .select('*')
+        .eq('owner_id', user.id)
+        .maybeSingle();
+      const merged = { owner_id: user.id, ...DEFAULT, ...(existing ?? {}), ...patch };
       const { error } = await (supabase as any)
         .from('availability_settings')
-        .upsert({ owner_id: user.id, ...DEFAULT, ...patch }, { onConflict: 'owner_id' });
+        .upsert(merged, { onConflict: 'owner_id' });
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['availability_settings', user?.id] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['availability_settings', user?.id] });
+      qc.invalidateQueries({ queryKey: ['weekly-availability'] });
+    },
   });
 }
 
@@ -90,6 +106,9 @@ export function useToggleBlackout() {
         if (error) throw error;
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['availability_blackouts', user?.id] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['availability_blackouts', user?.id] });
+      qc.invalidateQueries({ queryKey: ['weekly-availability'] });
+    },
   });
 }
