@@ -20,10 +20,23 @@ const TASK_LABEL: Record<string, string> = {
 
 const PUBLIC_BASE_URL = "https://digital-launch-crm.lovable.app";
 
-const DEFAULT_MORNING = "11:30";
-const DEFAULT_AFTERNOON = "14:30";
+const DEFAULT_DAY_START = "11:00";
+const DEFAULT_DAY_END = "15:00";
+const DEFAULT_SLOT_DURATION = 45;
+const DEFAULT_MAX_FUTURE_DAYS = 14;
 const DEFAULT_WORKING_DAYS = [1, 2, 3, 4, 5];
-const MEETING_DURATION_MS = 60 * 60 * 1000;
+
+function generateHourlySlots(startTime: string, endTime: string, durationMin: number): string[] {
+  const [sh, sm] = startTime.split(":").map(Number);
+  const [eh, em] = endTime.split(":").map(Number);
+  const startMin = sh * 60 + sm;
+  const endMin = eh * 60 + em;
+  const out: string[] = [];
+  for (let t = startMin; t + durationMin <= endMin; t += 60) {
+    out.push(`${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`);
+  }
+  return out;
+}
 
 async function refreshGoogleToken(refreshToken: string): Promise<string | null> {
   const clientId = Deno.env.get("Google_Client_id")!;
@@ -51,30 +64,33 @@ async function getGoogleAccessToken(admin: any, ownerId: string): Promise<string
 }
 
 /**
- * Retourne 2 créneaux (matin + après-midi) du PROCHAIN jour disponible,
- * en sautant les jours déjà proposés dans l'historique passé en paramètre.
+ * Retourne les créneaux libres du PROCHAIN jour disponible
+ * (durée = paramétrée, plage = day_start_time → day_end_time, incrément = 1h).
+ * Saute les jours déjà proposés dans l'historique. Limité à max_future_days.
  */
 async function getNextAvailableSlots(
   admin: any,
   ownerId: string,
   workspaceId: string | null,
-  alreadyProposedDates: Set<string>, // YYYY-MM-DD set
-): Promise<{ date: string; slots: string[]; label: string } | null> {
+  alreadyProposedDates: Set<string>,
+): Promise<{ date: string; slots: string[]; label: string; duration: number } | null> {
   const now = new Date();
-  const searchEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-  // Settings owner
   const { data: settings } = await admin
     .from("availability_settings")
-    .select("working_days, morning_slot, afternoon_slot")
+    .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days")
     .eq("owner_id", ownerId)
     .maybeSingle();
   const workingDays: number[] = settings?.working_days ?? DEFAULT_WORKING_DAYS;
-  const morningSlot: string = settings?.morning_slot ?? DEFAULT_MORNING;
-  const afternoonSlot: string = settings?.afternoon_slot ?? DEFAULT_AFTERNOON;
-  const ownerSlots = [morningSlot, afternoonSlot];
+  const dayStart: string = settings?.day_start_time ?? DEFAULT_DAY_START;
+  const dayEnd: string = settings?.day_end_time ?? DEFAULT_DAY_END;
+  const slotDurationMin: number = settings?.slot_duration_minutes ?? DEFAULT_SLOT_DURATION;
+  const maxDays: number = settings?.max_future_days ?? DEFAULT_MAX_FUTURE_DAYS;
+  const slotDurationMs = slotDurationMin * 60 * 1000;
+  const baseSlots = generateHourlySlots(dayStart, dayEnd, slotDurationMin);
 
-  // Blackouts
+  const searchEnd = new Date(now.getTime() + maxDays * 24 * 60 * 60 * 1000);
+
   const { data: blackoutsData } = await admin
     .from("availability_blackouts")
     .select("blackout_date")
@@ -83,7 +99,6 @@ async function getNextAvailableSlots(
     .lte("blackout_date", searchEnd.toISOString().slice(0, 10));
   const blackoutSet = new Set<string>((blackoutsData ?? []).map((b: any) => b.blackout_date));
 
-  // Bookings DB
   let bQuery = admin
     .from("bookings")
     .select("booking_date, time_slot")
@@ -97,7 +112,6 @@ async function getNextAvailableSlots(
   const busySet = new Set<string>();
   (bookings ?? []).forEach((b: any) => busySet.add(`${b.booking_date}|${b.time_slot}`));
 
-  // Google FreeBusy
   const accessToken = await getGoogleAccessToken(admin, ownerId);
   let gBusy: Array<{ start: Date; end: Date }> = [];
   if (accessToken) {
@@ -123,7 +137,7 @@ async function getNextAvailableSlots(
   const cursor = new Date(now);
   cursor.setHours(0, 0, 0, 0);
 
-  for (let d = 0; d < 30; d++) {
+  for (let d = 0; d <= maxDays; d++) {
     const date = new Date(cursor.getTime() + d * 24 * 60 * 60 * 1000);
     const dow = date.getDay();
     if (!workingDays.includes(dow)) continue;
@@ -132,13 +146,13 @@ async function getNextAvailableSlots(
     if (alreadyProposedDates.has(dateStr)) continue;
 
     const freeSlots: string[] = [];
-    for (const slot of ownerSlots) {
+    for (const slot of baseSlots) {
       if (busySet.has(`${dateStr}|${slot}`)) continue;
       const [h, m] = slot.split(":").map(Number);
       const slotStart = new Date(date);
       slotStart.setHours(h, m, 0, 0);
       if (slotStart.getTime() < now.getTime() + 2 * 60 * 60 * 1000) continue;
-      const slotEnd = new Date(slotStart.getTime() + MEETING_DURATION_MS);
+      const slotEnd = new Date(slotStart.getTime() + slotDurationMs);
       const overlaps = gBusy.some((b) => slotStart < b.end && slotEnd > b.start);
       if (overlaps) continue;
       freeSlots.push(slot);
@@ -151,6 +165,7 @@ async function getNextAvailableSlots(
       date: dateStr,
       slots: freeSlots,
       label: `${dayLabel} ${dateLabel}`,
+      duration: slotDurationMin,
     };
   }
   return null;
@@ -289,8 +304,8 @@ Deno.serve(async (req) => {
     const variantHint = variant === "B" ? "\n\n⚠️ VARIANTE B : adopte un angle différent de ce que tu écrirais habituellement (autre accroche, autre question)." : "";
 
     const slotsBlock = nextSlot
-      ? `\nPROCHAIN JOUR DISPONIBLE (calendrier + Google sync) : **${nextSlot.label}**\nCréneaux libres ce jour-là : ${nextSlot.slots.map(s => `${s}`).join(" ou ")}\n⚠️ Si tu proposes un RDV : propose UNIQUEMENT ${nextSlot.slots.length === 2 ? "ces 2 créneaux du même jour (un en fin de matinée + un l'après-midi)" : "ce créneau"}. N'invente JAMAIS d'autre horaire/jour.\n⚠️ Les jours déjà proposés dans l'historique ont été automatiquement évités — ce jour est NOUVEAU.`
-      : "\n⚠️ Aucun créneau disponible dans les 30 prochains jours travaillés. Propose au lead de choisir une autre semaine ou de te contacter.";
+      ? `\nPROCHAIN JOUR DISPONIBLE (calendrier + Google sync) : **${nextSlot.label}**\nCréneaux libres ce jour-là (durée ${nextSlot.duration} min) : ${nextSlot.slots.join(" / ")}\n⚠️ Si tu proposes un RDV : propose 2 créneaux MAX du même jour parmi cette liste (idéalement un tôt + un plus tard). N'invente JAMAIS d'autre horaire/jour.\n⚠️ Les jours déjà proposés dans l'historique ont été automatiquement évités — ce jour est NOUVEAU.`
+      : "\n⚠️ Aucun créneau disponible dans la fenêtre de réservation autorisée. Propose au lead de te recontacter plus tard.";
 
     // Email déjà connu dans le CRM : on demande à l'IA de le confirmer au lieu de le redemander.
     const knownEmail = (lead.email && lead.email.includes("@") && !lead.email.endsWith("@whatsapp.tmp"))

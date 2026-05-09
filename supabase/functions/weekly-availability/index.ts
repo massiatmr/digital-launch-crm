@@ -6,8 +6,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const MEETING_DURATION_MS = 60 * 60 * 1000;
-
 async function refreshGoogleToken(refreshToken: string) {
   const clientId = Deno.env.get("Google_Client_id")!;
   const clientSecret = Deno.env.get("Client_secret")!;
@@ -58,6 +56,18 @@ function addDays(d: string, n: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
+function generateHourlySlots(startTime: string, endTime: string, durationMin: number): string[] {
+  const [sh, sm] = startTime.split(":").map(Number);
+  const [eh, em] = endTime.split(":").map(Number);
+  const startMin = sh * 60 + sm;
+  const endMin = eh * 60 + em;
+  const out: string[] = [];
+  for (let t = startMin; t + durationMin <= endMin; t += 60) {
+    out.push(`${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`);
+  }
+  return out;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -80,7 +90,6 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Identify caller
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -95,13 +104,21 @@ Deno.serve(async (req) => {
     const ownerId = user.id;
 
     const { data: avail } = await admin.from("availability_settings")
-      .select("working_days, morning_slot, afternoon_slot")
+      .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days")
       .eq("owner_id", ownerId).maybeSingle();
     const workingDays: number[] = avail?.working_days ?? [1, 2, 3, 4, 5];
-    const morningSlot: string = avail?.morning_slot ?? "11:30";
-    const afternoonSlot: string = avail?.afternoon_slot ?? "14:30";
+    const dayStart: string = avail?.day_start_time ?? "11:00";
+    const dayEnd: string = avail?.day_end_time ?? "15:00";
+    const slotDurationMin: number = avail?.slot_duration_minutes ?? 45;
+    const maxFutureDays: number = avail?.max_future_days ?? 14;
+    const slotDurationMs = slotDurationMin * 60 * 1000;
+    const baseSlots = generateHourlySlots(dayStart, dayEnd, slotDurationMin);
 
     const dateTo = addDays(date_from, 6);
+
+    // Limite des dates dans le futur autorisées (à partir d'aujourd'hui)
+    const today = new Date().toISOString().slice(0, 10);
+    const maxDate = addDays(today, maxFutureDays);
 
     const { data: blackoutsRows } = await admin.from("availability_blackouts")
       .select("blackout_date").eq("owner_id", ownerId)
@@ -117,7 +134,7 @@ Deno.serve(async (req) => {
       (bookingsRows ?? []).map((r: any) => `${r.booking_date}_${r.time_slot}`)
     );
 
-    // Google freeBusy for the whole week (single call)
+    // Google freeBusy pour la semaine
     const accessToken = await getValidAccessToken(admin, ownerId);
     let busyByDay: Record<string, Array<{ start: Date; end: Date }>> = {};
     let synced = false;
@@ -136,7 +153,6 @@ Deno.serve(async (req) => {
         const busy: Array<{ start: string; end: string }> = data.calendars?.primary?.busy ?? [];
         for (const b of busy) {
           const s = new Date(b.start); const e = new Date(b.end);
-          // bucket by day key (Paris date)
           const dayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(s);
           if (!busyByDay[dayKey]) busyByDay[dayKey] = [];
           busyByDay[dayKey].push({ start: s, end: e });
@@ -152,15 +168,17 @@ Deno.serve(async (req) => {
       const dow = new Date(`${d}T12:00:00Z`).getUTCDay();
       const working = workingDays.includes(dow);
       const blackout = blackouts.has(d);
+      const beyondMax = d > maxDate;
       const offset = parisOffsetFor(d);
 
-      const buildSlot = (time: string) => {
+      const slots = baseSlots.map((time) => {
         const slotStart = new Date(`${d}T${time}:00${offset}`);
-        const slotEnd = new Date(slotStart.getTime() + MEETING_DURATION_MS);
-        let status: "past" | "non_working" | "blackout" | "booked" | "busy" | "free" = "free";
+        const slotEnd = new Date(slotStart.getTime() + slotDurationMs);
+        let status: "past" | "non_working" | "blackout" | "booked" | "busy" | "free" | "out_of_range" = "free";
         if (slotStart.getTime() < now) status = "past";
         else if (!working) status = "non_working";
         else if (blackout) status = "blackout";
+        else if (beyondMax) status = "out_of_range";
         else if (bookedKey.has(`${d}_${time}`)) status = "booked";
         else {
           const busy = busyByDay[d] ?? [];
@@ -169,19 +187,27 @@ Deno.serve(async (req) => {
           }
         }
         return { time, status };
-      };
+      });
 
       days.push({
         date: d,
         dow,
         working,
         blackout,
+        beyond_max: beyondMax,
         is_past: new Date(`${d}T23:59:59${offset}`).getTime() < now,
-        slots: [buildSlot(morningSlot), buildSlot(afternoonSlot)],
+        slots,
       });
     }
 
-    return new Response(JSON.stringify({ days, synced, morning_slot: morningSlot, afternoon_slot: afternoonSlot }), {
+    return new Response(JSON.stringify({
+      days,
+      synced,
+      day_start_time: dayStart,
+      day_end_time: dayEnd,
+      slot_duration_minutes: slotDurationMin,
+      max_future_days: maxFutureDays,
+    }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

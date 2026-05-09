@@ -4,24 +4,25 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Calendar as CalIcon, Loader2, CheckCircle2, X, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalIcon, Loader2, CheckCircle2, X } from 'lucide-react';
 import { format, startOfWeek, addDays, parseISO, isSameDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
-type SlotStatus = 'past' | 'non_working' | 'blackout' | 'booked' | 'busy' | 'free';
+type SlotStatus = 'past' | 'non_working' | 'blackout' | 'booked' | 'busy' | 'free' | 'out_of_range';
 interface DayData {
-  date: string; dow: number; working: boolean; blackout: boolean; is_past: boolean;
+  date: string; dow: number; working: boolean; blackout: boolean; is_past: boolean; beyond_max?: boolean;
   slots: { time: string; status: SlotStatus }[];
 }
 
 const STATUS_STYLES: Record<SlotStatus, { label: string; className: string; dot: string }> = {
-  free:        { label: 'Libre',         className: 'bg-green-500/10 text-green-400 border-green-500/30 hover:bg-green-500/20', dot: 'bg-green-500' },
-  busy:        { label: 'Google',        className: 'bg-orange-500/10 text-orange-400 border-orange-500/30 line-through opacity-70', dot: 'bg-orange-500' },
-  booked:      { label: 'RDV',           className: 'bg-primary/15 text-primary border-primary/30', dot: 'bg-primary' },
-  past:        { label: 'Passé',         className: 'bg-muted/30 text-muted-foreground/50 border-white/5 line-through opacity-50', dot: 'bg-muted' },
-  non_working: { label: 'Off',           className: 'bg-muted/20 text-muted-foreground/50 border-white/5 opacity-50', dot: 'bg-muted' },
-  blackout:    { label: 'Vacances',      className: 'bg-destructive/10 text-destructive border-destructive/30 line-through opacity-70', dot: 'bg-destructive' },
+  free:         { label: 'Libre',     className: 'bg-green-500/10 text-green-300 border-green-500/30 hover:bg-green-500/20', dot: 'bg-green-500' },
+  busy:         { label: 'Google',    className: 'bg-orange-500/10 text-orange-300 border-orange-500/30 line-through opacity-70', dot: 'bg-orange-500' },
+  booked:       { label: 'RDV',       className: 'bg-primary/15 text-primary border-primary/30', dot: 'bg-primary' },
+  past:         { label: 'Passé',     className: 'bg-muted/20 text-muted-foreground/40 border-white/5 line-through opacity-50', dot: 'bg-muted' },
+  non_working:  { label: 'Off',       className: 'bg-muted/20 text-muted-foreground/40 border-white/5 opacity-40', dot: 'bg-muted' },
+  blackout:     { label: 'Vacances',  className: 'bg-destructive/10 text-destructive border-destructive/30 line-through opacity-70', dot: 'bg-destructive' },
+  out_of_range: { label: 'Trop loin', className: 'bg-muted/10 text-muted-foreground/40 border-white/5 opacity-40 line-through', dot: 'bg-muted' },
 };
 
 interface Props {
@@ -41,7 +42,14 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
         body: { date_from: dateFrom },
       });
       if (error) throw error;
-      return data as { days: DayData[]; synced: boolean; morning_slot: string; afternoon_slot: string };
+      return data as {
+        days: DayData[];
+        synced: boolean;
+        day_start_time: string;
+        day_end_time: string;
+        slot_duration_minutes: number;
+        max_future_days: number;
+      };
     },
     refetchInterval: 60_000,
   });
@@ -86,6 +94,11 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500" /> {summary.free} libres</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500" /> {summary.busy} Google</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary" /> {summary.booked} RDV</span>
+          {data && (
+            <span className="text-muted-foreground/70">
+              · {data.day_start_time}–{data.day_end_time} · {data.slot_duration_minutes}min
+            </span>
+          )}
           {data?.synced ? (
             <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/20 gap-1 ml-auto">
               <CheckCircle2 className="h-3 w-3" /> Google sync
@@ -101,56 +114,80 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
         {isLoading ? (
           <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
         ) : (
-          <div className="grid grid-cols-7 gap-1.5">
+          <div className="space-y-2">
             {days.map(day => {
               const d = parseISO(day.date);
               const isSel = isSameDay(d, selectedDate);
-              const dayDisabled = day.is_past || !day.working || day.blackout;
+              const isToday = isSameDay(d, new Date());
+              const dayDisabled = day.is_past || !day.working || day.blackout || day.beyond_max;
+              const freeCount = day.slots.filter(s => s.status === 'free').length;
+
               return (
-                <button
+                <div
                   key={day.date}
-                  type="button"
-                  onClick={() => onSelectDate(d)}
                   className={cn(
-                    'rounded-lg border p-2 text-left transition-all flex flex-col gap-1.5 min-h-[120px]',
-                    isSel ? 'border-primary/60 bg-primary/5 ring-1 ring-primary/30' : 'border-white/5 bg-background/40 hover:border-white/20',
-                    dayDisabled && 'opacity-60'
+                    'rounded-lg border transition-all',
+                    isSel ? 'border-primary/60 bg-primary/5 ring-1 ring-primary/30' : 'border-white/5 bg-background/40',
+                    dayDisabled && 'opacity-70'
                   )}
                 >
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      {format(d, 'EEE', { locale: fr })}
-                    </span>
-                    <span className={cn(
-                      'text-sm font-semibold tabular-nums',
-                      day.is_past && 'text-muted-foreground/50',
-                      isSameDay(d, new Date()) && 'text-primary'
-                    )}>
-                      {format(d, 'd')}
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    {day.slots.map(s => {
-                      const st = STATUS_STYLES[s.status];
-                      return (
-                        <div
-                          key={s.time}
-                          className={cn(
-                            'rounded-md border px-1.5 py-1 text-[10px] flex items-center justify-between gap-1',
-                            st.className
-                          )}
-                          title={`${s.time} – ${st.label}`}
-                        >
-                          <span className="flex items-center gap-1 font-mono">
-                            <Clock className="h-2.5 w-2.5" />
+                  <button
+                    type="button"
+                    onClick={() => onSelectDate(d)}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-white/5 rounded-t-lg"
+                  >
+                    <div className="flex flex-col items-center justify-center w-12 shrink-0">
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                        {format(d, 'EEE', { locale: fr })}
+                      </span>
+                      <span className={cn(
+                        'text-lg font-semibold tabular-nums leading-none',
+                        day.is_past && 'text-muted-foreground/50',
+                        isToday && 'text-primary'
+                      )}>
+                        {format(d, 'd')}
+                      </span>
+                      <span className="text-[9px] text-muted-foreground/60">
+                        {format(d, 'MMM', { locale: fr })}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium">
+                        {day.beyond_max ? (
+                          <span className="text-muted-foreground">Hors plage de réservation</span>
+                        ) : day.blackout ? (
+                          <span className="text-destructive">Vacances</span>
+                        ) : !day.working ? (
+                          <span className="text-muted-foreground">Jour off</span>
+                        ) : day.is_past ? (
+                          <span className="text-muted-foreground">Passé</span>
+                        ) : (
+                          <span>{freeCount} créneau{freeCount > 1 ? 'x' : ''} libre{freeCount > 1 ? 's' : ''}</span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                  {day.slots.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 px-3 pb-2.5">
+                      {day.slots.map(s => {
+                        const st = STATUS_STYLES[s.status];
+                        return (
+                          <div
+                            key={s.time}
+                            className={cn(
+                              'rounded-md border px-2 py-1 text-xs flex items-center gap-1.5 font-mono',
+                              st.className
+                            )}
+                            title={`${s.time} – ${st.label}`}
+                          >
+                            <span className={cn('w-1.5 h-1.5 rounded-full', st.dot)} />
                             {s.time}
-                          </span>
-                          <span className="hidden sm:inline truncate">{st.label}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,15 +32,24 @@ export function AvailabilityPanel() {
   const upsert = useUpsertAvailabilitySettings();
   const toggleBlackout = useToggleBlackout();
 
-  const [morning, setMorning] = useState<string>('');
-  const [afternoon, setAfternoon] = useState<string>('');
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
+  const [duration, setDuration] = useState<number>(45);
+  const [maxDays, setMaxDays] = useState<number>(14);
+
+  useEffect(() => {
+    if (settings) {
+      setStart(settings.day_start_time);
+      setEnd(settings.day_end_time);
+      setDuration(settings.slot_duration_minutes);
+      setMaxDays(settings.max_future_days);
+    }
+  }, [settings?.owner_id]);
 
   if (isLoading || !settings) {
     return <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>;
   }
 
-  const m = morning || settings.morning_slot;
-  const a = afternoon || settings.afternoon_slot;
   const blackoutDates = blackouts.map(b => new Date(b.blackout_date + 'T12:00:00'));
   const blackoutById = new Map(blackouts.map(b => [b.blackout_date, b.id]));
 
@@ -50,13 +59,30 @@ export function AvailabilityPanel() {
     await upsert.mutateAsync({ working_days: next.sort() });
   };
 
-  const saveSlots = async () => {
-    if (!/^\d{2}:\d{2}$/.test(m) || !/^\d{2}:\d{2}$/.test(a)) {
+  const saveHours = async () => {
+    if (!/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end)) {
       toast.error('Format HH:MM attendu');
       return;
     }
-    await upsert.mutateAsync({ morning_slot: m, afternoon_slot: a });
-    toast.success('Créneaux mis à jour');
+    if (start >= end) {
+      toast.error("L'heure de fin doit être après l'heure de début");
+      return;
+    }
+    if (duration < 15 || duration > 240) {
+      toast.error('Durée entre 15 et 240 minutes');
+      return;
+    }
+    if (maxDays < 1 || maxDays > 90) {
+      toast.error('1 à 90 jours');
+      return;
+    }
+    await upsert.mutateAsync({
+      day_start_time: start,
+      day_end_time: end,
+      slot_duration_minutes: duration,
+      max_future_days: maxDays,
+    });
+    toast.success('Disponibilités mises à jour');
   };
 
   const handleBlackoutSelect = (date: Date | undefined) => {
@@ -64,6 +90,22 @@ export function AvailabilityPanel() {
     const key = format(date, 'yyyy-MM-dd');
     toggleBlackout.mutate({ date: key, existingId: blackoutById.get(key) });
   };
+
+  // Aperçu des créneaux générés
+  const previewSlots: string[] = (() => {
+    if (!/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end) || start >= end) return [];
+    const out: string[] = [];
+    const [sh, sm] = start.split(':').map(Number);
+    const [eh, em] = end.split(':').map(Number);
+    const startMin = sh * 60 + sm;
+    const endMin = eh * 60 + em;
+    for (let t = startMin; t + duration <= endMin; t += 60) {
+      const h = Math.floor(t / 60);
+      const m = t % 60;
+      out.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+    }
+    return out;
+  })();
 
   return (
     <Card className="border-white/5 bg-card/50 backdrop-blur">
@@ -94,20 +136,42 @@ export function AvailabilityPanel() {
           </div>
         </div>
 
-        <div>
-          <Label className="text-xs text-muted-foreground uppercase tracking-wider">Créneaux IA proposés (par jour)</Label>
-          <div className="grid grid-cols-2 gap-3 mt-2">
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground uppercase tracking-wider">Plage horaire (créneaux toutes les heures)</Label>
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-[11px] text-muted-foreground">Fin de matinée</Label>
-              <Input type="time" value={m} onChange={e => setMorning(e.target.value)} step={900} />
+              <Label className="text-[11px] text-muted-foreground">Début</Label>
+              <Input type="time" value={start} onChange={e => setStart(e.target.value)} step={900} />
             </div>
             <div>
-              <Label className="text-[11px] text-muted-foreground">Après-midi</Label>
-              <Input type="time" value={a} onChange={e => setAfternoon(e.target.value)} step={900} />
+              <Label className="text-[11px] text-muted-foreground">Fin</Label>
+              <Input type="time" value={end} onChange={e => setEnd(e.target.value)} step={900} />
             </div>
           </div>
-          <Button size="sm" className="mt-2 w-full" onClick={saveSlots} disabled={upsert.isPending}>
-            Enregistrer les créneaux
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-[11px] text-muted-foreground">Durée RDV (min)</Label>
+              <Input type="number" min={15} max={240} step={5} value={duration} onChange={e => setDuration(Number(e.target.value))} />
+            </div>
+            <div>
+              <Label className="text-[11px] text-muted-foreground">Max jours futurs</Label>
+              <Input type="number" min={1} max={90} value={maxDays} onChange={e => setMaxDays(Number(e.target.value))} />
+            </div>
+          </div>
+          {previewSlots.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-1">
+              {previewSlots.map(s => (
+                <Badge key={s} variant="outline" className="text-[10px] font-mono bg-primary/5 border-primary/20">
+                  {s}
+                </Badge>
+              ))}
+              <span className="text-[10px] text-muted-foreground self-center ml-1">
+                · {duration} min · jusqu'à {maxDays}j
+              </span>
+            </div>
+          )}
+          <Button size="sm" className="w-full" onClick={saveHours} disabled={upsert.isPending}>
+            Enregistrer
           </Button>
         </div>
 

@@ -6,16 +6,17 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Default slots: 11:00 to 15:30, 1h meetings every 15min start
-const DEFAULT_SLOTS = [
-  "11:00", "11:15", "11:30", "11:45",
-  "12:00", "12:15", "12:30", "12:45",
-  "13:00", "13:15", "13:30", "13:45",
-  "14:00", "14:15", "14:30", "14:45",
-  "15:00", "15:15", "15:30",
-];
-
-const MEETING_DURATION_MS = 60 * 60 * 1000; // 1 hour
+function generateHourlySlots(startTime: string, endTime: string, durationMin: number): string[] {
+  const [sh, sm] = startTime.split(":").map(Number);
+  const [eh, em] = endTime.split(":").map(Number);
+  const startMin = sh * 60 + sm;
+  const endMin = eh * 60 + em;
+  const out: string[] = [];
+  for (let t = startMin; t + durationMin <= endMin; t += 60) {
+    out.push(`${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`);
+  }
+  return out;
+}
 
 async function refreshGoogleToken(refreshToken: string): Promise<{ access_token: string; expires_in: number } | null> {
   const clientId = Deno.env.get("Google_Client_id")!;
@@ -114,15 +115,29 @@ Deno.serve(async (req) => {
     }
     const owner_id = offer.owner_id;
 
-    // Load owner availability prefs (working_days + custom slots).
+    // Load owner availability prefs.
     const { data: avail } = await supabase
       .from("availability_settings")
-      .select("working_days, morning_slot, afternoon_slot")
+      .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days")
       .eq("owner_id", owner_id)
       .maybeSingle();
     const workingDays: number[] = avail?.working_days ?? [1, 2, 3, 4, 5];
-    const morningSlot: string = avail?.morning_slot ?? "11:30";
-    const afternoonSlot: string = avail?.afternoon_slot ?? "14:30";
+    const dayStart: string = avail?.day_start_time ?? "11:00";
+    const dayEnd: string = avail?.day_end_time ?? "15:00";
+    const slotDurationMin: number = avail?.slot_duration_minutes ?? 45;
+    const maxFutureDays: number = avail?.max_future_days ?? 14;
+    const MEETING_DURATION_MS = slotDurationMin * 60 * 1000;
+
+    // Check date is within max_future_days window
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const maxDt = new Date(`${todayStr}T12:00:00Z`);
+    maxDt.setUTCDate(maxDt.getUTCDate() + maxFutureDays);
+    if (date > maxDt.toISOString().slice(0, 10)) {
+      return new Response(
+        JSON.stringify({ slots: [], synced: true, reason: "out_of_range" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Check blackout / non-working day → no slots.
     const dow = new Date(`${date}T12:00:00Z`).getUTCDay();
@@ -145,7 +160,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const ownerSlots = [morningSlot, afternoonSlot];
+    const ownerSlots = generateHourlySlots(dayStart, dayEnd, slotDurationMin);
 
     const accessToken = await getValidAccessToken(supabase, owner_id);
 
