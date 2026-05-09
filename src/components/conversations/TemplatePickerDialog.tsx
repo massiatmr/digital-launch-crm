@@ -42,7 +42,7 @@ export function TemplatePickerDialog({
     if (!selected) return '';
     let out = selected.body_text;
     vars.forEach((v, i) => {
-      out = out.replaceAll(`{{${i + 1}}}`, v || `{{${i + 1}}}`);
+      out = out.split(`{{${i + 1}}}`).join(v || `{{${i + 1}}}`);
     });
     return out;
   }, [selected, vars]);
