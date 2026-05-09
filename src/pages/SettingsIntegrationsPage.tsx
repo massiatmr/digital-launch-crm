@@ -544,13 +544,21 @@ export default function SettingsIntegrationsPage() {
                       {!n.is_active && (
                         <Button
                           size="sm"
-                          onClick={() =>
-                            callWa(
+                          onClick={async () => {
+                            const res = await callWa(
                               "activate_number",
                               { phone_number_id: n.phone_number_id },
-                              "Numéro activé + webhook abonné",
-                            )
-                          }
+                            );
+                            if (res) {
+                              const synced = res.templates_synced ?? 0;
+                              toast.success("Numéro activé", {
+                                description: `Webhook abonné · ${synced} template(s) synchronisés${res.templates_error ? ` · Templates : ${res.templates_error}` : ""}`,
+                                duration: 8000,
+                              });
+                              queryClient.invalidateQueries({ queryKey: ["wa-templates"] });
+                              queryClient.invalidateQueries({ queryKey: ["wa-inbox"] });
+                            }
+                          }}
                           disabled={waBusy?.startsWith("activate_number")}
                         >
                           {waBusy === `activate_number:${n.phone_number_id}` ? (
