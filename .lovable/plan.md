@@ -1,210 +1,58 @@
+
 ## Objectif
 
-Transformer l'écran `/conversations` en expérience type WhatsApp natif (style hybride bulles WA + accents néon), 100% mobile-first, avec :
-- Médias riches (image, vidéo, document, sticker)
-- Citation/réponse à un message + réactions emoji
-- Statuts de livraison ✓ envoyé · ✓✓ livré · ✓✓ bleu lu
-- Recherche dans la conversation
-- Vocaux améliorés (waveform, vitesse, transcription)
-- **Appels voix entrants + sortants** via la WhatsApp Calling API (Meta, beta)
+Transformer `/conversations` en vrai client WhatsApp : pouvoir **démarrer** une nouvelle discussion (lead, client, ou numéro libre), avec gestion automatique de la fenêtre 24h Meta (template si nécessaire, texte libre sinon).
 
----
+## UX cible
 
-## 1. Base de données (1 migration)
+1. Bouton **« Nouvelle conversation »** (icône crayon ✏️) en haut de la liste de gauche, à côté du compteur.
+2. Clic → ouvre un **Sheet/Dialog "Nouveau message"** :
+   - Onglet **Contacts** : recherche unifiée (leads + clients ayant un téléphone).
+     - Affiche : avatar/initiale, nom, téléphone, badge "Lead" / "Client", indicateur "💬 conversation existante" si déjà un historique WA.
+   - Onglet **Numéro libre** : champ téléphone (+ formatage FR auto via `toWhatsAppUrl`/`formatPhoneDisplay`) + champ nom optionnel.
+3. Sélection d'un contact :
+   - Si conversation existante → redirection vers `/conversations?lead=<id>` (comportement actuel).
+   - Sinon → si c'est un **client**, on crée d'abord un lead "miroir" lié (ou on étend le hook inbox pour accepter les `client_id`). Si c'est un **numéro libre**, on crée un lead minimal (`name = saisi ou téléphone`, `phone`, `source = 'whatsapp_direct'`, `status = 'new'`, `owner_id`/`workspace_id` courants).
+   - Puis ouverture du chat sur ce lead.
+4. **Composer intelligent** dans `WhatsAppChat` :
+   - Détecte la **fenêtre 24h** (dernier message inbound < 24 h) côté client à partir des messages déjà chargés.
+   - **Hors fenêtre / aucun inbound** : la zone de texte affiche un bandeau « Hors fenêtre 24h — envoie un template approuvé » + un bouton **« Choisir un template »** qui ouvre le sélecteur (`useWhatsAppTemplates`) avec preview et variables. Le bouton "Envoyer" texte libre est désactivé.
+   - **Dans la fenêtre** : composer texte libre normal (déjà en place).
+   - Fallback : si l'envoi texte libre est rejeté par Meta (code 131047 / hors fenêtre), on affiche un toast et on bascule automatiquement sur le sélecteur de template.
 
-Enrichir `whatsapp_messages` :
-- `message_type` text (`text` | `image` | `video` | `document` | `sticker` | `audio` | `call_event`)
-- `reply_to_wa_id` text (id du message cité)
-- `reply_to_snapshot` jsonb (preview figé : auteur + extrait)
-- `reactions` jsonb (`[{emoji, by, at}]`)
-- `delivered_at`, `read_at` timestamptz
-- `is_pinned` bool
-- `media_filename`, `media_size_bytes`, `media_thumbnail_path`
-- Index FTS : `tsvector` sur `content + transcript` pour recherche
-
-Nouvelle table `whatsapp_calls` :
-- `id`, `lead_id`, `owner_id`, `workspace_id`
-- `direction` (`inbound`/`outbound`), `status` (`ringing`/`answered`/`missed`/`declined`/`ended`/`failed`)
-- `wa_call_id`, `started_at`, `answered_at`, `ended_at`, `duration_seconds`
-- `recording_path` (optionnel), `notes`
-- RLS workspace, realtime activé
-
-Trigger : à l'INSERT d'un appel `missed` → notif push owner + entrée timeline lead.
-
----
-
-## 2. Edge functions
-
-**Modifier**
-- `whatsapp-webhook` : parser `messages.context` (reply), `messages.reactions`, `statuses` (sent/delivered/read → MAJ `delivered_at`/`read_at`), `messages.image|video|document|sticker` (download → storage), événements `calls` (inbound ringing/ended).
-- `send-whatsapp-message` : accepter `reply_to_wa_id` + envoyer `context.message_id` à l'API Meta.
-
-**Nouvelles**
-- `send-whatsapp-media` : upload fichier client → storage `wa-media` → upload Meta → envoi message `image/video/document`.
-- `send-whatsapp-reaction` : POST réaction emoji sur un wa_message_id.
-- `whatsapp-call-initiate` : déclenche un appel sortant via Calling API (`POST /{phone_number_id}/call`).
-- `whatsapp-call-action` : accept/reject/end un appel entrant (depuis la UI ou push notif).
-- `whatsapp-call-webrtc-signal` : relais SDP/ICE pour la session WebRTC (Meta Calling API utilise WebRTC standard).
-- `mark-conversation-read` : marque tous les inbounds d'un lead comme lus (envoie `read` receipts à Meta).
-
----
-
-## 3. Storage
-
-Nouveau bucket privé `wa-media` pour images/vidéos/docs entrants & sortants. Policies RLS workspace-scopées (lecture via signed URL 1h, comme `wa-audio`).
-
----
-
-## 4. UI/UX — refonte `WhatsAppChat` + `ConversationsPage`
-
-### Layout responsive
-
-```text
-DESKTOP (≥768px)            MOBILE (<768px)
-┌──────────┬──────────┐     ┌──────────────┐
-│  Inbox   │  Chat    │     │ Inbox  OU    │
-│  320px   │  1fr     │     │ Chat (full)  │
-└──────────┴──────────┘     └──────────────┘
-```
-
-Mobile : navigation à la WhatsApp (liste → tap → chat plein écran avec back button, header sticky).
-
-### Header de conversation (sticky)
-- Avatar (initiales colorées), nom, statut (`en ligne` / `vu il y a X` si dispo)
-- Boutons : 📞 Appel · 🔍 Recherche · ⋮ Menu (épingler, vider, ouvrir fiche)
-
-### Zone messages
-- Bulles : inbound = `bg-card`, outbound = `bg-primary/15` avec accent néon `border-primary/30`
-- Groupement par auteur + date (séparateurs `Aujourd'hui` / `Hier` / `JJ MMM`)
-- **Tap long / hover** sur un message → barre d'actions flottante : Répondre · Réagir (😀❤️👍😂😮😢) · Copier · Épingler · Supprimer
-- **Reply** : preview citée au-dessus du composer + dans la bulle (border-l-2 + nom + extrait, tap = scroll vers original)
-- **Réactions** : pastille `❤️ 1` sous la bulle, tap pour voir détails
-- **Statuts** : ⏱ envoi · ✓ envoyé · ✓✓ livré · ✓✓ (bleu/cyan) lu · ⚠ échec → tap pour réessayer
-- **Auto-scroll bottom** sauf si l'utilisateur a scrollé vers le haut → bouton flottant `↓ N nouveaux`
-- Lazy-load infinite scroll vers le haut (50 messages par page)
-
-### Médias
-- Images : grid carré preview, plein écran tap (Lightbox)
-- Vidéos : player inline avec poster
-- Documents : carte type WA (icône fichier + nom + taille + télécharger)
-- Vocaux : waveform + scrubber + vitesse 1×/1.5×/2× + transcription dépliable
-
-### Composer (bottom)
-```text
-[😊][📎][📜scripts]  [textarea auto-grow]  [🎤 / ➤]
-```
-- 😊 picker emoji (lib `emoji-mart` léger ou custom)
-- 📎 menu : Photo · Vidéo · Document · Caméra (mobile)
-- Drag & drop fichier sur la zone chat
-- Indicateur "en train d'écrire" envoyé seulement si Meta le supporte (sinon omis pour ne pas mentir)
-
-### Recherche
-- Icône 🔍 → barre full-width au-dessus du chat → highlight des matches + navigation `↑ ↓ N/M`
-- Recherche backend FTS pour gros volumes
-
-### Mobile-first sans faille
-- 100dvh + `safe-area-inset-bottom` pour iPhone (composer ne passe pas sous la barre home)
-- `touch-action: pan-y` sur la liste, swipe-right sur un message = action "Répondre" (interaction WA native)
-- Hauteur clavier gérée via `visualViewport` API (composer reste visible)
-- Tap targets ≥ 44px, `select-text` désactivé sur les contrôles, activé sur les messages
-- Bottom tab bar masquée quand un chat est ouvert sur mobile
-
----
-
-## 5. Appels (WhatsApp Calling API — beta Meta)
-
-⚠️ **Important utilisateur** : la Calling API est en beta restreinte. Elle nécessite :
-1. Activation manuelle dans le Business Manager Meta (demande d'accès)
-2. Le numéro WA doit être enrôlé pour les appels
-3. WebRTC navigateur compatible (Chrome/Safari récents)
-
-Si non disponible au runtime → **fallback automatique** : bouton appel ouvre `tel:+33...` (app native) et on log un `call_event` manuel.
-
-### Flux sortant
-1. Tap 📞 dans le header → modal `CallDialog` plein écran (avatar pulsant, nom, "Appel en cours…")
-2. Front appelle `whatsapp-call-initiate` → Meta retourne offer SDP
-3. Connexion WebRTC peer-to-peer (RTCPeerConnection) avec `whatsapp-call-webrtc-signal` comme serveur de signalisation
-4. Affichage : durée live, mute, haut-parleur, raccrocher
-5. Fin → INSERT dans `whatsapp_calls` + entrée timeline du lead
-
-### Flux entrant
-1. Webhook `calls` reçoit `ringing` → push notif OneSignal "📞 Appel de {lead}" avec actions Accepter/Refuser
-2. Si app ouverte → composant global `IncomingCallOverlay` (sonnerie + accept/decline)
-3. Accept → mêmes échanges WebRTC, modal d'appel actif
-
-### Composants nouveaux
-- `src/components/calls/CallDialog.tsx` — UI modale d'appel actif (sortant + entrant accepté)
-- `src/components/calls/IncomingCallOverlay.tsx` — overlay global monté dans `AppLayout`
-- `src/hooks/useWhatsAppCall.ts` — gestion WebRTC (peer connection, ICE, mute, end)
-- `src/components/CallHistorySection.tsx` — historique d'appels dans la fiche lead
-
----
-
-## 6. Realtime & notifications
-
-- Subscriptions Postgres realtime sur `whatsapp_messages` (déjà en place) + nouvelle sur `whatsapp_calls`
-- Push OneSignal :
-  - Nouveau message inbound (déjà fait) — enrichi avec preview média ("📷 Photo")
-  - Appel manqué → push haute priorité avec deeplink `/leads/:id?tab=calls`
-  - Appel entrant en cours → push critique (action buttons accept/decline)
-
----
-
-## 7. Détails techniques
-
-- **Lib emoji** : `emoji-mart` (~30kB) ou implémentation custom légère (top 30 emojis fréquents)
-- **Lib lightbox image** : `yet-another-react-lightbox` ou simple Dialog plein écran custom
-- **WebRTC** : API navigateur native, pas de lib, ICE servers STUN publics Google
-- **Recherche FTS** : générée côté SQL (`tsvector` français + GIN index), exposée via RPC `search_wa_messages(lead_id, q)`
-- **Optimistic UI** : déjà en place pour texte, à étendre aux médias (preview local + barre upload)
-- **Accessibilité** : ARIA labels, focus trap dans CallDialog, `prefers-reduced-motion` respecté pour les animations bulles
-
----
-
-## 8. Fichiers impactés
-
-### Migration
-- `supabase/migrations/<timestamp>_chat_whatsapp_native.sql`
-
-### Edge functions (nouvelles)
-- `supabase/functions/send-whatsapp-media/index.ts`
-- `supabase/functions/send-whatsapp-reaction/index.ts`
-- `supabase/functions/whatsapp-call-initiate/index.ts`
-- `supabase/functions/whatsapp-call-action/index.ts`
-- `supabase/functions/whatsapp-call-webrtc-signal/index.ts`
-- `supabase/functions/mark-conversation-read/index.ts`
-
-### Edge functions (modifiées)
-- `supabase/functions/whatsapp-webhook/index.ts` (médias, reactions, statuses, calls)
-- `supabase/functions/send-whatsapp-message/index.ts` (reply_to)
+## Changements code
 
 ### Frontend
-- `src/components/WhatsAppChat.tsx` (refonte majeure, splitté en sous-composants)
-- `src/components/chat/MessageBubble.tsx` *(nouveau)*
-- `src/components/chat/MessageActions.tsx` *(nouveau)*
-- `src/components/chat/ReplyPreview.tsx` *(nouveau)*
-- `src/components/chat/MediaPicker.tsx` *(nouveau)*
-- `src/components/chat/EmojiPicker.tsx` *(nouveau)*
-- `src/components/chat/SearchBar.tsx` *(nouveau)*
-- `src/components/chat/ConversationHeader.tsx` *(nouveau)*
-- `src/components/calls/CallDialog.tsx` *(nouveau)*
-- `src/components/calls/IncomingCallOverlay.tsx` *(nouveau)*
-- `src/hooks/useWhatsAppCall.ts` *(nouveau)*
-- `src/hooks/useWhatsAppInbox.ts` (preview médias + dernier appel)
-- `src/hooks/useFollowupTasks.ts` (nouveaux mutateurs : reply, react, sendMedia, markRead)
-- `src/pages/ConversationsPage.tsx` (gestion mobile fullscreen, safe-area)
-- `src/components/AppLayout.tsx` (monter `IncomingCallOverlay`)
+- `src/pages/ConversationsPage.tsx`
+  - Ajouter bouton "Nouvelle conv" + état `composeOpen`.
+  - Monter `<NewConversationSheet />` qui callback `(leadId) => selectLead(leadId)`.
+- `src/components/conversations/NewConversationSheet.tsx` *(nouveau)*
+  - Tabs Contacts / Numéro libre.
+  - Recherche debounced sur `leads` (id, name, phone) et `clients` (id, name, phone, company_name) du workspace courant.
+  - Indicateur "conversation existante" en croisant avec `useWhatsAppInbox().items`.
+  - Action `startConversation` :
+    - Lead existant → renvoie son id.
+    - Client sans lead lié → insert `leads` (name, phone, source='client_export', client_id si la colonne existe, sinon notes), renvoie l'id.
+    - Numéro libre → normalise via `toWhatsAppUrl`, insert `leads` (name, phone, source='whatsapp_direct', status='new', owner_id, workspace_id), renvoie l'id.
+- `src/components/WhatsAppChat.tsx`
+  - Calcul `isWithin24h = lastInboundAt && now - lastInboundAt < 24h`.
+  - Si non → bandeau + désactivation envoi texte + bouton "Choisir template" (ouvre `TemplatePickerDialog` existant ou nouveau, en réutilisant `useWhatsAppTemplates` + `preview-template-message` + `send-whatsapp-message` avec `template`).
+  - Catch erreur Meta `131047` → ouvre le picker automatiquement.
+- `src/components/conversations/TemplatePicker.tsx` *(nouveau, petit)*
+  - Liste les templates approuvés du workspace, formulaire pour les variables `{{1}}…`, preview, bouton Envoyer.
 
-### Mémoires à mettre à jour
-- `mem://features/whatsapp-conversations` → étendue
-- Nouveau : `mem://features/whatsapp-calls` (Calling API + fallback tel:)
+### Backend (vérifications, pas de nouvelle table)
+- Vérifier que `send-whatsapp-message` accepte déjà `{ type: 'template', template_name, language, components }`. Si non, ajouter cette branche (lecture `whatsapp_config` du workspace, POST `/messages` Meta avec payload template, insert dans `whatsapp_messages` direction outbound).
+- Aucune migration : on s'appuie sur `leads.source`, `leads.workspace_id`, `whatsapp_messages` existants.
 
----
+### Détails techniques
+- Réutiliser `useCurrentWorkspaceId` pour scoper la création de lead.
+- Utiliser `toWhatsAppUrl`/`formatPhoneDisplay` (`src/lib/phone.ts`) pour normaliser FR.
+- Validation Zod du numéro libre (E.164 souple : `^\+?\d{8,15}$`) + nom max 100 chars.
+- Indexer recherche : `or('name.ilike.%q%,phone.ilike.%q%')` sur leads et clients, limit 20.
+- Tri résultats : conversations existantes d'abord, puis ordre alphabétique.
 
-## 9. Découpage en livraisons
-
-1. **Phase 1 — Chat moderne** : migration, médias, reply, réactions, statuts ✓✓, recherche, refonte UI bulles + composer
-2. **Phase 2 — Appels** : table calls, edge functions Calling API, CallDialog, IncomingCallOverlay, fallback tel:
-3. **Phase 3 — Polish mobile** : safe-area, swipe-to-reply, gestion clavier visualViewport, optimisations FTS
-
-Phase 1 implémentable immédiatement après approbation. Phase 2 dépend de l'activation de la Calling API côté Meta — à lancer en parallèle.
+## Hors scope (pas dans ce PR)
+- Notes vocales / pièces jointes au 1er message (déjà géré par WhatsAppChat dans la fenêtre 24h).
+- Création/soumission de nouveaux templates Meta (déjà couvert par `whatsapp-templates-manage`).
+- Multi-sélection / broadcast.
