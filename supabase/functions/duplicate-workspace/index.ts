@@ -69,8 +69,16 @@ async function cloneTable(
   remap[table] = idMap;
 }
 
+async function clearWorkspaceRows(admin: any, table: string, workspaceId: string) {
+  const { error } = await admin.from(table).delete().eq('workspace_id', workspaceId);
+  if (error) throw new Error(`clear ${table}: ${error.message}`);
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
+
+  let admin: any = null;
+  let newWsId: string | null = null;
 
   try {
     const auth = req.headers.get('Authorization') || '';
@@ -88,7 +96,7 @@ Deno.serve(async (req) => {
     const sourceId: string | undefined = body.source_workspace_id;
     if (!sourceId || typeof sourceId !== 'string') return json({ error: 'source_workspace_id required' }, 400);
 
-    const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+    admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
@@ -129,7 +137,7 @@ Deno.serve(async (req) => {
       .select()
       .single();
     if (wsErr) throw new Error(`create workspace: ${wsErr.message}`);
-    const newWsId = ws.id;
+    newWsId = ws.id;
 
     // Add caller as owner
     const { error: memErr } = await admin
