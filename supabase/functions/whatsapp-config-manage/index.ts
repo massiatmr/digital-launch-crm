@@ -110,7 +110,53 @@ Deno.serve(async (req) => {
           // Non-blocking
         }
       }
-      return json({ ok: true });
+
+      // Auto-sync templates from this WABA so the new active number sees its catalog
+      let templates_synced = 0;
+      let templates_error: string | undefined;
+      if (cfg) {
+        try {
+          const tplUrl = `${GRAPH}/${cfg.business_account_id}/message_templates?limit=200&fields=name,language,category,status,id,components`;
+          const tplRes = await fetch(tplUrl, {
+            headers: { Authorization: `Bearer ${cfg.access_token}` },
+          });
+          const tplJson = await tplRes.json();
+          if (!tplRes.ok) {
+            templates_error = tplJson?.error?.message || "Erreur Meta API templates";
+          } else {
+            const countVars = (text: string): number => {
+              const m = (text || "").match(/\{\{\d+\}\}/g);
+              if (!m) return 0;
+              return Math.max(...m.map((x) => parseInt(x.replace(/[^\d]/g, ""), 10)));
+            };
+            for (const t of (tplJson.data || []) as any[]) {
+              const bodyComp = (t.components || []).find((c: any) => c.type === "BODY");
+              const bodyText = bodyComp?.text || "";
+              const { error: upErr } = await admin.from("whatsapp_templates").upsert(
+                {
+                  owner_id: user.id,
+                  workspace_id,
+                  name: t.name,
+                  language: t.language,
+                  category: t.category,
+                  body_text: bodyText,
+                  variables_count: countVars(bodyText),
+                  status: t.status,
+                  is_synced: true,
+                  meta_template_id: t.id,
+                  updated_at: new Date().toISOString(),
+                },
+                { onConflict: "owner_id,name,language" },
+              );
+              if (!upErr) templates_synced++;
+            }
+          }
+        } catch (e) {
+          templates_error = e instanceof Error ? e.message : String(e);
+        }
+      }
+
+      return json({ ok: true, templates_synced, templates_error });
     }
 
     if (action === "get") {
