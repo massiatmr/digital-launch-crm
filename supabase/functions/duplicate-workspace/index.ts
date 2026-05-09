@@ -29,6 +29,7 @@ async function cloneTable(
   remap: Record<string, Record<string, string>>,
   refs: { col: string; from: string }[] = [],
   excludeCols: string[] = [],
+  onConflict?: string,
 ) {
   const { data: rows, error } = await admin.from(table).select('*').match(filter);
   if (error) throw new Error(`select ${table}: ${error.message}`);
@@ -63,7 +64,10 @@ async function cloneTable(
   // bulk insert in chunks of 500
   for (let i = 0; i < inserts.length; i += 500) {
     const chunk = inserts.slice(i, i + 500);
-    const { error: insErr } = await admin.from(table).insert(chunk);
+    const q = onConflict
+      ? admin.from(table).upsert(chunk, { onConflict, ignoreDuplicates: false })
+      : admin.from(table).insert(chunk);
+    const { error: insErr } = await q;
     if (insErr) throw new Error(`insert ${table}: ${insErr.message}`);
   }
   remap[table] = idMap;
@@ -158,7 +162,7 @@ Deno.serve(async (req) => {
       { col: 'template_followup_2_id', from: 'whatsapp_templates' },
       { col: 'template_last_followup_id', from: 'whatsapp_templates' },
       { col: 'template_reactivation_id', from: 'whatsapp_templates' },
-    ]);
+    ], [], 'workspace_id');
     await cloneTable(admin, 'followup_sequence_steps', filter, newWsId, userId, remap, [
       { col: 'template_id', from: 'whatsapp_templates' },
     ]);
