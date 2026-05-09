@@ -635,6 +635,18 @@ export default function SettingsWorkspacesPage() {
                       trigger={<Button size="sm" variant="outline" className="gap-1.5"><UserPlus className="h-3.5 w-3.5" />Inviter</Button>}
                     />
                   )}
+                  {(isAdmin || w.role === 'owner') && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      disabled={duplicateWs.isPending}
+                      onClick={() => duplicateWs.mutate(w.id)}
+                    >
+                      {duplicateWs.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
+                      Dupliquer
+                    </Button>
+                  )}
                 </div>
                 {user && <MembersList workspaceId={w.id} currentUserId={user.id} canManage={canManage} />}
                 <WorkspaceEditor workspace={w} canManage={canManage} />
