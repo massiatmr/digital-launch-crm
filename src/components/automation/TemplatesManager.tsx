@@ -76,6 +76,7 @@ function TemplateDialog({ template, onClose }: { template?: WhatsAppTemplate; on
 
 export function TemplatesManager() {
   const { data: templates = [], isLoading } = useWhatsAppTemplates();
+  const activeWaba = useActiveWhatsAppBusinessAccountId();
   const sync = useSyncTemplates();
   const del = useDeleteTemplate();
   const [search, setSearch] = useState('');
