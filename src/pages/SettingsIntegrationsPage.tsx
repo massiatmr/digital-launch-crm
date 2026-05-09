@@ -68,6 +68,7 @@ const WA_WEBHOOK_URL = `${SUPABASE_URL}/functions/v1/whatsapp-webhook`;
 export default function SettingsIntegrationsPage() {
   const [params, setParams] = useSearchParams();
   const workspaceId = useCurrentWorkspaceId();
+  const queryClient = useQueryClient();
   const { currentWorkspace } = useWorkspaces();
   const [pages, setPages] = useState<MetaPage[]>([]);
   const [formOfferMappings, setFormOfferMappings] = useState<FormOfferMapping[]>([]);
