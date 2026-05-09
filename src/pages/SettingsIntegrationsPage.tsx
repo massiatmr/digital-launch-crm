@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCurrentWorkspaceId, useWorkspaces } from "@/hooks/useWorkspaces";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface WhatsappNumber {
   id: string;
@@ -67,6 +68,7 @@ const WA_WEBHOOK_URL = `${SUPABASE_URL}/functions/v1/whatsapp-webhook`;
 export default function SettingsIntegrationsPage() {
   const [params, setParams] = useSearchParams();
   const workspaceId = useCurrentWorkspaceId();
+  const queryClient = useQueryClient();
   const { currentWorkspace } = useWorkspaces();
   const [pages, setPages] = useState<MetaPage[]>([]);
   const [formOfferMappings, setFormOfferMappings] = useState<FormOfferMapping[]>([]);
@@ -542,13 +544,21 @@ export default function SettingsIntegrationsPage() {
                       {!n.is_active && (
                         <Button
                           size="sm"
-                          onClick={() =>
-                            callWa(
+                          onClick={async () => {
+                            const res = await callWa(
                               "activate_number",
                               { phone_number_id: n.phone_number_id },
-                              "Numéro activé + webhook abonné",
-                            )
-                          }
+                            );
+                            if (res) {
+                              const synced = res.templates_synced ?? 0;
+                              toast.success("Numéro activé", {
+                                description: `Webhook abonné · ${synced} template(s) synchronisés${res.templates_error ? ` · Templates : ${res.templates_error}` : ""}`,
+                                duration: 8000,
+                              });
+                              queryClient.invalidateQueries({ queryKey: ["wa-templates"] });
+                              queryClient.invalidateQueries({ queryKey: ["wa-inbox"] });
+                            }
+                          }}
                           disabled={waBusy?.startsWith("activate_number")}
                         >
                           {waBusy === `activate_number:${n.phone_number_id}` ? (
