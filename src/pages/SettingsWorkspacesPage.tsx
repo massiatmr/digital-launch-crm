@@ -235,13 +235,12 @@ function WorkspaceEditor({ workspace, canManage }: { workspace: any; canManage: 
   const softDelete = useMutation({
     mutationFn: async () => {
       const { error } = await (supabase.from('workspaces' as any) as any)
-        .update({ deleted_at: new Date().toISOString() })
+        .delete()
         .eq('id', workspace.id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success('Espace déplacé vers la corbeille (récupérable 30 jours)');
-      // Switch vers un autre workspace si on supprime le courant
+      toast.success('Espace supprimé définitivement');
       const other = workspaces.find((w) => w.id !== workspace.id);
       if (other) switchWorkspace(other.id);
       refetch();
