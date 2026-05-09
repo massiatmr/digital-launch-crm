@@ -554,6 +554,7 @@ export type Database = {
           enable_call_escalation: boolean
           followup_1_delay_hours: number
           followup_2_delay_hours: number
+          id: string
           inactivity_threshold_hours: number
           initial_delay_minutes: number
           is_enabled: boolean
@@ -585,6 +586,7 @@ export type Database = {
           enable_call_escalation?: boolean
           followup_1_delay_hours?: number
           followup_2_delay_hours?: number
+          id?: string
           inactivity_threshold_hours?: number
           initial_delay_minutes?: number
           is_enabled?: boolean
@@ -616,6 +618,7 @@ export type Database = {
           enable_call_escalation?: boolean
           followup_1_delay_hours?: number
           followup_2_delay_hours?: number
+          id?: string
           inactivity_threshold_hours?: number
           initial_delay_minutes?: number
           is_enabled?: boolean
