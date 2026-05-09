@@ -151,6 +151,12 @@ export default function ConversationsPage() {
           )}
         </section>
       </div>
+
+      <NewConversationSheet
+        open={composeOpen}
+        onOpenChange={setComposeOpen}
+        onPicked={(leadId) => setParams({ lead: leadId })}
+      />
     </div>
   );
 }
