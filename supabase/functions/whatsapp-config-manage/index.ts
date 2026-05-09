@@ -317,6 +317,39 @@ Deno.serve(async (req) => {
       const errors: any[] = [];
       const liveIds = new Set<string>();
 
+      // 1) Découverte de nouveaux WABA via les tokens existants (parcours Businesses → WABAs)
+      const uniqueTokens = Array.from(new Set(rows.map((r) => r.access_token).filter(Boolean)));
+      for (const token of uniqueTokens) {
+        try {
+          for (const bizType of ["", "?type=client_business"]) {
+            const bizRes = await fetch(
+              `${GRAPH}/me/businesses${bizType}&fields=id,name&access_token=${token}`.replace("?&", "?"),
+            );
+            const bizJson = await bizRes.json();
+            if (!bizRes.ok) {
+              errors.push({ step: "list_businesses", token_tail: token.slice(-6), error: bizJson });
+              continue;
+            }
+            for (const biz of (bizJson.data || [])) {
+              for (const edge of ["owned_whatsapp_business_accounts", "client_whatsapp_business_accounts"]) {
+                const wabaRes = await fetch(
+                  `${GRAPH}/${biz.id}/${edge}?fields=id,name&access_token=${token}`,
+                );
+                const wabaJson = await wabaRes.json();
+                if (!wabaRes.ok) continue;
+                for (const waba of (wabaJson.data || [])) {
+                  if (!wabaMap.has(waba.id)) {
+                    wabaMap.set(waba.id, { token, rows: [] });
+                  }
+                }
+              }
+            }
+          }
+        } catch (e) {
+          errors.push({ step: "discover", error: String(e) });
+        }
+      }
+
       for (const [wabaId, { token, rows: wabaRows }] of wabaMap.entries()) {
         const r = await fetch(
           `${GRAPH}/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name&access_token=${token}`,
