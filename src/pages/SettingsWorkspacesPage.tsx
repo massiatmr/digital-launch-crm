@@ -235,13 +235,12 @@ function WorkspaceEditor({ workspace, canManage }: { workspace: any; canManage: 
   const softDelete = useMutation({
     mutationFn: async () => {
       const { error } = await (supabase.from('workspaces' as any) as any)
-        .update({ deleted_at: new Date().toISOString() })
+        .delete()
         .eq('id', workspace.id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success('Espace déplacé vers la corbeille (récupérable 30 jours)');
-      // Switch vers un autre workspace si on supprime le courant
+      toast.success('Espace supprimé définitivement');
       const other = workspaces.find((w) => w.id !== workspace.id);
       if (other) switchWorkspace(other.id);
       refetch();
@@ -350,18 +349,19 @@ function WorkspaceEditor({ workspace, canManage }: { workspace: any; canManage: 
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-3 text-sm">
-                <p>L'espace sera déplacé vers la <strong>corbeille pendant 30 jours</strong>, puis purgé automatiquement.
-                Pendant ce délai, tu peux le restaurer depuis Paramètres → Corbeille.</p>
+                <p className="text-destructive font-medium">
+                  ⚠️ Suppression définitive et immédiate. Toutes les données ci-dessous seront effacées et ne pourront pas être récupérées.
+                </p>
                 {impact && (
                   <div className="rounded-md bg-muted/50 p-2 text-xs">
-                    <div className="font-semibold mb-1">Impact :</div>
+                    <div className="font-semibold mb-1">Sera supprimé :</div>
                     <ul className="space-y-0.5">
                       <li>• {impact.leads} prospect(s)</li>
                       <li>• {impact.clients} client(s)</li>
                       <li>• {impact.offers} offre(s)</li>
                       <li>• {impact.invoices} facture(s)</li>
                     </ul>
-                    <div className="mt-2 text-muted-foreground">Ces données restent intactes en base pendant la période de récupération.</div>
+                    <div className="mt-2 text-muted-foreground">+ rendez-vous, contrats, conversations WhatsApp, tâches, relances et toutes les configurations.</div>
                   </div>
                 )}
                 <div>
@@ -378,7 +378,7 @@ function WorkspaceEditor({ workspace, canManage }: { workspace: any; canManage: 
               onClick={() => softDelete.mutate()}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Déplacer vers la corbeille
+              Supprimer définitivement
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -485,82 +485,15 @@ export default function SettingsWorkspacesPage() {
   const duplicateWs = useMutation({
     mutationFn: async (sourceId: string) => {
       if (!user) throw new Error('Not authenticated');
-      const source = workspaces.find((w) => w.id === sourceId);
-      if (!source) throw new Error('Espace introuvable');
-
-      // 1. Clone workspace settings (no data)
-      const { data: srcFull, error: fErr } = await (supabase.from('workspaces' as any) as any)
-        .select('*').eq('id', sourceId).single();
-      if (fErr) throw fErr;
-
-      const baseSlug = (srcFull.slug || slugify(srcFull.company_name || 'espace')) + '-copie';
-      let finalSlug = baseSlug;
-      // ensure unique slug
-      for (let i = 2; i < 50; i++) {
-        const { data: exists } = await (supabase.from('workspaces' as any) as any)
-          .select('id').eq('slug', finalSlug).maybeSingle();
-        if (!exists) break;
-        finalSlug = `${baseSlug}-${i}`;
-      }
-
-      const {
-        id: _id, created_at: _c, updated_at: _u, deleted_at: _d, created_by: _cb, slug: _s,
-        company_name: _cn, ...rest
-      } = srcFull;
-      const { data: ws, error } = await (supabase.from('workspaces' as any) as any)
-        .insert({
-          ...rest,
-          company_name: `${srcFull.company_name || 'Espace'} (copie)`,
-          slug: finalSlug,
-          created_by: user.id,
-          onboarding_completed: true,
-        })
-        .select().single();
+      const { data, error } = await supabase.functions.invoke('duplicate-workspace', {
+        body: { source_workspace_id: sourceId },
+      });
       if (error) throw error;
-
-      // 2. Add current user as owner
-      const { error: mErr } = await (supabase.from('workspace_members' as any) as any)
-        .insert({ workspace_id: ws.id, user_id: user.id, role: 'owner' });
-      if (mErr) throw mErr;
-
-      // 3. Clone features
-      const { data: feats } = await (supabase.from('workspace_features' as any) as any)
-        .select('feature_key, enabled').eq('workspace_id', sourceId);
-      if (feats && feats.length) {
-        await (supabase.from('workspace_features' as any) as any)
-          .insert(feats.map((f: any) => ({ ...f, workspace_id: ws.id })));
-      }
-
-      // 4. Clone followup scripts
-      const { data: scripts } = await (supabase.from('followup_scripts' as any) as any)
-        .select('phase, title, content, sort_order, is_enabled').eq('workspace_id', sourceId);
-      if (scripts && scripts.length) {
-        await (supabase.from('followup_scripts' as any) as any)
-          .insert(scripts.map((s: any) => ({ ...s, workspace_id: ws.id, owner_id: user.id })));
-      }
-
-      // 5. Clone followup automation settings
-      const { data: settings } = await (supabase.from('followup_automation_settings' as any) as any)
-        .select('*').eq('workspace_id', sourceId).maybeSingle();
-      if (settings) {
-        const { id: _sid, created_at: _sc, updated_at: _su, owner_id: _so, workspace_id: _sw, ...sRest } = settings;
-        await (supabase.from('followup_automation_settings' as any) as any)
-          .insert({ ...sRest, workspace_id: ws.id, owner_id: user.id });
-      }
-
-      // 6. Clone sequence steps
-      const { data: steps } = await (supabase.from('followup_sequence_steps' as any) as any)
-        .select('step_order, task_type, delay_value, delay_unit, template_id, label, is_enabled')
-        .eq('workspace_id', sourceId);
-      if (steps && steps.length) {
-        await (supabase.from('followup_sequence_steps' as any) as any)
-          .insert(steps.map((s: any) => ({ ...s, workspace_id: ws.id, owner_id: user.id })));
-      }
-
-      return ws;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      return (data as any).workspace;
     },
     onSuccess: (ws: any) => {
-      toast.success(`Espace dupliqué : "${ws.company_name}"`);
+      toast.success(`Espace dupliqué intégralement : "${ws.company_name}"`);
       refetch();
       qc.invalidateQueries({ queryKey: ['workspaces'] });
       switchWorkspace(ws.id);
