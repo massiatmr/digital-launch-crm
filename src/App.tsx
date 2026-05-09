@@ -28,6 +28,7 @@ import ClientDetailPage from "@/pages/ClientDetailPage";
 import OnboardingFormPage from "@/pages/OnboardingFormPage";
 import SettingsPage from "@/pages/SettingsPage";
 import ConversationsPage from "@/pages/ConversationsPage";
+import ScheduledFollowupsPage from "@/pages/ScheduledFollowupsPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import NotFound from "@/pages/NotFound";
 import ScrollRestoration from "@/components/ScrollRestoration";
@@ -68,6 +69,7 @@ const App = () => (
                 <Route path="/offers/:id/studio" element={<OfferStudioPage />} />
                 <Route path="/bookings" element={<BookingsPage />} />
                 <Route path="/conversations" element={<ConversationsPage />} />
+                <Route path="/conversations/scheduled" element={<ScheduledFollowupsPage />} />
                 <Route path="/reminders" element={<RemindersPage />} />
                 <Route path="/import" element={<ImportPage />} />
                 <Route path="/settings" element={<SettingsPage />} />

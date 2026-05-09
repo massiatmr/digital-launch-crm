@@ -6,8 +6,12 @@ import { WhatsAppChat } from '@/components/WhatsAppChat';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, MessageCircle, Search, ExternalLink, FlaskConical, Loader2, PenSquare } from 'lucide-react';
+import { ArrowLeft, MessageCircle, Search, ExternalLink, FlaskConical, Loader2, PenSquare, CalendarClock } from 'lucide-react';
 import { NewConversationSheet } from '@/components/conversations/NewConversationSheet';
+import { ConversationActions } from '@/components/conversations/ConversationActions';
+import { InboxTabs, type InboxTab } from '@/components/conversations/InboxTabs';
+import { useAllConvControls } from '@/hooks/useConversationControls';
+import { useAllLabelAssignments, useConvLabels } from '@/hooks/useConversationLabels';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -16,25 +20,78 @@ export default function ConversationsPage() {
   const [params, setParams] = useSearchParams();
   const { items, isLoading, markSeen } = useWhatsAppInbox();
   const { data: settings } = useFollowupSettings();
+  const { data: ctlAll = [] } = useAllConvControls();
+  const { data: labels = [] } = useConvLabels();
+  const { data: assignments = [] } = useAllLabelAssignments();
   const [search, setSearch] = useState('');
+  const [tab, setTab] = useState<InboxTab>('all');
+  const [labelFilter, setLabelFilter] = useState<string | null>(null);
   const [flash, setFlash] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const selectedId = params.get('lead');
   const highlight = params.get('highlight') === '1';
 
+  const ctlMap = useMemo(() => new Map(ctlAll.map((c) => [c.lead_id, c])), [ctlAll]);
+  const labelsByLead = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const a of assignments) {
+      const arr = m.get(a.lead_id) ?? [];
+      arr.push(a.label_id);
+      m.set(a.lead_id, arr);
+    }
+    return m;
+  }, [assignments]);
+
+  const counts = useMemo(() => {
+    const c: Record<InboxTab, number> = { all: 0, unread: 0, to_reply: 0, waiting: 0, snoozed: 0, resolved: 0 };
+    const now = Date.now();
+    for (const it of items) {
+      const ctl = ctlMap.get(it.lead_id);
+      const isResolved = !!ctl?.resolved_at;
+      const isSnoozed = ctl?.snoozed_until ? new Date(ctl.snoozed_until).getTime() > now : false;
+      c.all++;
+      if (isResolved) { c.resolved++; continue; }
+      if (isSnoozed) { c.snoozed++; continue; }
+      if (it.unread) c.unread++;
+      if (it.last_direction === 'inbound') c.to_reply++;
+      else c.waiting++;
+    }
+    return c;
+  }, [items, ctlMap]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((i) => i.lead_name.toLowerCase().includes(q) || (i.lead_phone || '').includes(q));
-  }, [items, search]);
+    const now = Date.now();
+    return items.filter((it) => {
+      if (q) {
+        const hit = it.lead_name.toLowerCase().includes(q) || (it.lead_phone || '').includes(q);
+        if (!hit) return false;
+      }
+      if (labelFilter) {
+        const ls = labelsByLead.get(it.lead_id) ?? [];
+        if (!ls.includes(labelFilter)) return false;
+      }
+      const ctl = ctlMap.get(it.lead_id);
+      const isResolved = !!ctl?.resolved_at;
+      const isSnoozed = ctl?.snoozed_until ? new Date(ctl.snoozed_until).getTime() > now : false;
+      switch (tab) {
+        case 'all': return !isResolved && !isSnoozed;
+        case 'unread': return !isResolved && !isSnoozed && it.unread;
+        case 'to_reply': return !isResolved && !isSnoozed && it.last_direction === 'inbound';
+        case 'waiting': return !isResolved && !isSnoozed && it.last_direction === 'outbound';
+        case 'snoozed': return isSnoozed && !isResolved;
+        case 'resolved': return isResolved;
+      }
+    });
+  }, [items, search, tab, labelFilter, ctlMap, labelsByLead]);
 
   const selected = items.find((i) => i.lead_id === selectedId) ?? null;
 
   useEffect(() => {
-    if (!selectedId && items.length && window.innerWidth >= 768) {
-      setParams({ lead: items[0].lead_id }, { replace: true });
+    if (!selectedId && filtered.length && window.innerWidth >= 768) {
+      setParams({ lead: filtered[0].lead_id }, { replace: true });
     }
-  }, [items, selectedId, setParams]);
+  }, [filtered, selectedId, setParams]);
 
   useEffect(() => {
     if (selectedId) markSeen(selectedId);
@@ -67,7 +124,7 @@ export default function ConversationsPage() {
         </div>
       )}
 
-      <div className="flex-1 grid md:grid-cols-[320px_1fr] min-h-0 gap-0 md:gap-2 p-2 md:p-4">
+      <div className="flex-1 grid md:grid-cols-[340px_1fr] min-h-0 gap-0 md:gap-2 p-2 md:p-4">
         {/* LEFT: list */}
         <aside className={cn(
           'flex flex-col rounded-xl border border-border bg-card min-h-0',
@@ -78,6 +135,9 @@ export default function ConversationsPage() {
               <MessageCircle className="h-4 w-4 text-primary" />
               <h2 className="font-heading text-sm">Conversations</h2>
               <Badge variant="outline" className="ml-auto text-xs">{items.length}</Badge>
+              <Button asChild size="icon" variant="ghost" className="h-7 w-7" title="Vue globale relances programmées">
+                <Link to="/conversations/scheduled"><CalendarClock className="h-3.5 w-3.5" /></Link>
+              </Button>
               <Button
                 size="icon"
                 variant="ghost"
@@ -92,35 +152,74 @@ export default function ConversationsPage() {
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher…" className="pl-7 h-8 text-sm" />
             </div>
+            <InboxTabs active={tab} onChange={setTab} counts={counts} />
+            {labels.length > 0 && (
+              <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-thin">
+                <button
+                  onClick={() => setLabelFilter(null)}
+                  className={cn(
+                    'shrink-0 text-[10px] px-2 py-0.5 rounded-full border',
+                    !labelFilter ? 'bg-primary/20 border-primary/60 text-primary' : 'bg-card border-border text-muted-foreground'
+                  )}
+                >
+                  Tous labels
+                </button>
+                {labels.map((l) => (
+                  <button
+                    key={l.id}
+                    onClick={() => setLabelFilter(labelFilter === l.id ? null : l.id)}
+                    className={cn(
+                      'shrink-0 text-[10px] px-2 py-0.5 rounded-full border flex items-center gap-1',
+                      labelFilter === l.id ? 'border-primary/60 bg-primary/10 text-foreground' : 'bg-card border-border text-muted-foreground'
+                    )}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: l.color }} />
+                    {l.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto">
             {isLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
             ) : filtered.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center p-6">Aucune conversation.</p>
-            ) : filtered.map((it) => (
-              <button
-                key={it.lead_id}
-                onClick={() => selectLead(it.lead_id)}
-                className={cn(
-                  'w-full text-left px-3 py-2.5 border-b border-border/50 hover:bg-muted/30 transition-colors flex gap-2',
-                  selectedId === it.lead_id && 'bg-primary/10'
-                )}
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm truncate">{it.lead_name}</span>
-                    {it.unread && <span className="ml-auto h-2 w-2 rounded-full bg-primary shrink-0" />}
+            ) : filtered.map((it) => {
+              const ctl = ctlMap.get(it.lead_id);
+              const leadLabels = (labelsByLead.get(it.lead_id) ?? [])
+                .map((id) => labels.find((l) => l.id === id))
+                .filter(Boolean) as typeof labels;
+              return (
+                <button
+                  key={it.lead_id}
+                  onClick={() => selectLead(it.lead_id)}
+                  className={cn(
+                    'w-full text-left px-3 py-2.5 border-b border-border/50 hover:bg-muted/30 transition-colors flex gap-2',
+                    selectedId === it.lead_id && 'bg-primary/10'
+                  )}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm truncate">{it.lead_name}</span>
+                      {ctl?.automation_paused_at && <span title="Auto en pause" className="text-[9px] px-1 rounded bg-amber-500/20 text-amber-300">PAUSE</span>}
+                      {it.unread && <span className="ml-auto h-2 w-2 rounded-full bg-primary shrink-0" />}
+                    </div>
+                    <p className={cn('text-xs truncate mt-0.5', it.unread ? 'text-foreground' : 'text-muted-foreground')}>
+                      {it.last_direction === 'outbound' && '↗ '}{it.last_message}
+                    </p>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <p className="text-[10px] text-muted-foreground">
+                        {formatDistanceToNow(new Date(it.last_at), { addSuffix: true, locale: fr })}
+                      </p>
+                      {leadLabels.slice(0, 3).map((l) => (
+                        <span key={l.id} className="h-1.5 w-1.5 rounded-full" style={{ background: l.color }} />
+                      ))}
+                    </div>
                   </div>
-                  <p className={cn('text-xs truncate mt-0.5', it.unread ? 'text-foreground' : 'text-muted-foreground')}>
-                    {it.last_direction === 'outbound' && '↗ '}{it.last_message}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    {formatDistanceToNow(new Date(it.last_at), { addSuffix: true, locale: fr })}
-                  </p>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         </aside>
 
@@ -140,6 +239,7 @@ export default function ConversationsPage() {
                   <p className="font-medium text-sm truncate">{selected.lead_name}</p>
                   {selected.lead_phone && <p className="text-xs text-muted-foreground truncate">{selected.lead_phone}</p>}
                 </div>
+                <ConversationActions leadId={selected.lead_id} />
                 <Button asChild variant="ghost" size="sm" className="gap-1">
                   <Link to={`/leads/${selected.lead_id}`}>Fiche <ExternalLink className="h-3 w-3" /></Link>
                 </Button>

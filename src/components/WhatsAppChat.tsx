@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Send, CheckCircle2, AlertCircle, Clock, Mic, Square, Trash2, FileText } from 'lucide-react';
+import { Loader2, Send, CheckCircle2, AlertCircle, Clock, Mic, Square, Trash2, FileText, Lock } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -371,6 +371,11 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
               </Button>
             </div>
           )}
+          <SuggestedReplies
+            leadId={leadId}
+            enabled={isWithin24h && lastIsInbound}
+            onPick={(t) => setInput((cur) => (cur ? `${cur} ${t}` : t))}
+          />
           <div className="border-t border-border p-2 flex items-end gap-2">
             <FollowupScriptsPicker
               leadName={leadName}
