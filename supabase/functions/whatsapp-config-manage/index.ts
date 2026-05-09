@@ -291,6 +291,80 @@ Deno.serve(async (req) => {
       return json({ ok: true, is_active: !cfg.is_active });
     }
 
+    if (action === "resync") {
+      // Re-fetch phone numbers from Meta for every WABA already linked in this scope.
+      // Adds new numbers, updates display info, and removes numbers that no longer exist on Meta side.
+      const { data: existing } = await applyScope(
+        admin.from("whatsapp_config").select("*"),
+      );
+      const rows = (existing as any[]) || [];
+      if (rows.length === 0) {
+        return json({ error: "Aucune connexion WhatsApp à resynchroniser. Connectez Meta d'abord." }, 404);
+      }
+
+      // Group by WABA + token
+      const wabaMap = new Map<string, { token: string; rows: any[] }>();
+      for (const r of rows) {
+        if (!r.business_account_id || !r.access_token) continue;
+        const key = r.business_account_id;
+        if (!wabaMap.has(key)) wabaMap.set(key, { token: r.access_token, rows: [] });
+        wabaMap.get(key)!.rows.push(r);
+      }
+
+      let added = 0;
+      let updated = 0;
+      let removed = 0;
+      const errors: any[] = [];
+      const liveIds = new Set<string>();
+
+      for (const [wabaId, { token, rows: wabaRows }] of wabaMap.entries()) {
+        const r = await fetch(
+          `${GRAPH}/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name&access_token=${token}`,
+        );
+        const j = await r.json();
+        if (!r.ok) {
+          errors.push({ waba: wabaId, error: j });
+          continue;
+        }
+        const phones = (j.data || []) as any[];
+        for (const ph of phones) {
+          liveIds.add(ph.id);
+          const match = wabaRows.find((x) => x.phone_number_id === ph.id);
+          const payload = {
+            display_phone_number: ph.display_phone_number || "",
+            verified_name: ph.verified_name || "",
+            last_tested_at: new Date().toISOString(),
+            last_test_status: "ok",
+          };
+          if (match) {
+            await admin.from("whatsapp_config").update(payload as any).eq("id", match.id);
+            updated++;
+          } else {
+            await admin.from("whatsapp_config").insert({
+              owner_id: user.id,
+              workspace_id,
+              phone_number_id: ph.id,
+              business_account_id: wabaId,
+              access_token: token,
+              is_active: false,
+              ...payload,
+            } as any);
+            added++;
+          }
+        }
+      }
+
+      // Remove stale numbers (existed in DB but no longer returned by Meta)
+      for (const r of rows) {
+        if (r.phone_number_id && !liveIds.has(r.phone_number_id)) {
+          await admin.from("whatsapp_config").delete().eq("id", r.id);
+          removed++;
+        }
+      }
+
+      return json({ ok: true, added, updated, removed, errors });
+    }
+
     return json({ error: "Unknown action" }, 400);
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
