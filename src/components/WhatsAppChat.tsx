@@ -115,8 +115,18 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
   const sendAudio = useSendWhatsAppAudio();
   const [input, setInput] = useState('');
   const [pending, setPending] = useState<PendingMsg[]>([]);
+  const [templateOpen, setTemplateOpen] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Fenêtre 24h Meta : on ne peut envoyer du texte libre que si le lead a écrit dans les dernières 24h
+  const isWithin24h = useMemo(() => {
+    const lastInbound = (messages as any[])
+      .filter((m) => m.direction === 'inbound')
+      .reduce<number>((max, m) => Math.max(max, new Date(m.sent_at).getTime()), 0);
+    if (!lastInbound) return false;
+    return Date.now() - lastInbound < 24 * 60 * 60 * 1000;
+  }, [messages]);
 
   // Auto-resize textarea based on content
   useEffect(() => {
