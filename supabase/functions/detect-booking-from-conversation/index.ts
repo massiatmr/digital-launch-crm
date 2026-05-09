@@ -84,6 +84,98 @@ async function createGoogleCalendarEvent(
   };
 }
 
+function formatBookingDateFr(dateStr: string): string {
+  try {
+    const d = new Date(`${dateStr}T12:00:00`);
+    return d.toLocaleDateString("fr-FR", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      timeZone: "Europe/Paris",
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
+async function sendBookingConfirmationWhatsApp(
+  admin: any,
+  lead: any,
+  bookingDate: string,
+  timeSlot: string,
+  offerName: string,
+  meetLink: string | null,
+): Promise<void> {
+  // Récupère config WA + dry_run
+  let configQuery = admin.from("whatsapp_config").select("*").eq("is_active", true);
+  if (lead.workspace_id) configQuery = configQuery.eq("workspace_id", lead.workspace_id);
+  else configQuery = configQuery.eq("owner_id", lead.owner_id).is("workspace_id", null);
+  const { data: config } = await configQuery.maybeSingle();
+
+  let settingsQuery = admin.from("followup_automation_settings").select("dry_run");
+  if (lead.workspace_id) settingsQuery = settingsQuery.eq("workspace_id", lead.workspace_id);
+  else settingsQuery = settingsQuery.eq("owner_id", lead.owner_id).is("workspace_id", null);
+  const { data: settings } = await settingsQuery.maybeSingle();
+  const dryRun = settings?.dry_run !== false;
+
+  const firstName = (lead.name || "").split(" ")[0] || "";
+  const dateFr = formatBookingDateFr(bookingDate);
+  const text = `Parfait ${firstName} 🙌 c'est noté : ${dateFr} à ${timeSlot} pour notre échange sur "${offerName}".
+
+Je t'envoie aussi par email quelques ressources à parcourir avant le rendez-vous — ça nous permettra d'aller droit au but et de bâtir ensemble la stratégie qui te rapprochera vraiment de tes objectifs.${meetLink ? `\n\nLien de l'appel : ${meetLink}` : ""}
+
+Bloque bien le créneau dans ton agenda, à très vite ! 🚀`;
+
+  let waMessageId: string | null = null;
+  let errorMessage: string | null = null;
+  let logStatus = dryRun ? "dry_run" : "sent";
+
+  if (!dryRun && config) {
+    let phone = (lead.phone || "").replace(/[^\d+]/g, "");
+    if (phone.startsWith("00")) phone = "+" + phone.slice(2);
+    if (phone.startsWith("0") && phone.length === 10) phone = "+33" + phone.slice(1);
+    if (!phone.startsWith("+")) phone = "+" + phone;
+    phone = phone.replace(/^\+/, "");
+    if (phone) {
+      try {
+        const resp = await fetch(`https://graph.facebook.com/v21.0/${config.phone_number_id}/messages`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${config.access_token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            to: phone,
+            type: "text",
+            text: { body: text },
+          }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) { errorMessage = JSON.stringify(data); logStatus = "failed"; }
+        else { waMessageId = data.messages?.[0]?.id || null; }
+      } catch (e) {
+        errorMessage = e instanceof Error ? e.message : "send_failed";
+        logStatus = "failed";
+      }
+    } else {
+      errorMessage = "phone_invalid";
+      logStatus = "failed";
+    }
+  }
+
+  // IMPORTANT : metadata.sent_by_ai (PAS sent_by_user) → ne déclenche pas handle_manual_outbound (pas de pause)
+  await admin.from("whatsapp_messages").insert({
+    lead_id: lead.id,
+    owner_id: lead.owner_id,
+    workspace_id: lead.workspace_id ?? null,
+    direction: "outbound",
+    content: text,
+    message_type: "text",
+    status: logStatus,
+    wa_message_id: waMessageId,
+    error_message: errorMessage,
+    metadata: { sent_by_ai: true, kind: "booking_confirmation" },
+  } as any);
+}
+
 async function markLeadBookedAndStopAutomations(admin: any, lead: any, reason: string) {
   await admin.from("lead_conversation_state").upsert({
     lead_id: lead.id,
@@ -328,6 +420,13 @@ ${transcript}`;
     }
 
     await markLeadBookedAndStopAutomations(admin, lead, `Booking auto-created (${bookingId})`);
+
+    // Envoie un message de confirmation chaleureux au prospect (évite l'effet "ghosted")
+    try {
+      await sendBookingConfirmationWhatsApp(admin, lead, parsed.booking_date, parsed.time_slot, offerName, meetLink);
+    } catch (e) {
+      console.error("booking confirmation WA failed:", e);
+    }
 
     // Activity + notif owner
     await admin.from("lead_activities").insert({
