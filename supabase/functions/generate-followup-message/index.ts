@@ -92,6 +92,8 @@ async function getNextAvailableSlots(admin: any, ownerId: string, workspaceId: s
     } catch (_) { /* ignore */ }
   }
 
+  // On garde MAX 1 créneau par jour pour proposer plusieurs JOURS différents (variété),
+  // sinon l'IA propose 3 horaires du même jour quand le lead demande "une autre date".
   const results: string[] = [];
   const labels = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
   const cursor = new Date(now);
@@ -102,7 +104,6 @@ async function getNextAvailableSlots(admin: any, ownerId: string, workspaceId: s
     if (dow === 0 || dow === 6) continue;
     const dateStr = date.toISOString().slice(0, 10);
     for (const slot of DEFAULT_SLOTS) {
-      if (results.length >= 3) break;
       if (busySet.has(`${dateStr}|${slot}`)) continue;
       const [h, m] = slot.split(":").map(Number);
       const slotStart = new Date(date);
@@ -114,6 +115,7 @@ async function getNextAvailableSlots(admin: any, ownerId: string, workspaceId: s
       const dayLabel = labels[dow];
       const dateLabel = date.toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
       results.push(`${dayLabel} ${dateLabel} à ${slot}`);
+      break; // 1 créneau par jour suffit → on passe au jour suivant
     }
   }
   return results;
