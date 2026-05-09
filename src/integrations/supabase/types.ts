@@ -520,6 +520,68 @@ export type Database = {
           },
         ]
       }
+      conversation_label_assignments: {
+        Row: {
+          created_at: string
+          label_id: string
+          lead_id: string
+          owner_id: string
+          workspace_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          label_id: string
+          lead_id: string
+          owner_id?: string
+          workspace_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          label_id?: string
+          lead_id?: string
+          owner_id?: string
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_label_assignments_label_id_fkey"
+            columns: ["label_id"]
+            isOneToOne: false
+            referencedRelation: "conversation_labels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversation_labels: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+          owner_id: string
+          sort_order: number
+          workspace_id: string | null
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          owner_id?: string
+          sort_order?: number
+          workspace_id?: string | null
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          owner_id?: string
+          sort_order?: number
+          workspace_id?: string | null
+        }
+        Relationships: []
+      }
       email_send_log: {
         Row: {
           created_at: string
@@ -1103,28 +1165,37 @@ export type Database = {
       }
       lead_conversation_state: {
         Row: {
+          automation_paused_at: string | null
           last_inbound_at: string | null
           last_outbound_at: string | null
           lead_id: string
           owner_id: string
+          resolved_at: string | null
+          snoozed_until: string | null
           state: Database["public"]["Enums"]["conversation_state"]
           updated_at: string
           workspace_id: string | null
         }
         Insert: {
+          automation_paused_at?: string | null
           last_inbound_at?: string | null
           last_outbound_at?: string | null
           lead_id: string
           owner_id?: string
+          resolved_at?: string | null
+          snoozed_until?: string | null
           state?: Database["public"]["Enums"]["conversation_state"]
           updated_at?: string
           workspace_id?: string | null
         }
         Update: {
+          automation_paused_at?: string | null
           last_inbound_at?: string | null
           last_outbound_at?: string | null
           lead_id?: string
           owner_id?: string
+          resolved_at?: string | null
+          snoozed_until?: string | null
           state?: Database["public"]["Enums"]["conversation_state"]
           updated_at?: string
           workspace_id?: string | null
@@ -2217,6 +2288,7 @@ export type Database = {
           media_type: string | null
           media_url: string | null
           message_type: string
+          metadata: Json
           owner_id: string
           reactions: Json
           read_at: string | null
@@ -2224,6 +2296,7 @@ export type Database = {
           reply_to_wa_id: string | null
           sent_at: string
           status: string
+          summary_oneline: string | null
           task_id: string | null
           transcript: string | null
           wa_message_id: string | null
@@ -2247,6 +2320,7 @@ export type Database = {
           media_type?: string | null
           media_url?: string | null
           message_type?: string
+          metadata?: Json
           owner_id?: string
           reactions?: Json
           read_at?: string | null
@@ -2254,6 +2328,7 @@ export type Database = {
           reply_to_wa_id?: string | null
           sent_at?: string
           status?: string
+          summary_oneline?: string | null
           task_id?: string | null
           transcript?: string | null
           wa_message_id?: string | null
@@ -2277,6 +2352,7 @@ export type Database = {
           media_type?: string | null
           media_url?: string | null
           message_type?: string
+          metadata?: Json
           owner_id?: string
           reactions?: Json
           read_at?: string | null
@@ -2284,6 +2360,7 @@ export type Database = {
           reply_to_wa_id?: string | null
           sent_at?: string
           status?: string
+          summary_oneline?: string | null
           task_id?: string | null
           transcript?: string | null
           wa_message_id?: string | null
