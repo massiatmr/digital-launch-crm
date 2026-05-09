@@ -134,11 +134,24 @@ Deno.serve(async (req) => {
       .upload(storagePath, audioBytes, { contentType: metaMime, upsert: false })
       .catch((e) => console.error("storage upload error:", e));
 
-    const { data: settings } = await admin
-      .from("followup_automation_settings")
-      .select("dry_run")
-      .eq("owner_id", user.id)
-      .maybeSingle();
+    let settings: any = null;
+    if (lead.workspace_id) {
+      const { data } = await admin
+        .from("followup_automation_settings")
+        .select("dry_run")
+        .eq("workspace_id", lead.workspace_id)
+        .maybeSingle();
+      settings = data;
+    }
+    if (!settings) {
+      const { data } = await admin
+        .from("followup_automation_settings")
+        .select("dry_run")
+        .eq("owner_id", user.id)
+        .is("workspace_id", null)
+        .maybeSingle();
+      settings = data;
+    }
     const dryRun = settings?.dry_run !== false;
 
     let waMessageId: string | null = null;
@@ -214,6 +227,7 @@ Deno.serve(async (req) => {
     await admin.from("whatsapp_messages").insert({
       lead_id,
       owner_id: user.id,
+      workspace_id: lead.workspace_id ?? null,
       direction: "outbound",
       content: transcript || "[Vocal]",
       status: logStatus,
