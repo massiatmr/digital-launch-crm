@@ -152,7 +152,26 @@ export default function SettingsIntegrationsPage() {
     });
     setWaBusy(null);
     if (error || data?.error) {
-      toast.error("Échec WhatsApp", { description: data?.error || error?.message });
+      // Tente d'extraire le vrai message d'erreur (Meta Graph API ou autre)
+      let description = data?.error || error?.message || "Erreur inconnue";
+      let metaDetail: string | undefined;
+      try {
+        // supabase-js v2: en cas de non-2xx, le body est dans error.context (Response)
+        const ctx: any = (error as any)?.context;
+        if (ctx && typeof ctx.json === "function") {
+          const parsed = await ctx.json();
+          if (parsed?.error) description = parsed.error;
+          metaDetail = parsed?.details?.error?.message;
+        } else if (data?.details?.error?.message) {
+          metaDetail = data.details.error.message;
+        }
+      } catch (_e) {
+        // ignore
+      }
+      toast.error("Échec WhatsApp", {
+        description: metaDetail ? `${description} — ${metaDetail}` : description,
+        duration: 10000,
+      });
       return null;
     }
     if (successMsg) toast.success(successMsg);
