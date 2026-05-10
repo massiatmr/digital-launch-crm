@@ -36,6 +36,7 @@ export function AvailabilityPanel() {
   const [end, setEnd] = useState('');
   const [duration, setDuration] = useState<number>(45);
   const [maxDays, setMaxDays] = useState<number>(14);
+  const [minLeadHours, setMinLeadHours] = useState<number>(2);
 
   useEffect(() => {
     if (settings) {
@@ -43,6 +44,7 @@ export function AvailabilityPanel() {
       setEnd(settings.day_end_time);
       setDuration(settings.slot_duration_minutes);
       setMaxDays(settings.max_future_days);
+      setMinLeadHours(settings.min_lead_time_hours ?? 2);
     }
   }, [settings?.owner_id]);
 
@@ -76,11 +78,16 @@ export function AvailabilityPanel() {
       toast.error('1 à 90 jours');
       return;
     }
+    if (minLeadHours < 0 || minLeadHours > 168) {
+      toast.error('Délai minimum entre 0 et 168h');
+      return;
+    }
     await upsert.mutateAsync({
       day_start_time: start,
       day_end_time: end,
       slot_duration_minutes: duration,
       max_future_days: maxDays,
+      min_lead_time_hours: minLeadHours,
     });
     toast.success('Disponibilités mises à jour');
   };
@@ -157,6 +164,13 @@ export function AvailabilityPanel() {
               <Label className="text-[11px] text-muted-foreground">Max jours futurs</Label>
               <Input type="number" min={1} max={90} value={maxDays} onChange={e => setMaxDays(Number(e.target.value))} />
             </div>
+          </div>
+          <div>
+            <Label className="text-[11px] text-muted-foreground">Délai minimum avant un RDV (heures)</Label>
+            <Input type="number" min={0} max={168} value={minLeadHours} onChange={e => setMinLeadHours(Number(e.target.value))} />
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Empêche la réservation d'un créneau qui commence dans moins de {minLeadHours}h.
+            </p>
           </div>
           {previewSlots.length > 0 && (
             <div className="flex flex-wrap gap-1 pt-1">
