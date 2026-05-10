@@ -304,8 +304,44 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
   };
 
   const isAudio = (m: any) => !!m.media_storage_path && (m.media_type?.startsWith('audio') || m.content === '[Vocal]');
+  const isMedia = (m: any) => !!m.media_storage_path && !isAudio(m);
 
-  return (
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [pendingFile, setPendingFile] = useState<{ file: File; previewUrl: string | null } | null>(null);
+  const [fileCaption, setFileCaption] = useState('');
+  const [sendingMedia, setSendingMedia] = useState(false);
+
+  const onPickFile = (f: File | null) => {
+    if (!f) return;
+    if (f.size > 16 * 1024 * 1024) { toast.error('Fichier trop lourd (max 16 Mo)'); return; }
+    const previewUrl = f.type.startsWith('image/') || f.type.startsWith('video/') ? URL.createObjectURL(f) : null;
+    setPendingFile({ file: f, previewUrl });
+    setFileCaption('');
+  };
+
+  const sendMedia = async () => {
+    if (!pendingFile) return;
+    setSendingMedia(true);
+    try {
+      const buf = await pendingFile.file.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      let bin = '';
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      const b64 = btoa(bin);
+      const { error } = await supabase.functions.invoke('send-whatsapp-media', {
+        body: { lead_id: leadId, media_base64: b64, mime_type: pendingFile.file.type || 'application/octet-stream', filename: pendingFile.file.name, caption: fileCaption || undefined },
+      });
+      if (error) throw error;
+      if (pendingFile.previewUrl) URL.revokeObjectURL(pendingFile.previewUrl);
+      setPendingFile(null);
+      setFileCaption('');
+    } catch (e: any) {
+      toast.error('Envoi échoué : ' + (e?.message || 'erreur'));
+    } finally {
+      setSendingMedia(false);
+    }
+  };
+
     <div className={cn('rounded-xl border border-border bg-muted/10 flex flex-col', className)}>
       <NextFollowupBanner leadId={leadId} paused={!!ctl?.automation_paused_at} />
       {ctl?.automation_paused_at && (
