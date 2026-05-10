@@ -33,6 +33,25 @@ export function useActiveWhatsAppBusinessAccountId() {
   return data ?? null;
 }
 
+export interface WhatsAppConfigInfo {
+  business_account_id: string;
+  display_phone_number: string | null;
+  is_active: boolean;
+}
+
+export function useWhatsAppConfigs() {
+  return useQuery({
+    queryKey: ["wa-configs-all"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("whatsapp_config" as any)
+        .select("business_account_id, display_phone_number, is_active");
+      if (error) return [] as WhatsAppConfigInfo[];
+      return ((data as any[]) || []) as WhatsAppConfigInfo[];
+    },
+  });
+}
+
 async function call(action: string, payload: Record<string, unknown> = {}) {
   const { data, error } = await supabase.functions.invoke("whatsapp-templates-manage", {
     body: { action, ...payload },

@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   useWhatsAppTemplates, useSyncTemplates, useCreateLocalTemplate,
-  useUpdateTemplate, useDeleteTemplate, useActiveWhatsAppBusinessAccountId, WhatsAppTemplate,
+  useUpdateTemplate, useDeleteTemplate, useActiveWhatsAppBusinessAccountId, useWhatsAppConfigs, WhatsAppTemplate,
 } from '@/hooks/useWhatsAppTemplates';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -77,15 +77,30 @@ function TemplateDialog({ template, onClose }: { template?: WhatsAppTemplate; on
 export function TemplatesManager() {
   const { data: templates = [], isLoading } = useWhatsAppTemplates();
   const activeWaba = useActiveWhatsAppBusinessAccountId();
+  const { data: configs = [] } = useWhatsAppConfigs();
   const sync = useSyncTemplates();
   const del = useDeleteTemplate();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [wabaFilter, setWabaFilter] = useState<string>('active');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<WhatsAppTemplate | undefined>();
 
+  const wabaLabel = useMemo(() => {
+    const map = new Map<string, string>();
+    configs.forEach((c) => {
+      if (c.business_account_id) map.set(c.business_account_id, c.display_phone_number || c.business_account_id);
+    });
+    return map;
+  }, [configs]);
+
   const filtered = templates.filter((t) => {
     if (statusFilter !== 'all' && t.status !== statusFilter) return false;
+    if (wabaFilter === 'active') {
+      if (activeWaba && t.business_account_id && t.business_account_id !== activeWaba) return false;
+    } else if (wabaFilter !== 'all') {
+      if (t.business_account_id !== wabaFilter) return false;
+    }
     if (search && !t.name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
@@ -111,11 +126,23 @@ export function TemplatesManager() {
         </div>
       </div>
 
-      <div className="flex gap-2">
-        <div className="relative flex-1">
+      <div className="flex flex-wrap gap-2">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input className="pl-8" placeholder="Chercher un template…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
+        <Select value={wabaFilter} onValueChange={setWabaFilter}>
+          <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="active">Numéro actif uniquement</SelectItem>
+            <SelectItem value="all">Tous les numéros</SelectItem>
+            {configs.map((c) => (
+              <SelectItem key={c.business_account_id} value={c.business_account_id}>
+                {c.display_phone_number || c.business_account_id}{c.is_active ? ' (actif)' : ''}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -158,8 +185,13 @@ export function TemplatesManager() {
                       'bg-yellow-500/20 text-yellow-400'
                     }`}>{t.status}</span>
                     {t.variables_count > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary">{t.variables_count} var.</span>}
-                    {otherWaba && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded border border-amber-500/40 text-amber-400">autre numéro</span>
+                    {t.business_account_id && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                        otherWaba ? 'border-amber-500/40 text-amber-400' : 'border-primary/30 text-primary'
+                      }`}>
+                        📱 {wabaLabel.get(t.business_account_id) || t.business_account_id}
+                        {otherWaba ? ' · autre' : (activeWaba === t.business_account_id ? ' · actif' : '')}
+                      </span>
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{t.body_text}</p>
