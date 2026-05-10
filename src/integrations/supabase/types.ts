@@ -2764,6 +2764,7 @@ export type Database = {
         | "organic_social"
         | "recommendation"
         | "google_my_business"
+        | "whatsapp"
       lead_status:
         | "new"
         | "contacted"
@@ -2977,6 +2978,7 @@ export const Constants = {
         "organic_social",
         "recommendation",
         "google_my_business",
+        "whatsapp",
       ],
       lead_status: [
         "new",
