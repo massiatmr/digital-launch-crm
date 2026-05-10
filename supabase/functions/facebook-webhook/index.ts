@@ -26,6 +26,8 @@ type LeadLookupResult = {
 };
 
 // Field name mapping: Facebook field names (lowercase) → extractor
+// On distingue le téléphone auto-rempli par Meta (`phone_auto`, contient l'indicatif pays)
+// du numéro WhatsApp saisi manuellement par le lead (`phone_wa`).
 const FIELD_MAP: Record<string, string> = {
   "full_name": "name",
   "full name": "name",
@@ -34,19 +36,22 @@ const FIELD_MAP: Record<string, string> = {
   "name": "name",
   "email": "email",
   "e-mail": "email",
-  "numéro_whatsapp": "phone",
-  "numero_whatsapp": "phone",
-  "phone_number": "phone",
-  "phone": "phone",
-  "téléphone": "phone",
-  "telephone": "phone",
-  "whatsapp": "phone",
+  // Champ auto-rempli Meta (avec indicatif pays)
+  "phone_number": "phone_auto",
+  "phone": "phone_auto",
+  "téléphone": "phone_auto",
+  "telephone": "phone_auto",
+  // Champ texte WhatsApp saisi par le lead
+  "numéro_whatsapp": "phone_wa",
+  "numero_whatsapp": "phone_wa",
+  "whatsapp": "phone_wa",
   "company_name": "company_name",
   "company name": "company_name",
   "company": "company_name",
   "entreprise": "company_name",
   "nom_entreprise": "company_name",
 };
+
 
 function extractLeadFields(fieldData: FacebookFieldData[]) {
   const mapped: Record<string, string> = {};
@@ -86,14 +91,17 @@ function prettyValue(raw: string): string {
 
 function normalizePhone(phone: string): string {
   let p = phone.replace(/[\s\-\.\(\)]/g, "");
-  // French 0X → +33X
-  if (p.startsWith("0") && p.length === 10) {
-    p = "+33" + p.slice(1);
+  // 00XX → +XX (format international avec préfixe d'appel)
+  if (p.startsWith("00")) {
+    p = "+" + p.slice(2);
   }
-  if (!p.startsWith("+")) {
-    p = "+" + p;
-  }
-  return p;
+  // Si déjà un +, on garde tel quel
+  if (p.startsWith("+")) return p;
+  // Si commence par 0 (format local), on NE PRÉSUME PAS le pays.
+  // On laisse tel quel pour éviter de mettre +33 sur un numéro algérien/marocain/etc.
+  if (p.startsWith("0")) return p;
+  // Sinon : numéro brut avec indicatif pays sans + (ex: "213559..." venant de Meta) → on préfixe +
+  return "+" + p;
 }
 
 function logInfo(requestId: string, message: string, meta?: Record<string, unknown>) {
@@ -373,7 +381,10 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
         }
 
         const { mapped, extras } = extractLeadFields(leadData.field_data);
-        const phone = mapped.phone ? normalizePhone(mapped.phone) : "";
+        // Priorité au tel auto-rempli Meta (contient l'indicatif pays correct).
+        // Fallback : champ WhatsApp saisi manuellement.
+        const rawPhone = mapped.phone_auto || mapped.phone_wa || (mapped as any).phone || "";
+        const phone = rawPhone ? normalizePhone(rawPhone) : "";
         const email = mapped.email ?? "";
         const name = mapped.name ?? "Lead Facebook";
 
