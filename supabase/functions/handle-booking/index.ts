@@ -378,81 +378,167 @@ Deno.serve(async (req) => {
       console.error("Failed to send booking confirmation email:", emailErr);
     }
 
-    // 7. Notify the owner (push + email via SMTP)
+    // 7. Notify the owner + all workspace members (push + email via SMTP)
     const APP_BASE_URL = "https://digital-launch-crm.lovable.app";
     const ADMIN_NOTIFY_EMAIL = "contact@digitallaunch-llc.com";
-    const bookingUrl = `${APP_BASE_URL}/bookings`;
+    const bookingUrl = `${APP_BASE_URL}/leads/${leadId}`;
     const titleSuffix = offerName ? ` — ${offerName}` : "";
     const meetRow = meetLink
       ? `<p style="font-size:12px;color:#7c3aed;font-weight:600;margin:8px 0 2px;text-transform:uppercase;letter-spacing:0.5px">🔗 Google Meet</p>
          <p style="font-size:14px;color:#1a1a2e;margin:0 0 8px"><a href="${meetLink}" style="color:#7c3aed">${meetLink}</a></p>`
       : "";
 
-    // Résoudre workspace pour préfixer + envoyer aussi à l'email du workspace
+    // Fetch full lead context: lead row, qualification, activities, workspace
+    const { data: leadFull } = await supabase
+      .from("leads")
+      .select("workspace_id, source, message, notes, ai_summary, sales_angle, score, status, meta_campaign_id, meta_adset_id, meta_ad_id, meta_form_id, meta_page_id, created_at")
+      .eq("id", leadId)
+      .maybeSingle();
+
+    const { data: qualification } = await supabase
+      .from("lead_qualification")
+      .select("interest_level, intent, urgency, budget_signal, decision_maker, pain_point, summary, objections")
+      .eq("lead_id", leadId)
+      .maybeSingle();
+
+    const { data: activities } = await supabase
+      .from("lead_activities")
+      .select("activity_type, description, lead_response, created_at")
+      .eq("lead_id", leadId)
+      .order("created_at", { ascending: false })
+      .limit(8);
+
+    // Resolve workspace + members
     let workspaceName: string | null = null;
     let workspaceEmail: string | null = null;
-    {
-      const { data: leadRow } = await supabase
-        .from("leads")
-        .select("workspace_id")
-        .eq("id", leadId)
+    const memberEmails: string[] = [];
+    if (leadFull?.workspace_id) {
+      const { data: ws } = await supabase
+        .from("workspaces")
+        .select("company_name, notification_email, email")
+        .eq("id", leadFull.workspace_id)
         .maybeSingle();
-      if (leadRow?.workspace_id) {
-        const { data: ws } = await supabase
-          .from("workspaces")
-          .select("company_name, notification_email, email")
-          .eq("id", leadRow.workspace_id)
-          .maybeSingle();
-        workspaceName = ws?.company_name || null;
-        workspaceEmail = (ws?.notification_email || ws?.email || "").trim() || null;
+      workspaceName = ws?.company_name || null;
+      workspaceEmail = (ws?.notification_email || ws?.email || "").trim() || null;
+
+      const { data: members } = await supabase
+        .from("workspace_members")
+        .select("user_id")
+        .eq("workspace_id", leadFull.workspace_id);
+
+      for (const m of members || []) {
+        try {
+          const { data: u } = await supabase.auth.admin.getUserById(m.user_id);
+          if (u?.user?.email) memberEmails.push(u.user.email);
+        } catch (e) {
+          console.error("getUserById failed for", m.user_id, e);
+        }
       }
     }
+
     const wsPrefix = workspaceName ? `[${workspaceName}] ` : "";
     const recipients = Array.from(new Set(
-      [ADMIN_NOTIFY_EMAIL, workspaceEmail].filter((e): e is string => !!e)
+      [ADMIN_NOTIFY_EMAIL, workspaceEmail, ...memberEmails].filter((e): e is string => !!e)
     ));
 
-    // Push to owner via OneSignal
-    try {
-      await supabase.functions.invoke("send-onesignal-notification", {
-        body: {
-          user_id: owner_id,
-          title: `📅 ${wsPrefix}Nouveau RDV — ${name}`,
-          body: `${booking_date} à ${time_slot} • ${offerName}`,
-          url: `/bookings`,
-          tag: `new-booking-${bookingId}`.slice(0, 32),
-        },
-      });
-    } catch (e) {
-      console.error("Owner push failed:", e);
+    // Push to all workspace members via OneSignal
+    const pushTargets = Array.from(new Set([owner_id, ...((leadFull?.workspace_id ? (await supabase.from("workspace_members").select("user_id").eq("workspace_id", leadFull.workspace_id)).data?.map(m => m.user_id) : []) || [])]));
+    for (const uid of pushTargets) {
+      try {
+        await supabase.functions.invoke("send-onesignal-notification", {
+          body: {
+            user_id: uid,
+            title: `📅 ${wsPrefix}Nouveau RDV — ${name}`,
+            body: `${booking_date} à ${time_slot} • ${offerName}`,
+            url: `/leads/${leadId}`,
+            tag: `new-booking-${bookingId}`.slice(0, 32),
+          },
+        });
+      } catch (e) {
+        console.error("Member push failed:", uid, e);
+      }
     }
 
-    // Email to admin + workspace via SMTP
+    // Build rich email blocks
+    const escapeHtml = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+    const row = (label: string, value: string | null | undefined) =>
+      value ? `<p style="font-size:12px;color:#6b7280;font-weight:500;margin:8px 0 2px">${label}</p>
+              <p style="font-size:14px;color:#111827;margin:0 0 8px;white-space:pre-wrap">${escapeHtml(value)}</p>` : "";
+
+    const sourceLabel = leadFull?.source ? String(leadFull.source) : "—";
+    const metaInfo = (leadFull?.meta_campaign_id || leadFull?.meta_form_id) ? `Campaign: ${leadFull.meta_campaign_id || '—'} • Ad: ${leadFull.meta_ad_id || '—'} • Form: ${leadFull.meta_form_id || '—'}` : null;
+
+    const qualificationBlock = qualification ? `
+      <div style="background:#f5f3ff;border-radius:8px;padding:14px 18px;margin:14px 0;border-left:3px solid #7c3aed">
+        <p style="font-size:12px;color:#7c3aed;font-weight:700;margin:0 0 8px;text-transform:uppercase;letter-spacing:0.5px">Qualification IA</p>
+        ${row("Intérêt", qualification.interest_level != null ? `${qualification.interest_level}/100` : null)}
+        ${row("Intention", qualification.intent)}
+        ${row("Urgence", qualification.urgency)}
+        ${row("Budget", qualification.budget_signal)}
+        ${row("Décisionnaire", qualification.decision_maker)}
+        ${row("Pain point", qualification.pain_point)}
+        ${row("Résumé", qualification.summary)}
+        ${Array.isArray(qualification.objections) && qualification.objections.length ? row("Objections", (qualification.objections as string[]).join(" • ")) : ""}
+      </div>` : "";
+
+    const activitiesBlock = (activities && activities.length) ? `
+      <div style="background:#f9fafb;border-radius:8px;padding:14px 18px;margin:14px 0;border-left:3px solid #d1d5db">
+        <p style="font-size:12px;color:#6b7280;font-weight:700;margin:0 0 8px;text-transform:uppercase;letter-spacing:0.5px">Dernières interactions</p>
+        ${activities.map(a => `
+          <div style="margin:0 0 10px">
+            <p style="font-size:12px;color:#6b7280;margin:0">${new Date(a.created_at).toLocaleString('fr-FR')} — <strong>${a.activity_type}</strong></p>
+            <p style="font-size:13px;color:#111827;margin:2px 0 0;white-space:pre-wrap">${escapeHtml(a.description || '')}</p>
+            ${a.lead_response ? `<p style="font-size:13px;color:#7c3aed;margin:4px 0 0;font-style:italic;white-space:pre-wrap">↳ ${escapeHtml(a.lead_response)}</p>` : ''}
+          </div>
+        `).join("")}
+      </div>` : "";
+
+    const formAnswersBlock = leadFull?.message ? `
+      <div style="background:#fffbeb;border-radius:8px;padding:14px 18px;margin:14px 0;border-left:3px solid #f59e0b">
+        <p style="font-size:12px;color:#b45309;font-weight:700;margin:0 0 8px;text-transform:uppercase;letter-spacing:0.5px">Réponses formulaire / message</p>
+        <p style="font-size:13px;color:#111827;margin:0;white-space:pre-wrap">${escapeHtml(leadFull.message)}</p>
+      </div>` : "";
+
+    // Email to admin + workspace + all members via SMTP
     try {
       const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"></head>
 <body style="background:#fff;font-family:'Plus Jakarta Sans',Arial,sans-serif;margin:0;padding:0">
-  <div style="max-width:520px;margin:0 auto;padding:30px 25px">
+  <div style="max-width:620px;margin:0 auto;padding:30px 25px">
     <h1 style="font-size:22px;font-weight:700;color:#111827;margin:0 0 6px">📅 Nouveau RDV${titleSuffix}</h1>
     ${workspaceName ? `<div style="font-size:13px;color:#6b7280;margin:0 0 16px">Espace : ${workspaceName}</div>` : ""}
     <p style="font-size:15px;color:#444;line-height:1.6;margin:0 0 16px">
-      Un prospect vient de prendre rendez-vous via une de tes pages.
+      Un prospect vient de prendre rendez-vous. Voici le dossier complet pour préparer l'appel.
     </p>
-    <div style="background:#f9fafb;border-radius:8px;padding:18px 22px;margin:18px 0;border-left:3px solid #d1d5db">
-      <p style="font-size:12px;color:#6b7280;font-weight:500;margin:8px 0 2px">Nom</p>
-      <p style="font-size:15px;color:#111827;font-weight:600;margin:0 0 8px">${name}</p>
-      <p style="font-size:12px;color:#6b7280;font-weight:500;margin:8px 0 2px">Email</p>
-      <p style="font-size:15px;color:#111827;margin:0 0 8px">${email}</p>
-      <p style="font-size:12px;color:#6b7280;font-weight:500;margin:8px 0 2px">Téléphone</p>
-      <p style="font-size:15px;color:#111827;margin:0 0 8px">${phone}</p>
-      <p style="font-size:12px;color:#6b7280;font-weight:500;margin:8px 0 2px">Créneau</p>
-      <p style="font-size:15px;color:#111827;margin:0 0 8px">${booking_date} à ${time_slot}</p>
-      <p style="font-size:12px;color:#6b7280;font-weight:500;margin:8px 0 2px">Offre</p>
-      <p style="font-size:15px;color:#111827;margin:0 0 8px">${offerName}</p>
+    <div style="background:#f9fafb;border-radius:8px;padding:18px 22px;margin:18px 0;border-left:3px solid #111827">
+      ${row("Nom", name)}
+      ${row("Email", email)}
+      ${row("Téléphone", phone)}
+      ${row("Créneau", `${booking_date} à ${time_slot}`)}
+      ${row("Offre", offerName)}
+      ${row("Source", sourceLabel)}
+      ${row("Score", leadFull?.score)}
+      ${row("Statut", leadFull?.status)}
+      ${metaInfo ? row("Meta Ads", metaInfo) : ""}
       ${meetRow}
     </div>
+    ${qualificationBlock}
+    ${formAnswersBlock}
+    ${leadFull?.ai_summary ? `<div style="background:#ecfeff;border-radius:8px;padding:14px 18px;margin:14px 0;border-left:3px solid #06b6d4">
+      <p style="font-size:12px;color:#0e7490;font-weight:700;margin:0 0 6px;text-transform:uppercase;letter-spacing:0.5px">Résumé IA</p>
+      <p style="font-size:13px;color:#111827;margin:0;white-space:pre-wrap">${escapeHtml(leadFull.ai_summary)}</p>
+    </div>` : ""}
+    ${leadFull?.sales_angle ? `<div style="background:#f0fdf4;border-radius:8px;padding:14px 18px;margin:14px 0;border-left:3px solid #22c55e">
+      <p style="font-size:12px;color:#15803d;font-weight:700;margin:0 0 6px;text-transform:uppercase;letter-spacing:0.5px">Angle de vente</p>
+      <p style="font-size:13px;color:#111827;margin:0;white-space:pre-wrap">${escapeHtml(leadFull.sales_angle)}</p>
+    </div>` : ""}
+    ${leadFull?.notes ? `<div style="background:#fef2f2;border-radius:8px;padding:14px 18px;margin:14px 0;border-left:3px solid #ef4444">
+      <p style="font-size:12px;color:#b91c1c;font-weight:700;margin:0 0 6px;text-transform:uppercase;letter-spacing:0.5px">Notes</p>
+      <p style="font-size:13px;color:#111827;margin:0;white-space:pre-wrap">${escapeHtml(leadFull.notes)}</p>
+    </div>` : ""}
+    ${activitiesBlock}
     <div style="margin:25px 0">
-      <a href="${bookingUrl}" style="background:#111827;color:#fff;padding:12px 24px;border-radius:6px;font-size:14px;font-weight:500;text-decoration:none;display:inline-block">
-        Voir dans le CRM
+      <a href="${bookingUrl}" style="background:#7c3aed;color:#fff;padding:12px 24px;border-radius:6px;font-size:14px;font-weight:600;text-decoration:none;display:inline-block">
+        Ouvrir la fiche lead
       </a>
     </div>
   </div>
@@ -466,7 +552,7 @@ Deno.serve(async (req) => {
         },
       });
     } catch (e) {
-      console.error("Owner email failed:", e);
+      console.error("Notification email failed:", e);
     }
 
     return new Response(
