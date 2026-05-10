@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   useWhatsAppTemplates, useSyncTemplates, useCreateLocalTemplate,
-  useUpdateTemplate, useDeleteTemplate, useActiveWhatsAppBusinessAccountId, WhatsAppTemplate,
+  useUpdateTemplate, useDeleteTemplate, useActiveWhatsAppBusinessAccountId, useWhatsAppConfigs, WhatsAppTemplate,
 } from '@/hooks/useWhatsAppTemplates';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
