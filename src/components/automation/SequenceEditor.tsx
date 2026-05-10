@@ -20,8 +20,8 @@ const TASK_TYPES: { value: string; label: string; icon: any; needsTemplate: bool
   { value: 'manual_call', label: 'Appel manuel (escalade)', icon: Phone, needsTemplate: false },
 ];
 
-export function SequenceEditor() {
-  const { data: steps = [], isLoading } = useSequenceSteps();
+export function SequenceEditor({ offerId = null }: { offerId?: string | null }) {
+  const { data: steps = [], isLoading } = useSequenceSteps(offerId);
   const { data: templates = [] } = useWhatsAppTemplates();
   const upsert = useUpsertSequenceStep();
   const del = useDeleteSequenceStep();
@@ -51,6 +51,7 @@ export function SequenceEditor() {
       template_id: null,
       label: `Étape ${nextOrder}`,
       is_enabled: true,
+      offer_id: offerId,
     });
   };
 
