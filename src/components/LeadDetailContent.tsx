@@ -7,6 +7,7 @@ import { LeadActivityTimeline } from '@/components/LeadActivityTimeline';
 import { LeadEditForm } from '@/components/LeadEditForm';
 import { FollowupTimeline } from '@/components/FollowupTimeline';
 import { LeadQualificationCard } from '@/components/LeadQualificationCard';
+import { CreateTaskForLeadDialog } from '@/components/CreateTaskForLeadDialog';
 import {
   Mail,
   Phone,
