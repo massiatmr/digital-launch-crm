@@ -407,8 +407,9 @@ CONTEXTE LEAD :
 - Entreprise : ${lead.company_name || 'N/A'}
 - Source : ${lead.source}
 - Message initial : "${lead.message || 'Aucun'}"
-- ${offerInfo}
-${bookingLink ? `- Lien de réservation : ${bookingLink}` : ''}
+
+${offerInfo}
+${bookingLink ? `Lien de réservation de l'offre : ${bookingLink}` : ''}
 
 ${qualifBlock}
 
