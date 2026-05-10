@@ -26,6 +26,8 @@ type LeadLookupResult = {
 };
 
 // Field name mapping: Facebook field names (lowercase) → extractor
+// On distingue le téléphone auto-rempli par Meta (`phone_auto`, contient l'indicatif pays)
+// du numéro WhatsApp saisi manuellement par le lead (`phone_wa`).
 const FIELD_MAP: Record<string, string> = {
   "full_name": "name",
   "full name": "name",
@@ -34,19 +36,22 @@ const FIELD_MAP: Record<string, string> = {
   "name": "name",
   "email": "email",
   "e-mail": "email",
-  "numéro_whatsapp": "phone",
-  "numero_whatsapp": "phone",
-  "phone_number": "phone",
-  "phone": "phone",
-  "téléphone": "phone",
-  "telephone": "phone",
-  "whatsapp": "phone",
+  // Champ auto-rempli Meta (avec indicatif pays)
+  "phone_number": "phone_auto",
+  "phone": "phone_auto",
+  "téléphone": "phone_auto",
+  "telephone": "phone_auto",
+  // Champ texte WhatsApp saisi par le lead
+  "numéro_whatsapp": "phone_wa",
+  "numero_whatsapp": "phone_wa",
+  "whatsapp": "phone_wa",
   "company_name": "company_name",
   "company name": "company_name",
   "company": "company_name",
   "entreprise": "company_name",
   "nom_entreprise": "company_name",
 };
+
 
 function extractLeadFields(fieldData: FacebookFieldData[]) {
   const mapped: Record<string, string> = {};
