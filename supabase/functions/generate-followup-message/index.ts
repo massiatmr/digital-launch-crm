@@ -169,7 +169,10 @@ async function getNextAvailableSlots(
   else bQuery = bQuery.eq("owner_id", ownerId);
   const { data: bookings } = await bQuery;
   const busySet = new Set<string>();
-  (bookings ?? []).forEach((b: any) => busySet.add(`${b.booking_date}|${b.time_slot}`));
+  (bookings ?? []).forEach((b: any) => {
+    const ownerBookingStart = zonedDateTimeToUtc(b.booking_date, b.time_slot, DISPLAY_TIME_ZONE);
+    busySet.add(`${formatDateInTimeZone(ownerBookingStart, ownerTimeZone)}|${formatTimeInTimeZone(ownerBookingStart, ownerTimeZone)}`);
+  });
 
   const accessToken = await getGoogleAccessToken(admin, ownerId);
   let gBusy: Array<{ start: Date; end: Date }> = [];
@@ -196,9 +199,10 @@ async function getNextAvailableSlots(
   const cursorDateStr = ownerToday;
 
   for (let d = 0; d <= maxDays; d++) {
-    const dateStr = d === 0 ? cursorDateStr : formatDateInTimeZone(zonedDateTimeToUtc(addDays(cursorDateStr, d), "12:00", ownerTimeZone), ownerTimeZone);
+    const dateStr = addDays(cursorDateStr, d);
     const dateProbe = new Date(`${dateStr}T12:00:00Z`);
     const dow = dateProbe.getUTCDay();
+    if (!workingDays.includes(dow)) continue;
     if (blackoutSet.has(dateStr)) continue;
     if (alreadyProposedDates.has(dateStr)) continue;
 

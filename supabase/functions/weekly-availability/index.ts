@@ -172,7 +172,10 @@ Deno.serve(async (req) => {
       .gte("booking_date", date_from).lte("booking_date", dateTo)
       .neq("status", "cancelled");
     const bookedKey = new Set(
-      (bookingsRows ?? []).map((r: any) => `${r.booking_date}_${r.time_slot}`)
+      (bookingsRows ?? []).map((r: any) => {
+        const ownerBookingStart = zonedDateTimeToUtc(r.booking_date, r.time_slot, "Europe/Paris");
+        return `${formatDateInTimeZone(ownerBookingStart, ownerTimeZone)}_${formatTimeInTimeZone(ownerBookingStart, ownerTimeZone)}`;
+      })
     );
 
     const accessToken = await getValidAccessToken(admin, ownerId);
@@ -223,7 +226,7 @@ Deno.serve(async (req) => {
             if (ownerSlotStart < b.end && ownerSlotEnd > b.start) { status = "busy"; break; }
           }
         }
-        return { time: formatTimeInTimeZone(ownerSlotStart, "Europe/Paris"), status };
+        return { time: formatTimeInTimeZone(ownerSlotStart, ownerTimeZone), status };
       }).filter((slot, index, arr) => arr.findIndex((item) => item.time === slot.time) === index);
 
       days.push({
@@ -240,8 +243,8 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({
       days,
       synced,
-      day_start_time: formatTimeInTimeZone(zonedDateTimeToUtc(date_from, dayStart, ownerTimeZone), "Europe/Paris"),
-      day_end_time: formatTimeInTimeZone(zonedDateTimeToUtc(date_from, dayEnd, ownerTimeZone), "Europe/Paris"),
+      day_start_time: dayStart,
+      day_end_time: dayEnd,
       slot_duration_minutes: slotDurationMin,
       max_future_days: maxFutureDays,
     }), {
