@@ -381,7 +381,10 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
         }
 
         const { mapped, extras } = extractLeadFields(leadData.field_data);
-        const phone = mapped.phone ? normalizePhone(mapped.phone) : "";
+        // Priorité au tel auto-rempli Meta (contient l'indicatif pays correct).
+        // Fallback : champ WhatsApp saisi manuellement.
+        const rawPhone = mapped.phone_auto || mapped.phone_wa || (mapped as any).phone || "";
+        const phone = rawPhone ? normalizePhone(rawPhone) : "";
         const email = mapped.email ?? "";
         const name = mapped.name ?? "Lead Facebook";
 
