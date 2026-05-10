@@ -25,6 +25,7 @@ const DEFAULT_DAY_END = "15:00";
 const DEFAULT_SLOT_DURATION = 45;
 const DEFAULT_MAX_FUTURE_DAYS = 14;
 const DEFAULT_WORKING_DAYS = [1, 2, 3, 4, 5];
+const DISPLAY_TIME_ZONE = "Europe/Paris";
 
 function generateHourlySlots(startTime: string, endTime: string, durationMin: number): string[] {
   const [sh, sm] = startTime.split(":").map(Number);
@@ -37,6 +38,60 @@ function generateHourlySlots(startTime: string, endTime: string, durationMin: nu
   }
   return out;
 }
+
+function getTimeZoneParts(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const map = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+
+  return {
+    year: Number(map.year),
+    month: Number(map.month),
+    day: Number(map.day),
+    hour: Number(map.hour),
+    minute: Number(map.minute),
+    second: Number(map.second),
+  };
+}
+
+function getTimeZoneOffsetMs(timeZone: string, date: Date): number {
+  const parts = getTimeZoneParts(date, timeZone);
+  const asUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+  return asUtc - date.getTime();
+}
+
+function zonedDateTimeToUtc(dateStr: string, timeStr: string, timeZone: string): Date {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const [hour, minute] = timeStr.split(":").map(Number);
+  const baseUtc = Date.UTC(year, month - 1, day, hour, minute, 0);
+
+  let utcTs = baseUtc;
+  for (let i = 0; i < 2; i++) {
+    utcTs = baseUtc - getTimeZoneOffsetMs(timeZone, new Date(utcTs));
+  }
+
+  return new Date(utcTs);
+}
+
+function formatDateInTimeZone(date: Date, timeZone: string): string {
+  const parts = getTimeZoneParts(date, timeZone);
+  return `${String(parts.year).padStart(4, "0")}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+}
+
+function formatTimeInTimeZone(date: Date, timeZone: string): string {
+  const parts = getTimeZoneParts(date, timeZone);
+  return `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
+}
+
 
 async function refreshGoogleToken(refreshToken: string): Promise<string | null> {
   const clientId = Deno.env.get("Google_Client_id")!;
@@ -78,9 +133,10 @@ async function getNextAvailableSlots(
 
   const { data: settings } = await admin
     .from("availability_settings")
-    .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days")
+    .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, timezone")
     .eq("owner_id", ownerId)
     .maybeSingle();
+  const ownerTimeZone: string = settings?.timezone ?? DISPLAY_TIME_ZONE;
   const workingDays: number[] = settings?.working_days ?? DEFAULT_WORKING_DAYS;
   const dayStart: string = settings?.day_start_time ?? DEFAULT_DAY_START;
   const dayEnd: string = settings?.day_end_time ?? DEFAULT_DAY_END;
@@ -91,26 +147,32 @@ async function getNextAvailableSlots(
 
   const searchEnd = new Date(now.getTime() + maxDays * 24 * 60 * 60 * 1000);
 
+  const ownerToday = formatDateInTimeZone(now, ownerTimeZone);
+  const searchEndDate = formatDateInTimeZone(searchEnd, ownerTimeZone);
+
   const { data: blackoutsData } = await admin
     .from("availability_blackouts")
     .select("blackout_date")
     .eq("owner_id", ownerId)
-    .gte("blackout_date", now.toISOString().slice(0, 10))
-    .lte("blackout_date", searchEnd.toISOString().slice(0, 10));
+    .gte("blackout_date", ownerToday)
+    .lte("blackout_date", searchEndDate);
   const blackoutSet = new Set<string>((blackoutsData ?? []).map((b: any) => b.blackout_date));
 
   let bQuery = admin
     .from("bookings")
     .select("booking_date, time_slot")
-    .gte("booking_date", now.toISOString().slice(0, 10))
-    .lte("booking_date", searchEnd.toISOString().slice(0, 10))
+    .gte("booking_date", ownerToday)
+    .lte("booking_date", searchEndDate)
     .neq("status", "cancelled")
     .is("deleted_at", null);
   if (workspaceId) bQuery = bQuery.eq("workspace_id", workspaceId);
   else bQuery = bQuery.eq("owner_id", ownerId);
   const { data: bookings } = await bQuery;
   const busySet = new Set<string>();
-  (bookings ?? []).forEach((b: any) => busySet.add(`${b.booking_date}|${b.time_slot}`));
+  (bookings ?? []).forEach((b: any) => {
+    const ownerBookingStart = zonedDateTimeToUtc(b.booking_date, b.time_slot, DISPLAY_TIME_ZONE);
+    busySet.add(`${formatDateInTimeZone(ownerBookingStart, ownerTimeZone)}|${formatTimeInTimeZone(ownerBookingStart, ownerTimeZone)}`);
+  });
 
   const accessToken = await getGoogleAccessToken(admin, ownerId);
   let gBusy: Array<{ start: Date; end: Date }> = [];
@@ -120,9 +182,9 @@ async function getNextAvailableSlots(
         method: "POST",
         headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          timeMin: now.toISOString(),
-          timeMax: searchEnd.toISOString(),
-          timeZone: "Europe/Paris",
+          timeMin: zonedDateTimeToUtc(ownerToday, "00:00", ownerTimeZone).toISOString(),
+          timeMax: new Date(zonedDateTimeToUtc(searchEndDate, "23:59", ownerTimeZone).getTime() + 59 * 1000).toISOString(),
+          timeZone: ownerTimeZone,
           items: [{ id: "primary" }],
         }),
       });
@@ -134,33 +196,32 @@ async function getNextAvailableSlots(
   }
 
   const labels = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
-  const cursor = new Date(now);
-  cursor.setHours(0, 0, 0, 0);
+  const cursorDateStr = ownerToday;
 
   for (let d = 0; d <= maxDays; d++) {
-    const date = new Date(cursor.getTime() + d * 24 * 60 * 60 * 1000);
-    const dow = date.getDay();
+    const dateStr = addDays(cursorDateStr, d);
+    const dateProbe = new Date(`${dateStr}T12:00:00Z`);
+    const dow = dateProbe.getUTCDay();
     if (!workingDays.includes(dow)) continue;
-    const dateStr = date.toISOString().slice(0, 10);
     if (blackoutSet.has(dateStr)) continue;
     if (alreadyProposedDates.has(dateStr)) continue;
 
     const freeSlots: string[] = [];
     for (const slot of baseSlots) {
       if (busySet.has(`${dateStr}|${slot}`)) continue;
-      const [h, m] = slot.split(":").map(Number);
-      const slotStart = new Date(date);
-      slotStart.setHours(h, m, 0, 0);
+      const slotStart = zonedDateTimeToUtc(dateStr, slot, ownerTimeZone);
       if (slotStart.getTime() < now.getTime() + 2 * 60 * 60 * 1000) continue;
       const slotEnd = new Date(slotStart.getTime() + slotDurationMs);
       const overlaps = gBusy.some((b) => slotStart < b.end && slotEnd > b.start);
       if (overlaps) continue;
-      freeSlots.push(slot);
+      const displayDate = formatDateInTimeZone(slotStart, DISPLAY_TIME_ZONE);
+      if (displayDate !== dateStr) continue;
+      freeSlots.push(formatTimeInTimeZone(slotStart, DISPLAY_TIME_ZONE));
     }
     if (freeSlots.length === 0) continue;
 
     const dayLabel = labels[dow];
-    const dateLabel = date.toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
+    const dateLabel = dateProbe.toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: DISPLAY_TIME_ZONE });
     return {
       date: dateStr,
       slots: freeSlots,
