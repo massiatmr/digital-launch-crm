@@ -447,11 +447,57 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
             enabled={isWithin24h && lastIsInbound}
             onPick={(t) => setInput((cur) => (cur ? `${cur} ${t}` : t))}
           />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,video/*,application/pdf"
+            className="hidden"
+            onChange={(e) => { onPickFile(e.target.files?.[0] ?? null); e.currentTarget.value = ''; }}
+          />
+          {pendingFile && (
+            <div className="border-t border-border bg-muted/20 p-2 flex items-start gap-2">
+              {pendingFile.previewUrl && pendingFile.file.type.startsWith('image/') ? (
+                <img src={pendingFile.previewUrl} className="h-16 w-16 rounded object-cover" />
+              ) : pendingFile.previewUrl && pendingFile.file.type.startsWith('video/') ? (
+                <video src={pendingFile.previewUrl} className="h-16 w-16 rounded object-cover" />
+              ) : (
+                <div className="h-16 w-16 rounded bg-card border border-border flex items-center justify-center">
+                  <FileText className="h-6 w-6 text-muted-foreground" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0 space-y-1">
+                <p className="text-xs truncate">{pendingFile.file.name}</p>
+                <Textarea
+                  value={fileCaption}
+                  onChange={(e) => setFileCaption(e.target.value)}
+                  placeholder="Légende (optionnel)"
+                  rows={1}
+                  className="min-h-[32px] text-xs"
+                />
+              </div>
+              <Button size="icon" variant="ghost" onClick={() => { if (pendingFile.previewUrl) URL.revokeObjectURL(pendingFile.previewUrl); setPendingFile(null); }}>
+                <XIcon className="h-4 w-4" />
+              </Button>
+              <Button size="icon" onClick={sendMedia} disabled={sendingMedia}>
+                {sendingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </Button>
+            </div>
+          )}
           <div className="border-t border-border p-2 flex items-end gap-2">
             <FollowupScriptsPicker
               leadName={leadName}
               onInsert={(text) => setInput((cur) => cur ? `${cur}\n\n${text}` : text)}
             />
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!isWithin24h}
+              className="shrink-0"
+              title={isWithin24h ? 'Joindre un fichier' : 'Hors fenêtre 24h'}
+            >
+              <Paperclip className="h-4 w-4" />
+            </Button>
             <Textarea
               ref={textareaRef}
               value={input}
