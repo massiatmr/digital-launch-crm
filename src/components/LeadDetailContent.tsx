@@ -166,7 +166,7 @@ export function LeadDetailContent({
           )}
           <TabsTrigger value="activities" className="gap-1 text-xs">
             <Activity className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Activités</span>
+            <span className="hidden sm:inline">Activité & tâches</span>
           </TabsTrigger>
         </TabsList>
 
