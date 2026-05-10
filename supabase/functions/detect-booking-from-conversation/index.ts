@@ -262,14 +262,18 @@ Deno.serve(async (req) => {
       .map((m: any) => `[${m.direction === "inbound" ? "LEAD" : "MOI"} @ ${m.sent_at}] ${m.content}`)
       .join("\n");
 
-    const today = new Date().toISOString().slice(0, 10);
+    // Today / weekday computed in Europe/Paris (not UTC) so the AI never picks the wrong "dimanche".
+    const parisFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" });
+    const today = parisFmt.format(new Date()); // YYYY-MM-DD in Paris
+    const parisWeekday = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", weekday: "long" }).format(new Date());
     const detectionPrompt = `Tu analyses une conversation WhatsApp entre un commercial (MOI) et un prospect (LEAD).
 
 Détermine si un RENDEZ-VOUS a été CONFIRMÉ par les DEUX parties (proposition par l'un + accord explicite de l'autre).
 Un simple "ok je vais y réfléchir", "peut-être", "je te rappelle" n'est PAS une confirmation.
 Un accord ferme sur une date + heure précise EST une confirmation.
 
-Date du jour : ${today} (timezone Europe/Paris, horaires 11h–15h30 jours ouvrés).
+Date du jour : ${today} (${parisWeekday}, timezone Europe/Paris, horaires 11h–15h30 jours ouvrés).
+IMPORTANT : "dimanche" = le PROCHAIN dimanche À PARTIR de la date du jour ci-dessus. Si aujourd'hui est déjà ce jour-là, c'est aujourd'hui (pas la semaine suivante). Ne jamais ajouter +1 jour par sécurité.
 
 Réponds UNIQUEMENT en JSON :
 {
