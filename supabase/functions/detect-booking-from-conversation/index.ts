@@ -51,13 +51,17 @@ async function createGoogleCalendarEvent(
   timeSlot: string,
   offerName: string,
 ): Promise<{ eventId: string; meetLink: string | null } | null> {
-  const start = new Date(`${bookingDate}T${timeSlot}:00`);
-  const end = new Date(start.getTime() + 60 * 60 * 1000);
+  // Build a Paris-local datetime string (no Z) so Google Calendar honours the timeZone field.
+  const startLocal = `${bookingDate}T${timeSlot}:00`;
+  // Compute end = start + 1h in local terms (handles cross-midnight via Date math then reformats)
+  const [hh, mm] = timeSlot.split(":").map(Number);
+  const endHour = (hh + 1) % 24;
+  const endLocal = `${bookingDate}T${String(endHour).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00`;
   const event: any = {
     summary: `RDV - ${name} (${offerName})`,
     description: `Rendez-vous avec ${name}${email ? ` (${email})` : ""} pour "${offerName}" — détecté automatiquement depuis WhatsApp.`,
-    start: { dateTime: start.toISOString(), timeZone: "Europe/Paris" },
-    end: { dateTime: end.toISOString(), timeZone: "Europe/Paris" },
+    start: { dateTime: startLocal, timeZone: "Europe/Paris" },
+    end: { dateTime: endLocal, timeZone: "Europe/Paris" },
     conferenceData: {
       createRequest: { requestId: crypto.randomUUID(), conferenceSolutionKey: { type: "hangoutsMeet" } },
     },
