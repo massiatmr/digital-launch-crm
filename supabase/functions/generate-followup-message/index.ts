@@ -133,7 +133,7 @@ async function getNextAvailableSlots(
 
   const { data: settings } = await admin
     .from("availability_settings")
-    .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, timezone")
+    .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
     .eq("owner_id", ownerId)
     .maybeSingle();
   const ownerTimeZone: string = settings?.timezone ?? DISPLAY_TIME_ZONE;
@@ -142,7 +142,9 @@ async function getNextAvailableSlots(
   const dayEnd: string = settings?.day_end_time ?? DEFAULT_DAY_END;
   const slotDurationMin: number = settings?.slot_duration_minutes ?? DEFAULT_SLOT_DURATION;
   const maxDays: number = settings?.max_future_days ?? DEFAULT_MAX_FUTURE_DAYS;
+  const minLeadHours: number = settings?.min_lead_time_hours ?? 2;
   const slotDurationMs = slotDurationMin * 60 * 1000;
+  const minLeadMs = minLeadHours * 60 * 60 * 1000;
   const baseSlots = generateHourlySlots(dayStart, dayEnd, slotDurationMin);
 
   const searchEnd = new Date(now.getTime() + maxDays * 24 * 60 * 60 * 1000);
