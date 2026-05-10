@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Send, CheckCircle2, AlertCircle, Clock, Mic, Square, Trash2, FileText, Lock } from 'lucide-react';
+import { Loader2, Send, CheckCircle2, AlertCircle, Clock, Mic, Square, Trash2, FileText, Lock, Paperclip, Download, X as XIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -43,6 +43,38 @@ function AudioBubble({ path, transcript, outbound }: { path: string | null; tran
           🎙️ {transcript}
         </p>
       )}
+    </div>
+  );
+}
+
+function MediaBubble({ path, mime, filename, caption }: { path: string; mime: string | null; filename: string | null; caption?: string | null }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!path) return;
+    let cancelled = false;
+    supabase.storage.from('wa-media').createSignedUrl(path, 3600).then(({ data }) => {
+      if (!cancelled && data?.signedUrl) setUrl(data.signedUrl);
+    });
+    return () => { cancelled = true; };
+  }, [path]);
+  const isImage = mime?.startsWith('image/');
+  const isVideo = mime?.startsWith('video/');
+  return (
+    <div className="space-y-1.5">
+      {!url ? (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><Loader2 className="h-3 w-3 animate-spin" /> Chargement…</div>
+      ) : isImage ? (
+        <a href={url} target="_blank" rel="noreferrer">
+          <img src={url} alt={filename || 'image'} className="rounded-lg max-h-64 object-cover" />
+        </a>
+      ) : isVideo ? (
+        <video src={url} controls className="rounded-lg max-h-64 max-w-full" />
+      ) : (
+        <a href={url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs underline">
+          <Download className="h-3 w-3" /> {filename || 'Télécharger le document'}
+        </a>
+      )}
+      {caption && <p className="text-sm whitespace-pre-line">{caption}</p>}
     </div>
   );
 }
@@ -272,6 +304,43 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
   };
 
   const isAudio = (m: any) => !!m.media_storage_path && (m.media_type?.startsWith('audio') || m.content === '[Vocal]');
+  const isMedia = (m: any) => !!m.media_storage_path && !isAudio(m);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [pendingFile, setPendingFile] = useState<{ file: File; previewUrl: string | null } | null>(null);
+  const [fileCaption, setFileCaption] = useState('');
+  const [sendingMedia, setSendingMedia] = useState(false);
+
+  const onPickFile = (f: File | null) => {
+    if (!f) return;
+    if (f.size > 16 * 1024 * 1024) { toast.error('Fichier trop lourd (max 16 Mo)'); return; }
+    const previewUrl = f.type.startsWith('image/') || f.type.startsWith('video/') ? URL.createObjectURL(f) : null;
+    setPendingFile({ file: f, previewUrl });
+    setFileCaption('');
+  };
+
+  const sendMedia = async () => {
+    if (!pendingFile) return;
+    setSendingMedia(true);
+    try {
+      const buf = await pendingFile.file.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      let bin = '';
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      const b64 = btoa(bin);
+      const { error } = await supabase.functions.invoke('send-whatsapp-media', {
+        body: { lead_id: leadId, media_base64: b64, mime_type: pendingFile.file.type || 'application/octet-stream', filename: pendingFile.file.name, caption: fileCaption || undefined },
+      });
+      if (error) throw error;
+      if (pendingFile.previewUrl) URL.revokeObjectURL(pendingFile.previewUrl);
+      setPendingFile(null);
+      setFileCaption('');
+    } catch (e: any) {
+      toast.error('Envoi échoué : ' + (e?.message || 'erreur'));
+    } finally {
+      setSendingMedia(false);
+    }
+  };
 
   return (
     <div className={cn('rounded-xl border border-border bg-muted/10 flex flex-col', className)}>
@@ -292,6 +361,8 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
                   m.direction === 'outbound' ? 'bg-primary/20 rounded-br-sm' : 'bg-card rounded-bl-sm border border-border')}>
                   {isAudio(m) ? (
                     <AudioBubble path={m.media_storage_path} transcript={m.transcript} outbound={m.direction === 'outbound'} />
+                  ) : isMedia(m) ? (
+                    <MediaBubble path={m.media_storage_path} mime={m.media_type} filename={m.media_filename} caption={m.content && !['[Photo]','[Vidéo]','[Document]'].includes(m.content) ? m.content : null} />
                   ) : (
                     <p className="whitespace-pre-line">{m.content}</p>
                   )}
@@ -376,11 +447,57 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
             enabled={isWithin24h && lastIsInbound}
             onPick={(t) => setInput((cur) => (cur ? `${cur} ${t}` : t))}
           />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,video/*,application/pdf"
+            className="hidden"
+            onChange={(e) => { onPickFile(e.target.files?.[0] ?? null); e.currentTarget.value = ''; }}
+          />
+          {pendingFile && (
+            <div className="border-t border-border bg-muted/20 p-2 flex items-start gap-2">
+              {pendingFile.previewUrl && pendingFile.file.type.startsWith('image/') ? (
+                <img src={pendingFile.previewUrl} className="h-16 w-16 rounded object-cover" />
+              ) : pendingFile.previewUrl && pendingFile.file.type.startsWith('video/') ? (
+                <video src={pendingFile.previewUrl} className="h-16 w-16 rounded object-cover" />
+              ) : (
+                <div className="h-16 w-16 rounded bg-card border border-border flex items-center justify-center">
+                  <FileText className="h-6 w-6 text-muted-foreground" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0 space-y-1">
+                <p className="text-xs truncate">{pendingFile.file.name}</p>
+                <Textarea
+                  value={fileCaption}
+                  onChange={(e) => setFileCaption(e.target.value)}
+                  placeholder="Légende (optionnel)"
+                  rows={1}
+                  className="min-h-[32px] text-xs"
+                />
+              </div>
+              <Button size="icon" variant="ghost" onClick={() => { if (pendingFile.previewUrl) URL.revokeObjectURL(pendingFile.previewUrl); setPendingFile(null); }}>
+                <XIcon className="h-4 w-4" />
+              </Button>
+              <Button size="icon" onClick={sendMedia} disabled={sendingMedia}>
+                {sendingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </Button>
+            </div>
+          )}
           <div className="border-t border-border p-2 flex items-end gap-2">
             <FollowupScriptsPicker
               leadName={leadName}
               onInsert={(text) => setInput((cur) => cur ? `${cur}\n\n${text}` : text)}
             />
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!isWithin24h}
+              className="shrink-0"
+              title={isWithin24h ? 'Joindre un fichier' : 'Hors fenêtre 24h'}
+            >
+              <Paperclip className="h-4 w-4" />
+            </Button>
             <Textarea
               ref={textareaRef}
               value={input}
