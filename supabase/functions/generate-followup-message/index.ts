@@ -27,6 +27,13 @@ const DEFAULT_MAX_FUTURE_DAYS = 14;
 const DEFAULT_WORKING_DAYS = [1, 2, 3, 4, 5];
 const DISPLAY_TIME_ZONE = "Europe/Paris";
 
+function addDays(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
+}
+
 function generateHourlySlots(startTime: string, endTime: string, durationMin: number): string[] {
   const [sh, sm] = startTime.split(":").map(Number);
   const [eh, em] = endTime.split(":").map(Number);
