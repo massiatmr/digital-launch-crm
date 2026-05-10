@@ -91,14 +91,17 @@ function prettyValue(raw: string): string {
 
 function normalizePhone(phone: string): string {
   let p = phone.replace(/[\s\-\.\(\)]/g, "");
-  // French 0X → +33X
-  if (p.startsWith("0") && p.length === 10) {
-    p = "+33" + p.slice(1);
+  // 00XX → +XX (format international avec préfixe d'appel)
+  if (p.startsWith("00")) {
+    p = "+" + p.slice(2);
   }
-  if (!p.startsWith("+")) {
-    p = "+" + p;
-  }
-  return p;
+  // Si déjà un +, on garde tel quel
+  if (p.startsWith("+")) return p;
+  // Si commence par 0 (format local), on NE PRÉSUME PAS le pays.
+  // On laisse tel quel pour éviter de mettre +33 sur un numéro algérien/marocain/etc.
+  if (p.startsWith("0")) return p;
+  // Sinon : numéro brut avec indicatif pays sans + (ex: "213559..." venant de Meta) → on préfixe +
+  return "+" + p;
 }
 
 function logInfo(requestId: string, message: string, meta?: Record<string, unknown>) {
