@@ -76,6 +76,40 @@ export function useTogglePauseAutomation() {
           .eq('lead_id', leadId)
           .in('status', ['pending', 'scheduled'])
           .neq('task_type', 'manual_call');
+      } else {
+        // Réactivation : si le lead a déjà répondu et qu'aucune tâche n'est en attente,
+        // on programme une qualification immédiate pour que l'IA reprenne la main.
+        const { data: existingTask } = await supabase
+          .from('lead_followup_tasks')
+          .select('id')
+          .eq('lead_id', leadId)
+          .in('status', ['pending', 'scheduled'])
+          .limit(1)
+          .maybeSingle();
+        if (!existingTask) {
+          const { data: lastInbound } = await supabase
+            .from('whatsapp_messages')
+            .select('sent_at')
+            .eq('lead_id', leadId)
+            .eq('direction', 'inbound')
+            .order('sent_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (lastInbound) {
+            const { data: { user } } = await supabase.auth.getUser();
+            const { data: lead } = await supabase
+              .from('leads').select('owner_id, workspace_id').eq('id', leadId).maybeSingle();
+            await supabase.from('lead_followup_tasks').insert({
+              lead_id: leadId,
+              owner_id: (lead as any)?.owner_id ?? user?.id,
+              workspace_id: (lead as any)?.workspace_id ?? null,
+              task_type: 'qualification',
+              status: 'scheduled',
+              scheduled_at: new Date().toISOString(),
+              step_order: 99,
+            } as any);
+          }
+        }
       }
     },
     onSuccess: (_, vars) => {
