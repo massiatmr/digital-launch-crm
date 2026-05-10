@@ -329,7 +329,7 @@ Deno.serve(async (req) => {
 
     const [{ data: history }, { data: offer }, { data: qualification }] = await Promise.all([
       supabase.from("whatsapp_messages").select("direction,content,sent_at").eq("lead_id", lead_id).order("sent_at", { ascending: true }).limit(20),
-      supabase.from("leads").select("offer_id, offers(name, description, price, slug)").eq("id", lead_id).maybeSingle(),
+      supabase.from("leads").select("offer_id, offers(name, description, price, slug, niche, features, show_price)").eq("id", lead_id).maybeSingle(),
       supabase.from("lead_qualification").select("*").eq("lead_id", lead_id).maybeSingle(),
     ]);
 
@@ -338,9 +338,20 @@ Deno.serve(async (req) => {
     const nextSlot = await getNextAvailableSlots(admin, ownerId!, lead.workspace_id, proposedDates);
 
     const offerData = (offer as any)?.offers;
-    const offerInfo = offerData
-      ? `Offre proposée: ${offerData.name} — ${offerData.description ?? ''} ${offerData.price ? `(${offerData.price})` : ''}`
-      : "Aucune offre liée";
+    let offerInfo = "Aucune offre liée à ce lead.";
+    if (offerData) {
+      const featureList = Array.isArray(offerData.features)
+        ? offerData.features.map((f: any) => typeof f === "string" ? f : (f?.title || f?.label || f?.name || "")).filter(Boolean)
+        : [];
+      const featuresStr = featureList.length ? `\n  • ${featureList.slice(0, 8).join("\n  • ")}` : "";
+      const priceStr = offerData.show_price && offerData.price ? ` — Prix : ${offerData.price}` : "";
+      offerInfo = `OFFRE PROPOSÉE AU LEAD (mets-la en avant, pose des questions pour vérifier qu'elle correspond à son besoin) :
+- Nom : ${offerData.name}${priceStr}
+- Niche cible : ${offerData.niche || "N/A"}
+- Description : ${offerData.description || "—"}
+- Bénéfices / inclus :${featuresStr || " (aucun listé)"}
+⚠️ Tes questions doivent vérifier si CETTE offre résout son problème. Reprends ses mots à lui pour relier son contexte aux bénéfices ci-dessus.`;
+    }
     const bookingLink = offerData?.slug ? `${PUBLIC_BASE_URL}/offers/${offerData.slug}/page` : null;
 
     const inboundCount = (history ?? []).filter((m: any) => m.direction === 'inbound').length;
