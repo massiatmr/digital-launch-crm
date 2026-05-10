@@ -240,6 +240,15 @@ export default function ConversationsPage() {
                   {selected.lead_phone && <p className="text-xs text-muted-foreground truncate">{selected.lead_phone}</p>}
                 </div>
                 <ConversationActions leadId={selected.lead_id} />
+                <CreateTaskForLeadDialog
+                  leadId={selected.lead_id}
+                  leadName={selected.lead_name}
+                  trigger={
+                    <Button variant="ghost" size="sm" className="gap-1 h-8 px-2 text-xs">
+                      <Plus className="h-3.5 w-3.5" /> Tâche
+                    </Button>
+                  }
+                />
                 <Button asChild variant="ghost" size="sm" className="gap-1">
                   <Link to={`/leads/${selected.lead_id}`}>Fiche <ExternalLink className="h-3 w-3" /></Link>
                 </Button>
