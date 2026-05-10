@@ -51,13 +51,17 @@ async function createGoogleCalendarEvent(
   timeSlot: string,
   offerName: string,
 ): Promise<{ eventId: string; meetLink: string | null } | null> {
-  const start = new Date(`${bookingDate}T${timeSlot}:00`);
-  const end = new Date(start.getTime() + 60 * 60 * 1000);
+  // Build a Paris-local datetime string (no Z) so Google Calendar honours the timeZone field.
+  const startLocal = `${bookingDate}T${timeSlot}:00`;
+  // Compute end = start + 1h in local terms (handles cross-midnight via Date math then reformats)
+  const [hh, mm] = timeSlot.split(":").map(Number);
+  const endHour = (hh + 1) % 24;
+  const endLocal = `${bookingDate}T${String(endHour).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00`;
   const event: any = {
     summary: `RDV - ${name} (${offerName})`,
     description: `Rendez-vous avec ${name}${email ? ` (${email})` : ""} pour "${offerName}" — détecté automatiquement depuis WhatsApp.`,
-    start: { dateTime: start.toISOString(), timeZone: "Europe/Paris" },
-    end: { dateTime: end.toISOString(), timeZone: "Europe/Paris" },
+    start: { dateTime: startLocal, timeZone: "Europe/Paris" },
+    end: { dateTime: endLocal, timeZone: "Europe/Paris" },
     conferenceData: {
       createRequest: { requestId: crypto.randomUUID(), conferenceSolutionKey: { type: "hangoutsMeet" } },
     },
@@ -258,14 +262,18 @@ Deno.serve(async (req) => {
       .map((m: any) => `[${m.direction === "inbound" ? "LEAD" : "MOI"} @ ${m.sent_at}] ${m.content}`)
       .join("\n");
 
-    const today = new Date().toISOString().slice(0, 10);
+    // Today / weekday computed in Europe/Paris (not UTC) so the AI never picks the wrong "dimanche".
+    const parisFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" });
+    const today = parisFmt.format(new Date()); // YYYY-MM-DD in Paris
+    const parisWeekday = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", weekday: "long" }).format(new Date());
     const detectionPrompt = `Tu analyses une conversation WhatsApp entre un commercial (MOI) et un prospect (LEAD).
 
 Détermine si un RENDEZ-VOUS a été CONFIRMÉ par les DEUX parties (proposition par l'un + accord explicite de l'autre).
 Un simple "ok je vais y réfléchir", "peut-être", "je te rappelle" n'est PAS une confirmation.
 Un accord ferme sur une date + heure précise EST une confirmation.
 
-Date du jour : ${today} (timezone Europe/Paris, horaires 11h–15h30 jours ouvrés).
+Date du jour : ${today} (${parisWeekday}, timezone Europe/Paris, horaires 11h–15h30 jours ouvrés).
+IMPORTANT : "dimanche" = le PROCHAIN dimanche À PARTIR de la date du jour ci-dessus. Si aujourd'hui est déjà ce jour-là, c'est aujourd'hui (pas la semaine suivante). Ne jamais ajouter +1 jour par sécurité.
 
 Réponds UNIQUEMENT en JSON :
 {
