@@ -6,9 +6,10 @@ import { WhatsAppChat } from '@/components/WhatsAppChat';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, MessageCircle, Search, ExternalLink, FlaskConical, Loader2, PenSquare, CalendarClock } from 'lucide-react';
+import { ArrowLeft, MessageCircle, Search, ExternalLink, FlaskConical, Loader2, PenSquare, CalendarClock, Plus } from 'lucide-react';
 import { NewConversationSheet } from '@/components/conversations/NewConversationSheet';
 import { ConversationActions } from '@/components/conversations/ConversationActions';
+import { CreateTaskForLeadDialog } from '@/components/CreateTaskForLeadDialog';
 import { InboxTabs, type InboxTab } from '@/components/conversations/InboxTabs';
 import { useAllConvControls } from '@/hooks/useConversationControls';
 import { useAllLabelAssignments, useConvLabels } from '@/hooks/useConversationLabels';
@@ -240,6 +241,15 @@ export default function ConversationsPage() {
                   {selected.lead_phone && <p className="text-xs text-muted-foreground truncate">{selected.lead_phone}</p>}
                 </div>
                 <ConversationActions leadId={selected.lead_id} />
+                <CreateTaskForLeadDialog
+                  leadId={selected.lead_id}
+                  leadName={selected.lead_name}
+                  trigger={
+                    <Button variant="ghost" size="sm" className="gap-1 h-8 px-2 text-xs">
+                      <Plus className="h-3.5 w-3.5" /> Tâche
+                    </Button>
+                  }
+                />
                 <Button asChild variant="ghost" size="sm" className="gap-1">
                   <Link to={`/leads/${selected.lead_id}`}>Fiche <ExternalLink className="h-3 w-3" /></Link>
                 </Button>

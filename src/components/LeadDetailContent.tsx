@@ -7,6 +7,7 @@ import { LeadActivityTimeline } from '@/components/LeadActivityTimeline';
 import { LeadEditForm } from '@/components/LeadEditForm';
 import { FollowupTimeline } from '@/components/FollowupTimeline';
 import { LeadQualificationCard } from '@/components/LeadQualificationCard';
+import { CreateTaskForLeadDialog } from '@/components/CreateTaskForLeadDialog';
 import {
   Mail,
   Phone,
@@ -107,6 +108,7 @@ export function LeadDetailContent({
               <p className="truncate text-sm text-muted-foreground">{lead.company_name}</p>
             )}
           </div>
+          <CreateTaskForLeadDialog leadId={lead.id} leadName={lead.name} />
         </div>
       </div>
 
