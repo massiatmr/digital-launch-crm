@@ -342,6 +342,7 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
     }
   };
 
+  return (
     <div className={cn('rounded-xl border border-border bg-muted/10 flex flex-col', className)}>
       <NextFollowupBanner leadId={leadId} paused={!!ctl?.automation_paused_at} />
       {ctl?.automation_paused_at && (
