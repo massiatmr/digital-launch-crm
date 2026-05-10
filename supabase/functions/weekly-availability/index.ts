@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
     const ownerId = user.id;
 
     const { data: avail } = await admin.from("availability_settings")
-      .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, timezone")
+      .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
       .eq("owner_id", ownerId).maybeSingle();
     const ownerTimeZone: string = avail?.timezone ?? "Europe/Paris";
     const workingDays: number[] = avail?.working_days ?? [1, 2, 3, 4, 5];
@@ -154,7 +154,9 @@ Deno.serve(async (req) => {
     const dayEnd: string = avail?.day_end_time ?? "15:00";
     const slotDurationMin: number = avail?.slot_duration_minutes ?? 45;
     const maxFutureDays: number = avail?.max_future_days ?? 14;
+    const minLeadHours: number = avail?.min_lead_time_hours ?? 2;
     const slotDurationMs = slotDurationMin * 60 * 1000;
+    const minLeadMs = minLeadHours * 60 * 60 * 1000;
     const baseSlots = generateHourlySlots(dayStart, dayEnd, slotDurationMin);
 
     const dateTo = addDays(date_from, 6);
