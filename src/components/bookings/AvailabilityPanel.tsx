@@ -165,6 +165,13 @@ export function AvailabilityPanel() {
               <Input type="number" min={1} max={90} value={maxDays} onChange={e => setMaxDays(Number(e.target.value))} />
             </div>
           </div>
+          <div>
+            <Label className="text-[11px] text-muted-foreground">Délai minimum avant un RDV (heures)</Label>
+            <Input type="number" min={0} max={168} value={minLeadHours} onChange={e => setMinLeadHours(Number(e.target.value))} />
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Empêche la réservation d'un créneau qui commence dans moins de {minLeadHours}h.
+            </p>
+          </div>
           {previewSlots.length > 0 && (
             <div className="flex flex-wrap gap-1 pt-1">
               {previewSlots.map(s => (
