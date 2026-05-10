@@ -185,8 +185,13 @@ export function TemplatesManager() {
                       'bg-yellow-500/20 text-yellow-400'
                     }`}>{t.status}</span>
                     {t.variables_count > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary">{t.variables_count} var.</span>}
-                    {otherWaba && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded border border-amber-500/40 text-amber-400">autre numéro</span>
+                    {t.business_account_id && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                        otherWaba ? 'border-amber-500/40 text-amber-400' : 'border-primary/30 text-primary'
+                      }`}>
+                        📱 {wabaLabel.get(t.business_account_id) || t.business_account_id}
+                        {otherWaba ? ' · autre' : (activeWaba === t.business_account_id ? ' · actif' : '')}
+                      </span>
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{t.body_text}</p>
