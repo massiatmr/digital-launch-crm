@@ -107,6 +107,7 @@ export function LeadDetailContent({
               <p className="truncate text-sm text-muted-foreground">{lead.company_name}</p>
             )}
           </div>
+          <CreateTaskForLeadDialog leadId={lead.id} leadName={lead.name} />
         </div>
       </div>
 
