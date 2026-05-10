@@ -78,6 +78,7 @@ export type Database = {
           day_end_time: string
           day_start_time: string
           max_future_days: number
+          min_lead_time_hours: number
           morning_slot: string
           owner_id: string
           slot_duration_minutes: number
@@ -91,6 +92,7 @@ export type Database = {
           day_end_time?: string
           day_start_time?: string
           max_future_days?: number
+          min_lead_time_hours?: number
           morning_slot?: string
           owner_id?: string
           slot_duration_minutes?: number
@@ -104,6 +106,7 @@ export type Database = {
           day_end_time?: string
           day_start_time?: string
           max_future_days?: number
+          min_lead_time_hours?: number
           morning_slot?: string
           owner_id?: string
           slot_duration_minutes?: number
