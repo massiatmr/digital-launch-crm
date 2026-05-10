@@ -18,6 +18,65 @@ function generateHourlySlots(startTime: string, endTime: string, durationMin: nu
   return out;
 }
 
+function addDays(dateStr: string, days: number): string {
+  const dt = new Date(`${dateStr}T12:00:00Z`);
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
+function getTimeZoneParts(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const map = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+
+  return {
+    year: Number(map.year),
+    month: Number(map.month),
+    day: Number(map.day),
+    hour: Number(map.hour),
+    minute: Number(map.minute),
+    second: Number(map.second),
+  };
+}
+
+function getTimeZoneOffsetMs(timeZone: string, date: Date): number {
+  const parts = getTimeZoneParts(date, timeZone);
+  const asUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+  return asUtc - date.getTime();
+}
+
+function zonedDateTimeToUtc(dateStr: string, timeStr: string, timeZone: string): Date {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const [hour, minute] = timeStr.split(":").map(Number);
+  const baseUtc = Date.UTC(year, month - 1, day, hour, minute, 0);
+
+  let utcTs = baseUtc;
+  for (let i = 0; i < 2; i++) {
+    utcTs = baseUtc - getTimeZoneOffsetMs(timeZone, new Date(utcTs));
+  }
+
+  return new Date(utcTs);
+}
+
+function formatDateInTimeZone(date: Date, timeZone: string): string {
+  const parts = getTimeZoneParts(date, timeZone);
+  return `${String(parts.year).padStart(4, "0")}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+}
+
+function formatTimeInTimeZone(date: Date, timeZone: string): string {
+  const parts = getTimeZoneParts(date, timeZone);
+  return `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
+}
+
 async function refreshGoogleToken(refreshToken: string): Promise<{ access_token: string; expires_in: number } | null> {
   const clientId = Deno.env.get("Google_Client_id")!;
   const clientSecret = Deno.env.get("Client_secret")!;
@@ -86,7 +145,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validate date format
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return new Response(
         JSON.stringify({ error: "Invalid date format, expected YYYY-MM-DD" }),
@@ -98,7 +156,6 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Derive owner_id server-side from the active offer (prevents calendar enumeration).
     const { data: offer } = await supabase
       .from("offers")
       .select("owner_id")
@@ -115,31 +172,29 @@ Deno.serve(async (req) => {
     }
     const owner_id = offer.owner_id;
 
-    // Load owner availability prefs.
     const { data: avail } = await supabase
       .from("availability_settings")
-      .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days")
+      .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, timezone")
       .eq("owner_id", owner_id)
       .maybeSingle();
+
+    const ownerTimeZone: string = avail?.timezone ?? "Europe/Paris";
     const workingDays: number[] = avail?.working_days ?? [1, 2, 3, 4, 5];
     const dayStart: string = avail?.day_start_time ?? "11:00";
     const dayEnd: string = avail?.day_end_time ?? "15:00";
     const slotDurationMin: number = avail?.slot_duration_minutes ?? 45;
     const maxFutureDays: number = avail?.max_future_days ?? 14;
-    const MEETING_DURATION_MS = slotDurationMin * 60 * 1000;
+    const meetingDurationMs = slotDurationMin * 60 * 1000;
 
-    // Check date is within max_future_days window
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const maxDt = new Date(`${todayStr}T12:00:00Z`);
-    maxDt.setUTCDate(maxDt.getUTCDate() + maxFutureDays);
-    if (date > maxDt.toISOString().slice(0, 10)) {
+    const todayStr = formatDateInTimeZone(new Date(), ownerTimeZone);
+    const maxDate = addDays(todayStr, maxFutureDays);
+    if (date > maxDate) {
       return new Response(
         JSON.stringify({ slots: [], synced: true, reason: "out_of_range" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Check blackout / non-working day → no slots.
     const dow = new Date(`${date}T12:00:00Z`).getUTCDay();
     if (!workingDays.includes(dow)) {
       return new Response(
@@ -147,6 +202,7 @@ Deno.serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
     const { data: blackout } = await supabase
       .from("availability_blackouts")
       .select("id")
@@ -161,78 +217,69 @@ Deno.serve(async (req) => {
     }
 
     const ownerSlots = generateHourlySlots(dayStart, dayEnd, slotDurationMin);
-
     const accessToken = await getValidAccessToken(supabase, owner_id);
 
     if (!accessToken) {
+      const displaySlots = ownerSlots
+        .map((slot) => formatTimeInTimeZone(zonedDateTimeToUtc(date, slot, ownerTimeZone), "Europe/Paris"))
+        .filter((slotDate, index, arr) => arr.indexOf(slotDate) === index)
+        .sort();
+
       return new Response(
-        JSON.stringify({ slots: ownerSlots, synced: false }),
+        JSON.stringify({ slots: displaySlots, synced: false }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Compute Paris UTC offset for that date (handles DST: +1 winter / +2 summer).
-    const parisOffsetHours = (() => {
-      const probe = new Date(`${date}T12:00:00Z`);
-      const parisHour = Number(
-        new Intl.DateTimeFormat("en-GB", {
-          timeZone: "Europe/Paris",
-          hour: "2-digit",
-          hour12: false,
-        }).format(probe)
-      );
-      let diff = parisHour - probe.getUTCHours();
-      if (diff > 12) diff -= 24;
-      if (diff < -12) diff += 24;
-      return diff;
-    })();
-    const offsetStr = `${parisOffsetHours >= 0 ? "+" : "-"}${String(Math.abs(parisOffsetHours)).padStart(2, "0")}:00`;
+    const timeMin = zonedDateTimeToUtc(date, "00:00", ownerTimeZone).toISOString();
+    const timeMax = new Date(zonedDateTimeToUtc(date, "23:59", ownerTimeZone).getTime() + 59 * 1000).toISOString();
 
-    const timeMin = `${date}T00:00:00${offsetStr}`;
-    const timeMax = `${date}T23:59:59${offsetStr}`;
-
-    const freeBusyRes = await fetch(
-      "https://www.googleapis.com/calendar/v3/freeBusy",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          timeMin,
-          timeMax,
-          timeZone: "Europe/Paris",
-          items: [{ id: "primary" }],
-        }),
-      }
-    );
+    const freeBusyRes = await fetch("https://www.googleapis.com/calendar/v3/freeBusy", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        timeMin,
+        timeMax,
+        timeZone: ownerTimeZone,
+        items: [{ id: "primary" }],
+      }),
+    });
 
     if (!freeBusyRes.ok) {
       console.error("FreeBusy API error:", await freeBusyRes.text());
+      const displaySlots = ownerSlots
+        .map((slot) => formatTimeInTimeZone(zonedDateTimeToUtc(date, slot, ownerTimeZone), "Europe/Paris"))
+        .filter((slotDate, index, arr) => arr.indexOf(slotDate) === index)
+        .sort();
+
       return new Response(
-        JSON.stringify({ slots: ownerSlots, synced: false }),
+        JSON.stringify({ slots: displaySlots, synced: false }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const freeBusyData = await freeBusyRes.json();
-    const busyPeriods: Array<{ start: string; end: string }> =
-      freeBusyData.calendars?.primary?.busy || [];
+    const busyPeriods: Array<{ start: string; end: string }> = freeBusyData.calendars?.primary?.busy || [];
 
-    const availableSlots = ownerSlots.filter((slot) => {
-      const slotStart = new Date(`${date}T${slot}:00${offsetStr}`);
-      const slotEnd = new Date(slotStart.getTime() + MEETING_DURATION_MS);
+    const availableSlots = ownerSlots.flatMap((slot) => {
+      const slotStart = zonedDateTimeToUtc(date, slot, ownerTimeZone);
+      const slotEnd = new Date(slotStart.getTime() + meetingDurationMs);
+
       for (const busy of busyPeriods) {
         const busyStart = new Date(busy.start);
         const busyEnd = new Date(busy.end);
-        if (slotStart < busyEnd && slotEnd > busyStart) return false;
+        if (slotStart < busyEnd && slotEnd > busyStart) return [];
       }
-      return true;
+
+      if (formatDateInTimeZone(slotStart, "Europe/Paris") !== date) return [];
+      return [formatTimeInTimeZone(slotStart, "Europe/Paris")];
     });
 
     return new Response(
-      JSON.stringify({ slots: availableSlots, synced: true }),
+      JSON.stringify({ slots: [...new Set(availableSlots)].sort(), synced: true }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
