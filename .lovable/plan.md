@@ -1,121 +1,123 @@
+# Automatisation par offre + refonte UX
 
-# Compléter l'inbox WhatsApp — filet de sécurité avant d'allumer l'automation
+## Objectif
 
-Objectif : tu dois pouvoir allumer l'automation WhatsApp sans risquer qu'un message auto interrompe une conversation manuelle, ne jamais rater un vocal, et trier rapidement ce qui demande ta réponse.
+1. Permettre **une séquence WhatsApp distincte par offre/niche** (templates + délais + IA).
+2. Refondre la page `/settings/automation` pour qu'elle soit **lisible, progressive et orientée tâche** (au lieu d'un mur d'options).
 
-## 1. Filet de sécurité automation (priorité haute)
+---
 
-### a. Bandeau "Prochaine relance auto" dans le header du chat
-Au-dessus du chat, afficher la prochaine `lead_followup_tasks` `scheduled` :
-- Texte : "Relance auto prévue dans 2j 14h — *Followup #2*"
-- Boutons : **Annuler cette relance** · **Reporter à…** (24h / 3j / 7j) · **Voir le message**
-- Si plusieurs prévues : "+3 autres" → ouvre un panneau latéral
+## Partie 1 — Séquences par offre
 
-### b. Bouton "Je prends la main" dans le header
-Toggle persistant qui pause TOUTE la séquence pour ce lead :
-- Nouvelle colonne `automation_paused_at` sur `lead_conversation_state`
-- Trigger côté worker `process-followup-tasks` : skip si `automation_paused_at IS NOT NULL`
-- Visuel : badge "🔒 Automation en pause" dans le header + dans la liste de gauche
-- Bouton "Réactiver" pour remettre la séquence
+### Modèle de données
 
-### c. Auto-pause quand TU envoies un message manuel
-Étendre `handle_inbound_whatsapp` (qui annule déjà sur inbound) → nouveau trigger `handle_manual_outbound` :
-- Si message outbound a `metadata->>'sent_by_user' = true` (vs auto) → set `automation_paused_at = now()` sur `lead_conversation_state`
-- Marquer dans `send-whatsapp-message` les envois manuels avec ce flag dans metadata
-- Toast info : "Automation mise en pause — tu as pris la main"
+Ajouter une colonne `offer_id uuid NULL` à `followup_sequence_steps`.
 
-### d. Vue globale "Relances programmées" (nouvelle page `/conversations/scheduled`)
-Onglet/lien depuis l'inbox :
-- Liste toutes les `lead_followup_tasks` `scheduled` à venir (7j) avec lead, type, date, aperçu message
-- Filtres : aujourd'hui / 24h / 7j / type
-- Actions en lot : annuler sélection · reporter sélection · pause auto sur leads sélectionnés
-- Compteur dans le header de l'inbox : "⚠️ 12 relances dans 24h"
+- `offer_id = NULL` → séquence **"Par défaut"** (utilisée si aucune séquence spécifique n'existe pour l'offre du lead).
+- `offer_id = <uuid>` → séquence **dédiée à cette offre**.
 
-## 2. Gestion vocaux
+Index composite : `(owner_id, offer_id, step_order)`.
 
-### a. Résumé IA 1-ligne au-dessus du transcript
-Nouveau bouton edge `summarize-voice` (Gemini Flash) appelé après transcription :
-- Stocke `summary_oneline` dans `whatsapp_messages` (nouvelle colonne)
-- Affiché en gras au-dessus du transcript : "💡 Demande prix pour 3 sites + délai"
+### Logique de déclenchement
 
-### b. Lecteur vocal : vitesse + scrub
-Étendre `VoiceMessagePlayer` :
-- Boutons 1x / 1.5x / 2x (mémorisé localStorage)
-- Barre de progression cliquable/draggable (scrub)
-- Affichage durée écoulée / totale
+Mettre à jour le trigger SQL `create_followup_sequence_for_lead` :
 
-### c. Notification push différenciée pour vocaux
-Dans `whatsapp-webhook` quand type = audio :
-- Push avec titre "🎙️ Vocal de {nom}" + corps = transcript (ou "Transcription en cours…")
-- Action button push : "Écouter" → ouvre directement la conv
+1. Si `lead.offer_id` est défini, chercher d'abord les steps avec `offer_id = lead.offer_id`.
+2. Si rien trouvé (ou pas d'offre sur le lead), retomber sur les steps avec `offer_id IS NULL`.
+3. Itérer comme aujourd'hui.
 
-## 3. Triage inbox
+Côté `execute-followup-task` : aucun changement (le `template_id` du step est déjà résolu à la création de la tâche).
 
-### a. Onglets en haut de la liste
-Au-dessus du search :
-`Tous` · `Non lus` · `À répondre` · `En attente client` · `Snoozées` · `Résolues`
-- "À répondre" = dernier message inbound non répondu
-- "En attente client" = dernier message outbound (balle dans son camp)
-- Logique purement client (pas de DB) sauf snooze/résolue
+### Templates
 
-### b. Snooze conversation
-Nouvelle table `conversation_snooze` (lead_id PK, snoozed_until, reason)
-- Bouton "⏰ Snooze" dans header chat → 1h / 4h / demain matin / lundi / custom
-- Conv masquée de "Tous"/"Non lus"/"À répondre" jusqu'à `snoozed_until`
-- Apparaît dans onglet "Snoozées" + push notif quand reviens
+Pas de changement de schéma sur `whatsapp_templates` — ils restent globaux côté Meta. La spécialisation par niche se fait au niveau du **step** (chaque step pointe vers le template adapté).
 
-### c. Marquer résolu / archiver
-Même table : `resolved_at`
-- Bouton "✓ Résolu" dans header chat
-- Conv masquée de "Tous"/"Non lus" → onglet "Résolues"
-- Auto-réouverture si nouveau message inbound
+Ajouter dans `TemplatesManager` un **filtre "Utilisé par offre"** (lecture seule) qui montre quels templates sont référencés par quelle séquence offre, pour aider à comprendre qui sert à quoi.
 
-### d. Étiquettes colorées
-Nouvelle table `conversation_labels` (workspace_id, name, color) + table de jointure `conversation_label_assignments`
-- 5 labels par défaut seedés : Chaud (rouge), Tiède (orange), Froid (bleu), Objection (jaune), VIP (violet)
-- CRUD labels dans `/settings/labels`
-- Picker de label dans header chat (multi-select)
-- Pastilles de couleur visibles dans la liste à gauche + filtre par label
+### UI éditeur de séquence
 
-## 4. Aide IA — 3 suggestions de réponse
+`SequenceEditor` reçoit un nouveau **sélecteur d'offre en haut** :
 
-Au-dessus du clavier (collapsable, expandé par défaut quand dernier msg = inbound) :
-- 3 "puces" cliquables avec début de réponse (ex : "OK super, on peut caler…", "Compris, dis-m'en plus sur…", "Voici le lien de réservation…")
-- Edge function `suggest-replies` : prend les 10 derniers messages + qualification + offer → Gemini Flash → renvoie 3 réponses courtes (≤ 200 car) avec angles différents (booker / qualifier / objection)
-- Clic sur une puce = remplit le textarea (éditable avant envoi)
-- Bouton "↻" pour régénérer
+```text
+[ Par défaut ▼ ]  (toutes offres sans séquence dédiée)
+─────────────────
+Étape 1 : Message d'intro      Template : "intro_generique"   ⏱ 0min
+Étape 2 : Relance 1            Template : "relance_24h"       ⏱ 24h
+[+ Ajouter une étape]
+```
 
-## Détails techniques
+Switcher sur une offre charge la séquence de cette offre (ou propose **"Dupliquer depuis Par défaut"** si vide).
 
-### Migrations DB
-- `lead_conversation_state` : add `automation_paused_at TIMESTAMPTZ`
-- `whatsapp_messages` : add `summary_oneline TEXT`, `metadata JSONB DEFAULT '{}'`
-- nouvelle table `conversation_snooze (lead_id PK, owner_id, workspace_id, snoozed_until, resolved_at, reason TEXT)`
-- nouvelles tables `conversation_labels` + `conversation_label_assignments`
-- Trigger `handle_manual_outbound` qui set `automation_paused_at` si `metadata->>'sent_by_user' = true`
-- Worker `process-followup-tasks` : skip si `automation_paused_at IS NOT NULL` ET pas de re-pause si lead a snooze actif
+Bouton **"Supprimer la séquence dédiée à cette offre"** → reverts à la séquence par défaut.
 
-### Edge functions
-- `summarize-voice` (nouvelle) — appelée post-transcription
-- `suggest-replies` (nouvelle) — Gemini Flash, contexte 10 msg + qualif
-- `send-whatsapp-message` (modif) — accepte `sent_by_user: true`, le passe en metadata
-- `whatsapp-webhook` (modif) — push titre "🎙️ Vocal" si audio + déclenche `summarize-voice`
+### Hooks
 
-### Fichiers UI principaux
-- `ConversationsPage.tsx` : ajouter onglets de filtres + compteur relances
-- `WhatsAppChat.tsx` : header enrichi (next followup banner, pause toggle, snooze, résolu, labels) + suggestions IA au-dessus du clavier
-- `VoiceMessagePlayer.tsx` : vitesse + scrub + résumé IA
-- nouveau `components/conversations/NextFollowupBanner.tsx`
-- nouveau `components/conversations/SuggestedReplies.tsx`
-- nouveau `components/conversations/InboxTabs.tsx`
-- nouveau `components/conversations/LabelPicker.tsx` + `LabelsManageDialog.tsx`
-- nouvelle page `pages/ScheduledFollowupsPage.tsx`
+`useSequenceSteps(offerId | null)` accepte un argument optionnel pour filtrer. `useUpsertSequenceStep` inclut `offer_id` dans le payload.
 
-## Ordre d'implémentation suggéré
-1. **Filet automation** (1a, 1b, 1c) — c'est la peur principale, à débloquer en premier
-2. **Vocaux** (2a, 2b, 2c) — protection quotidienne
-3. **Onglets + snooze + résolu** (3a, 3b, 3c)
-4. **Suggestions IA** (4) + **Labels** (3d)
-5. **Vue globale relances** (1d)
+---
 
-Dis-moi si tu veux qu'on découpe en plusieurs livraisons ou tout d'un coup.
+## Partie 2 — Refonte UX `/settings/automation`
+
+### Problème actuel
+
+4 onglets, chacun bourré de cartes. Mode test, switch global, conditions de déclenchement, fenêtre 24h, prompts contextuels, A/B test, brief IA, templates… Tout est au même niveau visuel, rien ne guide.
+
+### Nouvelle structure
+
+```text
+┌─ Header compact ──────────────────────────────────┐
+│ 🤖 Automatisation WhatsApp                        │
+│ [Mode test ⚠] [Active ✓] [3 séquences actives]    │
+│                              [▶ Lancer maintenant]│
+└───────────────────────────────────────────────────┘
+
+┌─ Sélecteur d'offre (sticky) ──────────────────────┐
+│ Séquence pour : [ Par défaut ▼ ]                  │
+└───────────────────────────────────────────────────┘
+
+┌─ Vue principale : Séquence visuelle ──────────────┐
+│  🆕 Nouveau lead                                  │
+│   │                                               │
+│   ▼  Étape 1 — Intro      [template] [délai] [✎] │
+│   │                                               │
+│   ▼  Étape 2 — Relance    [template] [délai] [✎] │
+│  [+ Ajouter une étape]                            │
+└───────────────────────────────────────────────────┘
+
+┌─ Réglages avancés (accordéon, fermé par défaut) ──┐
+│ ▸ Brief IA (ton, exemples, prompts contextuels)   │
+│ ▸ Conditions de déclenchement (sources, statut)   │
+│ ▸ Fenêtre 24h & escalade appel                    │
+│ ▸ Templates WhatsApp (catalogue Meta)             │
+│ ▸ Mode test & exécution                           │
+└───────────────────────────────────────────────────┘
+```
+
+### Principes
+
+- **Une seule action principale visible** : éditer la séquence affichée.
+- **Sélecteur d'offre toujours visible** → on sait pour quelle niche on configure.
+- **Réglages globaux cachés dans un accordéon** "Réglages avancés" → on ne les voit que si on en a besoin.
+- **Header status compact** : badges + bouton "Lancer maintenant" remplacent les 3 cartes du haut actuelles.
+- **Templates** deviennent une sous-section de l'accordéon (ils ne sont consultés qu'à la création initiale ou lors d'un ajout).
+- **Brief IA + prompts contextuels** regroupés en une seule sous-section avec toggles "personnaliser" pour éviter d'afficher 4 textareas vides par défaut.
+
+### Composants modifiés / créés
+
+- `SettingsAutomationPage.tsx` → réécriture du layout (header + sélecteur + accordéon).
+- `SequenceEditor.tsx` → ajoute la prop `offerId`, le sélecteur d'offre, l'action "Dupliquer depuis Par défaut".
+- Nouveau `OfferSequenceSwitcher.tsx` (sélecteur + bouton dupliquer/supprimer).
+- Réutilisation des sections existantes (Brief IA, Conditions, etc.) dans un `<Accordion>` shadcn.
+
+---
+
+## Migration DB (résumé non-technique)
+
+- Ajout d'un champ "offre" sur les étapes de séquence pour pouvoir avoir une séquence différente par offre.
+- Quand un nouveau lead est créé, le système cherche d'abord la séquence de son offre, sinon prend la séquence par défaut.
+- Aucune perte de données : toutes les étapes existantes deviennent automatiquement "Par défaut".
+
+## Hors-périmètre
+
+- Pas de duplication de la table `followup_automation_settings` par offre (le brief IA et les réglages globaux restent partagés). Si tu veux aussi un brief IA par offre plus tard, on l'ajoutera dans une 2e itération.
+- Templates Meta restent globaux (gérés côté WABA, pas de tag offre stocké chez Meta).
