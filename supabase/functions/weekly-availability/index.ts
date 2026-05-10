@@ -218,6 +218,7 @@ Deno.serve(async (req) => {
         const ownerSlotEnd = new Date(ownerSlotStart.getTime() + slotDurationMs);
         let status: "past" | "non_working" | "blackout" | "booked" | "busy" | "free" | "out_of_range" = "free";
         if (ownerSlotStart.getTime() < now) status = "past";
+        else if (ownerSlotStart.getTime() < now + minLeadMs) status = "past";
         else if (!working) status = "non_working";
         else if (blackout) status = "blackout";
         else if (beyondMax) status = "out_of_range";
