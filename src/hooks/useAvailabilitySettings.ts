@@ -9,6 +9,7 @@ export interface AvailabilitySettings {
   day_end_time: string;         // "HH:MM"
   slot_duration_minutes: number;
   max_future_days: number;
+  min_lead_time_hours: number;
   timezone: string;
   // legacy (ignorés par l'UI mais lus depuis la table)
   morning_slot?: string;
