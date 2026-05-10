@@ -355,6 +355,13 @@ Deno.serve(async (req) => {
       template = tpl;
     }
 
+    // Si le lead a déjà initié/répondu sur WhatsApp (conversation ouverte),
+    // on ignore le template et on envoie un message texte libre généré par IA
+    // (fenêtre 24h Meta ouverte, plus pertinent et plus humain qu'un template).
+    if (template && (inboundCount ?? 0) > 0) {
+      template = null;
+    }
+
     let messageContent = custom_message || task.message_content;
     let aiGenerated = false;
     let logStatus = dryRun ? "dry_run" : "sent";
