@@ -47,6 +47,38 @@ function AudioBubble({ path, transcript, outbound }: { path: string | null; tran
   );
 }
 
+function MediaBubble({ path, mime, filename, caption }: { path: string; mime: string | null; filename: string | null; caption?: string | null }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!path) return;
+    let cancelled = false;
+    supabase.storage.from('wa-media').createSignedUrl(path, 3600).then(({ data }) => {
+      if (!cancelled && data?.signedUrl) setUrl(data.signedUrl);
+    });
+    return () => { cancelled = true; };
+  }, [path]);
+  const isImage = mime?.startsWith('image/');
+  const isVideo = mime?.startsWith('video/');
+  return (
+    <div className="space-y-1.5">
+      {!url ? (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><Loader2 className="h-3 w-3 animate-spin" /> Chargement…</div>
+      ) : isImage ? (
+        <a href={url} target="_blank" rel="noreferrer">
+          <img src={url} alt={filename || 'image'} className="rounded-lg max-h-64 object-cover" />
+        </a>
+      ) : isVideo ? (
+        <video src={url} controls className="rounded-lg max-h-64 max-w-full" />
+      ) : (
+        <a href={url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs underline">
+          <Download className="h-3 w-3" /> {filename || 'Télécharger le document'}
+        </a>
+      )}
+      {caption && <p className="text-sm whitespace-pre-line">{caption}</p>}
+    </div>
+  );
+}
+
 function mergeBuffers(chunks: Float32Array[]) {
   const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
   const result = new Float32Array(totalLength);
