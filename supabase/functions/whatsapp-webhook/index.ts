@@ -284,8 +284,31 @@ Deno.serve(async (req) => {
           if (cfg.workspace_id) leadQuery = leadQuery.eq("workspace_id", cfg.workspace_id);
           else leadQuery = leadQuery.eq("owner_id", cfg.owner_id);
           const { data: leads } = await leadQuery;
-          const lead = leads?.[0];
-          if (!lead) continue;
+          let lead = leads?.[0];
+
+          // Auto-create lead from unknown WhatsApp number
+          if (!lead) {
+            const displayPhone = `+${from}`;
+            const { data: created, error: createErr } = await admin
+              .from("leads")
+              .insert({
+                name: displayPhone,
+                phone: displayPhone,
+                source: "whatsapp",
+                status: "new",
+                score: "cold",
+                owner_id: cfg.owner_id,
+                workspace_id: cfg.workspace_id ?? null,
+                notes: "Lead créé automatiquement depuis un message WhatsApp entrant.",
+              } as any)
+              .select("id, name, workspace_id")
+              .maybeSingle();
+            if (createErr || !created) {
+              console.error("auto-create lead failed:", createErr);
+              continue;
+            }
+            lead = created as any;
+          }
 
           await admin.from("whatsapp_messages").insert({
             lead_id: lead.id,
