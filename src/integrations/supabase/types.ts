@@ -869,6 +869,7 @@ export type Database = {
           id: string
           is_enabled: boolean
           label: string
+          offer_id: string | null
           owner_id: string
           step_order: number
           task_type: Database["public"]["Enums"]["followup_task_type"]
@@ -883,6 +884,7 @@ export type Database = {
           id?: string
           is_enabled?: boolean
           label?: string
+          offer_id?: string | null
           owner_id?: string
           step_order: number
           task_type?: Database["public"]["Enums"]["followup_task_type"]
@@ -897,6 +899,7 @@ export type Database = {
           id?: string
           is_enabled?: boolean
           label?: string
+          offer_id?: string | null
           owner_id?: string
           step_order?: number
           task_type?: Database["public"]["Enums"]["followup_task_type"]
@@ -905,6 +908,13 @@ export type Database = {
           workspace_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "followup_sequence_steps_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "offers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "followup_sequence_steps_template_id_fkey"
             columns: ["template_id"]

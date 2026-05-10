@@ -7,10 +7,18 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Save, Bot, FlaskConical, Workflow, FileText, Sparkles, Settings as SettingsIcon, AlertTriangle, CheckCircle2, Zap, PlayCircle, Clock, Filter, Phone, RefreshCw } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import {
+  Loader2, Bot, FlaskConical, Sparkles, Settings as SettingsIcon, AlertTriangle, CheckCircle2, Zap, PlayCircle, Filter, Phone, RefreshCw, FileText, MessageSquare,
+} from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SequenceEditor } from '@/components/automation/SequenceEditor';
+import { TemplatesManager } from '@/components/automation/TemplatesManager';
+import { OfferSequenceSwitcher } from '@/components/automation/OfferSequenceSwitcher';
+import { cn } from '@/lib/utils';
+import { formatDistanceToNow } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 const LEAD_SOURCES: { value: string; label: string }[] = [
   { value: 'facebook', label: 'Facebook Lead Ads' },
@@ -22,12 +30,6 @@ const LEAD_SOURCES: { value: string; label: string }[] = [
   { value: 'manual', label: 'Manuel' },
   { value: 'other', label: 'Autre' },
 ];
-import { STEPS } from '@/components/automation/StepCard';
-import { SequenceEditor } from '@/components/automation/SequenceEditor';
-import { TemplatesManager } from '@/components/automation/TemplatesManager';
-import { cn } from '@/lib/utils';
-import { formatDistanceToNow } from 'date-fns';
-import { fr } from 'date-fns/locale';
 
 export default function SettingsAutomationPage() {
   const { data: settings, isLoading } = useFollowupSettings();
@@ -39,6 +41,7 @@ export default function SettingsAutomationPage() {
 
   const [form, setForm] = useState<any>(null);
   const [dirty, setDirty] = useState(false);
+  const [offerId, setOfferId] = useState<string | null>(null);
 
   useEffect(() => { if (settings && !form) setForm(settings); }, [settings, form]);
 
@@ -50,14 +53,6 @@ export default function SettingsAutomationPage() {
       dry_run: form.dry_run,
       ai_instructions: form.ai_instructions,
       ai_examples: form.ai_examples,
-      initial_delay_minutes: form.initial_delay_minutes,
-      followup_1_delay_hours: form.followup_1_delay_hours,
-      followup_2_delay_hours: form.followup_2_delay_hours,
-      last_followup_delay_hours: form.last_followup_delay_hours,
-      template_initial_id: form.template_initial_id,
-      template_followup_1_id: form.template_followup_1_id,
-      template_followup_2_id: form.template_followup_2_id,
-      template_last_followup_id: form.template_last_followup_id,
       trigger_sources: form.trigger_sources,
       trigger_only_new_status: form.trigger_only_new_status,
       inactivity_threshold_hours: form.inactivity_threshold_hours,
@@ -79,253 +74,185 @@ export default function SettingsAutomationPage() {
     set({ trigger_sources: next });
   };
 
-  const stats = useMemo(() => {
-    if (!form) return { mapped: 0, total: STEPS.length };
-    const mapped = STEPS.filter((s) => form[s.key]).length;
-    return { mapped, total: STEPS.length };
-  }, [form]);
-
   if (isLoading || !form) {
     return <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
   }
 
   return (
-    <div className="max-w-5xl space-y-6 pb-24">
-      {form.dry_run && (
-        <div className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-sm text-yellow-300">
-            <FlaskConical className="h-4 w-4" />
-            <span><strong>Mode test actif</strong> — aucun message WhatsApp réel n'est envoyé aux leads.</span>
+    <div className="max-w-5xl space-y-5 pb-24">
+      {/* COMPACT HEADER */}
+      <header className="rounded-xl border border-border bg-card/50 backdrop-blur-md p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-primary/15 flex items-center justify-center">
+              <Bot className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="font-heading text-xl">Automatisation WhatsApp</h1>
+              <p className="text-xs text-muted-foreground">Séquence de relances déclenchée à chaque nouveau lead.</p>
+            </div>
           </div>
-          <Button size="sm" variant="outline" onClick={() => set({ dry_run: false })} className="shrink-0 border-yellow-500/40 text-yellow-200 hover:bg-yellow-500/10">
-            Passer en LIVE
-          </Button>
-        </div>
-      )}
-      {/* HEADER */}
-      <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-2xl flex items-center gap-2">
-            <Bot className="h-6 w-6 text-primary" /> Automatisation WhatsApp
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Séquence de relances déclenchée à chaque nouveau lead.
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={cn(
+              'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border',
+              form.dry_run
+                ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30'
+                : 'bg-red-500/10 text-red-400 border-red-500/30'
+            )}>
+              <FlaskConical className="h-3 w-3" />
+              {form.dry_run ? 'Mode test' : 'LIVE'}
+            </span>
+            <span className={cn(
+              'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border',
+              form.is_enabled
+                ? 'bg-green-500/10 text-green-400 border-green-500/30'
+                : 'bg-muted text-muted-foreground border-border'
+            )}>
+              {form.is_enabled ? <CheckCircle2 className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
+              {form.is_enabled ? 'Auto active' : 'Auto OFF'}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => runNow.mutate()}
+              disabled={runNow.isPending}
+              className="gap-1.5"
+            >
+              <PlayCircle className="h-3.5 w-3.5" />
+              Lancer ({dueCount})
+            </Button>
+          </div>
         </div>
 
-        {/* STATUS BADGES */}
-        <div className="flex flex-wrap gap-2">
-          <span className={cn(
-            'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border',
-            form.dry_run
-              ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30'
-              : 'bg-red-500/10 text-red-400 border-red-500/30'
-          )}>
-            <FlaskConical className="h-3.5 w-3.5" />
-            {form.dry_run ? 'Mode test' : 'Mode LIVE'}
-          </span>
-          <span className={cn(
-            'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border',
-            form.is_enabled
-              ? 'bg-green-500/10 text-green-400 border-green-500/30'
-              : 'bg-muted text-muted-foreground border-border'
-          )}>
-            {form.is_enabled ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
-            {form.is_enabled ? 'Auto active' : 'Auto désactivée'}
-          </span>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-border bg-muted/30">
-            {stats.mapped}/{stats.total} étapes configurées
-          </span>
-        </div>
+        {form.dry_run && (
+          <div className="mt-3 rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 flex items-center justify-between gap-3">
+            <span className="text-xs text-yellow-300">
+              <strong>Mode test actif</strong> — aucun message WhatsApp n'est envoyé aux leads.
+            </span>
+            <Button size="sm" variant="outline" onClick={() => set({ dry_run: false })} className="shrink-0 border-yellow-500/40 text-yellow-200 hover:bg-yellow-500/10 h-7 text-xs">
+              Passer en LIVE
+            </Button>
+          </div>
+        )}
       </header>
 
-      {/* TABS */}
-      <Tabs defaultValue="sequence" className="w-full">
-        <TabsList className="grid grid-cols-4 w-full sm:w-auto">
-          <TabsTrigger value="sequence" className="gap-1.5"><Workflow className="h-4 w-4" />Séquence</TabsTrigger>
-          <TabsTrigger value="templates" className="gap-1.5"><FileText className="h-4 w-4" />Templates</TabsTrigger>
-          <TabsTrigger value="ai" className="gap-1.5"><Sparkles className="h-4 w-4" />Brief IA</TabsTrigger>
-          <TabsTrigger value="settings" className="gap-1.5"><SettingsIcon className="h-4 w-4" />Réglages</TabsTrigger>
-        </TabsList>
+      {/* OFFER SWITCHER */}
+      <OfferSequenceSwitcher value={offerId} onChange={setOfferId} />
 
-        {/* TAB: SÉQUENCE */}
-        <TabsContent value="sequence" className="mt-6 space-y-4">
-          <div className="rounded-xl border border-border bg-card p-5">
-            {/* Start indicator */}
-            <div className="flex flex-col items-center mb-3">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/15 text-primary text-xs font-medium">
-                🆕 Nouveau lead créé
-              </span>
-              <div className="h-4 w-px bg-border mt-1" />
-            </div>
+      {/* SEQUENCE — main view */}
+      <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
+        <div className="flex flex-col items-center mb-3">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/15 text-primary text-xs font-medium">
+            🆕 Nouveau lead {offerId ? 'sur cette offre' : ''}
+          </span>
+          <div className="h-4 w-px bg-border mt-1" />
+        </div>
 
-            <SequenceEditor />
+        <SequenceEditor offerId={offerId} />
 
-            {/* End indicator */}
-            <div className="flex flex-col items-center mt-4">
-              <div className="h-4 w-px bg-border" />
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted text-muted-foreground text-xs">
-                💤 Lead marqué froid si aucune réponse
-              </span>
-            </div>
-          </div>
+        <div className="flex flex-col items-center mt-4">
+          <div className="h-4 w-px bg-border" />
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted text-muted-foreground text-xs">
+            💤 Lead marqué froid si aucune réponse
+          </span>
+        </div>
 
-          {templates.length === 0 && (
-            <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-4 flex gap-3">
-              <AlertTriangle className="h-5 w-5 text-yellow-400 shrink-0" />
-              <div className="text-sm">
-                <p className="font-medium text-yellow-400">Aucun template disponible</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Va dans l'onglet <strong>Templates</strong> pour synchroniser depuis Meta ou en créer un.
-                </p>
-              </div>
-            </div>
-          )}
-        </TabsContent>
-
-        {/* TAB: TEMPLATES */}
-        <TabsContent value="templates" className="mt-6">
-          <div className="rounded-xl border border-border bg-card p-5">
-            <TemplatesManager />
-          </div>
-        </TabsContent>
-
-        {/* TAB: BRIEF IA */}
-        <TabsContent value="ai" className="mt-6 space-y-4">
-          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-            <div>
-              <h2 className="font-heading text-base flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" /> Personnalité de l'IA
-              </h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                Utilisé pour générer les variables des templates et les messages texte libre.
+        {templates.length === 0 && (
+          <div className="mt-4 rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3 flex gap-2">
+            <AlertTriangle className="h-4 w-4 text-yellow-400 shrink-0" />
+            <div className="text-xs">
+              <p className="font-medium text-yellow-400">Aucun template disponible</p>
+              <p className="text-muted-foreground mt-0.5">
+                Ouvre <strong>Templates WhatsApp</strong> ci-dessous pour synchroniser depuis Meta ou en créer un.
               </p>
             </div>
+          </div>
+        )}
+      </section>
+
+      {/* ADVANCED — collapsed by default */}
+      <Accordion type="multiple" className="space-y-2">
+        {/* Brief IA */}
+        <AccordionItem value="ai" className="rounded-xl border border-border bg-card px-4">
+          <AccordionTrigger className="hover:no-underline">
+            <span className="flex items-center gap-2 text-sm">
+              <Sparkles className="h-4 w-4 text-primary" />
+              Brief IA <span className="text-xs text-muted-foreground font-normal">— ton, exemples, prompts contextuels</span>
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="space-y-4 pb-4">
             <div>
               <Label htmlFor="ai_instructions">Instructions (ton, style, longueur)</Label>
-              <Textarea id="ai_instructions" rows={6} className="mt-1"
+              <Textarea id="ai_instructions" rows={5} className="mt-1"
                 value={form.ai_instructions}
                 onChange={(e) => set({ ai_instructions: e.target.value })}
-                placeholder="Tu es un closer humain. Pose 3 à 5 questions essentielles max pour qualifier (problème, urgence, contexte). Dès qu'un signal d'intérêt apparaît, propose un créneau précis (ex: 'Mardi 14h ou Jeudi 10h ?') ou partage le lien de réservation. Max 2 phrases. Pas de blabla." />
+                placeholder="Tu es un closer humain. Pose 3 à 5 questions essentielles max…" />
             </div>
             <div>
               <Label htmlFor="ai_examples">Exemples de messages (style à imiter)</Label>
-              <Textarea id="ai_examples" rows={8} className="mt-1"
+              <Textarea id="ai_examples" rows={6} className="mt-1"
                 value={form.ai_examples}
                 onChange={(e) => set({ ai_examples: e.target.value })}
-                placeholder={`Initial:\n"Salut Marie 👋 J'ai vu ta demande pour [offre]. Quel est ton délai ?"\n\nRelance 1:\n"…"`} />
+                placeholder={`Initial:\n"Salut Marie 👋 J'ai vu ta demande pour [offre]. Quel est ton délai ?"`} />
               <p className="text-xs text-muted-foreground mt-1">Plus tu donnes d'exemples, plus l'IA imite ton style.</p>
             </div>
-          </div>
-
-          {/* Prompts contextuels */}
-          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-            <div>
-              <h2 className="font-heading text-base flex items-center gap-2">
-                <Bot className="h-4 w-4 text-primary" /> Prompts contextuels (4 modes)
-              </h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                L'IA choisit automatiquement le prompt selon l'intent détecté du lead. Laisse vide pour utiliser les défauts.
-              </p>
-            </div>
-            {[
-              { key: 'prompt_qualification', label: 'Qualification (lead pas encore qualifié)' },
-              { key: 'prompt_objection', label: 'Traitement d\'objection' },
-              { key: 'prompt_closing', label: 'Closing (lead chaud → pousser RDV)' },
-              { key: 'prompt_reactivation', label: 'Réactivation (lead silencieux)' },
-            ].map((p) => (
-              <div key={p.key}>
-                <Label className="text-sm">{p.label}</Label>
-                <Textarea rows={3} className="mt-1"
-                  value={form[p.key] ?? ''}
-                  onChange={(e) => set({ [p.key]: e.target.value })}
-                  placeholder="(défaut système)" />
+            <details className="rounded-lg border border-border/50 bg-muted/20 p-3">
+              <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+                Prompts contextuels avancés (4 modes)
+              </summary>
+              <div className="mt-3 space-y-3">
+                {[
+                  { key: 'prompt_qualification', label: 'Qualification' },
+                  { key: 'prompt_objection', label: 'Objection' },
+                  { key: 'prompt_closing', label: 'Closing' },
+                  { key: 'prompt_reactivation', label: 'Réactivation' },
+                ].map((p) => (
+                  <div key={p.key}>
+                    <Label className="text-xs">{p.label}</Label>
+                    <Textarea rows={2} className="mt-1 text-xs"
+                      value={form[p.key] ?? ''}
+                      onChange={(e) => set({ [p.key]: e.target.value })}
+                      placeholder="(défaut système)" />
+                  </div>
+                ))}
               </div>
-            ))}
-
-            <div className="flex items-start justify-between gap-4 pt-3 border-t border-border">
-              <div>
-                <Label className="text-sm">Auto-stop si "pas intéressé"</Label>
-                <p className="text-xs text-muted-foreground mt-1">Annule les relances et marque le lead "perdu" dès que l'IA détecte un refus clair.</p>
-              </div>
-              <Switch checked={form.auto_stop_on_not_interested ?? true}
-                onCheckedChange={(v) => set({ auto_stop_on_not_interested: v })} />
-            </div>
-
-            <div className="flex items-start justify-between gap-4 pt-3 border-t border-border">
-              <div>
-                <Label className="text-sm">A/B testing des messages</Label>
-                <p className="text-xs text-muted-foreground mt-1">L'IA alterne entre 2 angles différents pour comparer les taux de réponse.</p>
-              </div>
-              <Switch checked={form.enable_ab_test ?? false}
-                onCheckedChange={(v) => set({ enable_ab_test: v })} />
-            </div>
-          </div>
-        </TabsContent>
-
-        {/* TAB: RÉGLAGES */}
-        <TabsContent value="settings" className="mt-6 space-y-4">
-          <div className={cn(
-            'rounded-xl border p-5',
-            form.dry_run ? 'border-yellow-500/40 bg-yellow-500/5' : 'border-red-500/40 bg-red-500/5'
-          )}>
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <FlaskConical className={cn('h-5 w-5 mt-0.5', form.dry_run ? 'text-yellow-400' : 'text-red-400')} />
-                <div>
-                  <Label className="text-base">Mode test (dry-run)</Label>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {form.dry_run
-                      ? 'ON — Aucun envoi réel. Tout est loggé pour vérification.'
-                      : '⚠️ OFF — Les messages partent pour de vrai aux leads.'}
-                  </p>
-                </div>
-              </div>
-              <Switch checked={form.dry_run} onCheckedChange={(v) => set({ dry_run: v })} />
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-border bg-card p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <Label className="text-base">Activer l'automatisation</Label>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Crée automatiquement la séquence à chaque nouveau lead.
-                </p>
-              </div>
-              <Switch checked={form.is_enabled} onCheckedChange={(v) => set({ is_enabled: v })} />
-            </div>
-          </div>
-
-          {/* CONDITIONS DE DÉCLENCHEMENT */}
-          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-            <div>
-              <h2 className="font-heading text-base flex items-center gap-2">
-                <Filter className="h-4 w-4 text-primary" /> Conditions de déclenchement
-              </h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                Quels leads doivent recevoir la séquence automatique ?
-              </p>
-            </div>
-
+            </details>
             <div className="flex items-start justify-between gap-4 pt-2 border-t border-border">
               <div>
-                <Label className="text-sm">Uniquement leads à l'étape "Nouveau"</Label>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Si désactivé, un lead créé directement en "Contacté" recevra aussi la séquence.
-                </p>
+                <Label className="text-sm">Auto-stop si "pas intéressé"</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">Annule les relances dès qu'un refus clair est détecté.</p>
               </div>
-              <Switch
-                checked={form.trigger_only_new_status ?? true}
-                onCheckedChange={(v) => set({ trigger_only_new_status: v })}
-              />
+              <Switch checked={form.auto_stop_on_not_interested ?? true} onCheckedChange={(v) => set({ auto_stop_on_not_interested: v })} />
             </div>
+            <div className="flex items-start justify-between gap-4 pt-2 border-t border-border">
+              <div>
+                <Label className="text-sm">A/B testing des messages</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">Alterne entre 2 angles différents pour comparer les taux de réponse.</p>
+              </div>
+              <Switch checked={form.enable_ab_test ?? false} onCheckedChange={(v) => set({ enable_ab_test: v })} />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
 
-            <div className="pt-2 border-t border-border">
+        {/* Conditions */}
+        <AccordionItem value="conditions" className="rounded-xl border border-border bg-card px-4">
+          <AccordionTrigger className="hover:no-underline">
+            <span className="flex items-center gap-2 text-sm">
+              <Filter className="h-4 w-4 text-primary" />
+              Conditions de déclenchement <span className="text-xs text-muted-foreground font-normal">— sources, statut</span>
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="space-y-4 pb-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <Label className="text-sm">Uniquement leads à l'étape "Nouveau"</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">Si désactivé, un lead créé directement en "Contacté" recevra aussi la séquence.</p>
+              </div>
+              <Switch checked={form.trigger_only_new_status ?? true} onCheckedChange={(v) => set({ trigger_only_new_status: v })} />
+            </div>
+            <div className="pt-3 border-t border-border">
               <Label className="text-sm">Sources de leads autorisées</Label>
-              <p className="text-xs text-muted-foreground mt-1 mb-3">
-                Seuls les leads provenant de ces sources déclencheront la séquence.
-              </p>
+              <p className="text-xs text-muted-foreground mt-0.5 mb-2">Seuls ces sources déclencheront la séquence.</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {LEAD_SOURCES.map((src) => {
                   const checked = (form.trigger_sources || []).includes(src.value);
@@ -343,37 +270,28 @@ export default function SettingsAutomationPage() {
                   );
                 })}
               </div>
-              {(form.trigger_sources || []).length === 0 && (
-                <p className="text-xs text-yellow-400 mt-2 flex items-center gap-1">
-                  <AlertTriangle className="h-3 w-3" /> Aucune source sélectionnée → l'automatisation ne se déclenchera jamais.
-                </p>
-              )}
             </div>
-          </div>
+          </AccordionContent>
+        </AccordionItem>
 
-          {/* RELANCES HUMAINES & FENÊTRE 24H */}
-          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+        {/* 24h window & call */}
+        <AccordionItem value="window" className="rounded-xl border border-border bg-card px-4">
+          <AccordionTrigger className="hover:no-underline">
+            <span className="flex items-center gap-2 text-sm">
+              <Phone className="h-4 w-4 text-primary" />
+              Fenêtre 24h & escalade appel
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="space-y-4 pb-4">
             <div>
-              <h2 className="font-heading text-base flex items-center gap-2">
-                <Phone className="h-4 w-4 text-primary" /> Relances humaines & fenêtre 24h
-              </h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                Détecte les conversations inactives et escalade vers un appel quand nécessaire.
-              </p>
-            </div>
-
-            <div className="pt-2 border-t border-border">
               <Label className="text-sm flex items-center gap-2">
                 <RefreshCw className="h-3.5 w-3.5" /> Délai d'inactivité avant relance auto
               </Label>
-              <p className="text-xs text-muted-foreground mt-1 mb-2">
-                Si la conversation est silencieuse (peu importe qui a parlé en dernier) pendant ce délai, dans la fenêtre 24h WhatsApp, une tâche de relance IA est créée. Idéal pour rattraper un lead qui a répondu puis disparu.
-              </p>
-              <div className="flex gap-2">
+              <div className="flex gap-2 mt-2">
                 <Input
                   type="number"
                   min={1}
-                  className="w-32"
+                  className="w-24"
                   value={(() => {
                     const h = form.inactivity_threshold_hours ?? 12;
                     return h < 1 ? Math.round(h * 60) : h;
@@ -388,165 +306,124 @@ export default function SettingsAutomationPage() {
                   value={(form.inactivity_threshold_hours ?? 12) < 1 ? 'minutes' : 'hours'}
                   onValueChange={(unit) => {
                     const cur = form.inactivity_threshold_hours ?? 12;
-                    if (unit === 'minutes') {
-                      const mins = cur < 1 ? Math.round(cur * 60) : cur * 60;
-                      set({ inactivity_threshold_hours: mins / 60 });
-                    } else {
-                      const h = cur < 1 ? Math.max(1, Math.round(cur * 60 / 60)) : cur;
-                      set({ inactivity_threshold_hours: h });
-                    }
+                    if (unit === 'minutes') set({ inactivity_threshold_hours: (cur < 1 ? Math.round(cur * 60) : cur * 60) / 60 });
+                    else set({ inactivity_threshold_hours: cur < 1 ? Math.max(1, Math.round(cur * 60 / 60)) : cur });
                   }}
                 >
-                  <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="minutes">Minutes</SelectItem>
                     <SelectItem value="hours">Heures</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                💡 Astuce test : mets <strong>2 minutes</strong> pour voir la tâche apparaître très vite.
-              </p>
             </div>
-
             <div className="flex items-start justify-between gap-4 pt-3 border-t border-border">
               <div>
                 <Label className="text-sm">Escalade vers appel manuel</Label>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Crée une tâche d'appel + notif push si lead chaud sans réponse après 2 relances, ou lead engagé silencieux 24h+.
-                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">Crée une tâche d'appel + notif push pour les leads chauds silencieux.</p>
               </div>
-              <Switch
-                checked={form.enable_call_escalation ?? true}
-                onCheckedChange={(v) => set({ enable_call_escalation: v })}
-              />
+              <Switch checked={form.enable_call_escalation ?? true} onCheckedChange={(v) => set({ enable_call_escalation: v })} />
             </div>
-
             <div className="pt-3 border-t border-border space-y-3">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <Label className="text-sm">Bascule template après 24h</Label>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Quand la fenêtre WhatsApp est fermée (24h sans inbound), envoie automatiquement un template "reprise".
-                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Quand la fenêtre WhatsApp est fermée, envoie un template "reprise".</p>
                 </div>
-                <Switch
-                  checked={form.enable_24h_template_switch ?? true}
-                  onCheckedChange={(v) => set({ enable_24h_template_switch: v })}
-                />
+                <Switch checked={form.enable_24h_template_switch ?? true} onCheckedChange={(v) => set({ enable_24h_template_switch: v })} />
               </div>
-
               {form.enable_24h_template_switch && (
                 <div>
-                  <Label className="text-sm">Template de reprise (utility/marketing approuvé)</Label>
+                  <Label className="text-sm">Template de reprise</Label>
                   <Select
                     value={form.template_reactivation_id ?? 'none'}
                     onValueChange={(v) => set({ template_reactivation_id: v === 'none' ? null : v })}
                   >
-                    <SelectTrigger className="w-full mt-1">
-                      <SelectValue placeholder="Choisir un template…" />
-                    </SelectTrigger>
+                    <SelectTrigger className="w-full mt-1"><SelectValue placeholder="Choisir un template…" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">— Aucun (la bascule sera ignorée)</SelectItem>
+                      <SelectItem value="none">— Aucun</SelectItem>
                       {templates.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.name} ({t.language})
-                        </SelectItem>
+                        <SelectItem key={t.id} value={t.id}>{t.name} ({t.language})</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  {!form.template_reactivation_id && (
-                    <p className="text-xs text-yellow-400 mt-1 flex items-center gap-1">
-                      <AlertTriangle className="h-3 w-3" /> Sans template, la bascule 24h ne fait rien.
-                    </p>
-                  )}
                 </div>
               )}
             </div>
-          </div>
+          </AccordionContent>
+        </AccordionItem>
 
-          {/* DÉCLENCHEUR & EXÉCUTION */}
-          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-            <div>
-              <h2 className="font-heading text-base flex items-center gap-2">
-                <Zap className="h-4 w-4 text-primary" /> Déclencheur & exécution
-              </h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                Le moteur qui détecte les tâches dues et lance les envois.
-              </p>
-            </div>
+        {/* Templates */}
+        <AccordionItem value="templates" className="rounded-xl border border-border bg-card px-4">
+          <AccordionTrigger className="hover:no-underline">
+            <span className="flex items-center gap-2 text-sm">
+              <FileText className="h-4 w-4 text-primary" />
+              Templates WhatsApp <span className="text-xs text-muted-foreground font-normal">({templates.length})</span>
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="pb-4">
+            <TemplatesManager />
+          </AccordionContent>
+        </AccordionItem>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Trigger DB */}
-              <div className="rounded-lg border border-border bg-background/50 p-3">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-green-400" /> Trigger lead
+        {/* Mode & exécution */}
+        <AccordionItem value="mode" className="rounded-xl border border-border bg-card px-4">
+          <AccordionTrigger className="hover:no-underline">
+            <span className="flex items-center gap-2 text-sm">
+              <SettingsIcon className="h-4 w-4 text-primary" />
+              Mode test & exécution
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="space-y-4 pb-4">
+            <div className={cn(
+              'rounded-lg border p-3 flex items-start justify-between gap-4',
+              form.dry_run ? 'border-yellow-500/40 bg-yellow-500/5' : 'border-red-500/40 bg-red-500/5'
+            )}>
+              <div className="flex items-start gap-2">
+                <FlaskConical className={cn('h-4 w-4 mt-0.5', form.dry_run ? 'text-yellow-400' : 'text-red-400')} />
+                <div>
+                  <Label className="text-sm">Mode test (dry-run)</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {form.dry_run ? 'ON — Aucun envoi réel.' : '⚠️ OFF — Envois réels aux leads.'}
+                  </p>
                 </div>
-                <p className="text-sm font-medium">Actif</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Crée la séquence à chaque nouveau lead</p>
               </div>
-
-              {/* Cron */}
-              <div className="rounded-lg border border-border bg-background/50 p-3">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                  {cronStatus?.active ? (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-green-400" />
-                  ) : (
-                    <AlertTriangle className="h-3.5 w-3.5 text-yellow-400" />
-                  )}
-                  Cron (chaque minute)
-                </div>
-                <p className="text-sm font-medium">{cronStatus?.active ? 'Actif' : 'Inactif'}</p>
-                <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  {cronStatus?.last_run_at
-                    ? `Dernier run: ${formatDistanceToNow(new Date(cronStatus.last_run_at), { addSuffix: true, locale: fr })}`
-                    : 'Pas encore exécuté'}
-                </p>
-              </div>
-
-              {/* Tâches dues */}
-              <div className="rounded-lg border border-border bg-background/50 p-3">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                  <Clock className="h-3.5 w-3.5 text-primary" /> Tâches dues
-                </div>
-                <p className="text-sm font-medium font-mono">{dueCount}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">En attente de traitement</p>
-              </div>
+              <Switch checked={form.dry_run} onCheckedChange={(v) => set({ dry_run: v })} />
             </div>
-
-            <div className="flex flex-col sm:flex-row gap-2 pt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => runNow.mutate()}
-                disabled={runNow.isPending || dueCount === 0}
-                className="gap-2"
-              >
-                {runNow.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-                Exécuter maintenant ({dueCount})
-              </Button>
-              <p className="text-xs text-muted-foreground sm:self-center">
-                Force le traitement immédiat de toutes les tâches dues, sans attendre le cron.
-              </p>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <Label className="text-sm">Activer l'automatisation</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">Crée la séquence à chaque nouveau lead.</p>
+              </div>
+              <Switch checked={form.is_enabled} onCheckedChange={(v) => set({ is_enabled: v })} />
             </div>
-          </div>
-        </TabsContent>
-      </Tabs>
+            {cronStatus && (
+              <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs space-y-1">
+                <div className="flex items-center gap-2">
+                  <Zap className="h-3.5 w-3.5 text-primary" />
+                  <span className="font-medium">Cron exécuté</span>
+                  <span className="text-muted-foreground">
+                    {cronStatus.last_run_at ? formatDistanceToNow(new Date(cronStatus.last_run_at), { addSuffix: true, locale: fr }) : 'jamais'}
+                  </span>
+                </div>
+                <p className="text-muted-foreground">Tâches en attente : <strong>{dueCount}</strong></p>
+              </div>
+            )}
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
 
-      {/* SAVE BAR */}
+      {/* STICKY SAVE */}
       {dirty && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50">
-          <div className="bg-card border border-primary/40 shadow-[0_0_30px_-5px_hsl(var(--primary)/0.4)] rounded-full pl-4 pr-2 py-2 flex items-center gap-3">
-            <span className="text-sm text-muted-foreground">Modifications non sauvegardées</span>
-            <Button size="sm" onClick={save} disabled={update.isPending}>
-              {update.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
-              Sauvegarder
-            </Button>
-          </div>
+        <div className="fixed bottom-4 right-4 z-50 flex gap-2 bg-card border border-primary/40 rounded-xl px-3 py-2 shadow-2xl shadow-primary/20">
+          <span className="text-xs text-muted-foreground self-center">Modifications non enregistrées</span>
+          <Button size="sm" onClick={save} disabled={update.isPending} className="gap-1.5">
+            {update.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+            Enregistrer
+          </Button>
         </div>
       )}
-
     </div>
   );
 }
