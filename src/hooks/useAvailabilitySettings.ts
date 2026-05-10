@@ -29,6 +29,7 @@ const DEFAULT: Omit<AvailabilitySettings, 'owner_id'> = {
   day_end_time: '15:00',
   slot_duration_minutes: 45,
   max_future_days: 14,
+  min_lead_time_hours: 2,
   timezone: 'Europe/Paris',
 };
 
