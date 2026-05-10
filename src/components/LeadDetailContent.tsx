@@ -4,6 +4,7 @@ import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadStatusBadge } from '@/components/LeadStatusBadge';
 import { NaturalLanguageInput } from '@/components/NaturalLanguageInput';
 import { LeadActivityTimeline } from '@/components/LeadActivityTimeline';
+import { LeadTasksSection } from '@/components/LeadTasksSection';
 import { LeadEditForm } from '@/components/LeadEditForm';
 import { FollowupTimeline } from '@/components/FollowupTimeline';
 import { LeadQualificationCard } from '@/components/LeadQualificationCard';
@@ -165,7 +166,7 @@ export function LeadDetailContent({
           )}
           <TabsTrigger value="activities" className="gap-1 text-xs">
             <Activity className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Activités</span>
+            <span className="hidden sm:inline">Activité & tâches</span>
           </TabsTrigger>
         </TabsList>
 
@@ -317,7 +318,8 @@ export function LeadDetailContent({
               </TabsContent>
             )}
 
-            <TabsContent value="activities" className="mt-0">
+            <TabsContent value="activities" className="mt-0 space-y-4">
+              <LeadTasksSection leadId={lead.id} leadName={lead.name} />
               <LeadActivityTimeline leadId={lead.id} />
             </TabsContent>
           </div>
