@@ -10,7 +10,7 @@ const SidebarContext = createContext({ collapsed: false, setCollapsed: (_: boole
 export const useSidebarState = () => useContext(SidebarContext);
 
 const isFocusRoute = (pathname: string) =>
-  /^\/offers\/[^/]+\/studio/.test(pathname) || pathname.startsWith('/settings');
+  /^\/offers\/[^/]+\/studio/.test(pathname) || pathname.startsWith('/settings') || pathname.startsWith('/conversations');
 
 export function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
