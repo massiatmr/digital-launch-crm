@@ -219,7 +219,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    const ownerSlots = generateHourlySlots(dayStart, dayEnd, slotDurationMin);
+    const minStartMs = nowMs + minLeadMs;
+    const ownerSlots = generateHourlySlots(dayStart, dayEnd, slotDurationMin).filter((slot) => {
+      return zonedDateTimeToUtc(date, slot, ownerTimeZone).getTime() >= minStartMs;
+    });
     const accessToken = await getValidAccessToken(supabase, owner_id);
 
     if (!accessToken) {
