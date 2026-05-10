@@ -212,7 +212,7 @@ async function getNextAvailableSlots(
     for (const slot of baseSlots) {
       if (busySet.has(`${dateStr}|${slot}`)) continue;
       const slotStart = zonedDateTimeToUtc(dateStr, slot, ownerTimeZone);
-      if (slotStart.getTime() < now.getTime() + 2 * 60 * 60 * 1000) continue;
+      if (slotStart.getTime() < now.getTime() + minLeadMs) continue;
       const slotEnd = new Date(slotStart.getTime() + slotDurationMs);
       const overlaps = gBusy.some((b) => slotStart < b.end && slotEnd > b.start);
       if (overlaps) continue;
