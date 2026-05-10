@@ -78,11 +78,16 @@ export function AvailabilityPanel() {
       toast.error('1 à 90 jours');
       return;
     }
+    if (minLeadHours < 0 || minLeadHours > 168) {
+      toast.error('Délai minimum entre 0 et 168h');
+      return;
+    }
     await upsert.mutateAsync({
       day_start_time: start,
       day_end_time: end,
       slot_duration_minutes: duration,
       max_future_days: maxDays,
+      min_lead_time_hours: minLeadHours,
     });
     toast.success('Disponibilités mises à jour');
   };
