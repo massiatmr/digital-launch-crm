@@ -318,7 +318,8 @@ export function LeadDetailContent({
               </TabsContent>
             )}
 
-            <TabsContent value="activities" className="mt-0">
+            <TabsContent value="activities" className="mt-0 space-y-4">
+              <LeadTasksSection leadId={lead.id} leadName={lead.name} />
               <LeadActivityTimeline leadId={lead.id} />
             </TabsContent>
           </div>
