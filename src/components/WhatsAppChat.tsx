@@ -361,6 +361,8 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
                   m.direction === 'outbound' ? 'bg-primary/20 rounded-br-sm' : 'bg-card rounded-bl-sm border border-border')}>
                   {isAudio(m) ? (
                     <AudioBubble path={m.media_storage_path} transcript={m.transcript} outbound={m.direction === 'outbound'} />
+                  ) : isMedia(m) ? (
+                    <MediaBubble path={m.media_storage_path} mime={m.media_type} filename={m.media_filename} caption={m.content && !['[Photo]','[Vidéo]','[Document]'].includes(m.content) ? m.content : null} />
                   ) : (
                     <p className="whitespace-pre-line">{m.content}</p>
                   )}
