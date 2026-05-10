@@ -4,6 +4,7 @@ import { LeadScoreBadge } from '@/components/LeadScoreBadge';
 import { LeadStatusBadge } from '@/components/LeadStatusBadge';
 import { NaturalLanguageInput } from '@/components/NaturalLanguageInput';
 import { LeadActivityTimeline } from '@/components/LeadActivityTimeline';
+import { LeadTasksSection } from '@/components/LeadTasksSection';
 import { LeadEditForm } from '@/components/LeadEditForm';
 import { FollowupTimeline } from '@/components/FollowupTimeline';
 import { LeadQualificationCard } from '@/components/LeadQualificationCard';
