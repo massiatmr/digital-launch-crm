@@ -268,13 +268,26 @@ Deno.serve(async (req) => {
     // 4. Anti-flood : si un outbound a été envoyé dans les 60 dernières secondes pour ce lead
     // (par une autre tâche), on annule celle-ci pour éviter les doublons. Cas typique :
     // webhook Meta retry → 2 qualify-conversation → 2 propose_meeting tasks créées en race.
+    // IMPORTANT : on ne considère que les outbounds POSTÉRIEURS au dernier inbound. Sinon
+    // une réponse rapide du lead (<60s après notre message) serait ignorée par l'IA.
     const sixtySecAgo = new Date(Date.now() - 60 * 1000).toISOString();
+    const { data: lastInboundRow } = await admin
+      .from("whatsapp_messages")
+      .select("sent_at")
+      .eq("lead_id", task.lead_id)
+      .eq("direction", "inbound")
+      .order("sent_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const cutoff = lastInboundRow?.sent_at && lastInboundRow.sent_at > sixtySecAgo
+      ? lastInboundRow.sent_at
+      : sixtySecAgo;
     const { data: recentOutbound } = await admin
       .from("whatsapp_messages")
       .select("id, task_id, sent_at")
       .eq("lead_id", task.lead_id)
       .eq("direction", "outbound")
-      .gte("sent_at", sixtySecAgo)
+      .gt("sent_at", cutoff)
       .neq("task_id", task_id)
       .limit(1);
     if (recentOutbound && recentOutbound.length > 0) {
