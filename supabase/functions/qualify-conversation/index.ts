@@ -85,6 +85,8 @@ Schéma:
   • not_interested = "non merci", "stop", "pas intéressé", "ne me contactez plus"
   • wrong_person = "ce n'est pas moi", "mauvais numéro"
 - summary: 1-2 phrases résumant l'état actuel pour préparer la prochaine réponse
+- confirmed_date: si intent=confirms_slot, date du créneau accepté au format YYYY-MM-DD (résous "vendredi", "demain", etc. par rapport à aujourd'hui). Sinon "".
+- confirmed_time: si intent=confirms_slot, heure exacte au format HH:MM 24h (Europe/Paris). Sinon "".
 
 Sois STRICT : si le lead n'a rien dit clairement, mets "unknown" / "unclear" / 0.
 IMPORTANT pour confirms_slot : l'heure ET le jour acceptés doivent correspondre EXACTEMENT à un créneau que j'ai proposé auparavant. Toute heure inventée par le lead, tout jour vague ou toute partie de journée vague = ready_to_book.`;
