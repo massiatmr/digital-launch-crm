@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
     const transcript = ordered.map((m: any) => `[${m.direction === "inbound" ? "LEAD" : "MOI"}] ${m.content}`).join("\n");
     const lastInbound = ordered.filter((m: any) => m.direction === "inbound").slice(-1)[0];
 
-    const systemPrompt = `Tu es un analyste commercial. Analyse une conversation WhatsApp et retourne UN SEUL objet JSON via l'outil "save_qualification".
+    const DEFAULT_QUALIFY_PROMPT = `Tu es un analyste commercial. Analyse une conversation WhatsApp et retourne UN SEUL objet JSON via l'outil "save_qualification".
 
 Schéma:
 - pain_point: 1 phrase courte décrivant le problème principal du lead (vide si inconnu)
@@ -86,6 +86,8 @@ Schéma:
 
 Sois STRICT : si le lead n'a rien dit clairement, mets "unknown" / "unclear" / 0.
 IMPORTANT pour confirms_slot : le créneau accepté doit avoir été PROPOSÉ par MOI auparavant. Si le lead propose lui-même un créneau pour la première fois, c'est ready_to_book, pas confirms_slot.`;
+
+    const systemPrompt = (settings?.qualify_system_prompt?.trim()) || DEFAULT_QUALIFY_PROMPT;
 
     const userPrompt = `Lead : ${lead.name}
 Message initial du formulaire : ${lead.message || "(aucun)"}
