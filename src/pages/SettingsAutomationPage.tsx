@@ -172,68 +172,6 @@ export default function SettingsAutomationPage() {
 
       {/* ADVANCED — collapsed by default */}
       <Accordion type="multiple" className="space-y-2">
-        {/* Brief IA */}
-        <AccordionItem value="ai" className="rounded-xl border border-border bg-card px-4">
-          <AccordionTrigger className="hover:no-underline">
-            <span className="flex items-center gap-2 text-sm">
-              <Sparkles className="h-4 w-4 text-primary" />
-              Brief IA <span className="text-xs text-muted-foreground font-normal">— ton, exemples, prompts contextuels</span>
-            </span>
-          </AccordionTrigger>
-          <AccordionContent className="space-y-4 pb-4">
-            <div>
-              <Label htmlFor="ai_instructions">Instructions (ton, style, longueur)</Label>
-              <Textarea id="ai_instructions" rows={5} className="mt-1"
-                value={form.ai_instructions}
-                onChange={(e) => set({ ai_instructions: e.target.value })}
-                placeholder="Tu es un closer humain. Pose 3 à 5 questions essentielles max…" />
-            </div>
-            <div>
-              <Label htmlFor="ai_examples">Exemples de messages (style à imiter)</Label>
-              <Textarea id="ai_examples" rows={6} className="mt-1"
-                value={form.ai_examples}
-                onChange={(e) => set({ ai_examples: e.target.value })}
-                placeholder={`Initial:\n"Salut Marie 👋 J'ai vu ta demande pour [offre]. Quel est ton délai ?"`} />
-              <p className="text-xs text-muted-foreground mt-1">Plus tu donnes d'exemples, plus l'IA imite ton style.</p>
-            </div>
-            <details className="rounded-lg border border-border/50 bg-muted/20 p-3">
-              <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
-                Prompts contextuels avancés (4 modes)
-              </summary>
-              <div className="mt-3 space-y-3">
-                {[
-                  { key: 'prompt_qualification', label: 'Qualification' },
-                  { key: 'prompt_objection', label: 'Objection' },
-                  { key: 'prompt_closing', label: 'Closing' },
-                  { key: 'prompt_reactivation', label: 'Réactivation' },
-                ].map((p) => (
-                  <div key={p.key}>
-                    <Label className="text-xs">{p.label}</Label>
-                    <Textarea rows={2} className="mt-1 text-xs"
-                      value={form[p.key] ?? ''}
-                      onChange={(e) => set({ [p.key]: e.target.value })}
-                      placeholder="(défaut système)" />
-                  </div>
-                ))}
-              </div>
-            </details>
-            <div className="flex items-start justify-between gap-4 pt-2 border-t border-border">
-              <div>
-                <Label className="text-sm">Auto-stop si "pas intéressé"</Label>
-                <p className="text-xs text-muted-foreground mt-0.5">Annule les relances dès qu'un refus clair est détecté.</p>
-              </div>
-              <Switch checked={form.auto_stop_on_not_interested ?? true} onCheckedChange={(v) => set({ auto_stop_on_not_interested: v })} />
-            </div>
-            <div className="flex items-start justify-between gap-4 pt-2 border-t border-border">
-              <div>
-                <Label className="text-sm">A/B testing des messages</Label>
-                <p className="text-xs text-muted-foreground mt-0.5">Alterne entre 2 angles différents pour comparer les taux de réponse.</p>
-              </div>
-              <Switch checked={form.enable_ab_test ?? false} onCheckedChange={(v) => set({ enable_ab_test: v })} />
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-
         {/* Conditions */}
         <AccordionItem value="conditions" className="rounded-xl border border-border bg-card px-4">
           <AccordionTrigger className="hover:no-underline">
