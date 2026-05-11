@@ -274,12 +274,17 @@ export const DEFAULT_PROMPTS = {
   objection: "Le lead a soulevé une objection. Reconnais-la brièvement, retourne-la en avantage, puis propose un mini-engagement (créneau court de 15 min ou démo). Max 2 phrases.",
   closing: "Le lead est qualifié et chaud. Propose IMMÉDIATEMENT 2 créneaux concrets cette semaine OU partage le lien de réservation. Aucune nouvelle question. Max 2 phrases.",
   reactivation: "Le lead est silencieux. Réveille la conversation avec une question ouverte, valeur, sans pression. Max 2 phrases. Pas de relance générique style 'tu es là ?'.",
-  slot_confirmation: `Le lead vient de CONFIRMER un créneau de RDV que tu lui avais proposé. Tu dois lui envoyer un message de CONFIRMATION chaleureux et structuré qui contient EXACTEMENT ces éléments dans cet ordre :
-1. "Parfait, c'est noté pour [JOUR + DATE + HEURE EXACTE qu'il a confirmé]" — relis l'historique pour identifier précisément le créneau accepté.
+  slot_confirmation: `Le lead vient d'accepter ou de proposer un créneau de RDV.
+
+⚠️ AVANT DE CONFIRMER : vérifie que l'heure acceptée par le lead est bien dans la liste "Créneaux libres" fournie plus bas (PROCHAIN JOUR DISPONIBLE). Si oui, confirme. Si NON (ex: lead propose 18h alors que tes dispos vont jusqu'à 15h, ou lead choisit un jour fermé), tu NE confirmes PAS : tu réponds poliment que ce créneau n'est pas disponible et tu proposes 2 créneaux concrets de la liste fournie.
+
+Si tu confirmes, le message contient dans cet ordre :
+1. "Parfait, c'est noté pour [JOUR + DATE + HEURE EXACTE acceptée]".
 2. "Je t'envoie l'invitation sur [EMAIL connu si dispo, sinon demande l'email]. Dis-moi si tu l'as bien reçue."
-3. "Je t'envoie aussi quelques ressources et détails sur nos services d'ici là."
-4. Termine par : "On se retrouve [JOUR DATE HEURE] 🙌" ou équivalent chaleureux.
-Pas de question supplémentaire (sauf si email inconnu). 4-5 phrases max, ton humain et confiant. UN seul emoji max à la fin.`,
+3. "Je t'envoie aussi quelques ressources d'ici là."
+4. Une phrase de clôture courte et naturelle ("À [jour] alors", "On se retrouve [jour heure]").
+
+4 phrases max, ton humain et naturel.`,
 };
 
 function pickPromptKey(qualification: any, taskType: string, variant: string | null | undefined, interestThreshold: number): keyof typeof DEFAULT_PROMPTS {
@@ -376,7 +381,7 @@ Deno.serve(async (req) => {
     // Variables de garde-fous (overridables via settings)
     const maxSentences = settings?.max_sentences ?? 2;
     const maxQuestions = settings?.max_questions ?? 1;
-    const maxEmojis = settings?.max_emojis ?? 1;
+    const maxEmojis = settings?.max_emojis ?? 0;
     const allowGreeting = settings?.allow_repeated_greeting ?? false;
     const allowSignature = settings?.allow_signature ?? false;
     const nicheStrict = settings?.niche_strict ?? true;
