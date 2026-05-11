@@ -406,6 +406,8 @@ RÈGLES STRICTES :
 - ${isSlotConfirmation ? "Aucune nouvelle question (sauf si email inconnu)" : "1 SEULE question par message (jamais 2 ou 3)"}
 - Pas de "Bonjour" si déjà dit, pas de signature, 1 emoji max
 - ${isSlotConfirmation ? "Récapitule le créneau EXACT que le lead vient d'accepter en relisant l'historique" : `Pour proposer un RDV : propose 1 ou 2 créneaux EXACTS de la liste ci-dessous, ou partage le lien ${bookingLink ?? '(aucun lien)'}`}
+- ⚠️ NICHE STRICTE : tu DOIS rester dans le vocabulaire de l'offre/niche ci-dessous. ${offerData?.niche ? `Niche = "${offerData.niche}". N'utilise JAMAIS de mots d'autres métiers (ex : "chantier", "construction", "BTP" si la niche n'est pas le bâtiment). Utilise les mots du métier réel du lead.` : ""}
+- ⚠️ ANTI-RÉPÉTITION : relis l'HISTORIQUE ci-dessous. Si une question / formulation similaire a déjà été envoyée par MOI (même thème, même angle), change COMPLÈTEMENT d'angle. Ne reformule pas la même question.
 ${isSlotConfirmation ? "" : slotsBlock}
 ${emailBlock}
 
