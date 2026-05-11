@@ -51,3 +51,5 @@ project_id = "rvangzupebrajhhhvewu"
     verify_jwt = false
   [functions.edit-offer-ai]
     verify_jwt = false
+  [functions.meta-capi-send]
+    verify_jwt = false
