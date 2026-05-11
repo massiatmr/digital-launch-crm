@@ -46,6 +46,17 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Settings (pour modèle + prompt custom)
+    let settings: any = null;
+    if (lead.workspace_id) {
+      const { data } = await admin.from("followup_automation_settings").select("*").eq("workspace_id", lead.workspace_id).maybeSingle();
+      settings = data;
+    }
+    if (!settings) {
+      const { data } = await admin.from("followup_automation_settings").select("*").eq("owner_id", lead.owner_id).is("workspace_id", null).maybeSingle();
+      settings = data;
+    }
+
     const { data: history } = await admin
       .from("whatsapp_messages")
       .select("id, direction, content, sent_at")
