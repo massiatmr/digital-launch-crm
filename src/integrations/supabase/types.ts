@@ -1644,6 +1644,56 @@ export type Database = {
         }
         Relationships: []
       }
+      meta_capi_configs: {
+        Row: {
+          access_token: string
+          created_at: string
+          dataset_id: string
+          enabled: boolean
+          id: string
+          send_booking: boolean
+          send_qualified: boolean
+          send_won: boolean
+          test_event_code: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          dataset_id: string
+          enabled?: boolean
+          id?: string
+          send_booking?: boolean
+          send_qualified?: boolean
+          send_won?: boolean
+          test_event_code?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          dataset_id?: string
+          enabled?: boolean
+          id?: string
+          send_booking?: boolean
+          send_qualified?: boolean
+          send_won?: boolean
+          test_event_code?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_capi_configs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meta_form_offer_mapping: {
         Row: {
           created_at: string
@@ -2759,6 +2809,15 @@ export type Database = {
       }
       seed_default_followup_scripts: {
         Args: { p_owner: string; p_workspace: string }
+        Returns: undefined
+      }
+      send_meta_capi_event: {
+        Args: {
+          p_booking_id?: string
+          p_event_name: string
+          p_lead_id: string
+          p_workspace_id: string
+        }
         Returns: undefined
       }
       update_workspace_member_role: {
