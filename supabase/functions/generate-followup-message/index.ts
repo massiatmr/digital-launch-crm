@@ -473,7 +473,8 @@ Deno.serve(async (req) => {
     }
     const bookingLink = offerData?.slug ? `${PUBLIC_BASE_URL}/offers/${offerData.slug}/page` : null;
 
-    const inboundCount = (history ?? []).filter((m: any) => m.direction === 'inbound').length;
+    const inboundMessages = (history ?? []).filter((m: any) => m.direction === 'inbound');
+    const inboundCount = inboundMessages.length;
     const historyScan = Math.max(1, settings?.history_scan_count ?? 10);
     const historyText = (history ?? []).slice(-historyScan).map(m => `${m.direction === 'inbound' ? 'LEAD' : 'MOI'}: ${m.content}`).join("\n") || "Aucun échange précédent.";
 
@@ -509,9 +510,19 @@ Deno.serve(async (req) => {
 
     const variantHint = variant === "B" ? "\n\n⚠️ VARIANTE B : adopte un angle différent de ce que tu écrirais habituellement (autre accroche, autre question)." : "";
 
-    const slotsBlock = nextSlot
-      ? `\nPROCHAIN JOUR DISPONIBLE (calendrier + Google sync) : **${nextSlot.label}**\nCréneaux libres ce jour-là (durée ${nextSlot.duration} min) : ${nextSlot.slots.join(" / ")}\n⚠️ Si tu proposes un RDV : propose 2 créneaux MAX du même jour parmi cette liste (idéalement un tôt + un plus tard). N'invente JAMAIS d'autre horaire/jour.\n⚠️ Les jours déjà proposés dans l'historique ont été automatiquement évités — ce jour est NOUVEAU.`
-      : "\n⚠️ Aucun créneau disponible dans la fenêtre de réservation autorisée. Propose au lead de te recontacter plus tard.";
+    const lastInboundText = inboundMessages.slice(-1)[0]?.content ?? "";
+    const requestedDate = resolveRequestedDateFromText(lastInboundText, DISPLAY_TIME_ZONE);
+    const requestedDateAvailability = requestedDate
+      ? await getAvailableSlotsForDate(admin, ownerId!, lead.workspace_id, requestedDate.date)
+      : null;
+
+    const slotsBlock = requestedDateAvailability
+      ? requestedDateAvailability.slots.length > 0
+        ? `\nJOUR DEMANDÉ PAR LE LEAD : **${requestedDateAvailability.label}**\nCréneaux libres ce jour-là (durée ${requestedDateAvailability.duration} min) : ${requestedDateAvailability.slots.join(" / ")}\n⚠️ Le lead a demandé ce jour. Réponds d'abord à cette demande et propose 1 ou 2 créneaux de CE jour uniquement. N'ajoute pas d'autre jour tant qu'il reste des créneaux libres sur ce jour.`
+        : `\nJOUR DEMANDÉ PAR LE LEAD : **${requestedDateAvailability.label}**\nAucun créneau libre ce jour-là (${requestedDateAvailability.reason ?? "indisponible"}).\n${nextSlot ? `Alternative réellement libre : **${nextSlot.label}** à ${nextSlot.slots.slice(0, 2).join(" ou ")}.` : "Aucune alternative libre dans la fenêtre autorisée."}\n⚠️ Dis clairement que le jour demandé n'est pas disponible avant de proposer l'alternative. N'invente JAMAIS d'autre horaire/jour.`
+      : nextSlot
+        ? `\nPROCHAIN JOUR DISPONIBLE (calendrier + Google sync) : **${nextSlot.label}**\nCréneaux libres ce jour-là (durée ${nextSlot.duration} min) : ${nextSlot.slots.join(" / ")}\n⚠️ Si tu proposes un RDV : propose 2 créneaux MAX du même jour parmi cette liste (idéalement un tôt + un plus tard). N'invente JAMAIS d'autre horaire/jour.\n⚠️ Les jours déjà proposés dans l'historique ont été automatiquement évités, ce jour est NOUVEAU.`
+        : "\n⚠️ Aucun créneau disponible dans la fenêtre de réservation autorisée. Propose au lead de te recontacter plus tard.";
 
     const knownEmail = (lead.email && lead.email.includes("@") && !lead.email.endsWith("@whatsapp.tmp"))
       ? lead.email.trim()
@@ -552,7 +563,7 @@ ${contextualPrompt}${variantHint}
 RÈGLES STRICTES :
 - ${isSlotConfirmation ? "4 phrases max" : `MAX ${maxSentences} phrase(s)`}
 - ${isSlotConfirmation ? "Aucune nouvelle question (sauf si email inconnu OU créneau non disponible)" : `${maxQuestions} question(s) MAX par message`}
-${greetingRule ? greetingRule + "\n" : ""}${signatureRule ? signatureRule + "\n" : ""}- ${isSlotConfirmation ? "Vérifie que l'heure acceptée est dans la liste de créneaux libres ci-dessous. Sinon, refuse poliment et propose 2 créneaux RÉELS de la liste." : `Pour proposer un RDV : propose 1 ou 2 créneaux EXACTS de la liste ci-dessous, ou partage le lien ${bookingLink ?? '(aucun lien)'}`}
+${greetingRule ? greetingRule + "\n" : ""}${signatureRule ? signatureRule + "\n" : ""}- ${isSlotConfirmation ? "Vérifie que l'heure acceptée est dans la liste de créneaux libres ci-dessous. Sinon, refuse poliment et propose 2 créneaux RÉELS de la liste." : `Pour proposer un RDV : réponds à la contrainte du lead en priorité, propose 1 ou 2 créneaux EXACTS de la liste ci-dessous, ou partage le lien ${bookingLink ?? '(aucun lien)'}`}
 ${nicheRule}
 ${forbiddenRule}
 ${antiRepRule}
