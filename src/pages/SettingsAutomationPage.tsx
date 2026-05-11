@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import {
-  Loader2, Bot, FlaskConical, Sparkles, Settings as SettingsIcon, AlertTriangle, CheckCircle2, Zap, PlayCircle, Filter, Phone, RefreshCw, FileText, MessageSquare,
+  Loader2, Bot, FlaskConical, Settings as SettingsIcon, AlertTriangle, CheckCircle2, Zap, PlayCircle, Filter, Phone, RefreshCw, FileText, MessageSquare,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
