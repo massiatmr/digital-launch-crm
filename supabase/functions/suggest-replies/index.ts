@@ -30,17 +30,28 @@ Deno.serve(async (req) => {
     if (!apiKey) return new Response(JSON.stringify({ error: "AI not configured" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const [{ data: lead }, { data: messages }, { data: qual }] = await Promise.all([
-      supabase.from("leads").select("name, company_name, message, notes").eq("id", lead_id).maybeSingle(),
+      supabase.from("leads").select("name, company_name, message, notes, owner_id, workspace_id").eq("id", lead_id).maybeSingle(),
       supabase.from("whatsapp_messages").select("direction, content, transcript, sent_at").eq("lead_id", lead_id).order("sent_at", { ascending: false }).limit(12),
       supabase.from("lead_qualification").select("intent, pain_point, urgency, objections, summary").eq("lead_id", lead_id).maybeSingle(),
     ]);
+
+    // Settings pour prompt + modèle custom
+    let settings: any = null;
+    if (lead?.workspace_id) {
+      const { data } = await supabase.from("followup_automation_settings").select("suggest_replies_system_prompt, suggest_replies_model").eq("workspace_id", lead.workspace_id).maybeSingle();
+      settings = data;
+    }
+    if (!settings && lead?.owner_id) {
+      const { data } = await supabase.from("followup_automation_settings").select("suggest_replies_system_prompt, suggest_replies_model").eq("owner_id", lead.owner_id).is("workspace_id", null).maybeSingle();
+      settings = data;
+    }
 
     const history = (messages ?? []).reverse().map((m: any) => {
       const who = m.direction === "inbound" ? "LEAD" : "MOI";
       return `${who}: ${m.transcript || m.content}`;
     }).join("\n");
 
-    const sys = `Tu es un closer humain et direct, expert en vente B2B. Tu écris en français, ton conversationnel et naturel, comme sur WhatsApp.
+    const DEFAULT_SUGGEST_PROMPT = `Tu es un closer humain et direct, expert en vente B2B. Tu écris en français, ton conversationnel et naturel, comme sur WhatsApp.
 Tu génères 3 propositions de réponse COURTES (max 2 phrases / 200 caractères) au dernier message du LEAD, avec 3 angles différents :
 1. Une réponse qui POUSSE vers la prise de RDV / closing
 2. Une réponse qui QUALIFIE davantage (pose une question)
@@ -48,6 +59,7 @@ Tu génères 3 propositions de réponse COURTES (max 2 phrases / 200 caractères
 
 Adapte au contexte de la conversation. Pas de blabla, pas de formules creuses, pas d'emoji excessif.
 Réponds UNIQUEMENT avec un JSON: {"suggestions": ["réponse 1", "réponse 2", "réponse 3"]}`;
+    const sys = (settings?.suggest_replies_system_prompt?.trim()) || DEFAULT_SUGGEST_PROMPT;
 
     const userPrompt = `LEAD: ${lead?.name ?? "?"}${lead?.company_name ? ` (${lead.company_name})` : ""}
 ${qual?.summary ? `Résumé qualif: ${qual.summary}\n` : ""}${qual?.pain_point ? `Pain: ${qual.pain_point}\n` : ""}${qual?.urgency ? `Urgence: ${qual.urgency}\n` : ""}${Array.isArray(qual?.objections) && qual.objections.length ? `Objections: ${(qual.objections as any[]).join(', ')}\n` : ""}
@@ -62,7 +74,7 @@ Génère 3 suggestions de réponse au DERNIER message du LEAD.`;
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: settings?.suggest_replies_model || "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: sys },
           { role: "user", content: userPrompt },
