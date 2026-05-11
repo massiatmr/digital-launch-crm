@@ -220,29 +220,82 @@ Analyse maintenant.`;
         actions.push("skipped_duplicate_propose_meeting");
       }
     } else if (q.intent === "confirms_slot") {
-      const dedupAgo = new Date(Date.now() - slotConfirmDedupMin * 60 * 1000).toISOString();
-      const { data: existingConfirm } = await admin
-        .from("lead_followup_tasks")
-        .select("id")
-        .eq("lead_id", lead_id)
-        .eq("task_type", "qualification")
-        .eq("message_variant", "slot_confirmation")
-        .or(`status.in.(pending,scheduled,processing),and(created_at.gte.${dedupAgo})`)
-        .limit(1);
-      if (!existingConfirm?.length) {
-        await admin.from("lead_followup_tasks").insert({
-          lead_id,
-          owner_id: lead.owner_id,
-          workspace_id: lead.workspace_id,
-          task_type: "qualification",
-          message_variant: "slot_confirmation",
-          status: "scheduled",
-          scheduled_at: new Date().toISOString(),
-          step_order: 85,
-        } as any);
-        actions.push("scheduled_slot_confirmation");
+      // Vérification de la disponibilité réelle du créneau accepté.
+      // Si le créneau n'est PAS dans les dispos (ex: lead invente une heure non proposée,
+      // ou créneau réservé entre temps), on rebascule sur ready_to_book → propose_meeting.
+      let slotIsValid = true;
+      const cDate = (q.confirmed_date || "").trim();
+      const cTime = (q.confirmed_time || "").trim();
+      if (lead.offer_id && /^\d{4}-\d{2}-\d{2}$/.test(cDate) && /^\d{1,2}:\d{2}$/.test(cTime)) {
+        const normTime = cTime.length === 4 ? `0${cTime}` : cTime;
+        try {
+          const availRes = await fetch(`${SUPABASE_URL}/functions/v1/check-availability`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json", apikey: SERVICE_KEY },
+            body: JSON.stringify({ offer_id: lead.offer_id, date: cDate }),
+          });
+          if (availRes.ok) {
+            const avail = await availRes.json();
+            const slots: string[] = Array.isArray(avail?.slots) ? avail.slots : [];
+            slotIsValid = slots.includes(normTime);
+          }
+        } catch (e) {
+          console.error("availability check failed:", e);
+          // En cas d'erreur réseau, on laisse passer (fallback sur AI prompt qui re-vérifie).
+        }
       } else {
-        actions.push("skipped_duplicate_confirmation");
+        // Pas d'infos précises → on laisse l'AI gérer dans slot_confirmation prompt.
+      }
+
+      if (!slotIsValid) {
+        // Bascule en propose_meeting : on annule la confirmation, on re-propose des dispos réelles.
+        const dedupAgo = new Date(Date.now() - proposeDedupMin * 60 * 1000).toISOString();
+        const { data: existing } = await admin
+          .from("lead_followup_tasks")
+          .select("id")
+          .eq("lead_id", lead_id)
+          .eq("task_type", "propose_meeting")
+          .or(`status.in.(pending,scheduled,processing),and(status.eq.sent,executed_at.gte.${dedupAgo}),and(created_at.gte.${dedupAgo})`)
+          .limit(1);
+        if (!existing?.length) {
+          await admin.from("lead_followup_tasks").insert({
+            lead_id,
+            owner_id: lead.owner_id,
+            workspace_id: lead.workspace_id,
+            task_type: "propose_meeting",
+            status: "scheduled",
+            scheduled_at: new Date().toISOString(),
+            step_order: 80,
+          } as any);
+          actions.push("rejected_invalid_slot_propose_meeting");
+        } else {
+          actions.push("rejected_invalid_slot_skipped_duplicate");
+        }
+      } else {
+        const dedupAgo = new Date(Date.now() - slotConfirmDedupMin * 60 * 1000).toISOString();
+        const { data: existingConfirm } = await admin
+          .from("lead_followup_tasks")
+          .select("id")
+          .eq("lead_id", lead_id)
+          .eq("task_type", "qualification")
+          .eq("message_variant", "slot_confirmation")
+          .or(`status.in.(pending,scheduled,processing),and(created_at.gte.${dedupAgo})`)
+          .limit(1);
+        if (!existingConfirm?.length) {
+          await admin.from("lead_followup_tasks").insert({
+            lead_id,
+            owner_id: lead.owner_id,
+            workspace_id: lead.workspace_id,
+            task_type: "qualification",
+            message_variant: "slot_confirmation",
+            status: "scheduled",
+            scheduled_at: new Date().toISOString(),
+            step_order: 85,
+          } as any);
+          actions.push("scheduled_slot_confirmation");
+        } else {
+          actions.push("skipped_duplicate_confirmation");
+        }
       }
     } else if (["qualification_in_progress", "info_request", "objection", "unknown"].includes(q.intent)) {
       const lastInboundAt = lastInbound?.sent_at ?? new Date(Date.now() - 60 * 1000).toISOString();
