@@ -168,7 +168,9 @@ Deno.serve(async (req) => {
 
         // === CAS 3 : escalade appel manuel ===
         if (s.enable_call_escalation) {
-          // 3a — lead chaud + au moins 2 relances envoyées sans réponse récente
+          const minFollowups = s.call_escalation_min_followups ?? 2;
+          const requiredScore = s.call_escalation_required_score ?? "hot";
+
           const { count: relancesCount } = await admin
             .from("lead_followup_tasks")
             .select("id", { count: "exact", head: true })
@@ -176,11 +178,10 @@ Deno.serve(async (req) => {
             .eq("status", "sent")
             .in("task_type", ["followup_1", "followup_2", "last_followup", "reactivation"]);
 
-          // 3b — lead engagé qui stoppe (silence 24h+ après avoir répondu)
           const engagedSilent =
             lastIn && lastActivity < window24hCutoff;
 
-          const isHotEscalation = lead.score === "hot" && (relancesCount ?? 0) >= 2;
+          const isHotEscalation = lead.score === requiredScore && (relancesCount ?? 0) >= minFollowups;
 
           if (isHotEscalation || engagedSilent) {
             const { data: existing } = await admin

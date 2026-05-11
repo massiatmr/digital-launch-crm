@@ -46,6 +46,17 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Settings (pour modèle + prompt custom)
+    let settings: any = null;
+    if (lead.workspace_id) {
+      const { data } = await admin.from("followup_automation_settings").select("*").eq("workspace_id", lead.workspace_id).maybeSingle();
+      settings = data;
+    }
+    if (!settings) {
+      const { data } = await admin.from("followup_automation_settings").select("*").eq("owner_id", lead.owner_id).is("workspace_id", null).maybeSingle();
+      settings = data;
+    }
+
     const { data: history } = await admin
       .from("whatsapp_messages")
       .select("id, direction, content, sent_at")
@@ -57,7 +68,7 @@ Deno.serve(async (req) => {
     const transcript = ordered.map((m: any) => `[${m.direction === "inbound" ? "LEAD" : "MOI"}] ${m.content}`).join("\n");
     const lastInbound = ordered.filter((m: any) => m.direction === "inbound").slice(-1)[0];
 
-    const systemPrompt = `Tu es un analyste commercial. Analyse une conversation WhatsApp et retourne UN SEUL objet JSON via l'outil "save_qualification".
+    const DEFAULT_QUALIFY_PROMPT = `Tu es un analyste commercial. Analyse une conversation WhatsApp et retourne UN SEUL objet JSON via l'outil "save_qualification".
 
 Schéma:
 - pain_point: 1 phrase courte décrivant le problème principal du lead (vide si inconnu)
@@ -76,6 +87,8 @@ Schéma:
 Sois STRICT : si le lead n'a rien dit clairement, mets "unknown" / "unclear" / 0.
 IMPORTANT pour confirms_slot : le créneau accepté doit avoir été PROPOSÉ par MOI auparavant. Si le lead propose lui-même un créneau pour la première fois, c'est ready_to_book, pas confirms_slot.`;
 
+    const systemPrompt = (settings?.qualify_system_prompt?.trim()) || DEFAULT_QUALIFY_PROMPT;
+
     const userPrompt = `Lead : ${lead.name}
 Message initial du formulaire : ${lead.message || "(aucun)"}
 Statut CRM actuel : ${lead.status}
@@ -89,7 +102,7 @@ Analyse maintenant.`;
       method: "POST",
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: settings?.qualify_model || "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -158,28 +171,18 @@ Analyse maintenant.`;
       await admin.from("whatsapp_messages").update({ intent: q.intent } as any).eq("id", lastInbound.id);
     }
 
-    // Settings pour l'auto-stop
-    let settings: any = null;
-    if (lead.workspace_id) {
-      const { data } = await admin.from("followup_automation_settings").select("*").eq("workspace_id", lead.workspace_id).maybeSingle();
-      settings = data;
-    }
-    if (!settings) {
-      const { data } = await admin.from("followup_automation_settings").select("*").eq("owner_id", lead.owner_id).is("workspace_id", null).maybeSingle();
-      settings = data;
-    }
     const autoStop = settings?.auto_stop_on_not_interested !== false;
+    const proposeDedupMin = settings?.propose_meeting_dedup_minutes ?? 10;
+    const slotConfirmDedupMin = settings?.slot_confirmation_dedup_minutes ?? 5;
 
     // Actions auto selon intent
     const actions: string[] = [];
 
     if ((q.intent === "not_interested" || q.intent === "wrong_person") && autoStop) {
-      // Annuler toutes les tâches scheduled
       await admin.from("lead_followup_tasks")
         .update({ status: "cancelled", error_message: `Auto-stop: intent=${q.intent}` } as any)
         .eq("lead_id", lead_id)
         .in("status", ["pending", "scheduled"]);
-      // Marquer le lead lost
       if (lead.status !== "lost" && lead.status !== "won") {
         await admin.from("leads").update({
           status: "lost",
@@ -188,17 +191,13 @@ Analyse maintenant.`;
       }
       actions.push("auto_stop_lost");
     } else if (q.intent === "ready_to_book") {
-      // Anti-doublon : on ne crée une nouvelle tâche propose_meeting QUE si
-      // (a) aucune n'est déjà en cours/programmée
-      // (b) aucune n'a été exécutée dans les 10 dernières minutes (évite double envoi
-      //     quand le webhook Meta fire plusieurs fois ou quand le lead enchaîne 2 réponses)
-      const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+      const dedupAgo = new Date(Date.now() - proposeDedupMin * 60 * 1000).toISOString();
       const { data: existing } = await admin
         .from("lead_followup_tasks")
         .select("id, status, executed_at, created_at")
         .eq("lead_id", lead_id)
         .eq("task_type", "propose_meeting")
-        .or(`status.in.(pending,scheduled,processing),and(status.eq.sent,executed_at.gte.${tenMinAgo}),and(created_at.gte.${tenMinAgo})`)
+        .or(`status.in.(pending,scheduled,processing),and(status.eq.sent,executed_at.gte.${dedupAgo}),and(created_at.gte.${dedupAgo})`)
         .limit(1);
       if (!existing?.length) {
         await admin.from("lead_followup_tasks").insert({
@@ -215,18 +214,14 @@ Analyse maintenant.`;
         actions.push("skipped_duplicate_propose_meeting");
       }
     } else if (q.intent === "confirms_slot") {
-      // Le lead vient d'accepter un créneau précédemment proposé.
-      // On crée une tâche de CONFIRMATION immédiate (séparée de propose_meeting),
-      // qui doit envoyer un message de récap : créneau confirmé + invitation email + ressources à venir.
-      // Anti-doublon léger : pas plus d'une confirmation envoyée dans les 5 dernières minutes.
-      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const dedupAgo = new Date(Date.now() - slotConfirmDedupMin * 60 * 1000).toISOString();
       const { data: existingConfirm } = await admin
         .from("lead_followup_tasks")
         .select("id")
         .eq("lead_id", lead_id)
         .eq("task_type", "qualification")
         .eq("message_variant", "slot_confirmation")
-        .or(`status.in.(pending,scheduled,processing),and(created_at.gte.${fiveMinAgo})`)
+        .or(`status.in.(pending,scheduled,processing),and(created_at.gte.${dedupAgo})`)
         .limit(1);
       if (!existingConfirm?.length) {
         await admin.from("lead_followup_tasks").insert({

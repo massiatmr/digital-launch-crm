@@ -269,7 +269,7 @@ function extractProposedDates(history: any[]): Set<string> {
   return set;
 }
 
-const DEFAULT_PROMPTS = {
+export const DEFAULT_PROMPTS = {
   qualification: "Tu qualifies un lead. Pose UNE seule question essentielle pour comprendre son contexte (problème, urgence ou décideur). Max 2 phrases. Direct, conversationnel.",
   objection: "Le lead a soulevé une objection. Reconnais-la brièvement, retourne-la en avantage, puis propose un mini-engagement (créneau court de 15 min ou démo). Max 2 phrases.",
   closing: "Le lead est qualifié et chaud. Propose IMMÉDIATEMENT 2 créneaux concrets cette semaine OU partage le lien de réservation. Aucune nouvelle question. Max 2 phrases.",
@@ -282,14 +282,14 @@ const DEFAULT_PROMPTS = {
 Pas de question supplémentaire (sauf si email inconnu). 4-5 phrases max, ton humain et confiant. UN seul emoji max à la fin.`,
 };
 
-function pickPromptKey(qualification: any, taskType: string, variant?: string | null): keyof typeof DEFAULT_PROMPTS {
+function pickPromptKey(qualification: any, taskType: string, variant: string | null | undefined, interestThreshold: number): keyof typeof DEFAULT_PROMPTS {
   if (variant === "slot_confirmation") return "slot_confirmation";
   if (taskType === "reactivation" || taskType === "template_24h") return "reactivation";
   if (taskType === "propose_meeting") return "closing";
   const intent = qualification?.intent;
   const interest = qualification?.interest_level ?? 0;
   const objections = qualification?.objections ?? [];
-  if (intent === "ready_to_book" || interest >= 70) return "closing";
+  if (intent === "ready_to_book" || interest >= interestThreshold) return "closing";
   if (intent === "objection" || objections.length > 0) return "objection";
   return "qualification";
 }
@@ -362,14 +362,27 @@ Deno.serve(async (req) => {
     const bookingLink = offerData?.slug ? `${PUBLIC_BASE_URL}/offers/${offerData.slug}/page` : null;
 
     const inboundCount = (history ?? []).filter((m: any) => m.direction === 'inbound').length;
-    const historyText = (history ?? []).slice(-10).map(m => `${m.direction === 'inbound' ? 'LEAD' : 'MOI'}: ${m.content}`).join("\n") || "Aucun échange précédent.";
+    const historyScan = Math.max(1, settings?.history_scan_count ?? 10);
+    const historyText = (history ?? []).slice(-historyScan).map(m => `${m.direction === 'inbound' ? 'LEAD' : 'MOI'}: ${m.content}`).join("\n") || "Aucun échange précédent.";
 
-    const promptKey = pickPromptKey(qualification, task_type, variant);
+    const interestThreshold = settings?.interest_threshold_closing ?? 70;
+    const promptKey = pickPromptKey(qualification, task_type, variant, interestThreshold);
     const isSlotConfirmation = promptKey === "slot_confirmation";
     const customPrompt = settings?.[`prompt_${promptKey}`]?.trim();
     const contextualPrompt = customPrompt || DEFAULT_PROMPTS[promptKey];
 
     const baseInstructions = settings?.ai_instructions?.trim() || "Tu es un closer humain, direct, conversationnel.";
+
+    // Variables de garde-fous (overridables via settings)
+    const maxSentences = settings?.max_sentences ?? 2;
+    const maxQuestions = settings?.max_questions ?? 1;
+    const maxEmojis = settings?.max_emojis ?? 1;
+    const allowGreeting = settings?.allow_repeated_greeting ?? false;
+    const allowSignature = settings?.allow_signature ?? false;
+    const nicheStrict = settings?.niche_strict ?? true;
+    const forbiddenWords: string[] = settings?.forbidden_words ?? [];
+    const antiRepetition = settings?.anti_repetition ?? true;
+    const neverReask: string[] = settings?.never_reask_fields ?? ["email"];
 
     const qualifBlock = qualification
       ? `QUALIFICATION DÉJÀ DÉTECTÉE (utilise-la, ne re-pose pas ces questions) :
@@ -388,13 +401,28 @@ Deno.serve(async (req) => {
       ? `\nPROCHAIN JOUR DISPONIBLE (calendrier + Google sync) : **${nextSlot.label}**\nCréneaux libres ce jour-là (durée ${nextSlot.duration} min) : ${nextSlot.slots.join(" / ")}\n⚠️ Si tu proposes un RDV : propose 2 créneaux MAX du même jour parmi cette liste (idéalement un tôt + un plus tard). N'invente JAMAIS d'autre horaire/jour.\n⚠️ Les jours déjà proposés dans l'historique ont été automatiquement évités — ce jour est NOUVEAU.`
       : "\n⚠️ Aucun créneau disponible dans la fenêtre de réservation autorisée. Propose au lead de te recontacter plus tard.";
 
-    // Email déjà connu dans le CRM : on demande à l'IA de le confirmer au lieu de le redemander.
     const knownEmail = (lead.email && lead.email.includes("@") && !lead.email.endsWith("@whatsapp.tmp"))
       ? lead.email.trim()
       : null;
-    const emailBlock = knownEmail
+    const emailKnownAndProtected = knownEmail && neverReask.includes("email");
+    const emailBlock = emailKnownAndProtected
       ? `\nEMAIL DU LEAD DÉJÀ CONNU : ${knownEmail}\n⚠️ NE REDEMANDE JAMAIS son email. Si tu dois lui envoyer une invitation/confirmation/détails, écris naturellement : "Je t'envoie ça sur ${knownEmail}, c'est toujours le bon ?" puis enchaîne sans attendre.`
-      : `\nEMAIL DU LEAD : inconnu. Si tu as besoin de l'email pour une invitation, demande-le UNE SEULE FOIS, simplement.`;
+      : `\nEMAIL DU LEAD : ${knownEmail ?? "inconnu"}. Si tu as besoin de l'email pour une invitation, demande-le UNE SEULE FOIS, simplement.`;
+
+    const phoneKnown = lead.phone && neverReask.includes("phone")
+      ? `\n⚠️ Numéro déjà connu (${lead.phone}). Ne le redemande jamais.` : "";
+
+    const nicheRule = nicheStrict && offerData?.niche
+      ? `- ⚠️ NICHE STRICTE : tu DOIS rester dans le vocabulaire de la niche "${offerData.niche}". N'utilise JAMAIS de mots d'autres métiers (ex : "chantier", "construction", "BTP" si la niche n'est pas le bâtiment). Utilise les mots du métier réel du lead.`
+      : "";
+    const forbiddenRule = forbiddenWords.length
+      ? `- ⚠️ MOTS INTERDITS : n'utilise JAMAIS ces mots : ${forbiddenWords.join(", ")}.`
+      : "";
+    const antiRepRule = antiRepetition
+      ? `- ⚠️ ANTI-RÉPÉTITION : relis l'HISTORIQUE ci-dessous (${historyScan} derniers msg). Si une question / formulation similaire a déjà été envoyée par MOI, change COMPLÈTEMENT d'angle. Ne reformule pas la même question.`
+      : "";
+    const greetingRule = allowGreeting ? "" : `- Pas de "Bonjour" si déjà dit`;
+    const signatureRule = allowSignature ? "" : `- Pas de signature`;
 
     const systemPrompt = `${baseInstructions}
 
@@ -402,14 +430,15 @@ MODE CONTEXTUEL : ${promptKey.toUpperCase()}
 ${contextualPrompt}${variantHint}
 
 RÈGLES STRICTES :
-- ${isSlotConfirmation ? "4-5 phrases max — message de confirmation structuré" : "MAX 2 phrases"}
-- ${isSlotConfirmation ? "Aucune nouvelle question (sauf si email inconnu)" : "1 SEULE question par message (jamais 2 ou 3)"}
-- Pas de "Bonjour" si déjà dit, pas de signature, 1 emoji max
+- ${isSlotConfirmation ? "4-5 phrases max — message de confirmation structuré" : `MAX ${maxSentences} phrase(s)`}
+- ${isSlotConfirmation ? "Aucune nouvelle question (sauf si email inconnu)" : `${maxQuestions} question(s) MAX par message`}
+${greetingRule ? greetingRule + "\n" : ""}${signatureRule ? signatureRule + "\n" : ""}- ${maxEmojis} emoji(s) max
 - ${isSlotConfirmation ? "Récapitule le créneau EXACT que le lead vient d'accepter en relisant l'historique" : `Pour proposer un RDV : propose 1 ou 2 créneaux EXACTS de la liste ci-dessous, ou partage le lien ${bookingLink ?? '(aucun lien)'}`}
-- ⚠️ NICHE STRICTE : tu DOIS rester dans le vocabulaire de l'offre/niche ci-dessous. ${offerData?.niche ? `Niche = "${offerData.niche}". N'utilise JAMAIS de mots d'autres métiers (ex : "chantier", "construction", "BTP" si la niche n'est pas le bâtiment). Utilise les mots du métier réel du lead.` : ""}
-- ⚠️ ANTI-RÉPÉTITION : relis l'HISTORIQUE ci-dessous. Si une question / formulation similaire a déjà été envoyée par MOI (même thème, même angle), change COMPLÈTEMENT d'angle. Ne reformule pas la même question.
+${nicheRule}
+${forbiddenRule}
+${antiRepRule}
 ${isSlotConfirmation ? "" : slotsBlock}
-${emailBlock}
+${emailBlock}${phoneKnown}
 
 CONTEXTE LEAD :
 - Nom : ${lead.name}
@@ -422,14 +451,14 @@ ${bookingLink ? `Lien de réservation de l'offre : ${bookingLink}` : ''}
 
 ${qualifBlock}
 
-HISTORIQUE WHATSAPP (${inboundCount} réponse(s) du lead, 10 derniers) :
+HISTORIQUE WHATSAPP (${inboundCount} réponse(s) du lead, ${historyScan} derniers) :
 ${historyText}
 
 ${settings?.ai_examples ? `EXEMPLES DE STYLE :\n${settings.ai_examples}\n` : ''}
 
 TÂCHE ACTUELLE : ${TASK_LABEL[task_type] || task_type}
 
-Génère UNIQUEMENT le texte du message WhatsApp (français, max 2 phrases).`;
+Génère UNIQUEMENT le texte du message WhatsApp (français, max ${isSlotConfirmation ? 5 : maxSentences} phrases).`;
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
