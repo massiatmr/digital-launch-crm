@@ -345,6 +345,7 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
 
   return (
     <div className={cn('rounded-xl border border-border bg-muted/10 flex flex-col', className)}>
+      <div className="p-2"><AiStatusBanner leadId={leadId} /></div>
       <NextFollowupBanner leadId={leadId} paused={!!ctl?.automation_paused_at} />
       {ctl?.automation_paused_at && (
         <div className="border-b border-border bg-amber-500/10 px-3 py-1.5 flex items-center gap-2 text-xs text-amber-300">
