@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { Bot, Plug, FlaskConical, UserPlus, Building2, User, Bell, ShieldAlert, Trash2, History, MessageSquareText } from 'lucide-react';
+import { Bot, Plug, FlaskConical, UserPlus, Building2, User, Bell, ShieldAlert, Trash2, History, MessageSquareText, Sparkles } from 'lucide-react';
 import SettingsAutomationPage from './SettingsAutomationPage';
 import SettingsScriptsPage from './SettingsScriptsPage';
 import SettingsIntegrationsPage from './SettingsIntegrationsPage';
