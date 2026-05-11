@@ -773,6 +773,8 @@ export default function SettingsIntegrationsPage() {
           </a>
         </CardContent>
       </Card>
+
+      <MetaCapiSection />
     </div>
   );
 }
