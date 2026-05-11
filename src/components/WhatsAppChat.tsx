@@ -13,6 +13,7 @@ import { VoiceMessagePlayer } from '@/components/VoiceMessagePlayer';
 import { FollowupScriptsPicker } from '@/components/FollowupScriptsPicker';
 import { TemplatePickerDialog } from '@/components/conversations/TemplatePickerDialog';
 import { NextFollowupBanner } from '@/components/conversations/NextFollowupBanner';
+import { AiStatusBanner } from '@/components/conversations/AiStatusBanner';
 import { SuggestedReplies } from '@/components/conversations/SuggestedReplies';
 import { useConvControls } from '@/hooks/useConversationControls';
 import { Mp3Encoder } from 'lamejs';
