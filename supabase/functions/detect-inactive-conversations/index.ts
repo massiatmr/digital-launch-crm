@@ -98,7 +98,21 @@ Deno.serve(async (req) => {
             .in("status", ["pending", "scheduled"])
             .limit(1);
 
-          if (!existing?.length) {
+          // Anti-spam : ne pas relancer en boucle. Si une reactivation a déjà été envoyée
+          // ET que le lead n'a pas répondu depuis, on s'arrête (max 1 réactivation tant qu'il ne répond pas).
+          const { data: lastSentReact } = await admin
+            .from("lead_followup_tasks")
+            .select("executed_at")
+            .eq("lead_id", st.lead_id)
+            .eq("task_type", "reactivation")
+            .eq("status", "sent")
+            .order("executed_at", { ascending: false })
+            .limit(1);
+          const lastReactSentAt = lastSentReact?.[0]?.executed_at ? new Date(lastSentReact[0].executed_at) : null;
+          const leadRepliedAfterLastReact = lastReactSentAt && lastIn && lastIn.getTime() > lastReactSentAt.getTime();
+          const blockedByPrevReact = lastReactSentAt && !leadRepliedAfterLastReact;
+
+          if (!existing?.length && !blockedByPrevReact) {
             const { data: t } = await admin
               .from("lead_followup_tasks")
               .insert({
