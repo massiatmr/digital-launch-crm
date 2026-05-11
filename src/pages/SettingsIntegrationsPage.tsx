@@ -25,6 +25,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MetaCapiSection } from "@/components/settings/MetaCapiSection";
 import { useCurrentWorkspaceId, useWorkspaces } from "@/hooks/useWorkspaces";
 import { useQueryClient } from "@tanstack/react-query";
 
