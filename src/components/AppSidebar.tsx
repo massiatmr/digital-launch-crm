@@ -19,7 +19,7 @@ const links: LinkDef[] = [
   { to: '/reminders', icon: Bell, label: 'Tâches' },
   { to: '/offers', icon: Package, label: 'Offres', feature: 'offers' },
   { to: '/bookings', icon: CalendarCheck, label: 'Rendez-vous', feature: 'bookings' },
-  { to: '/ai-monitor', icon: Bot, label: 'Monitoring IA' },
+  { to: '/ai-monitor', icon: Bot, label: 'Monitoring IA', feature: 'whatsapp' },
   { to: '/settings/account', icon: Settings, label: 'Paramètres' },
 ];
 
