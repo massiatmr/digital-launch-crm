@@ -241,6 +241,113 @@ async function getNextAvailableSlots(
   return null;
 }
 
+function resolveRequestedDateFromText(text: string, timeZone: string): { date: string; label: string } | null {
+  const normalized = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const weekdays = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+  const today = formatDateInTimeZone(new Date(), timeZone);
+  const todayDow = new Date(`${today}T12:00:00Z`).getUTCDay();
+
+  for (let targetDow = 0; targetDow < weekdays.length; targetDow++) {
+    const day = weekdays[targetDow];
+    if (!new RegExp(`\\b${day}\\b`, "i").test(normalized)) continue;
+    const delta = (targetDow - todayDow + 7) % 7;
+    const date = addDays(today, delta);
+    const d = new Date(`${date}T12:00:00Z`);
+    const dateLabel = d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: DISPLAY_TIME_ZONE });
+    return { date, label: `${weekdays[targetDow]} ${dateLabel}` };
+  }
+  return null;
+}
+
+async function getAvailableSlotsForDate(
+  admin: any,
+  ownerId: string,
+  workspaceId: string | null,
+  requestedDate: string,
+): Promise<{ date: string; slots: string[]; label: string; duration: number; reason?: string }> {
+  const now = new Date();
+  const { data: settings } = await admin
+    .from("availability_settings")
+    .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
+    .eq("owner_id", ownerId)
+    .maybeSingle();
+  const ownerTimeZone: string = settings?.timezone ?? DISPLAY_TIME_ZONE;
+  const workingDays: number[] = settings?.working_days ?? DEFAULT_WORKING_DAYS;
+  const dayStart: string = settings?.day_start_time ?? DEFAULT_DAY_START;
+  const dayEnd: string = settings?.day_end_time ?? DEFAULT_DAY_END;
+  const slotDurationMin: number = settings?.slot_duration_minutes ?? DEFAULT_SLOT_DURATION;
+  const minLeadHours: number = settings?.min_lead_time_hours ?? 2;
+  const maxDays: number = settings?.max_future_days ?? DEFAULT_MAX_FUTURE_DAYS;
+  const baseSlots = generateHourlySlots(dayStart, dayEnd, slotDurationMin);
+  const slotDurationMs = slotDurationMin * 60 * 1000;
+  const minLeadMs = minLeadHours * 60 * 60 * 1000;
+  const ownerToday = formatDateInTimeZone(now, ownerTimeZone);
+  const labels = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+  const probe = new Date(`${requestedDate}T12:00:00Z`);
+  const dow = probe.getUTCDay();
+  const label = `${labels[dow]} ${probe.toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: DISPLAY_TIME_ZONE })}`;
+
+  const daysAhead = Math.round((zonedDateTimeToUtc(requestedDate, "12:00", ownerTimeZone).getTime() - zonedDateTimeToUtc(ownerToday, "12:00", ownerTimeZone).getTime()) / (24 * 60 * 60 * 1000));
+  if (daysAhead < 0 || daysAhead > maxDays) return { date: requestedDate, slots: [], label, duration: slotDurationMin, reason: "hors fenêtre autorisée" };
+  if (!workingDays.includes(dow)) return { date: requestedDate, slots: [], label, duration: slotDurationMin, reason: "jour fermé" };
+
+  const { data: blackout } = await admin
+    .from("availability_blackouts")
+    .select("id")
+    .eq("owner_id", ownerId)
+    .eq("blackout_date", requestedDate)
+    .maybeSingle();
+  if (blackout) return { date: requestedDate, slots: [], label, duration: slotDurationMin, reason: "jour bloqué" };
+
+  let bQuery = admin
+    .from("bookings")
+    .select("booking_date, time_slot")
+    .eq("booking_date", requestedDate)
+    .neq("status", "cancelled")
+    .is("deleted_at", null);
+  if (workspaceId) bQuery = bQuery.eq("workspace_id", workspaceId);
+  else bQuery = bQuery.eq("owner_id", ownerId);
+  const { data: bookings } = await bQuery;
+  const busySet = new Set<string>();
+  (bookings ?? []).forEach((b: any) => {
+    const ownerBookingStart = zonedDateTimeToUtc(b.booking_date, b.time_slot, DISPLAY_TIME_ZONE);
+    busySet.add(`${formatDateInTimeZone(ownerBookingStart, ownerTimeZone)}|${formatTimeInTimeZone(ownerBookingStart, ownerTimeZone)}`);
+  });
+
+  const accessToken = await getGoogleAccessToken(admin, ownerId);
+  let gBusy: Array<{ start: Date; end: Date }> = [];
+  if (accessToken) {
+    try {
+      const res = await fetch("https://www.googleapis.com/calendar/v3/freeBusy", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          timeMin: zonedDateTimeToUtc(requestedDate, "00:00", ownerTimeZone).toISOString(),
+          timeMax: new Date(zonedDateTimeToUtc(requestedDate, "23:59", ownerTimeZone).getTime() + 59 * 1000).toISOString(),
+          timeZone: ownerTimeZone,
+          items: [{ id: "primary" }],
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        gBusy = (data.calendars?.primary?.busy ?? []).map((b: any) => ({ start: new Date(b.start), end: new Date(b.end) }));
+      }
+    } catch (_) { /* ignore */ }
+  }
+
+  const freeSlots = baseSlots.flatMap((slot) => {
+    if (busySet.has(`${requestedDate}|${slot}`)) return [];
+    const slotStart = zonedDateTimeToUtc(requestedDate, slot, ownerTimeZone);
+    if (slotStart.getTime() < now.getTime() + minLeadMs) return [];
+    const slotEnd = new Date(slotStart.getTime() + slotDurationMs);
+    if (gBusy.some((b) => slotStart < b.end && slotEnd > b.start)) return [];
+    if (formatDateInTimeZone(slotStart, DISPLAY_TIME_ZONE) !== requestedDate) return [];
+    return [formatTimeInTimeZone(slotStart, DISPLAY_TIME_ZONE)];
+  });
+
+  return { date: requestedDate, slots: freeSlots, label, duration: slotDurationMin, reason: freeSlots.length ? undefined : "aucun créneau libre" };
+}
+
 /**
  * Détecte les dates (YYYY-MM-DD) déjà proposées par MOI dans l'historique outbound.
  * Heuristique simple : matchs sur "lundi 12 mai", "mardi 14", patterns FR.
@@ -366,7 +473,8 @@ Deno.serve(async (req) => {
     }
     const bookingLink = offerData?.slug ? `${PUBLIC_BASE_URL}/offers/${offerData.slug}/page` : null;
 
-    const inboundCount = (history ?? []).filter((m: any) => m.direction === 'inbound').length;
+    const inboundMessages = (history ?? []).filter((m: any) => m.direction === 'inbound');
+    const inboundCount = inboundMessages.length;
     const historyScan = Math.max(1, settings?.history_scan_count ?? 10);
     const historyText = (history ?? []).slice(-historyScan).map(m => `${m.direction === 'inbound' ? 'LEAD' : 'MOI'}: ${m.content}`).join("\n") || "Aucun échange précédent.";
 
@@ -402,9 +510,19 @@ Deno.serve(async (req) => {
 
     const variantHint = variant === "B" ? "\n\n⚠️ VARIANTE B : adopte un angle différent de ce que tu écrirais habituellement (autre accroche, autre question)." : "";
 
-    const slotsBlock = nextSlot
-      ? `\nPROCHAIN JOUR DISPONIBLE (calendrier + Google sync) : **${nextSlot.label}**\nCréneaux libres ce jour-là (durée ${nextSlot.duration} min) : ${nextSlot.slots.join(" / ")}\n⚠️ Si tu proposes un RDV : propose 2 créneaux MAX du même jour parmi cette liste (idéalement un tôt + un plus tard). N'invente JAMAIS d'autre horaire/jour.\n⚠️ Les jours déjà proposés dans l'historique ont été automatiquement évités — ce jour est NOUVEAU.`
-      : "\n⚠️ Aucun créneau disponible dans la fenêtre de réservation autorisée. Propose au lead de te recontacter plus tard.";
+    const lastInboundText = inboundMessages.slice(-1)[0]?.content ?? "";
+    const requestedDate = resolveRequestedDateFromText(lastInboundText, DISPLAY_TIME_ZONE);
+    const requestedDateAvailability = requestedDate
+      ? await getAvailableSlotsForDate(admin, ownerId!, lead.workspace_id, requestedDate.date)
+      : null;
+
+    const slotsBlock = requestedDateAvailability
+      ? requestedDateAvailability.slots.length > 0
+        ? `\nJOUR DEMANDÉ PAR LE LEAD : **${requestedDateAvailability.label}**\nCréneaux libres ce jour-là (durée ${requestedDateAvailability.duration} min) : ${requestedDateAvailability.slots.join(" / ")}\n⚠️ Le lead a demandé ce jour. Réponds d'abord à cette demande et propose 1 ou 2 créneaux de CE jour uniquement. N'ajoute pas d'autre jour tant qu'il reste des créneaux libres sur ce jour.`
+        : `\nJOUR DEMANDÉ PAR LE LEAD : **${requestedDateAvailability.label}**\nAucun créneau libre ce jour-là (${requestedDateAvailability.reason ?? "indisponible"}).\n${nextSlot ? `Alternative réellement libre : **${nextSlot.label}** à ${nextSlot.slots.slice(0, 2).join(" ou ")}.` : "Aucune alternative libre dans la fenêtre autorisée."}\n⚠️ Dis clairement que le jour demandé n'est pas disponible avant de proposer l'alternative. N'invente JAMAIS d'autre horaire/jour.`
+      : nextSlot
+        ? `\nPROCHAIN JOUR DISPONIBLE (calendrier + Google sync) : **${nextSlot.label}**\nCréneaux libres ce jour-là (durée ${nextSlot.duration} min) : ${nextSlot.slots.join(" / ")}\n⚠️ Si tu proposes un RDV : propose 2 créneaux MAX du même jour parmi cette liste (idéalement un tôt + un plus tard). N'invente JAMAIS d'autre horaire/jour.\n⚠️ Les jours déjà proposés dans l'historique ont été automatiquement évités, ce jour est NOUVEAU.`
+        : "\n⚠️ Aucun créneau disponible dans la fenêtre de réservation autorisée. Propose au lead de te recontacter plus tard.";
 
     const knownEmail = (lead.email && lead.email.includes("@") && !lead.email.endsWith("@whatsapp.tmp"))
       ? lead.email.trim()
@@ -445,7 +563,7 @@ ${contextualPrompt}${variantHint}
 RÈGLES STRICTES :
 - ${isSlotConfirmation ? "4 phrases max" : `MAX ${maxSentences} phrase(s)`}
 - ${isSlotConfirmation ? "Aucune nouvelle question (sauf si email inconnu OU créneau non disponible)" : `${maxQuestions} question(s) MAX par message`}
-${greetingRule ? greetingRule + "\n" : ""}${signatureRule ? signatureRule + "\n" : ""}- ${isSlotConfirmation ? "Vérifie que l'heure acceptée est dans la liste de créneaux libres ci-dessous. Sinon, refuse poliment et propose 2 créneaux RÉELS de la liste." : `Pour proposer un RDV : propose 1 ou 2 créneaux EXACTS de la liste ci-dessous, ou partage le lien ${bookingLink ?? '(aucun lien)'}`}
+${greetingRule ? greetingRule + "\n" : ""}${signatureRule ? signatureRule + "\n" : ""}- ${isSlotConfirmation ? "Vérifie que l'heure acceptée est dans la liste de créneaux libres ci-dessous. Sinon, refuse poliment et propose 2 créneaux RÉELS de la liste." : `Pour proposer un RDV : réponds à la contrainte du lead en priorité, propose 1 ou 2 créneaux EXACTS de la liste ci-dessous, ou partage le lien ${bookingLink ?? '(aucun lien)'}`}
 ${nicheRule}
 ${forbiddenRule}
 ${antiRepRule}
