@@ -78,14 +78,16 @@ Schéma:
 - objections: tableau de strings (objections explicitement formulées : "trop cher", "pas le bon moment", "déjà un prestataire", etc.)
 - interest_level: 0-100 (0 = veut être laissé tranquille, 100 = prêt à signer)
 - intent: "ready_to_book" | "confirms_slot" | "objection" | "not_interested" | "info_request" | "wrong_person" | "qualification_in_progress" | "unknown"
-  • ready_to_book = lead demande un créneau/lien/RDV pour la PREMIÈRE fois OU refuse les créneaux proposés et en redemande d'autres OU propose lui-même une heure (même si on n'a pas encore proposé)
-  • confirms_slot = MOI ai proposé EXPLICITEMENT un ou plusieurs créneaux dans les messages précédents ET le lead vient d'en accepter UN qui correspond EXACTEMENT à un créneau que j'ai proposé (même jour, même heure). Si le lead propose une heure DIFFÉRENTE de ce que j'ai proposé (ex: je propose 11h/13h, il dit "18h ça marche"), c'est ready_to_book, PAS confirms_slot.
+  • ready_to_book = lead demande un créneau/lien/RDV pour la PREMIÈRE fois OU refuse les créneaux proposés et en redemande d'autres OU propose lui-même un jour/une heure (même si on n'a pas encore proposé)
+  • confirms_slot = MOI ai proposé EXPLICITEMENT un ou plusieurs créneaux dans les messages précédents ET le lead vient d'en accepter UN qui correspond EXACTEMENT à un créneau que j'ai proposé (même jour, même heure).
+  • Si le lead répond seulement avec un jour vague ou une partie de journée (ex: "plutôt vendredi", "le matin", "vendredi matin") sans heure exacte proposée par MOI, c'est ready_to_book, PAS confirms_slot.
+  • Si le lead propose une heure DIFFÉRENTE de ce que j'ai proposé (ex: je propose 11h/13h, il dit "18h ça marche"), c'est ready_to_book, PAS confirms_slot.
   • not_interested = "non merci", "stop", "pas intéressé", "ne me contactez plus"
   • wrong_person = "ce n'est pas moi", "mauvais numéro"
 - summary: 1-2 phrases résumant l'état actuel pour préparer la prochaine réponse
 
 Sois STRICT : si le lead n'a rien dit clairement, mets "unknown" / "unclear" / 0.
-IMPORTANT pour confirms_slot : l'heure ET le jour acceptés doivent correspondre EXACTEMENT à un créneau que j'ai proposé auparavant. Toute heure inventée par le lead = ready_to_book.`;
+IMPORTANT pour confirms_slot : l'heure ET le jour acceptés doivent correspondre EXACTEMENT à un créneau que j'ai proposé auparavant. Toute heure inventée par le lead, tout jour vague ou toute partie de journée vague = ready_to_book.`;
 
     const systemPrompt = (settings?.qualify_system_prompt?.trim()) || DEFAULT_QUALIFY_PROMPT;
 
