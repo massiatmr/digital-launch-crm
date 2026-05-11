@@ -1,4 +1,5 @@
 import { useAiMonitor } from '@/hooks/useAiStatus';
+import { useCurrentWorkspaceId } from '@/hooks/useWorkspaces';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Bot, Pause, Moon, CheckCircle2, Clock, AlertTriangle, Loader2 } from 'lucide-react';
