@@ -269,7 +269,7 @@ function extractProposedDates(history: any[]): Set<string> {
   return set;
 }
 
-const DEFAULT_PROMPTS = {
+export const DEFAULT_PROMPTS = {
   qualification: "Tu qualifies un lead. Pose UNE seule question essentielle pour comprendre son contexte (problème, urgence ou décideur). Max 2 phrases. Direct, conversationnel.",
   objection: "Le lead a soulevé une objection. Reconnais-la brièvement, retourne-la en avantage, puis propose un mini-engagement (créneau court de 15 min ou démo). Max 2 phrases.",
   closing: "Le lead est qualifié et chaud. Propose IMMÉDIATEMENT 2 créneaux concrets cette semaine OU partage le lien de réservation. Aucune nouvelle question. Max 2 phrases.",
@@ -282,14 +282,14 @@ const DEFAULT_PROMPTS = {
 Pas de question supplémentaire (sauf si email inconnu). 4-5 phrases max, ton humain et confiant. UN seul emoji max à la fin.`,
 };
 
-function pickPromptKey(qualification: any, taskType: string, variant?: string | null): keyof typeof DEFAULT_PROMPTS {
+function pickPromptKey(qualification: any, taskType: string, variant: string | null | undefined, interestThreshold: number): keyof typeof DEFAULT_PROMPTS {
   if (variant === "slot_confirmation") return "slot_confirmation";
   if (taskType === "reactivation" || taskType === "template_24h") return "reactivation";
   if (taskType === "propose_meeting") return "closing";
   const intent = qualification?.intent;
   const interest = qualification?.interest_level ?? 0;
   const objections = qualification?.objections ?? [];
-  if (intent === "ready_to_book" || interest >= 70) return "closing";
+  if (intent === "ready_to_book" || interest >= interestThreshold) return "closing";
   if (intent === "objection" || objections.length > 0) return "objection";
   return "qualification";
 }
