@@ -240,6 +240,29 @@ Analyse maintenant.`;
       } else {
         actions.push("skipped_duplicate_confirmation");
       }
+    } else if (["qualification_in_progress", "info_request", "objection", "unknown"].includes(q.intent)) {
+      const lastInboundAt = lastInbound?.sent_at ?? new Date(Date.now() - 60 * 1000).toISOString();
+      const { data: existingQualification } = await admin
+        .from("lead_followup_tasks")
+        .select("id")
+        .eq("lead_id", lead_id)
+        .eq("task_type", "qualification")
+        .or(`status.in.(pending,scheduled,processing),and(status.eq.sent,executed_at.gte.${lastInboundAt}),and(created_at.gte.${lastInboundAt})`)
+        .limit(1);
+      if (!existingQualification?.length) {
+        await admin.from("lead_followup_tasks").insert({
+          lead_id,
+          owner_id: lead.owner_id,
+          workspace_id: lead.workspace_id,
+          task_type: "qualification",
+          status: "scheduled",
+          scheduled_at: new Date().toISOString(),
+          step_order: 99,
+        } as any);
+        actions.push("scheduled_contextual_qualification");
+      } else {
+        actions.push("skipped_duplicate_qualification");
+      }
     }
 
     return new Response(JSON.stringify({ ok: true, qualification: q, actions }), {
