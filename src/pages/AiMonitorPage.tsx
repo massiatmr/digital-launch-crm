@@ -20,7 +20,8 @@ function computeStatus(r: Row) {
 }
 
 export default function AiMonitorPage() {
-  const { data, isLoading } = useAiMonitor(150);
+  const workspaceId = useCurrentWorkspaceId();
+  const { data, isLoading } = useAiMonitor(150, workspaceId);
 
   return (
     <div className="container mx-auto py-6 max-w-6xl">
