@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Kanban, Bell, PanelLeftClose, PanelLeft, LogOut, Package, CalendarCheck, UserCheck, Settings, MessageCircle, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Kanban, Bell, PanelLeftClose, PanelLeft, LogOut, Package, CalendarCheck, UserCheck, Settings, MessageCircle, Sparkles, Bot } from 'lucide-react';
 import { useSidebarState } from './AppLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useWhatsAppInbox } from '@/hooks/useWhatsAppInbox';
@@ -19,6 +19,7 @@ const links: LinkDef[] = [
   { to: '/reminders', icon: Bell, label: 'Tâches' },
   { to: '/offers', icon: Package, label: 'Offres', feature: 'offers' },
   { to: '/bookings', icon: CalendarCheck, label: 'Rendez-vous', feature: 'bookings' },
+  { to: '/ai-monitor', icon: Bot, label: 'Monitoring IA' },
   { to: '/settings/account', icon: Settings, label: 'Paramètres' },
 ];
 
