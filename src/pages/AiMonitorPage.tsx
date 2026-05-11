@@ -1,4 +1,5 @@
 import { useAiMonitor } from '@/hooks/useAiStatus';
+import { useCurrentWorkspaceId } from '@/hooks/useWorkspaces';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Bot, Pause, Moon, CheckCircle2, Clock, AlertTriangle, Loader2 } from 'lucide-react';
@@ -19,7 +20,8 @@ function computeStatus(r: Row) {
 }
 
 export default function AiMonitorPage() {
-  const { data, isLoading } = useAiMonitor(150);
+  const workspaceId = useCurrentWorkspaceId();
+  const { data, isLoading } = useAiMonitor(150, workspaceId);
 
   return (
     <div className="container mx-auto py-6 max-w-6xl">

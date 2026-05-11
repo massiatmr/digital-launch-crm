@@ -2706,7 +2706,9 @@ export type Database = {
         Args: { _user_id: string; _workspace_id: string }
         Returns: boolean
       }
-      list_ai_monitor: { Args: { p_limit?: number }; Returns: Json }
+      list_ai_monitor:
+        | { Args: { p_limit?: number }; Returns: Json }
+        | { Args: { p_limit?: number; p_workspace_id?: string }; Returns: Json }
       list_workspace_members: {
         Args: { _workspace_id: string }
         Returns: {
