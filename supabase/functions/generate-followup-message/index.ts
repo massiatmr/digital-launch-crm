@@ -495,7 +495,20 @@ Génère UNIQUEMENT le texte du message WhatsApp (français, max ${isSlotConfirm
     }
 
     const data = await aiResponse.json();
-    const message = data.choices?.[0]?.message?.content?.trim() || "";
+    let message = data.choices?.[0]?.message?.content?.trim() || "";
+    // Sanitize : pas de tirets cadratins, pas de ponctuation excessive
+    message = message
+      .replace(/[—–]/g, ",")           // em/en dash → virgule
+      .replace(/!{2,}/g, "!")          // !!! → !
+      .replace(/\?{2,}/g, "?")         // ??? → ?
+      .replace(/\.{4,}/g, "...")       // ..... → ...
+      .replace(/ {2,}/g, " ")          // double espaces
+      .replace(/ ,/g, ",")
+      .trim();
+    if (maxEmojis === 0) {
+      // Strip emojis (large emoji ranges)
+      message = message.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F000}-\u{1F2FF}]/gu, "").replace(/ {2,}/g, " ").trim();
+    }
 
     return new Response(JSON.stringify({ message, prompt_used: promptKey, variant: variant ?? "A" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
