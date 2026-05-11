@@ -1,0 +1,22 @@
+
+ALTER TABLE public.followup_automation_settings
+  ADD COLUMN IF NOT EXISTS max_sentences integer NOT NULL DEFAULT 2,
+  ADD COLUMN IF NOT EXISTS max_questions integer NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS max_emojis integer NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS allow_repeated_greeting boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS allow_signature boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS niche_strict boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS forbidden_words text[] NOT NULL DEFAULT '{}'::text[],
+  ADD COLUMN IF NOT EXISTS anti_repetition boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS history_scan_count integer NOT NULL DEFAULT 10,
+  ADD COLUMN IF NOT EXISTS never_reask_fields text[] NOT NULL DEFAULT ARRAY['email']::text[],
+  ADD COLUMN IF NOT EXISTS interest_threshold_closing integer NOT NULL DEFAULT 70,
+  ADD COLUMN IF NOT EXISTS prompt_slot_confirmation text NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS qualify_system_prompt text NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS qualify_model text NOT NULL DEFAULT 'google/gemini-2.5-flash',
+  ADD COLUMN IF NOT EXISTS suggest_replies_system_prompt text NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS suggest_replies_model text NOT NULL DEFAULT 'google/gemini-2.5-flash',
+  ADD COLUMN IF NOT EXISTS propose_meeting_dedup_minutes integer NOT NULL DEFAULT 10,
+  ADD COLUMN IF NOT EXISTS slot_confirmation_dedup_minutes integer NOT NULL DEFAULT 5,
+  ADD COLUMN IF NOT EXISTS call_escalation_min_followups integer NOT NULL DEFAULT 2,
+  ADD COLUMN IF NOT EXISTS call_escalation_required_score text NOT NULL DEFAULT 'hot';

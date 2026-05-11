@@ -677,7 +677,12 @@ export type Database = {
           ai_examples: string
           ai_instructions: string
           ai_model: string
+          allow_repeated_greeting: boolean
+          allow_signature: boolean
+          anti_repetition: boolean
           auto_stop_on_not_interested: boolean
+          call_escalation_min_followups: number
+          call_escalation_required_score: string
           created_at: string
           dry_run: boolean
           enable_24h_template_switch: boolean
@@ -685,16 +690,31 @@ export type Database = {
           enable_call_escalation: boolean
           followup_1_delay_hours: number
           followup_2_delay_hours: number
+          forbidden_words: string[]
+          history_scan_count: number
           id: string
           inactivity_threshold_hours: number
           initial_delay_minutes: number
+          interest_threshold_closing: number
           is_enabled: boolean
           last_followup_delay_hours: number
+          max_emojis: number
+          max_questions: number
+          max_sentences: number
+          never_reask_fields: string[]
+          niche_strict: boolean
           owner_id: string
           prompt_closing: string
           prompt_objection: string
           prompt_qualification: string
           prompt_reactivation: string
+          prompt_slot_confirmation: string
+          propose_meeting_dedup_minutes: number
+          qualify_model: string
+          qualify_system_prompt: string
+          slot_confirmation_dedup_minutes: number
+          suggest_replies_model: string
+          suggest_replies_system_prompt: string
           template_followup_1_id: string | null
           template_followup_2_id: string | null
           template_initial_id: string | null
@@ -709,7 +729,12 @@ export type Database = {
           ai_examples?: string
           ai_instructions?: string
           ai_model?: string
+          allow_repeated_greeting?: boolean
+          allow_signature?: boolean
+          anti_repetition?: boolean
           auto_stop_on_not_interested?: boolean
+          call_escalation_min_followups?: number
+          call_escalation_required_score?: string
           created_at?: string
           dry_run?: boolean
           enable_24h_template_switch?: boolean
@@ -717,16 +742,31 @@ export type Database = {
           enable_call_escalation?: boolean
           followup_1_delay_hours?: number
           followup_2_delay_hours?: number
+          forbidden_words?: string[]
+          history_scan_count?: number
           id?: string
           inactivity_threshold_hours?: number
           initial_delay_minutes?: number
+          interest_threshold_closing?: number
           is_enabled?: boolean
           last_followup_delay_hours?: number
+          max_emojis?: number
+          max_questions?: number
+          max_sentences?: number
+          never_reask_fields?: string[]
+          niche_strict?: boolean
           owner_id?: string
           prompt_closing?: string
           prompt_objection?: string
           prompt_qualification?: string
           prompt_reactivation?: string
+          prompt_slot_confirmation?: string
+          propose_meeting_dedup_minutes?: number
+          qualify_model?: string
+          qualify_system_prompt?: string
+          slot_confirmation_dedup_minutes?: number
+          suggest_replies_model?: string
+          suggest_replies_system_prompt?: string
           template_followup_1_id?: string | null
           template_followup_2_id?: string | null
           template_initial_id?: string | null
@@ -741,7 +781,12 @@ export type Database = {
           ai_examples?: string
           ai_instructions?: string
           ai_model?: string
+          allow_repeated_greeting?: boolean
+          allow_signature?: boolean
+          anti_repetition?: boolean
           auto_stop_on_not_interested?: boolean
+          call_escalation_min_followups?: number
+          call_escalation_required_score?: string
           created_at?: string
           dry_run?: boolean
           enable_24h_template_switch?: boolean
@@ -749,16 +794,31 @@ export type Database = {
           enable_call_escalation?: boolean
           followup_1_delay_hours?: number
           followup_2_delay_hours?: number
+          forbidden_words?: string[]
+          history_scan_count?: number
           id?: string
           inactivity_threshold_hours?: number
           initial_delay_minutes?: number
+          interest_threshold_closing?: number
           is_enabled?: boolean
           last_followup_delay_hours?: number
+          max_emojis?: number
+          max_questions?: number
+          max_sentences?: number
+          never_reask_fields?: string[]
+          niche_strict?: boolean
           owner_id?: string
           prompt_closing?: string
           prompt_objection?: string
           prompt_qualification?: string
           prompt_reactivation?: string
+          prompt_slot_confirmation?: string
+          propose_meeting_dedup_minutes?: number
+          qualify_model?: string
+          qualify_system_prompt?: string
+          slot_confirmation_dedup_minutes?: number
+          suggest_replies_model?: string
+          suggest_replies_system_prompt?: string
           template_followup_1_id?: string | null
           template_followup_2_id?: string | null
           template_initial_id?: string | null
