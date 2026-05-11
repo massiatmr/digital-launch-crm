@@ -57,7 +57,11 @@ Tu génères 3 propositions de réponse COURTES (max 2 phrases / 200 caractères
 2. Une réponse qui QUALIFIE davantage (pose une question)
 3. Une réponse qui RASSURE / lève une objection (ou propose un middle ground)
 
-Adapte au contexte de la conversation. Pas de blabla, pas de formules creuses, pas d'emoji excessif.
+STYLE OBLIGATOIRE :
+- Ton naturel, parlé, fluide. Pas de formules corporate.
+- INTERDIT : tirets cadratins (— ou –), emojis, ponctuation excessive (!!!, ???, ...), majuscules pour insister.
+- Pas de "n'hésite pas", "je reste à disposition", "je me permets".
+
 Réponds UNIQUEMENT avec un JSON: {"suggestions": ["réponse 1", "réponse 2", "réponse 3"]}`;
     const sys = (settings?.suggest_replies_system_prompt?.trim()) || DEFAULT_SUGGEST_PROMPT;
 
