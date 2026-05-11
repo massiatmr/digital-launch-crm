@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { Bot, Plug, FlaskConical, UserPlus, Building2, User, Bell, ShieldAlert, Trash2, History, MessageSquareText, Sparkles } from 'lucide-react';
 import SettingsAutomationPage from './SettingsAutomationPage';
+import SettingsAiBehaviorPage from './SettingsAiBehaviorPage';
 import SettingsScriptsPage from './SettingsScriptsPage';
 import SettingsIntegrationsPage from './SettingsIntegrationsPage';
 import SettingsTestsPage from './SettingsTestsPage';
@@ -32,6 +33,7 @@ const SECTIONS: Section[] = [
   { key: 'notifications', label: 'Notifications', icon: Bell, description: 'Push, emails, appareils', group: 'Personnel', Component: SettingsNotificationsPage },
   { key: 'workspaces', label: 'Espaces de travail', icon: Building2, description: 'Membres, modules, branding', group: 'Workspace', Component: SettingsWorkspacesPage },
   { key: 'automation', label: 'Automatisation', icon: Bot, description: 'Séquences, IA, templates', group: 'Workspace', feature: 'whatsapp', Component: SettingsAutomationPage },
+  { key: 'ai-behavior', label: 'Comportement IA', icon: Sparkles, description: 'Personnalité, garde-fous, prompts contextuels', group: 'Workspace', feature: 'whatsapp', Component: SettingsAiBehaviorPage },
   { key: 'scripts', label: 'Scripts de relance', icon: MessageSquareText, description: 'Messages pré-écrits par phase pour relancer manuellement', group: 'Workspace', Component: SettingsScriptsPage },
   { key: 'integrations', label: 'Intégrations', icon: Plug, description: 'WhatsApp, Meta, Google Calendar', group: 'Workspace', ownerOnly: true, Component: SettingsIntegrationsPage },
   { key: 'trash', label: 'Corbeille', icon: Trash2, description: 'Restaurer les éléments supprimés (30 jours)', group: 'Workspace', Component: SettingsTrashPage },
