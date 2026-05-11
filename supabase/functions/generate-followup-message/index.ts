@@ -429,21 +429,30 @@ Deno.serve(async (req) => {
     const greetingRule = allowGreeting ? "" : `- Pas de "Bonjour" si déjà dit`;
     const signatureRule = allowSignature ? "" : `- Pas de signature`;
 
+    const styleRules = `- STYLE NATUREL OBLIGATOIRE :
+  • Écris comme un humain sur WhatsApp : phrases courtes, ton parlé, fluide.
+  • INTERDIT : tirets cadratins ou demi-cadratins (— et –). Si tu veux séparer, fais 2 phrases ou utilise une virgule.
+  • INTERDIT : ponctuation excessive (pas de !!!, pas de ???, pas de "..." sauf si vraiment justifié, pas de majuscules pour insister).
+  • ${maxEmojis === 0 ? "INTERDIT : aucun emoji." : `Maximum ${maxEmojis} emoji(s), uniquement si vraiment naturel.`}
+  • Pas de tournures corporate ("n'hésite pas", "je reste à votre disposition", "je me permets de").
+  • Évite les doubles espaces et les virgules superflues.`;
+
     const systemPrompt = `${baseInstructions}
 
 MODE CONTEXTUEL : ${promptKey.toUpperCase()}
 ${contextualPrompt}${variantHint}
 
 RÈGLES STRICTES :
-- ${isSlotConfirmation ? "4-5 phrases max — message de confirmation structuré" : `MAX ${maxSentences} phrase(s)`}
-- ${isSlotConfirmation ? "Aucune nouvelle question (sauf si email inconnu)" : `${maxQuestions} question(s) MAX par message`}
-${greetingRule ? greetingRule + "\n" : ""}${signatureRule ? signatureRule + "\n" : ""}- ${maxEmojis} emoji(s) max
-- ${isSlotConfirmation ? "Récapitule le créneau EXACT que le lead vient d'accepter en relisant l'historique" : `Pour proposer un RDV : propose 1 ou 2 créneaux EXACTS de la liste ci-dessous, ou partage le lien ${bookingLink ?? '(aucun lien)'}`}
+- ${isSlotConfirmation ? "4 phrases max" : `MAX ${maxSentences} phrase(s)`}
+- ${isSlotConfirmation ? "Aucune nouvelle question (sauf si email inconnu OU créneau non disponible)" : `${maxQuestions} question(s) MAX par message`}
+${greetingRule ? greetingRule + "\n" : ""}${signatureRule ? signatureRule + "\n" : ""}- ${isSlotConfirmation ? "Vérifie que l'heure acceptée est dans la liste de créneaux libres ci-dessous. Sinon, refuse poliment et propose 2 créneaux RÉELS de la liste." : `Pour proposer un RDV : propose 1 ou 2 créneaux EXACTS de la liste ci-dessous, ou partage le lien ${bookingLink ?? '(aucun lien)'}`}
 ${nicheRule}
 ${forbiddenRule}
 ${antiRepRule}
-${isSlotConfirmation ? "" : slotsBlock}
+${slotsBlock}
 ${emailBlock}${phoneKnown}
+
+${styleRules}
 
 CONTEXTE LEAD :
 - Nom : ${lead.name}
@@ -463,7 +472,7 @@ ${settings?.ai_examples ? `EXEMPLES DE STYLE :\n${settings.ai_examples}\n` : ''}
 
 TÂCHE ACTUELLE : ${TASK_LABEL[task_type] || task_type}
 
-Génère UNIQUEMENT le texte du message WhatsApp (français, max ${isSlotConfirmation ? 5 : maxSentences} phrases).`;
+Génère UNIQUEMENT le texte du message WhatsApp (français, max ${isSlotConfirmation ? 4 : maxSentences} phrases). Aucun tiret cadratin, aucune ponctuation excessive${maxEmojis === 0 ? ", aucun emoji" : ""}.`;
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
