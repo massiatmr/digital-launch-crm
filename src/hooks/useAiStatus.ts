@@ -41,12 +41,12 @@ export function useAiStatus(leadId?: string) {
   });
 }
 
-export function useAiMonitor(limit = 100) {
+export function useAiMonitor(limit = 100, workspaceId?: string | null) {
   return useQuery({
-    queryKey: ['ai-monitor', limit],
+    queryKey: ['ai-monitor', limit, workspaceId ?? null],
     refetchInterval: 30_000,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).rpc('list_ai_monitor', { p_limit: limit });
+      const { data, error } = await (supabase as any).rpc('list_ai_monitor', { p_limit: limit, p_workspace_id: workspaceId ?? null });
       if (error) throw error;
       return (data ?? []) as Array<{
         lead_id: string;
