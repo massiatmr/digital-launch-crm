@@ -55,3 +55,7 @@ project_id = "rvangzupebrajhhhvewu"
     verify_jwt = false
   [functions.ingest-lead]
     verify_jwt = false
+  [functions.send-messenger-message]
+    verify_jwt = false
+  [functions.send-instagram-message]
+    verify_jwt = false

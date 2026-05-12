@@ -52,6 +52,10 @@ Deno.serve(async (req) => {
       "whatsapp_business_management",
       "whatsapp_business_messaging",
       "business_management",
+      // Inbox Meta unifié
+      "pages_messaging",
+      "instagram_basic",
+      "instagram_manage_messages",
     ].join(",");
 
     // Encode user_id and workspace_id together in state
