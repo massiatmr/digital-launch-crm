@@ -53,3 +53,5 @@ project_id = "rvangzupebrajhhhvewu"
     verify_jwt = false
   [functions.meta-capi-send]
     verify_jwt = false
+  [functions.ingest-lead]
+    verify_jwt = false
