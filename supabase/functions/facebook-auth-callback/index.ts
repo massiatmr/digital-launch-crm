@@ -27,8 +27,16 @@ Deno.serve(async (req) => {
     const graphApi = "https://graph.facebook.com/v21.0";
 
     const subscribePage = async (pageId: string, pageToken: string) => {
+      // S'abonner à TOUS les fields utiles (leadgen + Messenger + IG comments)
+      const fields = [
+        "leadgen",
+        "messages",
+        "messaging_postbacks",
+        "message_reactions",
+        "message_reads",
+      ].join(",");
       const subscribeRes = await fetch(
-        `${graphApi}/${pageId}/subscribed_apps?subscribed_fields=leadgen&access_token=${pageToken}`,
+        `${graphApi}/${pageId}/subscribed_apps?subscribed_fields=${fields}&access_token=${pageToken}`,
         { method: "POST" },
       );
       const subscribeJson = await subscribeRes.json().catch(() => ({}));
@@ -41,6 +49,52 @@ Deno.serve(async (req) => {
       const isSubscribed = apps.some((entry: { id?: string }) => entry?.id === appId);
 
       return { isSubscribed, subscribeJson, checkJson };
+    };
+
+    // Récupère IG Business account lié à la page (si existe) et l'enregistre
+    const upsertChannelIdentity = async (
+      page: { id: string; name: string; access_token: string },
+    ) => {
+      let igId: string | null = null;
+      let igUsername: string | null = null;
+      try {
+        const igRes = await fetch(
+          `${graphApi}/${page.id}?fields=instagram_business_account{id,username}&access_token=${page.access_token}`,
+        );
+        const igJson = await igRes.json();
+        igId = igJson?.instagram_business_account?.id ?? null;
+        igUsername = igJson?.instagram_business_account?.username ?? null;
+        console.log("[fb-callback] IG account on page", { pageId: page.id, igId, igUsername });
+      } catch (e) {
+        console.error("[fb-callback] IG fetch failed", page.id, e);
+      }
+
+      const { data: existingIdentity } = await supabase
+        .from("meta_channel_identities")
+        .select("id")
+        .eq("page_id", page.id)
+        .maybeSingle();
+
+      const identityPayload: Record<string, unknown> = {
+        owner_id: userId,
+        workspace_id,
+        page_id: page.id,
+        page_name: page.name || "",
+        page_access_token: page.access_token,
+        instagram_business_account_id: igId,
+        instagram_username: igUsername,
+        is_subscribed_messages: true,
+        is_subscribed_instagram: !!igId,
+      };
+
+      if (existingIdentity) {
+        await supabase
+          .from("meta_channel_identities")
+          .update(identityPayload)
+          .eq("id", existingIdentity.id);
+      } else {
+        await supabase.from("meta_channel_identities").insert(identityPayload);
+      }
     };
 
     const tokenRes = await fetch(
