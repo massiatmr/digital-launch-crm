@@ -6,7 +6,8 @@ import { WhatsAppChat } from '@/components/WhatsAppChat';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, MessageCircle, Search, ExternalLink, FlaskConical, Loader2, PenSquare, CalendarClock, Plus } from 'lucide-react';
+import { ArrowLeft, MessageCircle, Search, ExternalLink, FlaskConical, Loader2, PenSquare, CalendarClock, Plus, SlidersHorizontal, X } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { NewConversationSheet } from '@/components/conversations/NewConversationSheet';
 import { ConversationActions } from '@/components/conversations/ConversationActions';
 import { CreateTaskForLeadDialog } from '@/components/CreateTaskForLeadDialog';
@@ -140,7 +141,7 @@ export default function ConversationsPage() {
               <MessageCircle className="h-4 w-4 text-primary" />
               <h2 className="font-heading text-sm">Conversations</h2>
               <Badge variant="outline" className="ml-auto text-xs">{items.length}</Badge>
-              <Button asChild size="icon" variant="ghost" className="h-7 w-7" title="Vue globale relances programmées">
+              <Button asChild size="icon" variant="ghost" className="h-7 w-7" title="Relances programmées">
                 <Link to="/conversations/scheduled"><CalendarClock className="h-3.5 w-3.5" /></Link>
               </Button>
               <Button
@@ -153,51 +154,108 @@ export default function ConversationsPage() {
                 <PenSquare className="h-3.5 w-3.5" />
               </Button>
             </div>
-            <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher…" className="pl-7 h-8 text-sm" />
-            </div>
-            <InboxTabs active={tab} onChange={setTab} counts={counts} />
-            <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-thin">
-              {(['all', 'whatsapp', 'messenger', 'instagram'] as const).map((c) => (
-                <button
-                  key={c}
-                  onClick={() => setChannelFilter(c)}
-                  className={cn(
-                    'shrink-0 text-[10px] px-2 py-0.5 rounded-full border transition-colors',
-                    channelFilter === c
-                      ? 'bg-primary/20 border-primary/60 text-primary'
-                      : 'bg-card border-border text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  {c === 'all' ? 'Tous canaux' : channelLabel(c)}
-                </button>
-              ))}
-            </div>
-            {labels.length > 0 && (
-              <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-thin">
-                <button
-                  onClick={() => setLabelFilter(null)}
-                  className={cn(
-                    'shrink-0 text-[10px] px-2 py-0.5 rounded-full border',
-                    !labelFilter ? 'bg-primary/20 border-primary/60 text-primary' : 'bg-card border-border text-muted-foreground'
-                  )}
-                >
-                  Tous labels
-                </button>
-                {labels.map((l) => (
-                  <button
-                    key={l.id}
-                    onClick={() => setLabelFilter(labelFilter === l.id ? null : l.id)}
+
+            <div className="flex items-center gap-1.5">
+              <div className="relative flex-1">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher…" className="pl-7 h-8 text-sm" />
+              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
                     className={cn(
-                      'shrink-0 text-[10px] px-2 py-0.5 rounded-full border flex items-center gap-1',
-                      labelFilter === l.id ? 'border-primary/60 bg-primary/10 text-foreground' : 'bg-card border-border text-muted-foreground'
+                      'h-8 w-8 shrink-0 relative',
+                      (channelFilter !== 'all' || labelFilter) && 'border-primary/60 text-primary'
                     )}
+                    title="Filtres"
                   >
-                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: l.color }} />
-                    {l.name}
+                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                    {(channelFilter !== 'all' || labelFilter) && (
+                      <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-primary" />
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-64 p-3 space-y-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Canal</p>
+                      {channelFilter !== 'all' && (
+                        <button onClick={() => setChannelFilter('all')} className="text-[10px] text-muted-foreground hover:text-foreground">Réinit.</button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {(['all', 'whatsapp', 'messenger', 'instagram'] as const).map((c) => (
+                        <button
+                          key={c}
+                          onClick={() => setChannelFilter(c)}
+                          className={cn(
+                            'text-[11px] px-2 py-1 rounded-md border transition-colors',
+                            channelFilter === c
+                              ? 'bg-primary/20 border-primary/60 text-primary'
+                              : 'bg-card border-border text-muted-foreground hover:text-foreground'
+                          )}
+                        >
+                          {c === 'all' ? 'Tous' : channelLabel(c)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {labels.length > 0 && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Labels</p>
+                        {labelFilter && (
+                          <button onClick={() => setLabelFilter(null)} className="text-[10px] text-muted-foreground hover:text-foreground">Réinit.</button>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {labels.map((l) => (
+                          <button
+                            key={l.id}
+                            onClick={() => setLabelFilter(labelFilter === l.id ? null : l.id)}
+                            className={cn(
+                              'text-[11px] px-2 py-1 rounded-md border flex items-center gap-1 transition-colors',
+                              labelFilter === l.id ? 'border-primary/60 bg-primary/10 text-foreground' : 'bg-card border-border text-muted-foreground hover:text-foreground'
+                            )}
+                          >
+                            <span className="h-1.5 w-1.5 rounded-full" style={{ background: l.color }} />
+                            {l.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <InboxTabs active={tab} onChange={setTab} counts={counts} />
+
+            {(channelFilter !== 'all' || labelFilter) && (
+              <div className="flex flex-wrap gap-1">
+                {channelFilter !== 'all' && (
+                  <button
+                    onClick={() => setChannelFilter('all')}
+                    className="text-[10px] px-1.5 py-0.5 rounded-full border border-primary/40 bg-primary/10 text-primary flex items-center gap-1"
+                  >
+                    {channelLabel(channelFilter)} <X className="h-2.5 w-2.5" />
                   </button>
-                ))}
+                )}
+                {labelFilter && (() => {
+                  const l = labels.find((x) => x.id === labelFilter);
+                  if (!l) return null;
+                  return (
+                    <button
+                      onClick={() => setLabelFilter(null)}
+                      className="text-[10px] px-1.5 py-0.5 rounded-full border border-primary/40 bg-primary/10 text-foreground flex items-center gap-1"
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ background: l.color }} />
+                      {l.name} <X className="h-2.5 w-2.5" />
+                    </button>
+                  );
+                })()}
               </div>
             )}
           </div>
