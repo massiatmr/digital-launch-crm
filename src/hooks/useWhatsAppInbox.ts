@@ -12,6 +12,8 @@ function writeSeen(map: Record<string, number>) {
   localStorage.setItem(LS_KEY, JSON.stringify(map));
 }
 
+export type ConversationChannel = 'whatsapp' | 'messenger' | 'instagram';
+
 export type InboxItem = {
   lead_id: string;
   lead_name: string;
@@ -20,6 +22,7 @@ export type InboxItem = {
   last_at: string;
   last_direction: 'inbound' | 'outbound';
   unread: boolean;
+  channel: ConversationChannel;
 };
 
 export function useWhatsAppInbox() {
@@ -48,7 +51,7 @@ export function useWhatsAppInbox() {
     queryFn: async (): Promise<InboxItem[]> => {
       let q: any = supabase
         .from('whatsapp_messages')
-        .select('id, lead_id, content, sent_at, direction, workspace_id');
+        .select('id, lead_id, content, sent_at, direction, workspace_id, channel');
       if (wsId) q = q.eq('workspace_id', wsId);
       const { data: msgs, error } = await q.order('sent_at', { ascending: false }).limit(500);
       if (error) throw error;
@@ -66,7 +69,6 @@ export function useWhatsAppInbox() {
         .in('id', leadIds)
         .is('deleted_at', null);
       const leadMap = new Map((leads ?? []).map((l: any) => [l.id, l]));
-      // Exclure les conversations dont le lead a été supprimé
       const visibleLeadIds = leadIds.filter((id) => leadMap.has(id));
 
       const seen = readSeen();
@@ -83,6 +85,7 @@ export function useWhatsAppInbox() {
           last_at: m.sent_at,
           last_direction: m.direction,
           unread: m.direction === 'inbound' && lastTs > seenTs,
+          channel: (m.channel ?? 'whatsapp') as ConversationChannel,
         };
       });
       items.sort((a, b) => new Date(b.last_at).getTime() - new Date(a.last_at).getTime());
@@ -92,7 +95,6 @@ export function useWhatsAppInbox() {
   });
 
   const items = useMemo(() => {
-    // re-evaluate unread when seenVersion bumps
     if (!query.data) return [];
     const seen = readSeen();
     return query.data.map((it) => ({
