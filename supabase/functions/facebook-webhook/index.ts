@@ -232,8 +232,19 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
   const startedAt = Date.now();
 
   try {
+    // Route messages Messenger / Instagram DM avant la logique leadgen historique
+    if (body.object === "page" || body.object === "instagram") {
+      const hasMessaging = (body.entry ?? []).some(
+        (e: any) => Array.isArray(e?.messaging) && e.messaging.length > 0,
+      );
+      if (hasMessaging) {
+        await processMessagingEvents(body, requestId);
+        // On ne return pas : une même page peut envoyer aussi des changes leadgen
+      }
+    }
+
     if (body.object !== "page") {
-      logInfo(requestId, "Skipping non-page event", { object: body?.object });
+      logInfo(requestId, "Skipping non-page event for leadgen", { object: body?.object });
       return;
     }
 
