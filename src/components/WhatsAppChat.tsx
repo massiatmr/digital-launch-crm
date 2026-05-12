@@ -519,9 +519,9 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
               size="icon"
               variant="ghost"
               onClick={() => fileInputRef.current?.click()}
-              disabled={!isWithin24h}
+              disabled={!isWithin24h || isMeta}
               className="shrink-0"
-              title={isWithin24h ? 'Joindre un fichier' : 'Hors fenêtre 24h'}
+              title={isMeta ? 'Pièce jointe non disponible sur ce canal' : (isWithin24h ? 'Joindre un fichier' : 'Hors fenêtre 24h')}
             >
               <Paperclip className="h-4 w-4" />
             </Button>
@@ -532,7 +532,12 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
               }}
-              placeholder={isWithin24h ? 'Écris un message... (Entrée pour envoyer)' : 'Hors fenêtre 24h — utilise un template'}
+              placeholder={
+                isMeta
+                  ? (isWithin24h ? `Réponds via ${channel === 'instagram' ? 'Instagram' : 'Messenger'}…` : 'Hors fenêtre 24h — attends une réponse du lead')
+                  : (isWithin24h ? 'Écris un message... (Entrée pour envoyer)' : 'Hors fenêtre 24h — utilise un template')
+              }
+              disabled={isMeta && !isWithin24h}
               rows={1}
               className="min-h-[40px] max-h-40 resize-none border-0 bg-transparent focus-visible:ring-0 py-2 leading-snug overflow-y-auto"
             />
@@ -540,15 +545,15 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
               <Button size="icon" onClick={handleSend} disabled={sendWA.isPending} className="shrink-0">
                 {sendWA.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
-            ) : isWithin24h ? (
+            ) : isWithin24h && !isMeta ? (
               <Button size="icon" variant="secondary" onClick={startRecording} className="shrink-0" title="Enregistrer un vocal">
                 <Mic className="h-4 w-4" />
               </Button>
-            ) : (
+            ) : !isMeta ? (
               <Button size="icon" variant="secondary" onClick={() => setTemplateOpen(true)} className="shrink-0" title="Envoyer un template">
                 <FileText className="h-4 w-4" />
               </Button>
-            )}
+            ) : null}
           </div>
         </>
       )}
