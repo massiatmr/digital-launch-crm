@@ -97,16 +97,68 @@ Deno.serve(async (req) => {
       if (offerRow) offerId = offerRow.id;
     }
 
-    // Build notes with extra context
-    const extras: string[] = [];
-    if (sourceLabel) extras.push(`Site: ${sourceLabel}`);
-    const utm = body.utm || {};
-    for (const k of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term']) {
-      if (utm?.[k]) extras.push(`${k}: ${String(utm[k]).slice(0, 100)}`);
-      else if (body[k]) extras.push(`${k}: ${String(body[k]).slice(0, 100)}`);
+    // ---- Build formatted custom fields block ----
+    // Known top-level keys handled separately
+    const KNOWN_KEYS = new Set([
+      'name', 'email', 'phone', 'message', 'source', 'source_label',
+      'offer_slug', 'company_name', 'utm', 'page_url',
+      'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term',
+      'fields', 'extra', 'custom', 'data', 'answers',
+    ]);
+
+    const humanize = (k: string) =>
+      k.replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).trim();
+
+    const formatValue = (v: any): string => {
+      if (v === null || v === undefined) return '';
+      if (Array.isArray(v)) return v.map(formatValue).filter(Boolean).join(', ');
+      if (typeof v === 'object') {
+        try { return JSON.stringify(v); } catch { return String(v); }
+      }
+      return String(v).trim();
+    };
+
+    // Collect custom fields: from body.fields/extra/custom/data/answers + unknown root keys
+    const customEntries: Array<[string, string]> = [];
+    const pushEntry = (k: string, v: any) => {
+      const val = formatValue(v).slice(0, 1000);
+      if (val) customEntries.push([humanize(k), val]);
+    };
+
+    for (const container of ['fields', 'extra', 'custom', 'data', 'answers']) {
+      const obj = body[container];
+      if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+        for (const [k, v] of Object.entries(obj)) pushEntry(k, v);
+      }
     }
-    if (body.page_url) extras.push(`URL: ${String(body.page_url).slice(0, 300)}`);
-    const notes = extras.join('\n');
+    for (const [k, v] of Object.entries(body)) {
+      if (KNOWN_KEYS.has(k)) continue;
+      if (v === null || v === undefined || v === '') continue;
+      pushEntry(k, v);
+    }
+
+    const customBlock = customEntries.length
+      ? customEntries.map(([k, v]) => `• ${k}: ${v}`).join('\n')
+      : '';
+
+    // ---- UTM / tracking block ----
+    const utm = body.utm || {};
+    const trackingLines: string[] = [];
+    if (sourceLabel) trackingLines.push(`Site: ${sourceLabel}`);
+    for (const k of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term']) {
+      const v = utm?.[k] ?? body[k];
+      if (v) trackingLines.push(`${k}: ${String(v).slice(0, 100)}`);
+    }
+    if (body.page_url) trackingLines.push(`URL: ${String(body.page_url).slice(0, 300)}`);
+
+    // ---- Compose final message (visible) + notes (mirror) ----
+    const sections: string[] = [];
+    if (message) sections.push(message);
+    if (customBlock) sections.push(`📋 Détails du formulaire\n${customBlock}`);
+    if (trackingLines.length) sections.push(`🔗 Provenance\n${trackingLines.join('\n')}`);
+
+    const finalMessage = sections.join('\n\n').slice(0, 8000);
+    const notes = finalMessage;
 
     const leadPayload: Record<string, any> = {
       name: name || email || phone,
