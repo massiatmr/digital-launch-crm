@@ -164,7 +164,7 @@ Deno.serve(async (req) => {
       name: name || email || phone,
       email,
       phone,
-      message,
+      message: finalMessage,
       source,
       status: 'new',
       score: 'warm',
