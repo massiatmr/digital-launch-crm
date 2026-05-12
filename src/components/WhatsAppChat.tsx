@@ -211,8 +211,8 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
   const handleSend = async () => {
     const msg = input.trim();
     if (!msg) return;
-    if (!isWithin24h) {
-      // Hors fenêtre : on force l'usage d'un template
+    if (!isMeta && !isWithin24h) {
+      // WhatsApp hors fenêtre : on force l'usage d'un template
       toast.info('Hors fenêtre 24h : envoie un template approuvé.');
       setTemplateOpen(true);
       return;
@@ -221,14 +221,23 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
     const tempId = `tmp-${Date.now()}`;
     setPending((p) => [...p, { tempId, content: msg, at: Date.now(), status: 'sending' }]);
     try {
-      await sendWA.mutateAsync({ leadId, message: msg });
+      if (isMeta) {
+        const fn = channel === 'instagram' ? 'send-instagram-message' : 'send-messenger-message';
+        const { data, error } = await supabase.functions.invoke(fn, { body: { lead_id: leadId, message: msg } });
+        if (error) throw error;
+        if ((data as any)?.error && !(data as any)?.success) throw new Error((data as any).error);
+        toast.success('Message envoyé');
+      } else {
+        await sendWA.mutateAsync({ leadId, message: msg });
+      }
     } catch (e: any) {
       setPending((p) => p.map((x) => x.tempId === tempId ? { ...x, status: 'failed' } : x));
-      // Détection erreur Meta hors fenêtre 24h (131047 / 131051)
       const txt = (e?.message || '').toString();
-      if (/131047|131051|24 hours|messaging window/i.test(txt)) {
+      if (!isMeta && /131047|131051|24 hours|messaging window/i.test(txt)) {
         toast.error('Fenêtre 24h fermée — utilise un template.');
         setTemplateOpen(true);
+      } else if (isMeta) {
+        toast.error('Envoi échoué : ' + (txt || 'erreur'));
       }
     }
   };
