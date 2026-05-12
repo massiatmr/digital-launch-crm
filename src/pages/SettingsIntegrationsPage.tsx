@@ -776,6 +776,8 @@ export default function SettingsIntegrationsPage() {
       </Card>
 
       <MetaCapiSection />
+
+      <LandingApiKeysSection />
     </div>
   );
 }
