@@ -191,6 +191,13 @@ Deno.serve(async (req) => {
       } else {
         await supabase.from("meta_pages").insert(payload as any);
       }
+
+      // Aussi : enregistrer comme identité de canal conversationnel (Messenger + IG)
+      try {
+        await upsertChannelIdentity(p);
+      } catch (e) {
+        console.error("[fb-callback] upsertChannelIdentity failed", p.id, e);
+      }
     }
 
     let waNumbersFound = 0;
