@@ -445,7 +445,7 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
       {/* Input texte */}
       {!recording && !recordedUrl && (
         <>
-          {!isWithin24h && messages.length > 0 && (
+          {!isWithin24h && messages.length > 0 && !isMeta && (
             <div className="border-t border-border bg-amber-500/10 px-3 py-2 flex items-center gap-2 text-xs text-amber-300">
               <AlertCircle className="h-3.5 w-3.5 shrink-0" />
               <span className="flex-1">Hors fenêtre 24h Meta — seuls les templates approuvés peuvent être envoyés.</span>
@@ -454,7 +454,13 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
               </Button>
             </div>
           )}
-          {!isWithin24h && messages.length === 0 && (
+          {!isWithin24h && messages.length > 0 && isMeta && (
+            <div className="border-t border-border bg-amber-500/10 px-3 py-2 flex items-center gap-2 text-xs text-amber-300">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+              <span className="flex-1">Hors fenêtre 24h {channel === 'instagram' ? 'Instagram' : 'Messenger'} — il faut attendre une nouvelle réponse du lead pour envoyer un message.</span>
+            </div>
+          )}
+          {!isWithin24h && messages.length === 0 && !isMeta && (
             <div className="border-t border-border bg-primary/10 px-3 py-2 flex items-center gap-2 text-xs text-primary-foreground/90">
               <FileText className="h-3.5 w-3.5 shrink-0 text-primary" />
               <span className="flex-1">Premier message : utilise un template approuvé pour démarrer la conversation.</span>
