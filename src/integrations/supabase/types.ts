@@ -1694,6 +1694,51 @@ export type Database = {
           },
         ]
       }
+      meta_channel_identities: {
+        Row: {
+          created_at: string
+          id: string
+          instagram_business_account_id: string | null
+          instagram_username: string | null
+          is_subscribed_instagram: boolean
+          is_subscribed_messages: boolean
+          owner_id: string
+          page_access_token: string
+          page_id: string
+          page_name: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          instagram_business_account_id?: string | null
+          instagram_username?: string | null
+          is_subscribed_instagram?: boolean
+          is_subscribed_messages?: boolean
+          owner_id?: string
+          page_access_token?: string
+          page_id: string
+          page_name?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          instagram_business_account_id?: string | null
+          instagram_username?: string | null
+          is_subscribed_instagram?: boolean
+          is_subscribed_messages?: boolean
+          owner_id?: string
+          page_access_token?: string
+          page_id?: string
+          page_name?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       meta_form_offer_mapping: {
         Row: {
           created_at: string
@@ -2394,12 +2439,14 @@ export type Database = {
       }
       whatsapp_messages: {
         Row: {
+          channel: Database["public"]["Enums"]["message_channel"]
           content: string
           created_at: string
           delivered_at: string | null
           direction: Database["public"]["Enums"]["wa_direction"]
           duration_seconds: number | null
           error_message: string | null
+          external_thread_id: string | null
           id: string
           intent: string | null
           is_pinned: boolean
@@ -2426,12 +2473,14 @@ export type Database = {
           workspace_id: string | null
         }
         Insert: {
+          channel?: Database["public"]["Enums"]["message_channel"]
           content: string
           created_at?: string
           delivered_at?: string | null
           direction: Database["public"]["Enums"]["wa_direction"]
           duration_seconds?: number | null
           error_message?: string | null
+          external_thread_id?: string | null
           id?: string
           intent?: string | null
           is_pinned?: boolean
@@ -2458,12 +2507,14 @@ export type Database = {
           workspace_id?: string | null
         }
         Update: {
+          channel?: Database["public"]["Enums"]["message_channel"]
           content?: string
           created_at?: string
           delivered_at?: string | null
           direction?: Database["public"]["Enums"]["wa_direction"]
           duration_seconds?: number | null
           error_message?: string | null
+          external_thread_id?: string | null
           id?: string
           intent?: string | null
           is_pinned?: boolean
@@ -2942,6 +2993,8 @@ export type Database = {
         | "recommendation"
         | "google_my_business"
         | "whatsapp"
+        | "messenger"
+        | "instagram"
       lead_status:
         | "new"
         | "contacted"
@@ -2950,6 +3003,7 @@ export type Database = {
         | "won"
         | "lost"
         | "ghost"
+      message_channel: "whatsapp" | "messenger" | "instagram"
       message_type: "whatsapp" | "email" | "sms"
       onboarding_form_type: "website" | "ads"
       show_status: "pending" | "show" | "noshow"
@@ -3156,6 +3210,8 @@ export const Constants = {
         "recommendation",
         "google_my_business",
         "whatsapp",
+        "messenger",
+        "instagram",
       ],
       lead_status: [
         "new",
@@ -3166,6 +3222,7 @@ export const Constants = {
         "lost",
         "ghost",
       ],
+      message_channel: ["whatsapp", "messenger", "instagram"],
       message_type: ["whatsapp", "email", "sms"],
       onboarding_form_type: ["website", "ads"],
       show_status: ["pending", "show", "noshow"],
