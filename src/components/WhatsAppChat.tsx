@@ -157,6 +157,16 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const lastIsInbound = messages.length > 0 && (messages[messages.length - 1] as any).direction === 'inbound';
 
+  // Détecter le canal (whatsapp / messenger / instagram) depuis le dernier message
+  const channel: 'whatsapp' | 'messenger' | 'instagram' = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const c = (messages[i] as any).channel;
+      if (c === 'messenger' || c === 'instagram' || c === 'whatsapp') return c;
+    }
+    return 'whatsapp';
+  }, [messages]);
+  const isMeta = channel !== 'whatsapp';
+
   // Fenêtre 24h Meta : on ne peut envoyer du texte libre que si le lead a écrit dans les dernières 24h
   const isWithin24h = useMemo(() => {
     const lastInbound = (messages as any[])
