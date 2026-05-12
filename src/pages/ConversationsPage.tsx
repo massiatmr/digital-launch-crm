@@ -11,6 +11,8 @@ import { NewConversationSheet } from '@/components/conversations/NewConversation
 import { ConversationActions } from '@/components/conversations/ConversationActions';
 import { CreateTaskForLeadDialog } from '@/components/CreateTaskForLeadDialog';
 import { InboxTabs, type InboxTab } from '@/components/conversations/InboxTabs';
+import { ChannelBadge, channelLabel } from '@/components/conversations/ChannelBadge';
+import type { ConversationChannel } from '@/hooks/useWhatsAppInbox';
 import { useAllConvControls } from '@/hooks/useConversationControls';
 import { useAllLabelAssignments, useConvLabels } from '@/hooks/useConversationLabels';
 import { formatDistanceToNow } from 'date-fns';
@@ -27,6 +29,7 @@ export default function ConversationsPage() {
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<InboxTab>('all');
   const [labelFilter, setLabelFilter] = useState<string | null>(null);
+  const [channelFilter, setChannelFilter] = useState<ConversationChannel | 'all'>('all');
   const [flash, setFlash] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const selectedId = params.get('lead');
@@ -72,6 +75,7 @@ export default function ConversationsPage() {
         const ls = labelsByLead.get(it.lead_id) ?? [];
         if (!ls.includes(labelFilter)) return false;
       }
+      if (channelFilter !== 'all' && it.channel !== channelFilter) return false;
       const ctl = ctlMap.get(it.lead_id);
       const isResolved = !!ctl?.resolved_at;
       const isSnoozed = ctl?.snoozed_until ? new Date(ctl.snoozed_until).getTime() > now : false;
@@ -84,7 +88,7 @@ export default function ConversationsPage() {
         case 'resolved': return isResolved;
       }
     });
-  }, [items, search, tab, labelFilter, ctlMap, labelsByLead]);
+  }, [items, search, tab, labelFilter, channelFilter, ctlMap, labelsByLead]);
 
   const selected = items.find((i) => i.lead_id === selectedId) ?? null;
 
@@ -154,6 +158,22 @@ export default function ConversationsPage() {
               <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher…" className="pl-7 h-8 text-sm" />
             </div>
             <InboxTabs active={tab} onChange={setTab} counts={counts} />
+            <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-thin">
+              {(['all', 'whatsapp', 'messenger', 'instagram'] as const).map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setChannelFilter(c)}
+                  className={cn(
+                    'shrink-0 text-[10px] px-2 py-0.5 rounded-full border transition-colors',
+                    channelFilter === c
+                      ? 'bg-primary/20 border-primary/60 text-primary'
+                      : 'bg-card border-border text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {c === 'all' ? 'Tous canaux' : channelLabel(c)}
+                </button>
+              ))}
+            </div>
             {labels.length > 0 && (
               <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-thin">
                 <button
@@ -202,6 +222,7 @@ export default function ConversationsPage() {
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
+                      <ChannelBadge channel={it.channel} compact />
                       <span className="font-medium text-sm truncate">{it.lead_name}</span>
                       {ctl?.automation_paused_at && <span title="Auto en pause" className="text-[9px] px-1 rounded bg-amber-500/20 text-amber-300">PAUSE</span>}
                       {it.unread && <span className="ml-auto h-2 w-2 rounded-full bg-primary shrink-0" />}
@@ -237,7 +258,10 @@ export default function ConversationsPage() {
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium text-sm truncate">{selected.lead_name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-sm truncate">{selected.lead_name}</p>
+                    <ChannelBadge channel={selected.channel} compact />
+                  </div>
                   {selected.lead_phone && <p className="text-xs text-muted-foreground truncate">{selected.lead_phone}</p>}
                 </div>
                 <ConversationActions leadId={selected.lead_id} />

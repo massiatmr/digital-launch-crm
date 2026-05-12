@@ -157,6 +157,16 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const lastIsInbound = messages.length > 0 && (messages[messages.length - 1] as any).direction === 'inbound';
 
+  // Détecter le canal (whatsapp / messenger / instagram) depuis le dernier message
+  const channel: 'whatsapp' | 'messenger' | 'instagram' = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const c = (messages[i] as any).channel;
+      if (c === 'messenger' || c === 'instagram' || c === 'whatsapp') return c;
+    }
+    return 'whatsapp';
+  }, [messages]);
+  const isMeta = channel !== 'whatsapp';
+
   // Fenêtre 24h Meta : on ne peut envoyer du texte libre que si le lead a écrit dans les dernières 24h
   const isWithin24h = useMemo(() => {
     const lastInbound = (messages as any[])
@@ -201,8 +211,8 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
   const handleSend = async () => {
     const msg = input.trim();
     if (!msg) return;
-    if (!isWithin24h) {
-      // Hors fenêtre : on force l'usage d'un template
+    if (!isMeta && !isWithin24h) {
+      // WhatsApp hors fenêtre : on force l'usage d'un template
       toast.info('Hors fenêtre 24h : envoie un template approuvé.');
       setTemplateOpen(true);
       return;
@@ -211,14 +221,23 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
     const tempId = `tmp-${Date.now()}`;
     setPending((p) => [...p, { tempId, content: msg, at: Date.now(), status: 'sending' }]);
     try {
-      await sendWA.mutateAsync({ leadId, message: msg });
+      if (isMeta) {
+        const fn = channel === 'instagram' ? 'send-instagram-message' : 'send-messenger-message';
+        const { data, error } = await supabase.functions.invoke(fn, { body: { lead_id: leadId, message: msg } });
+        if (error) throw error;
+        if ((data as any)?.error && !(data as any)?.success) throw new Error((data as any).error);
+        toast.success('Message envoyé');
+      } else {
+        await sendWA.mutateAsync({ leadId, message: msg });
+      }
     } catch (e: any) {
       setPending((p) => p.map((x) => x.tempId === tempId ? { ...x, status: 'failed' } : x));
-      // Détection erreur Meta hors fenêtre 24h (131047 / 131051)
       const txt = (e?.message || '').toString();
-      if (/131047|131051|24 hours|messaging window/i.test(txt)) {
+      if (!isMeta && /131047|131051|24 hours|messaging window/i.test(txt)) {
         toast.error('Fenêtre 24h fermée — utilise un template.');
         setTemplateOpen(true);
+      } else if (isMeta) {
+        toast.error('Envoi échoué : ' + (txt || 'erreur'));
       }
     }
   };
@@ -426,7 +445,7 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
       {/* Input texte */}
       {!recording && !recordedUrl && (
         <>
-          {!isWithin24h && messages.length > 0 && (
+          {!isWithin24h && messages.length > 0 && !isMeta && (
             <div className="border-t border-border bg-amber-500/10 px-3 py-2 flex items-center gap-2 text-xs text-amber-300">
               <AlertCircle className="h-3.5 w-3.5 shrink-0" />
               <span className="flex-1">Hors fenêtre 24h Meta — seuls les templates approuvés peuvent être envoyés.</span>
@@ -435,7 +454,13 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
               </Button>
             </div>
           )}
-          {!isWithin24h && messages.length === 0 && (
+          {!isWithin24h && messages.length > 0 && isMeta && (
+            <div className="border-t border-border bg-amber-500/10 px-3 py-2 flex items-center gap-2 text-xs text-amber-300">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+              <span className="flex-1">Hors fenêtre 24h {channel === 'instagram' ? 'Instagram' : 'Messenger'} — il faut attendre une nouvelle réponse du lead pour envoyer un message.</span>
+            </div>
+          )}
+          {!isWithin24h && messages.length === 0 && !isMeta && (
             <div className="border-t border-border bg-primary/10 px-3 py-2 flex items-center gap-2 text-xs text-primary-foreground/90">
               <FileText className="h-3.5 w-3.5 shrink-0 text-primary" />
               <span className="flex-1">Premier message : utilise un template approuvé pour démarrer la conversation.</span>
@@ -494,9 +519,9 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
               size="icon"
               variant="ghost"
               onClick={() => fileInputRef.current?.click()}
-              disabled={!isWithin24h}
+              disabled={!isWithin24h || isMeta}
               className="shrink-0"
-              title={isWithin24h ? 'Joindre un fichier' : 'Hors fenêtre 24h'}
+              title={isMeta ? 'Pièce jointe non disponible sur ce canal' : (isWithin24h ? 'Joindre un fichier' : 'Hors fenêtre 24h')}
             >
               <Paperclip className="h-4 w-4" />
             </Button>
@@ -507,7 +532,12 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
               }}
-              placeholder={isWithin24h ? 'Écris un message... (Entrée pour envoyer)' : 'Hors fenêtre 24h — utilise un template'}
+              placeholder={
+                isMeta
+                  ? (isWithin24h ? `Réponds via ${channel === 'instagram' ? 'Instagram' : 'Messenger'}…` : 'Hors fenêtre 24h — attends une réponse du lead')
+                  : (isWithin24h ? 'Écris un message... (Entrée pour envoyer)' : 'Hors fenêtre 24h — utilise un template')
+              }
+              disabled={isMeta && !isWithin24h}
               rows={1}
               className="min-h-[40px] max-h-40 resize-none border-0 bg-transparent focus-visible:ring-0 py-2 leading-snug overflow-y-auto"
             />
@@ -515,15 +545,15 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
               <Button size="icon" onClick={handleSend} disabled={sendWA.isPending} className="shrink-0">
                 {sendWA.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
-            ) : isWithin24h ? (
+            ) : isWithin24h && !isMeta ? (
               <Button size="icon" variant="secondary" onClick={startRecording} className="shrink-0" title="Enregistrer un vocal">
                 <Mic className="h-4 w-4" />
               </Button>
-            ) : (
+            ) : !isMeta ? (
               <Button size="icon" variant="secondary" onClick={() => setTemplateOpen(true)} className="shrink-0" title="Envoyer un template">
                 <FileText className="h-4 w-4" />
               </Button>
-            )}
+            ) : null}
           </div>
         </>
       )}
