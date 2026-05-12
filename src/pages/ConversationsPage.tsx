@@ -88,7 +88,7 @@ export default function ConversationsPage() {
         case 'resolved': return isResolved;
       }
     });
-  }, [items, search, tab, labelFilter, ctlMap, labelsByLead]);
+  }, [items, search, tab, labelFilter, channelFilter, ctlMap, labelsByLead]);
 
   const selected = items.find((i) => i.lead_id === selectedId) ?? null;
 
