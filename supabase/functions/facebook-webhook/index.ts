@@ -633,3 +633,155 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
     });
   }
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Messenger + Instagram DM handler
+// ─────────────────────────────────────────────────────────────────
+async function processMessagingEvents(body: any, requestId: string) {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !serviceRoleKey) {
+    logError(requestId, "Missing Supabase creds for messaging");
+    return;
+  }
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  const isInstagram = body.object === "instagram";
+  const channel = isInstagram ? "instagram" : "messenger";
+  const graphApi = "https://graph.facebook.com/v21.0";
+
+  for (const entry of body.entry ?? []) {
+    const recipientPageOrIg = String(entry?.id ?? "");
+    if (!recipientPageOrIg) continue;
+
+    // Résoudre l'identité (page_id pour Messenger, instagram_business_account_id pour IG)
+    let identityQuery = supabase
+      .from("meta_channel_identities")
+      .select("id, owner_id, workspace_id, page_id, page_access_token, instagram_business_account_id");
+    identityQuery = isInstagram
+      ? identityQuery.eq("instagram_business_account_id", recipientPageOrIg)
+      : identityQuery.eq("page_id", recipientPageOrIg);
+    const { data: identity } = await identityQuery.maybeSingle();
+    if (!identity) {
+      logInfo(requestId, "No channel identity for entry, skipping", { id: recipientPageOrIg, channel });
+      continue;
+    }
+
+    for (const event of entry.messaging ?? []) {
+      try {
+        const isEcho = !!event.message?.is_echo;
+        const senderId = String(event.sender?.id ?? "");
+        const recipientId = String(event.recipient?.id ?? "");
+        // L'utilisateur externe = celui qui n'est PAS la page/IG nous
+        const externalThreadId = isEcho ? recipientId : senderId;
+        if (!externalThreadId) continue;
+
+        // Reads / delivery / postbacks → on n'enregistre pas comme message texte
+        if (event.read || event.delivery) continue;
+
+        const direction = isEcho ? "outbound" : "inbound";
+        const text = event.message?.text ?? event.postback?.title ?? "";
+        const attachments = event.message?.attachments ?? [];
+        const content = text || (attachments.length > 0 ? `[${attachments[0]?.type ?? "media"}]` : "");
+        if (!content) continue;
+        const externalMsgId = event.message?.mid ?? null;
+        const sentAtMs = event.timestamp ?? Date.now();
+
+        // Idempotence : skip si on a déjà ce message (même mid)
+        if (externalMsgId) {
+          const { data: dup } = await supabase
+            .from("whatsapp_messages")
+            .select("id")
+            .eq("wa_message_id", externalMsgId)
+            .maybeSingle();
+          if (dup) {
+            logInfo(requestId, "Duplicate message, skipping", { externalMsgId });
+            continue;
+          }
+        }
+
+        // Trouver ou créer le lead
+        let leadId: string | null = null;
+        const { data: existingMsg } = await supabase
+          .from("whatsapp_messages")
+          .select("lead_id")
+          .eq("channel", channel)
+          .eq("external_thread_id", externalThreadId)
+          .limit(1)
+          .maybeSingle();
+        if (existingMsg) {
+          leadId = existingMsg.lead_id;
+        } else {
+          // Récupérer le profil utilisateur via Graph API (nom + photo si dispo)
+          let displayName = isInstagram ? "Lead Instagram" : "Lead Messenger";
+          try {
+            const profRes = await fetch(
+              `${graphApi}/${externalThreadId}?fields=name,first_name,last_name,profile_pic&access_token=${identity.page_access_token}`,
+            );
+            const profJson = await profRes.json();
+            displayName = profJson?.name ||
+              [profJson?.first_name, profJson?.last_name].filter(Boolean).join(" ") ||
+              displayName;
+          } catch (e) {
+            logInfo(requestId, "Profile fetch failed, using default name", { externalThreadId });
+          }
+
+          const { data: newLead, error: insErr } = await supabase
+            .from("leads")
+            .insert({
+              name: displayName,
+              email: "",
+              phone: "",
+              source: channel as any,
+              status: "new" as any,
+              score: "cold" as any,
+              owner_id: identity.owner_id,
+              workspace_id: identity.workspace_id,
+              message: `Nouveau message ${channel}`,
+              notes: `📥 Conversation ${channel === "instagram" ? "Instagram DM" : "Messenger"}\n• Identifiant : ${externalThreadId}`,
+              meta_page_id: identity.page_id,
+            } as any)
+            .select("id")
+            .maybeSingle();
+          if (insErr || !newLead) {
+            logError(requestId, "Lead creation failed for messaging", { error: insErr?.message });
+            continue;
+          }
+          leadId = newLead.id;
+
+          // Notification (push + email)
+          try {
+            await supabase.functions.invoke("notify-new-lead", { body: { lead_id: leadId } });
+          } catch (e) {
+            logError(requestId, "notify-new-lead failed", { e: String(e) });
+          }
+        }
+
+        // Insérer le message
+        await supabase.from("whatsapp_messages").insert({
+          lead_id: leadId,
+          owner_id: identity.owner_id,
+          workspace_id: identity.workspace_id,
+          direction: direction as any,
+          content,
+          channel: channel as any,
+          external_thread_id: externalThreadId,
+          wa_message_id: externalMsgId,
+          status: "sent",
+          sent_at: new Date(sentAtMs).toISOString(),
+        } as any);
+
+        logInfo(requestId, "Messaging event stored", {
+          channel,
+          direction,
+          leadId,
+          externalThreadId,
+          isEcho,
+        });
+      } catch (e) {
+        logError(requestId, "Messaging event handling failed", {
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
+  }
+}
