@@ -6,6 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useWhatsAppInbox } from '@/hooks/useWhatsAppInbox';
 import { useWorkspaceFeatures } from '@/hooks/useWorkspaceFeatures';
 import { cn } from '@/lib/utils';
+import { ChannelBadge } from '@/components/conversations/ChannelBadge';
 
 function formatRelative(iso: string): string {
   const d = new Date(iso);
@@ -43,7 +44,7 @@ export function HeaderMessages() {
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 p-0">
         <div className="flex items-center justify-between px-3 py-2 border-b border-border/50">
-          <p className="text-sm font-semibold">Conversations WhatsApp</p>
+          <p className="text-sm font-semibold">Conversations</p>
           {unreadCount > 0 && <span className="text-xs text-muted-foreground">{unreadCount} non lue(s)</span>}
         </div>
         <ScrollArea className="max-h-80">
@@ -66,7 +67,10 @@ export function HeaderMessages() {
                   <div className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full', c.unread ? 'bg-primary' : 'bg-transparent')} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-2">
-                      <p className="text-sm font-medium truncate">{c.lead_name}</p>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <ChannelBadge channel={c.channel} compact />
+                        <p className="text-sm font-medium truncate">{c.lead_name}</p>
+                      </div>
                       <span className="text-[11px] text-muted-foreground shrink-0">{formatRelative(c.last_at)}</span>
                     </div>
                     <p className="text-xs text-muted-foreground line-clamp-1">
