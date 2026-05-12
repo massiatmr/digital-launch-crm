@@ -11,6 +11,8 @@ import { NewConversationSheet } from '@/components/conversations/NewConversation
 import { ConversationActions } from '@/components/conversations/ConversationActions';
 import { CreateTaskForLeadDialog } from '@/components/CreateTaskForLeadDialog';
 import { InboxTabs, type InboxTab } from '@/components/conversations/InboxTabs';
+import { ChannelBadge, channelLabel } from '@/components/conversations/ChannelBadge';
+import type { ConversationChannel } from '@/hooks/useWhatsAppInbox';
 import { useAllConvControls } from '@/hooks/useConversationControls';
 import { useAllLabelAssignments, useConvLabels } from '@/hooks/useConversationLabels';
 import { formatDistanceToNow } from 'date-fns';
@@ -27,6 +29,7 @@ export default function ConversationsPage() {
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<InboxTab>('all');
   const [labelFilter, setLabelFilter] = useState<string | null>(null);
+  const [channelFilter, setChannelFilter] = useState<ConversationChannel | 'all'>('all');
   const [flash, setFlash] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const selectedId = params.get('lead');
@@ -72,6 +75,7 @@ export default function ConversationsPage() {
         const ls = labelsByLead.get(it.lead_id) ?? [];
         if (!ls.includes(labelFilter)) return false;
       }
+      if (channelFilter !== 'all' && it.channel !== channelFilter) return false;
       const ctl = ctlMap.get(it.lead_id);
       const isResolved = !!ctl?.resolved_at;
       const isSnoozed = ctl?.snoozed_until ? new Date(ctl.snoozed_until).getTime() > now : false;
