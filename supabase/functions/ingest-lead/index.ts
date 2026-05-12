@@ -139,6 +139,15 @@ Deno.serve(async (req) => {
       .update({ last_used_at: new Date().toISOString() })
       .eq('id', keyRow.id);
 
+    // Fire push + email notification (same as Facebook Lead Ads flow)
+    try {
+      await supabase.functions.invoke('notify-new-lead', {
+        body: { lead_id: lead.id },
+      });
+    } catch (notifyErr) {
+      console.error('notify-new-lead invocation failed', notifyErr);
+    }
+
     return new Response(JSON.stringify({ ok: true, lead_id: lead.id }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
