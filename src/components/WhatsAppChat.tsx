@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Send, CheckCircle2, AlertCircle, Clock, Mic, Square, Trash2, FileText, Lock, Paperclip, Download, X as XIcon } from 'lucide-react';
+import { Loader2, Send, CheckCircle2, AlertCircle, Clock, Mic, Square, Trash2, FileText, Lock, Paperclip, Download, X as XIcon, MessageCircle, Facebook, Instagram } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -144,9 +144,11 @@ function encodeMp3FromFloat32(samples: Float32Array, sampleRate: number) {
   return new Blob(mp3Parts, { type: 'audio/mpeg' });
 }
 
-export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; leadName?: string; className?: string }) {
+type ChannelKey = 'whatsapp' | 'messenger' | 'instagram';
+
+export function WhatsAppChat({ leadId, leadName, leadPhone, className }: { leadId: string; leadName?: string; leadPhone?: string | null; className?: string }) {
   useWhatsAppRealtime(leadId);
-  const { data: messages = [] } = useWhatsAppMessages(leadId);
+  const { data: allMessages = [] } = useWhatsAppMessages(leadId);
   const { data: ctl } = useConvControls(leadId);
   const sendWA = useSendWhatsAppMessage();
   const sendAudio = useSendWhatsAppAudio();
@@ -155,19 +157,40 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
   const [templateOpen, setTemplateOpen] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const lastIsInbound = messages.length > 0 && (messages[messages.length - 1] as any).direction === 'inbound';
 
-  // Détecter le canal (whatsapp / messenger / instagram) depuis le dernier message
-  const channel: 'whatsapp' | 'messenger' | 'instagram' = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const c = (messages[i] as any).channel;
+  // Canaux disponibles : whatsapp si phone OU msg, messenger/insta si msg existe
+  const availableChannels = useMemo<ChannelKey[]>(() => {
+    const set = new Set<ChannelKey>();
+    for (const m of allMessages as any[]) {
+      const c = (m.channel ?? 'whatsapp') as ChannelKey;
+      if (c === 'whatsapp' || c === 'messenger' || c === 'instagram') set.add(c);
+    }
+    if (leadPhone) set.add('whatsapp');
+    return Array.from(set);
+  }, [allMessages, leadPhone]);
+
+  // Canal détecté par défaut = dernier message
+  const detectedChannel: ChannelKey = useMemo(() => {
+    for (let i = allMessages.length - 1; i >= 0; i--) {
+      const c = (allMessages[i] as any).channel;
       if (c === 'messenger' || c === 'instagram' || c === 'whatsapp') return c;
     }
-    return 'whatsapp';
-  }, [messages]);
+    return availableChannels[0] ?? 'whatsapp';
+  }, [allMessages, availableChannels]);
+
+  const [activeChannel, setActiveChannel] = useState<ChannelKey | null>(null);
+  const channel: ChannelKey = activeChannel ?? detectedChannel;
   const isMeta = channel !== 'whatsapp';
 
-  // Fenêtre 24h Meta : on ne peut envoyer du texte libre que si le lead a écrit dans les dernières 24h
+  // Messages filtrés par canal actif (si plusieurs canaux dispo)
+  const messages = useMemo(() => {
+    if (availableChannels.length <= 1) return allMessages;
+    return (allMessages as any[]).filter((m) => (m.channel ?? 'whatsapp') === channel);
+  }, [allMessages, availableChannels.length, channel]);
+
+  const lastIsInbound = messages.length > 0 && (messages[messages.length - 1] as any).direction === 'inbound';
+
+  // Fenêtre 24h Meta
   const isWithin24h = useMemo(() => {
     const lastInbound = (messages as any[])
       .filter((m) => m.direction === 'inbound')
@@ -364,6 +387,31 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
 
   return (
     <div className={cn('rounded-xl border border-border bg-muted/10 flex flex-col', className)}>
+      {availableChannels.length > 1 && (
+        <div className="px-2 pt-2 flex items-center gap-1 flex-wrap">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-1">Canal :</span>
+          {availableChannels.map((c) => {
+            const Icon = c === 'whatsapp' ? MessageCircle : c === 'messenger' ? Facebook : Instagram;
+            const label = c === 'whatsapp' ? 'WhatsApp' : c === 'messenger' ? 'Messenger' : 'Instagram';
+            const active = c === channel;
+            return (
+              <button
+                key={c}
+                onClick={() => setActiveChannel(c)}
+                className={cn(
+                  'inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-full border transition-colors',
+                  active
+                    ? 'bg-primary/20 border-primary/60 text-primary'
+                    : 'bg-card border-border text-muted-foreground hover:text-foreground'
+                )}
+                title={`Basculer sur ${label}`}
+              >
+                <Icon className="h-3 w-3" /> {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
       <div className="p-2"><AiStatusBanner leadId={leadId} /></div>
       <NextFollowupBanner leadId={leadId} paused={!!ctl?.automation_paused_at} />
       <div className="flex-1 min-h-[200px] overflow-y-auto p-3 space-y-2">

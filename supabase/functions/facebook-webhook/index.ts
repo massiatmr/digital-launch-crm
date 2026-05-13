@@ -700,9 +700,11 @@ async function processMessagingEvents(body: any, requestId: string) {
         }
 
         // Helper: récupère le profil utilisateur via Graph API.
-        // Messenger PSID : fields=first_name,last_name,profile_pic
-        // Instagram IGSID : fields=name,username,profile_pic
+        // 1) tente direct PSID/IGSID. 2) fallback via /{page}/conversations?user_id=
         const fetchProfile = async (): Promise<{ name: string | null; pic: string | null; username: string | null }> => {
+          let name: string | null = null;
+          let picUrl: string | null = null;
+          let username: string | null = null;
           try {
             const fields = isInstagram
               ? "name,username,profile_pic"
@@ -711,23 +713,56 @@ async function processMessagingEvents(body: any, requestId: string) {
               `${graphApi}/${externalThreadId}?fields=${fields}&access_token=${identity.page_access_token}`,
             );
             const j = await r.json();
-            const picUrl = j?.profile_pic ?? j?.picture?.data?.url ?? null;
-            if (j?.error) {
-              logInfo(requestId, "Profile fetch returned error", { externalThreadId, err: j.error });
-              return { name: null, pic: picUrl, username: null };
+            picUrl = j?.profile_pic ?? j?.picture?.data?.url ?? null;
+            username = j?.username ?? null;
+            if (!j?.error) {
+              name = isInstagram
+                ? (j?.name || j?.username || null)
+                : (j?.name || [j?.first_name, j?.last_name].filter(Boolean).join(" ").trim() || null);
+            } else {
+              logInfo(requestId, "Direct profile fetch error, will try conversations fallback", { externalThreadId, err: j.error });
             }
-            const composedName = isInstagram
-              ? (j?.name || j?.username || null)
-              : (j?.name || [j?.first_name, j?.last_name].filter(Boolean).join(" ").trim() || null);
-            return {
-              name: composedName,
-              pic: picUrl,
-              username: j?.username ?? null,
-            };
           } catch (e) {
             logInfo(requestId, "Profile fetch threw", { externalThreadId, e: String(e) });
-            return { name: null, pic: null, username: null };
           }
+
+          // Fallback : /{page_id}/conversations?platform=&user_id= renvoie les participants avec leur nom
+          if (!name && identity.page_id) {
+            try {
+              const platform = isInstagram ? "instagram" : "messenger";
+              const r2 = await fetch(
+                `${graphApi}/${identity.page_id}/conversations?platform=${platform}&user_id=${externalThreadId}&fields=participants&access_token=${identity.page_access_token}`,
+              );
+              const j2 = await r2.json();
+              const conv = j2?.data?.[0];
+              const participant = conv?.participants?.data?.find((p: any) => p?.id === externalThreadId);
+              if (participant?.name) {
+                name = participant.name;
+                logInfo(requestId, "Profile resolved via conversations fallback", { externalThreadId, name });
+              } else if (j2?.error) {
+                logInfo(requestId, "Conversations fallback error", { err: j2.error });
+              }
+            } catch (e) {
+              logInfo(requestId, "Conversations fallback threw", { e: String(e) });
+            }
+          }
+
+          return { name, pic: picUrl, username };
+        };
+
+        // Trouve un lead existant du workspace par nom (case-insensitive) pour éviter les doublons cross-canal
+        const findExistingLeadByName = async (candidateName: string): Promise<string | null> => {
+          if (!candidateName) return null;
+          const trimmed = candidateName.trim();
+          if (!trimmed || /^Lead (Messenger|Instagram)$/i.test(trimmed)) return null;
+          const { data } = await supabase
+            .from("leads")
+            .select("id, name, source")
+            .eq("workspace_id", identity.workspace_id)
+            .is("deleted_at", null)
+            .ilike("name", trimmed)
+            .limit(1);
+          return (data && data[0]?.id) || null;
         };
 
         // Trouver ou créer le lead
@@ -763,40 +798,61 @@ async function processMessagingEvents(body: any, requestId: string) {
           const fallback = isInstagram ? "Lead Instagram" : "Lead Messenger";
           const displayName = prof.name || fallback;
 
-          const noteLines: string[] = [];
-          noteLines.push(`📥 Conversation ${channel === "instagram" ? "Instagram DM" : "Messenger"}`);
-          if (prof.username) noteLines.push(`• @${prof.username}`);
-          noteLines.push(`• Identifiant : ${externalThreadId}`);
-          if (prof.pic) noteLines.push(`• Photo : ${prof.pic}`);
-
-          const { data: newLead, error: insErr } = await supabase
-            .from("leads")
-            .insert({
-              name: displayName,
-              email: "",
-              phone: "",
-              source: channel as any,
-              status: "new" as any,
-              score: "cold" as any,
-              owner_id: identity.owner_id,
-              workspace_id: identity.workspace_id,
-              message: `Nouveau message ${channel}`,
-              notes: noteLines.join("\n"),
-              meta_page_id: identity.page_id,
-            } as any)
-            .select("id")
-            .maybeSingle();
-          if (insErr || !newLead) {
-            logError(requestId, "Lead creation failed for messaging", { error: insErr?.message });
-            continue;
+          // Dédup cross-canal : si un lead du workspace porte déjà ce nom, on le réutilise
+          if (prof.name) {
+            const matched = await findExistingLeadByName(prof.name);
+            if (matched) {
+              leadId = matched;
+              const { data: leadRow } = await supabase.from("leads").select("notes").eq("id", matched).maybeSingle();
+              const prevNotes = ((leadRow as any)?.notes ?? "").toString();
+              const channelLabel = channel === "instagram" ? "Instagram DM" : "Messenger";
+              const noteAppend =
+                `\n\n📥 Nouveau canal : ${channelLabel}` +
+                (prof.username ? ` @${prof.username}` : "") +
+                `\n• Identifiant ${channel} : ${externalThreadId}`;
+              await supabase
+                .from("leads")
+                .update({ notes: (prevNotes + noteAppend).trim() } as any)
+                .eq("id", matched);
+              logInfo(requestId, "Linked new channel thread to existing lead", { leadId: matched, channel, name: prof.name });
+            }
           }
-          leadId = newLead.id;
 
-          // Notification (push + email)
-          try {
-            await supabase.functions.invoke("notify-new-lead", { body: { lead_id: leadId } });
-          } catch (e) {
-            logError(requestId, "notify-new-lead failed", { e: String(e) });
+          if (!leadId) {
+            const noteLines: string[] = [];
+            noteLines.push(`📥 Conversation ${channel === "instagram" ? "Instagram DM" : "Messenger"}`);
+            if (prof.username) noteLines.push(`• @${prof.username}`);
+            noteLines.push(`• Identifiant : ${externalThreadId}`);
+            if (prof.pic) noteLines.push(`• Photo : ${prof.pic}`);
+
+            const { data: newLead, error: insErr } = await supabase
+              .from("leads")
+              .insert({
+                name: displayName,
+                email: "",
+                phone: "",
+                source: channel as any,
+                status: "new" as any,
+                score: "cold" as any,
+                owner_id: identity.owner_id,
+                workspace_id: identity.workspace_id,
+                message: `Nouveau message ${channel}`,
+                notes: noteLines.join("\n"),
+                meta_page_id: identity.page_id,
+              } as any)
+              .select("id")
+              .maybeSingle();
+            if (insErr || !newLead) {
+              logError(requestId, "Lead creation failed for messaging", { error: insErr?.message });
+              continue;
+            }
+            leadId = newLead.id;
+
+            try {
+              await supabase.functions.invoke("notify-new-lead", { body: { lead_id: leadId } });
+            } catch (e) {
+              logError(requestId, "notify-new-lead failed", { e: String(e) });
+            }
           }
         }
 
