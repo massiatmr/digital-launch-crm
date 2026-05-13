@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Send, CheckCircle2, AlertCircle, Clock, Mic, Square, Trash2, FileText, Lock, Paperclip, Download, X as XIcon } from 'lucide-react';
+import { Loader2, Send, CheckCircle2, AlertCircle, Clock, Mic, Square, Trash2, FileText, Lock, Paperclip, Download, X as XIcon, MessageCircle, Facebook, Instagram } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
