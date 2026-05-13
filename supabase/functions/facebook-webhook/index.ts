@@ -706,7 +706,7 @@ async function processMessagingEvents(body: any, requestId: string) {
           try {
             const fields = isInstagram
               ? "name,username,profile_pic"
-              : "first_name,last_name,profile_pic";
+              : "name,first_name,last_name,profile_pic";
             const r = await fetch(
               `${graphApi}/${externalThreadId}?fields=${fields}&access_token=${identity.page_access_token}`,
             );
@@ -717,7 +717,7 @@ async function processMessagingEvents(body: any, requestId: string) {
             }
             const composedName = isInstagram
               ? (j?.name || j?.username || null)
-              : ([j?.first_name, j?.last_name].filter(Boolean).join(" ").trim() || null);
+              : (j?.name || [j?.first_name, j?.last_name].filter(Boolean).join(" ").trim() || null);
             return {
               name: composedName,
               pic: j?.profile_pic ?? null,
