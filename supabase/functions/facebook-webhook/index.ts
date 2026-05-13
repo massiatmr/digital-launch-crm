@@ -798,40 +798,61 @@ async function processMessagingEvents(body: any, requestId: string) {
           const fallback = isInstagram ? "Lead Instagram" : "Lead Messenger";
           const displayName = prof.name || fallback;
 
-          const noteLines: string[] = [];
-          noteLines.push(`📥 Conversation ${channel === "instagram" ? "Instagram DM" : "Messenger"}`);
-          if (prof.username) noteLines.push(`• @${prof.username}`);
-          noteLines.push(`• Identifiant : ${externalThreadId}`);
-          if (prof.pic) noteLines.push(`• Photo : ${prof.pic}`);
-
-          const { data: newLead, error: insErr } = await supabase
-            .from("leads")
-            .insert({
-              name: displayName,
-              email: "",
-              phone: "",
-              source: channel as any,
-              status: "new" as any,
-              score: "cold" as any,
-              owner_id: identity.owner_id,
-              workspace_id: identity.workspace_id,
-              message: `Nouveau message ${channel}`,
-              notes: noteLines.join("\n"),
-              meta_page_id: identity.page_id,
-            } as any)
-            .select("id")
-            .maybeSingle();
-          if (insErr || !newLead) {
-            logError(requestId, "Lead creation failed for messaging", { error: insErr?.message });
-            continue;
+          // Dédup cross-canal : si un lead du workspace porte déjà ce nom, on le réutilise
+          if (prof.name) {
+            const matched = await findExistingLeadByName(prof.name);
+            if (matched) {
+              leadId = matched;
+              const { data: leadRow } = await supabase.from("leads").select("notes").eq("id", matched).maybeSingle();
+              const prevNotes = ((leadRow as any)?.notes ?? "").toString();
+              const channelLabel = channel === "instagram" ? "Instagram DM" : "Messenger";
+              const noteAppend =
+                `\n\n📥 Nouveau canal : ${channelLabel}` +
+                (prof.username ? ` @${prof.username}` : "") +
+                `\n• Identifiant ${channel} : ${externalThreadId}`;
+              await supabase
+                .from("leads")
+                .update({ notes: (prevNotes + noteAppend).trim() } as any)
+                .eq("id", matched);
+              logInfo(requestId, "Linked new channel thread to existing lead", { leadId: matched, channel, name: prof.name });
+            }
           }
-          leadId = newLead.id;
 
-          // Notification (push + email)
-          try {
-            await supabase.functions.invoke("notify-new-lead", { body: { lead_id: leadId } });
-          } catch (e) {
-            logError(requestId, "notify-new-lead failed", { e: String(e) });
+          if (!leadId) {
+            const noteLines: string[] = [];
+            noteLines.push(`📥 Conversation ${channel === "instagram" ? "Instagram DM" : "Messenger"}`);
+            if (prof.username) noteLines.push(`• @${prof.username}`);
+            noteLines.push(`• Identifiant : ${externalThreadId}`);
+            if (prof.pic) noteLines.push(`• Photo : ${prof.pic}`);
+
+            const { data: newLead, error: insErr } = await supabase
+              .from("leads")
+              .insert({
+                name: displayName,
+                email: "",
+                phone: "",
+                source: channel as any,
+                status: "new" as any,
+                score: "cold" as any,
+                owner_id: identity.owner_id,
+                workspace_id: identity.workspace_id,
+                message: `Nouveau message ${channel}`,
+                notes: noteLines.join("\n"),
+                meta_page_id: identity.page_id,
+              } as any)
+              .select("id")
+              .maybeSingle();
+            if (insErr || !newLead) {
+              logError(requestId, "Lead creation failed for messaging", { error: insErr?.message });
+              continue;
+            }
+            leadId = newLead.id;
+
+            try {
+              await supabase.functions.invoke("notify-new-lead", { body: { lead_id: leadId } });
+            } catch (e) {
+              logError(requestId, "notify-new-lead failed", { e: String(e) });
+            }
           }
         }
 
