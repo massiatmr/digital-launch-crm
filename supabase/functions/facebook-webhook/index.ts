@@ -699,6 +699,36 @@ async function processMessagingEvents(body: any, requestId: string) {
           }
         }
 
+        // Helper: récupère le profil utilisateur via Graph API.
+        // Messenger PSID : fields=first_name,last_name,profile_pic
+        // Instagram IGSID : fields=name,username,profile_pic
+        const fetchProfile = async (): Promise<{ name: string | null; pic: string | null; username: string | null }> => {
+          try {
+            const fields = isInstagram
+              ? "name,username,profile_pic"
+              : "first_name,last_name,profile_pic";
+            const r = await fetch(
+              `${graphApi}/${externalThreadId}?fields=${fields}&access_token=${identity.page_access_token}`,
+            );
+            const j = await r.json();
+            if (j?.error) {
+              logInfo(requestId, "Profile fetch returned error", { externalThreadId, err: j.error });
+              return { name: null, pic: j?.profile_pic ?? null, username: null };
+            }
+            const composedName = isInstagram
+              ? (j?.name || j?.username || null)
+              : ([j?.first_name, j?.last_name].filter(Boolean).join(" ").trim() || null);
+            return {
+              name: composedName,
+              pic: j?.profile_pic ?? null,
+              username: j?.username ?? null,
+            };
+          } catch (e) {
+            logInfo(requestId, "Profile fetch threw", { externalThreadId, e: String(e) });
+            return { name: null, pic: null, username: null };
+          }
+        };
+
         // Trouver ou créer le lead
         let leadId: string | null = null;
         const { data: existingMsg } = await supabase
@@ -710,20 +740,33 @@ async function processMessagingEvents(body: any, requestId: string) {
           .maybeSingle();
         if (existingMsg) {
           leadId = existingMsg.lead_id;
-        } else {
-          // Récupérer le profil utilisateur via Graph API (nom + photo si dispo)
-          let displayName = isInstagram ? "Lead Instagram" : "Lead Messenger";
-          try {
-            const profRes = await fetch(
-              `${graphApi}/${externalThreadId}?fields=name,first_name,last_name,profile_pic&access_token=${identity.page_access_token}`,
-            );
-            const profJson = await profRes.json();
-            displayName = profJson?.name ||
-              [profJson?.first_name, profJson?.last_name].filter(Boolean).join(" ") ||
-              displayName;
-          } catch (e) {
-            logInfo(requestId, "Profile fetch failed, using default name", { externalThreadId });
+          // Upgrade : si le lead existant porte encore le nom par défaut, on retente la résolution
+          const { data: leadRow } = await supabase
+            .from("leads")
+            .select("name")
+            .eq("id", leadId)
+            .maybeSingle();
+          const currentName = (leadRow as any)?.name as string | undefined;
+          if (currentName && /^(Lead Messenger|Lead Instagram)$/i.test(currentName.trim())) {
+            const prof = await fetchProfile();
+            if (prof.name) {
+              await supabase
+                .from("leads")
+                .update({ name: prof.name } as any)
+                .eq("id", leadId);
+              logInfo(requestId, "Lead name upgraded from profile", { leadId, name: prof.name });
+            }
           }
+        } else {
+          const prof = await fetchProfile();
+          const fallback = isInstagram ? "Lead Instagram" : "Lead Messenger";
+          const displayName = prof.name || fallback;
+
+          const noteLines: string[] = [];
+          noteLines.push(`📥 Conversation ${channel === "instagram" ? "Instagram DM" : "Messenger"}`);
+          if (prof.username) noteLines.push(`• @${prof.username}`);
+          noteLines.push(`• Identifiant : ${externalThreadId}`);
+          if (prof.pic) noteLines.push(`• Photo : ${prof.pic}`);
 
           const { data: newLead, error: insErr } = await supabase
             .from("leads")
@@ -737,7 +780,7 @@ async function processMessagingEvents(body: any, requestId: string) {
               owner_id: identity.owner_id,
               workspace_id: identity.workspace_id,
               message: `Nouveau message ${channel}`,
-              notes: `📥 Conversation ${channel === "instagram" ? "Instagram DM" : "Messenger"}\n• Identifiant : ${externalThreadId}`,
+              notes: noteLines.join("\n"),
               meta_page_id: identity.page_id,
             } as any)
             .select("id")
