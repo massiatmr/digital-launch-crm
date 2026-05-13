@@ -706,21 +706,22 @@ async function processMessagingEvents(body: any, requestId: string) {
           try {
             const fields = isInstagram
               ? "name,username,profile_pic"
-              : "name,first_name,last_name,profile_pic";
+              : "name,first_name,last_name,profile_pic,picture";
             const r = await fetch(
               `${graphApi}/${externalThreadId}?fields=${fields}&access_token=${identity.page_access_token}`,
             );
             const j = await r.json();
+            const picUrl = j?.profile_pic ?? j?.picture?.data?.url ?? null;
             if (j?.error) {
               logInfo(requestId, "Profile fetch returned error", { externalThreadId, err: j.error });
-              return { name: null, pic: j?.profile_pic ?? null, username: null };
+              return { name: null, pic: picUrl, username: null };
             }
             const composedName = isInstagram
               ? (j?.name || j?.username || null)
               : (j?.name || [j?.first_name, j?.last_name].filter(Boolean).join(" ").trim() || null);
             return {
               name: composedName,
-              pic: j?.profile_pic ?? null,
+              pic: picUrl,
               username: j?.username ?? null,
             };
           } catch (e) {
