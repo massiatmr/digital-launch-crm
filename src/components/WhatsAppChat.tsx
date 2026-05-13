@@ -387,6 +387,31 @@ export function WhatsAppChat({ leadId, leadName, leadPhone, className }: { leadI
 
   return (
     <div className={cn('rounded-xl border border-border bg-muted/10 flex flex-col', className)}>
+      {availableChannels.length > 1 && (
+        <div className="px-2 pt-2 flex items-center gap-1 flex-wrap">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-1">Canal :</span>
+          {availableChannels.map((c) => {
+            const Icon = c === 'whatsapp' ? MessageCircle : c === 'messenger' ? Facebook : Instagram;
+            const label = c === 'whatsapp' ? 'WhatsApp' : c === 'messenger' ? 'Messenger' : 'Instagram';
+            const active = c === channel;
+            return (
+              <button
+                key={c}
+                onClick={() => setActiveChannel(c)}
+                className={cn(
+                  'inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-full border transition-colors',
+                  active
+                    ? 'bg-primary/20 border-primary/60 text-primary'
+                    : 'bg-card border-border text-muted-foreground hover:text-foreground'
+                )}
+                title={`Basculer sur ${label}`}
+              >
+                <Icon className="h-3 w-3" /> {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
       <div className="p-2"><AiStatusBanner leadId={leadId} /></div>
       <NextFollowupBanner leadId={leadId} paused={!!ctl?.automation_paused_at} />
       <div className="flex-1 min-h-[200px] overflow-y-auto p-3 space-y-2">
