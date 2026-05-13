@@ -221,7 +221,42 @@ export default function SettingsIntegrationsPage() {
       toast.error("Impossible de démarrer la connexion", { description: error?.message });
       return;
     }
-    window.location.href = data.url;
+    // Ouvrir dans une popup centrée plutôt que rediriger toute la page
+    const w = 600;
+    const h = 750;
+    const y = window.top!.outerHeight / 2 + window.top!.screenY - h / 2;
+    const x = window.top!.outerWidth / 2 + window.top!.screenX - w / 2;
+    const popup = window.open(
+      data.url,
+      "meta-oauth",
+      `width=${w},height=${h},left=${x},top=${y}`,
+    );
+    if (!popup) {
+      toast.error("Popup bloquée", { description: "Autorisez les popups pour ce site puis réessayez." });
+      return;
+    }
+    const timer = setInterval(() => {
+      try {
+        if (popup.closed) {
+          clearInterval(timer);
+          loadPages();
+          loadWaNumbers();
+          return;
+        }
+        // Une fois le callback redirige sur notre origine, on peut lire l'URL
+        const href = popup.location.href;
+        if (href.includes(window.location.origin) && href.includes("fb=")) {
+          const url = new URL(href);
+          const search = url.search;
+          clearInterval(timer);
+          popup.close();
+          // Re-route locale pour déclencher le useEffect (toast + reload)
+          window.location.href = `/settings/integrations${search}`;
+        }
+      } catch {
+        // cross-origin pendant l'auth Meta : on ignore
+      }
+    }, 500);
   };
 
   const callAction = async (action: string, page_id: string, successMsg?: string) => {
