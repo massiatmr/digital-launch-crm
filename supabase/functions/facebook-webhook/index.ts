@@ -700,9 +700,11 @@ async function processMessagingEvents(body: any, requestId: string) {
         }
 
         // Helper: récupère le profil utilisateur via Graph API.
-        // Messenger PSID : fields=first_name,last_name,profile_pic
-        // Instagram IGSID : fields=name,username,profile_pic
+        // 1) tente direct PSID/IGSID. 2) fallback via /{page}/conversations?user_id=
         const fetchProfile = async (): Promise<{ name: string | null; pic: string | null; username: string | null }> => {
+          let name: string | null = null;
+          let picUrl: string | null = null;
+          let username: string | null = null;
           try {
             const fields = isInstagram
               ? "name,username,profile_pic"
@@ -711,23 +713,56 @@ async function processMessagingEvents(body: any, requestId: string) {
               `${graphApi}/${externalThreadId}?fields=${fields}&access_token=${identity.page_access_token}`,
             );
             const j = await r.json();
-            const picUrl = j?.profile_pic ?? j?.picture?.data?.url ?? null;
-            if (j?.error) {
-              logInfo(requestId, "Profile fetch returned error", { externalThreadId, err: j.error });
-              return { name: null, pic: picUrl, username: null };
+            picUrl = j?.profile_pic ?? j?.picture?.data?.url ?? null;
+            username = j?.username ?? null;
+            if (!j?.error) {
+              name = isInstagram
+                ? (j?.name || j?.username || null)
+                : (j?.name || [j?.first_name, j?.last_name].filter(Boolean).join(" ").trim() || null);
+            } else {
+              logInfo(requestId, "Direct profile fetch error, will try conversations fallback", { externalThreadId, err: j.error });
             }
-            const composedName = isInstagram
-              ? (j?.name || j?.username || null)
-              : (j?.name || [j?.first_name, j?.last_name].filter(Boolean).join(" ").trim() || null);
-            return {
-              name: composedName,
-              pic: picUrl,
-              username: j?.username ?? null,
-            };
           } catch (e) {
             logInfo(requestId, "Profile fetch threw", { externalThreadId, e: String(e) });
-            return { name: null, pic: null, username: null };
           }
+
+          // Fallback : /{page_id}/conversations?platform=&user_id= renvoie les participants avec leur nom
+          if (!name && identity.page_id) {
+            try {
+              const platform = isInstagram ? "instagram" : "messenger";
+              const r2 = await fetch(
+                `${graphApi}/${identity.page_id}/conversations?platform=${platform}&user_id=${externalThreadId}&fields=participants&access_token=${identity.page_access_token}`,
+              );
+              const j2 = await r2.json();
+              const conv = j2?.data?.[0];
+              const participant = conv?.participants?.data?.find((p: any) => p?.id === externalThreadId);
+              if (participant?.name) {
+                name = participant.name;
+                logInfo(requestId, "Profile resolved via conversations fallback", { externalThreadId, name });
+              } else if (j2?.error) {
+                logInfo(requestId, "Conversations fallback error", { err: j2.error });
+              }
+            } catch (e) {
+              logInfo(requestId, "Conversations fallback threw", { e: String(e) });
+            }
+          }
+
+          return { name, pic: picUrl, username };
+        };
+
+        // Trouve un lead existant du workspace par nom (case-insensitive) pour éviter les doublons cross-canal
+        const findExistingLeadByName = async (candidateName: string): Promise<string | null> => {
+          if (!candidateName) return null;
+          const trimmed = candidateName.trim();
+          if (!trimmed || /^Lead (Messenger|Instagram)$/i.test(trimmed)) return null;
+          const { data } = await supabase
+            .from("leads")
+            .select("id, name, source")
+            .eq("workspace_id", identity.workspace_id)
+            .is("deleted_at", null)
+            .ilike("name", trimmed)
+            .limit(1);
+          return (data && data[0]?.id) || null;
         };
 
         // Trouver ou créer le lead
