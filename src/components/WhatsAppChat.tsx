@@ -144,9 +144,11 @@ function encodeMp3FromFloat32(samples: Float32Array, sampleRate: number) {
   return new Blob(mp3Parts, { type: 'audio/mpeg' });
 }
 
-export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; leadName?: string; className?: string }) {
+type ChannelKey = 'whatsapp' | 'messenger' | 'instagram';
+
+export function WhatsAppChat({ leadId, leadName, leadPhone, className }: { leadId: string; leadName?: string; leadPhone?: string | null; className?: string }) {
   useWhatsAppRealtime(leadId);
-  const { data: messages = [] } = useWhatsAppMessages(leadId);
+  const { data: allMessages = [] } = useWhatsAppMessages(leadId);
   const { data: ctl } = useConvControls(leadId);
   const sendWA = useSendWhatsAppMessage();
   const sendAudio = useSendWhatsAppAudio();
@@ -155,19 +157,40 @@ export function WhatsAppChat({ leadId, leadName, className }: { leadId: string; 
   const [templateOpen, setTemplateOpen] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const lastIsInbound = messages.length > 0 && (messages[messages.length - 1] as any).direction === 'inbound';
 
-  // Détecter le canal (whatsapp / messenger / instagram) depuis le dernier message
-  const channel: 'whatsapp' | 'messenger' | 'instagram' = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const c = (messages[i] as any).channel;
+  // Canaux disponibles : whatsapp si phone OU msg, messenger/insta si msg existe
+  const availableChannels = useMemo<ChannelKey[]>(() => {
+    const set = new Set<ChannelKey>();
+    for (const m of allMessages as any[]) {
+      const c = (m.channel ?? 'whatsapp') as ChannelKey;
+      if (c === 'whatsapp' || c === 'messenger' || c === 'instagram') set.add(c);
+    }
+    if (leadPhone) set.add('whatsapp');
+    return Array.from(set);
+  }, [allMessages, leadPhone]);
+
+  // Canal détecté par défaut = dernier message
+  const detectedChannel: ChannelKey = useMemo(() => {
+    for (let i = allMessages.length - 1; i >= 0; i--) {
+      const c = (allMessages[i] as any).channel;
       if (c === 'messenger' || c === 'instagram' || c === 'whatsapp') return c;
     }
-    return 'whatsapp';
-  }, [messages]);
+    return availableChannels[0] ?? 'whatsapp';
+  }, [allMessages, availableChannels]);
+
+  const [activeChannel, setActiveChannel] = useState<ChannelKey | null>(null);
+  const channel: ChannelKey = activeChannel ?? detectedChannel;
   const isMeta = channel !== 'whatsapp';
 
-  // Fenêtre 24h Meta : on ne peut envoyer du texte libre que si le lead a écrit dans les dernières 24h
+  // Messages filtrés par canal actif (si plusieurs canaux dispo)
+  const messages = useMemo(() => {
+    if (availableChannels.length <= 1) return allMessages;
+    return (allMessages as any[]).filter((m) => (m.channel ?? 'whatsapp') === channel);
+  }, [allMessages, availableChannels.length, channel]);
+
+  const lastIsInbound = messages.length > 0 && (messages[messages.length - 1] as any).direction === 'inbound';
+
+  // Fenêtre 24h Meta
   const isWithin24h = useMemo(() => {
     const lastInbound = (messages as any[])
       .filter((m) => m.direction === 'inbound')
