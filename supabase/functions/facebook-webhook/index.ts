@@ -705,12 +705,16 @@ async function processMessagingEvents(body: any, requestId: string) {
           let name: string | null = null;
           let picUrl: string | null = null;
           let username: string | null = null;
+          // Pour IG, privilégier le token IG dédié si présent
+          const profileToken = isInstagram
+            ? ((identity as any).instagram_access_token || identity.page_access_token)
+            : identity.page_access_token;
           try {
             const fields = isInstagram
               ? "name,username,profile_pic"
               : "name,first_name,last_name,profile_pic,picture";
             const r = await fetch(
-              `${graphApi}/${externalThreadId}?fields=${fields}&access_token=${identity.page_access_token}`,
+              `${graphApi}/${externalThreadId}?fields=${fields}&access_token=${profileToken}`,
             );
             const j = await r.json();
             picUrl = j?.profile_pic ?? j?.picture?.data?.url ?? null;
