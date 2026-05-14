@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, XCircle, AlertTriangle, Loader2, Facebook, Instagram, MessageCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { CheckCircle2, XCircle, AlertTriangle, Loader2, Facebook, Instagram, MessageCircle, ChevronDown, ChevronUp, Save } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 type StepState = "ok" | "ko" | "warn" | "pending";
