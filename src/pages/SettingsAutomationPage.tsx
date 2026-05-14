@@ -20,15 +20,18 @@ import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
-const LEAD_SOURCES: { value: string; label: string }[] = [
-  { value: 'facebook', label: 'Facebook Lead Ads' },
-  { value: 'website', label: 'Site web' },
-  { value: 'google_sheets', label: 'Google Sheets' },
-  { value: 'organic_social', label: 'Réseaux organic' },
-  { value: 'recommendation', label: 'Recommendation' },
-  { value: 'google_my_business', label: 'Google My Business' },
-  { value: 'manual', label: 'Manuel' },
-  { value: 'other', label: 'Autre' },
+const LEAD_SOURCES: { value: string; label: string; group?: string }[] = [
+  { value: 'facebook', label: 'Facebook Lead Ads', group: 'Ads & Web' },
+  { value: 'website', label: 'Site web', group: 'Ads & Web' },
+  { value: 'google_sheets', label: 'Google Sheets', group: 'Ads & Web' },
+  { value: 'organic_social', label: 'Réseaux organic', group: 'Ads & Web' },
+  { value: 'recommendation', label: 'Recommendation', group: 'Ads & Web' },
+  { value: 'google_my_business', label: 'Google My Business', group: 'Ads & Web' },
+  { value: 'manual', label: 'Manuel', group: 'Ads & Web' },
+  { value: 'other', label: 'Autre', group: 'Ads & Web' },
+  // Canaux Meta — traités séparément (logique de fenêtre 24h, pas de numéro, profil parfois vide)
+  { value: 'messenger', label: 'Messenger (Meta)', group: 'Canaux Meta' },
+  { value: 'instagram', label: 'Instagram DM (Meta)', group: 'Canaux Meta' },
 ];
 
 export default function SettingsAutomationPage() {
