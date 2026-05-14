@@ -30,6 +30,7 @@ const LEAD_SOURCES: { value: string; label: string; group?: string }[] = [
   { value: 'manual', label: 'Manuel', group: 'Ads & Web' },
   { value: 'other', label: 'Autre', group: 'Ads & Web' },
   // Canaux Meta — traités séparément (logique de fenêtre 24h, pas de numéro, profil parfois vide)
+  { value: 'whatsapp', label: 'WhatsApp (entrant)', group: 'Canaux Meta' },
   { value: 'messenger', label: 'Messenger (Meta)', group: 'Canaux Meta' },
   { value: 'instagram', label: 'Instagram DM (Meta)', group: 'Canaux Meta' },
 ];
