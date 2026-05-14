@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useCurrentWorkspaceId } from "@/hooks/useWorkspaces";
 
 export interface WhatsAppTemplate {
   id: string;
@@ -18,14 +19,17 @@ export interface WhatsAppTemplate {
 }
 
 export function useActiveWhatsAppBusinessAccountId() {
+  const workspaceId = useCurrentWorkspaceId();
   const { data } = useQuery({
-    queryKey: ["wa-active-config"],
+    queryKey: ["wa-active-config", workspaceId],
+    enabled: !!workspaceId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("whatsapp_config" as any)
         .select("business_account_id")
-        .eq("is_active", true)
-        .maybeSingle();
+        .eq("is_active", true);
+      if (workspaceId) q = q.eq("workspace_id", workspaceId);
+      const { data, error } = await q.maybeSingle();
       if (error) return null;
       return (data as any)?.business_account_id as string | null;
     },
@@ -40,12 +44,16 @@ export interface WhatsAppConfigInfo {
 }
 
 export function useWhatsAppConfigs() {
+  const workspaceId = useCurrentWorkspaceId();
   return useQuery({
-    queryKey: ["wa-configs-all"],
+    queryKey: ["wa-configs-all", workspaceId],
+    enabled: !!workspaceId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("whatsapp_config" as any)
         .select("business_account_id, display_phone_number, is_active");
+      if (workspaceId) q = q.eq("workspace_id", workspaceId);
+      const { data, error } = await q;
       if (error) return [] as WhatsAppConfigInfo[];
       return ((data as any[]) || []) as WhatsAppConfigInfo[];
     },
@@ -60,8 +68,6 @@ async function call(action: string, payload: Record<string, unknown> = {}) {
   if (data?.error) throw new Error(data.error);
   return data;
 }
-
-import { useCurrentWorkspaceId } from "@/hooks/useWorkspaces";
 
 export function useWhatsAppTemplates() {
   const workspaceId = useCurrentWorkspaceId();

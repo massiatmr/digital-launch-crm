@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS public.whatsapp_config_workspace_unique;
