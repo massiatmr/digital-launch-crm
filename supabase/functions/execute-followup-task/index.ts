@@ -322,6 +322,66 @@ Deno.serve(async (req) => {
       return data;
     };
 
+    // === Détection du canal du lead (whatsapp / messenger / instagram) ===
+    // Si lead.source = messenger/instagram, on route l'envoi via Graph Messenger/IG,
+    // pas WhatsApp Business. Templates WA sont alors ignorés (n'existent pas sur ces canaux).
+    const leadChannel: "whatsapp" | "messenger" | "instagram" =
+      lead.source === "messenger" ? "messenger"
+      : lead.source === "instagram" ? "instagram"
+      : "whatsapp";
+    const isMetaChannel = leadChannel !== "whatsapp";
+
+    // Helper : envoi via Messenger/IG Graph en utilisant meta_channel_identities du lead
+    const sendViaMetaChannel = async (text: string): Promise<{ ok: boolean; messageId: string | null; error: string | null }> => {
+      // Récup dernier thread du canal
+      const { data: lastMsg } = await admin
+        .from("whatsapp_messages")
+        .select("external_thread_id")
+        .eq("lead_id", task.lead_id)
+        .eq("channel", leadChannel)
+        .not("external_thread_id", "is", null)
+        .order("sent_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const externalThreadId = (lastMsg as any)?.external_thread_id as string | undefined;
+      if (!externalThreadId) return { ok: false, messageId: null, error: "No conversation thread for this channel" };
+
+      const { data: identity } = await admin
+        .from("meta_channel_identities")
+        .select("page_id, page_access_token, instagram_business_account_id, instagram_access_token")
+        .eq("page_id", (lead as any).meta_page_id)
+        .maybeSingle();
+      if (!identity) return { ok: false, messageId: null, error: "No Meta identity for this lead" };
+
+      const igToken = (identity as any).instagram_access_token as string | null;
+      const tokens: string[] = leadChannel === "instagram"
+        ? ([igToken, identity.page_access_token].filter(Boolean) as string[])
+        : [identity.page_access_token].filter(Boolean) as string[];
+      const endpoint = leadChannel === "instagram" && (identity as any).instagram_business_account_id
+        ? `${GRAPH}/${(identity as any).instagram_business_account_id}/messages`
+        : `${GRAPH}/me/messages`;
+
+      let lastErr: any = null;
+      for (const tok of tokens) {
+        try {
+          const r = await fetch(`${endpoint}?access_token=${tok}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ recipient: { id: externalThreadId }, messaging_type: "RESPONSE", message: { text } }),
+          });
+          const j = await r.json().catch(() => ({}));
+          if (r.ok) return { ok: true, messageId: j?.message_id ?? null, error: null };
+          lastErr = j?.error ?? j;
+        } catch (e) {
+          lastErr = { message: e instanceof Error ? e.message : String(e) };
+        }
+      }
+      return { ok: false, messageId: null, error: JSON.stringify(lastErr).slice(0, 500) };
+    };
+
+    // Sur canaux Meta : pas de templates WA — on bascule toujours sur IA texte libre
+    // (le filtrage fenêtre 24h se fait via la politique Meta côté Graph API).
+
     // Déterminer si un template est mappé pour ce type de tâche
     // PRIORITÉ 1 : followup_sequence_steps (séquence dynamique configurée par l'owner)
     // PRIORITÉ 2 : followup_automation_settings.template_xxx_id (legacy)
