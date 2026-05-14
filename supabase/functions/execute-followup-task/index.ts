@@ -576,6 +576,7 @@ Deno.serve(async (req) => {
       status: logStatus,
       wa_message_id: waMessageId,
       error_message: errorMessage,
+      channel: leadChannel as any,
     } as any);
 
     // Anti-doublon : si l'index unique whatsapp_messages_unique_outbound_task rejette l'insert,
