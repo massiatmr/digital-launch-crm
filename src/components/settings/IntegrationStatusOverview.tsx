@@ -154,6 +154,7 @@ function ChannelCard({ block, defaultOpen = false }: { block: ChannelBlock; defa
               </div>
             </div>
           ))}
+          {block.extra}
         </div>
       )}
     </div>
