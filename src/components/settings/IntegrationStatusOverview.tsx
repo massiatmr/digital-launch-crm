@@ -169,7 +169,7 @@ export function IntegrationStatusOverview({ workspaceId, pages, formMappings, wa
       setIgLoading(true);
       let q = supabase
         .from("meta_channel_identities")
-        .select("page_id, instagram_business_account_id, instagram_username, is_subscribed_instagram, is_subscribed_messages");
+        .select("page_id, instagram_business_account_id, instagram_username, is_subscribed_instagram, is_subscribed_messages, instagram_access_token");
       if (workspaceId) q = q.eq("workspace_id", workspaceId);
       const { data } = await q;
       if (!cancelled) {
