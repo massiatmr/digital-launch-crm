@@ -576,7 +576,7 @@ ${nicheRule}
 ${forbiddenRule}
 ${antiRepRule}
 ${slotsBlock}
-${emailBlock}${phoneKnown}
+${emailBlock}${nameBlock}${phoneKnown}
 
 ${styleRules}
 
