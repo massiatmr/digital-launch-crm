@@ -434,6 +434,10 @@ Deno.serve(async (req) => {
     if (template && (inboundCount ?? 0) > 0) {
       template = null;
     }
+    // Sur Messenger/Instagram, les templates WA ne s'appliquent pas → toujours IA texte libre
+    if (isMetaChannel) {
+      template = null;
+    }
 
     let messageContent = custom_message || task.message_content;
     let aiGenerated = false;
