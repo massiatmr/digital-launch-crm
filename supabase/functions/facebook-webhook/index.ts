@@ -910,39 +910,61 @@ async function processMessagingEvents(body: any, requestId: string) {
 
               if (!priorAsk) {
                 // Premier inbound -> on demande le prénom via Graph API directement
-                const askText = "Salut 👋 ravi d'avoir ton message ! Pour bien te répondre, comment puis-je t'appeler ? (juste ton prénom 🙂)";
+                const askText = "Salut, merci pour ton message bien sur, c'est quoi votre nom svp ?";
                 const igToken = (identity as any).instagram_access_token as string | null;
-                const sendToken = isInstagram ? (igToken || identity.page_access_token) : identity.page_access_token;
+                // Sur IG, certaines apps n'ont pas advanced access sur le page token : on essaie les 2.
+                const sendTokens: string[] = isInstagram
+                  ? ([igToken, identity.page_access_token].filter(Boolean) as string[])
+                  : [identity.page_access_token];
                 const endpoint = isInstagram && (identity as any).instagram_business_account_id
                   ? `${graphApi}/${(identity as any).instagram_business_account_id}/messages`
                   : `${graphApi}/me/messages`;
-                try {
-                  const r = await fetch(`${endpoint}?access_token=${sendToken}`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      recipient: { id: externalThreadId },
-                      messaging_type: "RESPONSE",
-                      message: { text: askText },
-                    }),
-                  });
-                  const j = await r.json().catch(() => ({}));
-                  await supabase.from("whatsapp_messages").insert({
-                    lead_id: leadId,
-                    owner_id: identity.owner_id,
-                    workspace_id: identity.workspace_id,
-                    direction: "outbound",
-                    content: askText,
-                    channel: channel as any,
-                    external_thread_id: externalThreadId,
-                    wa_message_id: j?.message_id ?? null,
-                    status: r.ok ? "sent" : "failed",
-                    error_message: r.ok ? null : JSON.stringify(j?.error ?? j).slice(0, 500),
-                    metadata: { name_request: true } as any,
-                  } as any);
+
+                let lastStatus = 0;
+                let lastJson: any = null;
+                let okJson: any = null;
+                for (const tok of sendTokens) {
+                  try {
+                    const r = await fetch(`${endpoint}?access_token=${tok}`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        recipient: { id: externalThreadId },
+                        messaging_type: "RESPONSE",
+                        message: { text: askText },
+                      }),
+                    });
+                    lastStatus = r.status;
+                    lastJson = await r.json().catch(() => ({}));
+                    if (r.ok) { okJson = lastJson; break; }
+                    logInfo(requestId, "Name request send failed, trying next token", {
+                      status: r.status, err: lastJson?.error, tokenKind: tok === igToken ? "ig" : "page",
+                    });
+                  } catch (e) {
+                    logError(requestId, "Name request fetch threw", { e: String(e) });
+                  }
+                }
+
+                await supabase.from("whatsapp_messages").insert({
+                  lead_id: leadId,
+                  owner_id: identity.owner_id,
+                  workspace_id: identity.workspace_id,
+                  direction: "outbound",
+                  content: askText,
+                  channel: channel as any,
+                  external_thread_id: externalThreadId,
+                  wa_message_id: okJson?.message_id ?? null,
+                  status: okJson ? "sent" : "failed",
+                  error_message: okJson ? null : JSON.stringify(lastJson?.error ?? lastJson).slice(0, 500),
+                  metadata: { name_request: true } as any,
+                } as any);
+
+                if (okJson) {
                   logInfo(requestId, "Name request sent", { leadId, channel });
-                } catch (e) {
-                  logError(requestId, "Name request failed", { e: String(e) });
+                } else {
+                  logError(requestId, "Name request NOT delivered", {
+                    leadId, channel, status: lastStatus, err: lastJson?.error,
+                  });
                 }
               } else {
                 // On a déjà demandé -> ce inbound est probablement le prénom
