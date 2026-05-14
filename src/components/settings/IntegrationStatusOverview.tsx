@@ -23,6 +23,7 @@ interface ChannelBlock {
   title: string;
   subtitle?: string;
   steps: Step[];
+  extra?: React.ReactNode;
 }
 
 interface Props {
