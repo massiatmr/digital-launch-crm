@@ -122,13 +122,11 @@ async function sendBookingConfirmationWhatsApp(
   const { data: settings } = await settingsQuery.maybeSingle();
   const dryRun = settings?.dry_run !== false;
 
-  const firstName = (lead.name || "").split(" ")[0] || "";
   const dateFr = formatBookingDateFr(bookingDate);
-  const text = `Parfait ${firstName} 🙌 c'est noté : ${dateFr} à ${timeSlot} pour notre échange sur "${offerName}".
+  const text = `Parfait c'est noté pour ${dateFr} à ${timeSlot}.
 
-Je t'envoie aussi par email quelques ressources à parcourir avant le rendez-vous — ça nous permettra d'aller droit au but et de bâtir ensemble la stratégie qui te rapprochera vraiment de tes objectifs.${meetLink ? `\n\nLien de l'appel : ${meetLink}` : ""}
-
-Bloque bien le créneau dans ton agenda, à très vite ! 🚀`;
+Je t'envoie aussi par email quelques ressources à parcourir et lien vers le meet avant le rendez-vous.
+A bientôt`;
 
   let waMessageId: string | null = null;
   let errorMessage: string | null = null;
