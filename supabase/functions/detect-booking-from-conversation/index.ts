@@ -123,9 +123,10 @@ async function sendBookingConfirmationWhatsApp(
   const dryRun = settings?.dry_run !== false;
 
   const dateFr = formatBookingDateFr(bookingDate);
+  const email = lead.email || "";
   const text = `Parfait c'est noté pour ${dateFr} à ${timeSlot}.
 
-Je t'envoie aussi par email quelques ressources à parcourir et lien vers le meet avant le rendez-vous.
+Je t'envoie aussi par email${email ? ` (${email})` : ""} quelques ressources à parcourir et le lien du meet avant le rendez-vous. Dis-moi si c'est pas le bon email.
 A bientôt`;
 
   let waMessageId: string | null = null;
