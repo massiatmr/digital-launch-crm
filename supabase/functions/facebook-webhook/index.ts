@@ -735,7 +735,7 @@ async function processMessagingEvents(body: any, requestId: string) {
             try {
               const platform = isInstagram ? "instagram" : "messenger";
               const r2 = await fetch(
-                `${graphApi}/${identity.page_id}/conversations?platform=${platform}&user_id=${externalThreadId}&fields=participants&access_token=${identity.page_access_token}`,
+                `${graphApi}/${identity.page_id}/conversations?platform=${platform}&user_id=${externalThreadId}&fields=participants&access_token=${profileToken}`,
               );
               const j2 = await r2.json();
               const conv = j2?.data?.[0];
