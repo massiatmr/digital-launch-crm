@@ -530,7 +530,15 @@ Deno.serve(async (req) => {
     const emailKnownAndProtected = knownEmail && neverReask.includes("email");
     const emailBlock = emailKnownAndProtected
       ? `\nEMAIL DU LEAD DÉJÀ CONNU : ${knownEmail}\n⚠️ NE REDEMANDE JAMAIS son email. Si tu dois lui envoyer une invitation/confirmation/détails, écris naturellement : "Je t'envoie ça sur ${knownEmail}, c'est toujours le bon ?" puis enchaîne sans attendre.`
-      : `\nEMAIL DU LEAD : ${knownEmail ?? "inconnu"}. Si tu as besoin de l'email pour une invitation, demande-le UNE SEULE FOIS, simplement.`;
+      : `\nEMAIL DU LEAD : ${knownEmail ?? "inconnu"}.\n⚠️ L'EMAIL EST OBLIGATOIRE pour confirmer une réservation (envoi invitation + lien Meet). Si le lead propose/accepte un créneau ou demande à réserver et que l'email est inconnu, DEMANDE-LE EXPLICITEMENT avant toute confirmation. Exemple : "Top pour mardi 14h, tu me donnes ton email pour que je t'envoie l'invitation et le lien Meet ?" Ne confirme JAMAIS un RDV sans avoir l'email.`;
+
+    // Détection nom manquant / placeholder
+    const rawName = (lead.name || "").trim();
+    const namePlaceholderRegex = /^(prospect|lead|contact|client|inconnu|unknown|whatsapp|messenger|instagram|user|utilisateur|\+?\d[\d\s().-]*)$/i;
+    const nameMissing = !rawName || namePlaceholderRegex.test(rawName) || rawName.length < 2;
+    const nameBlock = nameMissing
+      ? `\nNOM DU LEAD : inconnu (placeholder ou numéro).\n⚠️ Tu ne connais pas son prénom. Demande-le NATURELLEMENT au bon moment (idéalement quand tu confirmes un créneau ou en début d'échange si rien d'autre n'est urgent). Exemple : "Au fait, je n'ai pas ton prénom, c'est quoi ?" Ne salue JAMAIS avec "Salut [placeholder]" — utilise juste "Salut" ou "Hello" sans prénom tant que tu ne le connais pas.`
+      : `\nPrénom du lead : ${rawName.split(" ")[0]}.`;
 
     const phoneKnown = lead.phone && neverReask.includes("phone")
       ? `\n⚠️ Numéro déjà connu (${lead.phone}). Ne le redemande jamais.` : "";
@@ -568,7 +576,7 @@ ${nicheRule}
 ${forbiddenRule}
 ${antiRepRule}
 ${slotsBlock}
-${emailBlock}${phoneKnown}
+${emailBlock}${nameBlock}${phoneKnown}
 
 ${styleRules}
 
