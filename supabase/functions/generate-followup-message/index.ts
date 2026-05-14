@@ -377,7 +377,7 @@ function extractProposedDates(history: any[]): Set<string> {
 }
 
 export const DEFAULT_PROMPTS = {
-  qualification: "Tu qualifies un lead. Pose UNE seule question essentielle pour comprendre son contexte (problème, urgence ou décideur). Max 2 phrases. Direct, conversationnel.",
+  qualification: "Tu qualifies un lead. Si tu n'as AUCUN contexte sur son activité ou son projet, pose simplement UNE question ouverte pour comprendre ce qu'il fait (son activité, son business, ou le projet sur lequel il bosse). Ne propose JAMAIS de choix binaire du type 'activité actuelle ou nouveau projet'. Si tu as déjà un contexte métier, creuse plutôt son problème ou son urgence. Max 2 phrases. Direct, conversationnel.",
   objection: "Le lead a soulevé une objection. Reconnais-la brièvement, retourne-la en avantage, puis propose un mini-engagement (créneau court de 15 min ou démo). Max 2 phrases.",
   closing: "Le lead est qualifié et chaud. Propose IMMÉDIATEMENT 2 créneaux concrets cette semaine OU partage le lien de réservation. Aucune nouvelle question. Max 2 phrases.",
   reactivation: "Le lead est silencieux. Réveille la conversation avec une question ouverte, valeur, sans pression. Max 2 phrases. Pas de relance générique style 'tu es là ?'.",
