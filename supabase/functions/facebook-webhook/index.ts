@@ -705,49 +705,61 @@ async function processMessagingEvents(body: any, requestId: string) {
           let name: string | null = null;
           let picUrl: string | null = null;
           let username: string | null = null;
-          // Pour IG, privilégier le token IG dédié si présent
-          const profileToken = isInstagram
-            ? ((identity as any).instagram_access_token || identity.page_access_token)
-            : identity.page_access_token;
-          try {
-            const fields = isInstagram
-              ? "name,username,profile_pic"
-              : "name,first_name,last_name,profile_pic,picture";
-            const r = await fetch(
-              `${graphApi}/${externalThreadId}?fields=${fields}&access_token=${profileToken}`,
-            );
-            const j = await r.json();
-            picUrl = j?.profile_pic ?? j?.picture?.data?.url ?? null;
-            username = j?.username ?? null;
-            if (!j?.error) {
+          // Pour IG, essayer d'abord le token IG dédié si présent, puis fallback sur le page token
+          const igToken = (identity as any).instagram_access_token as string | null;
+          const tokens: string[] = isInstagram
+            ? [igToken, identity.page_access_token].filter(Boolean) as string[]
+            : [identity.page_access_token];
+
+          const fields = isInstagram
+            ? "name,username,profile_pic"
+            : "name,first_name,last_name,profile_pic,picture";
+
+          let workingToken: string | null = null;
+          for (const tok of tokens) {
+            try {
+              const r = await fetch(`${graphApi}/${externalThreadId}?fields=${fields}&access_token=${tok}`);
+              const j = await r.json();
+              if (j?.error) {
+                logInfo(requestId, "Direct profile fetch error", { externalThreadId, err: j.error, tokenKind: tok === igToken ? "ig" : "page" });
+                continue;
+              }
+              picUrl = j?.profile_pic ?? j?.picture?.data?.url ?? picUrl;
+              username = j?.username ?? username;
               name = isInstagram
                 ? (j?.name || j?.username || null)
                 : (j?.name || [j?.first_name, j?.last_name].filter(Boolean).join(" ").trim() || null);
-            } else {
-              logInfo(requestId, "Direct profile fetch error, will try conversations fallback", { externalThreadId, err: j.error });
+              workingToken = tok;
+              if (name) break;
+            } catch (e) {
+              logInfo(requestId, "Profile fetch threw", { externalThreadId, e: String(e) });
             }
-          } catch (e) {
-            logInfo(requestId, "Profile fetch threw", { externalThreadId, e: String(e) });
           }
 
           // Fallback : /{page_id}/conversations?platform=&user_id= renvoie les participants avec leur nom
           if (!name && identity.page_id) {
-            try {
-              const platform = isInstagram ? "instagram" : "messenger";
-              const r2 = await fetch(
-                `${graphApi}/${identity.page_id}/conversations?platform=${platform}&user_id=${externalThreadId}&fields=participants&access_token=${profileToken}`,
-              );
-              const j2 = await r2.json();
-              const conv = j2?.data?.[0];
-              const participant = conv?.participants?.data?.find((p: any) => p?.id === externalThreadId);
-              if (participant?.name) {
-                name = participant.name;
-                logInfo(requestId, "Profile resolved via conversations fallback", { externalThreadId, name });
-              } else if (j2?.error) {
-                logInfo(requestId, "Conversations fallback error", { err: j2.error });
+            const platform = isInstagram ? "instagram" : "messenger";
+            const fallbackTokens = workingToken ? [workingToken] : tokens;
+            for (const tok of fallbackTokens) {
+              try {
+                const r2 = await fetch(
+                  `${graphApi}/${identity.page_id}/conversations?platform=${platform}&user_id=${externalThreadId}&fields=participants&access_token=${tok}`,
+                );
+                const j2 = await r2.json();
+                if (j2?.error) {
+                  logInfo(requestId, "Conversations fallback error", { err: j2.error });
+                  continue;
+                }
+                const conv = j2?.data?.[0];
+                const participant = conv?.participants?.data?.find((p: any) => p?.id === externalThreadId);
+                if (participant?.name) {
+                  name = participant.name;
+                  logInfo(requestId, "Profile resolved via conversations fallback", { externalThreadId, name });
+                  break;
+                }
+              } catch (e) {
+                logInfo(requestId, "Conversations fallback threw", { e: String(e) });
               }
-            } catch (e) {
-              logInfo(requestId, "Conversations fallback threw", { e: String(e) });
             }
           }
 
