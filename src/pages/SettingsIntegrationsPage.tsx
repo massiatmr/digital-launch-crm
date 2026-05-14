@@ -311,6 +311,14 @@ export default function SettingsIntegrationsPage() {
         )}
       </div>
 
+      <IntegrationStatusOverview
+        workspaceId={workspaceId}
+        pages={pages}
+        formMappings={formOfferMappings}
+        waNumbers={waNumbers}
+        loading={loading || waLoading}
+      />
+
       {/* ============== META / FACEBOOK (one-click) ============== */}
       <Card>
         <CardHeader>
