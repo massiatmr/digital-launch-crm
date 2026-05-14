@@ -91,8 +91,8 @@ export default function SettingsAutomationPage() {
               <Bot className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <h1 className="font-heading text-xl">Automatisation WhatsApp</h1>
-              <p className="text-xs text-muted-foreground">Séquence de relances déclenchée à chaque nouveau lead.</p>
+              <h1 className="font-heading text-xl">Automatisation conversations</h1>
+              <p className="text-xs text-muted-foreground">WhatsApp, Messenger & Instagram — séquence déclenchée à chaque nouveau lead.</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
