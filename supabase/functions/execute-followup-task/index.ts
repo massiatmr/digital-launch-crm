@@ -529,30 +529,37 @@ Deno.serve(async (req) => {
           logStatus = "skipped_no_template";
           errorMessage = "Aucun template mappé et fenêtre 24h fermée — Meta refuse le texte libre. Mappe un template ou attends une réponse du lead.";
         } else {
-          // Envoi texte libre autorisé
-          const config = await getActiveWaConfig();
-          if (!config) {
-            errorMessage = "WhatsApp non configuré";
-            logStatus = "failed";
+          if (isMetaChannel) {
+            // Envoi via Messenger / Instagram Graph API
+            const sendRes = await sendViaMetaChannel(messageContent);
+            if (!sendRes.ok) { errorMessage = sendRes.error; logStatus = "failed"; }
+            else { waMessageId = sendRes.messageId; logStatus = "sent"; }
           } else {
-            const phone = normalizePhone(lead.phone);
-            if (!phone) {
-              errorMessage = "Téléphone du lead invalide";
+            // Envoi texte libre WhatsApp
+            const config = await getActiveWaConfig();
+            if (!config) {
+              errorMessage = "WhatsApp non configuré";
               logStatus = "failed";
             } else {
-              const resp = await fetch(`${GRAPH}/${config.phone_number_id}/messages`, {
-                method: "POST",
-                headers: { Authorization: `Bearer ${config.access_token}`, "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  messaging_product: "whatsapp",
-                  to: phone,
-                  type: "text",
-                  text: { body: messageContent },
-                }),
-              });
-              const data = await resp.json();
-              if (!resp.ok) { errorMessage = JSON.stringify(data); logStatus = "failed"; }
-              else { waMessageId = data.messages?.[0]?.id || null; logStatus = "sent"; }
+              const phone = normalizePhone(lead.phone);
+              if (!phone) {
+                errorMessage = "Téléphone du lead invalide";
+                logStatus = "failed";
+              } else {
+                const resp = await fetch(`${GRAPH}/${config.phone_number_id}/messages`, {
+                  method: "POST",
+                  headers: { Authorization: `Bearer ${config.access_token}`, "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    messaging_product: "whatsapp",
+                    to: phone,
+                    type: "text",
+                    text: { body: messageContent },
+                  }),
+                });
+                const data = await resp.json();
+                if (!resp.ok) { errorMessage = JSON.stringify(data); logStatus = "failed"; }
+                else { waMessageId = data.messages?.[0]?.id || null; logStatus = "sent"; }
+              }
             }
           }
         }
