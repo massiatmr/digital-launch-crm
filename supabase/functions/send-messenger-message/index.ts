@@ -79,10 +79,16 @@ Deno.serve(async (req) => {
     // Récupérer le page token correspondant
     const { data: identity } = await supabase
       .from("meta_channel_identities")
-      .select("page_id, page_access_token, instagram_business_account_id")
+      .select("page_id, page_access_token, instagram_business_account_id, instagram_access_token")
       .eq("page_id", lead.meta_page_id)
       .maybeSingle();
-    if (!identity?.page_access_token) {
+
+    // Pour IG : on utilise instagram_access_token si présent (token IG dédié), sinon page token
+    const accessToken = targetChannel === "instagram"
+      ? ((identity as any)?.instagram_access_token || identity?.page_access_token)
+      : identity?.page_access_token;
+
+    if (!accessToken) {
       return new Response(JSON.stringify({ error: "No Meta credentials for this page" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -91,9 +97,9 @@ Deno.serve(async (req) => {
 
     // POST vers Graph API
     // Messenger : POST /me/messages avec page token
-    // Instagram : POST /{ig_business_id}/messages avec page token (Graph v21+)
+    // Instagram : POST /{ig_business_id}/messages avec page token OU IG token dédié (Graph v21+)
     const graphApi = "https://graph.facebook.com/v21.0";
-    const endpoint = targetChannel === "instagram" && identity.instagram_business_account_id
+    const endpoint = targetChannel === "instagram" && identity?.instagram_business_account_id
       ? `${graphApi}/${identity.instagram_business_account_id}/messages`
       : `${graphApi}/me/messages`;
 
@@ -103,7 +109,7 @@ Deno.serve(async (req) => {
       message: { text: message },
     };
 
-    const sendRes = await fetch(`${endpoint}?access_token=${identity.page_access_token}`, {
+    const sendRes = await fetch(`${endpoint}?access_token=${accessToken}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),

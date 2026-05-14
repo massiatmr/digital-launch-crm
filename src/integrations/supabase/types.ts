@@ -1698,6 +1698,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          instagram_access_token: string | null
           instagram_business_account_id: string | null
           instagram_username: string | null
           is_subscribed_instagram: boolean
@@ -1712,6 +1713,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          instagram_access_token?: string | null
           instagram_business_account_id?: string | null
           instagram_username?: string | null
           is_subscribed_instagram?: boolean
@@ -1726,6 +1728,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          instagram_access_token?: string | null
           instagram_business_account_id?: string | null
           instagram_username?: string | null
           is_subscribed_instagram?: boolean

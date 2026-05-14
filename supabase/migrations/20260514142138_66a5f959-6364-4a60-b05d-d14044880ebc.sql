@@ -1,0 +1,1 @@
+ALTER TABLE public.meta_channel_identities ADD COLUMN IF NOT EXISTS instagram_access_token text;

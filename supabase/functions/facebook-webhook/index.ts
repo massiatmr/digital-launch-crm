@@ -656,7 +656,7 @@ async function processMessagingEvents(body: any, requestId: string) {
     // Résoudre l'identité (page_id pour Messenger, instagram_business_account_id pour IG)
     let identityQuery = supabase
       .from("meta_channel_identities")
-      .select("id, owner_id, workspace_id, page_id, page_access_token, instagram_business_account_id");
+      .select("id, owner_id, workspace_id, page_id, page_access_token, instagram_business_account_id, instagram_access_token");
     identityQuery = isInstagram
       ? identityQuery.eq("instagram_business_account_id", recipientPageOrIg)
       : identityQuery.eq("page_id", recipientPageOrIg);
@@ -705,12 +705,16 @@ async function processMessagingEvents(body: any, requestId: string) {
           let name: string | null = null;
           let picUrl: string | null = null;
           let username: string | null = null;
+          // Pour IG, privilégier le token IG dédié si présent
+          const profileToken = isInstagram
+            ? ((identity as any).instagram_access_token || identity.page_access_token)
+            : identity.page_access_token;
           try {
             const fields = isInstagram
               ? "name,username,profile_pic"
               : "name,first_name,last_name,profile_pic,picture";
             const r = await fetch(
-              `${graphApi}/${externalThreadId}?fields=${fields}&access_token=${identity.page_access_token}`,
+              `${graphApi}/${externalThreadId}?fields=${fields}&access_token=${profileToken}`,
             );
             const j = await r.json();
             picUrl = j?.profile_pic ?? j?.picture?.data?.url ?? null;
@@ -731,7 +735,7 @@ async function processMessagingEvents(body: any, requestId: string) {
             try {
               const platform = isInstagram ? "instagram" : "messenger";
               const r2 = await fetch(
-                `${graphApi}/${identity.page_id}/conversations?platform=${platform}&user_id=${externalThreadId}&fields=participants&access_token=${identity.page_access_token}`,
+                `${graphApi}/${identity.page_id}/conversations?platform=${platform}&user_id=${externalThreadId}&fields=participants&access_token=${profileToken}`,
               );
               const j2 = await r2.json();
               const conv = j2?.data?.[0];
