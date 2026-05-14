@@ -193,24 +193,33 @@ export default function SettingsAutomationPage() {
             </div>
             <div className="pt-3 border-t border-border">
               <Label className="text-sm">Sources de leads autorisées</Label>
-              <p className="text-xs text-muted-foreground mt-0.5 mb-2">Seuls ces sources déclencheront la séquence.</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {LEAD_SOURCES.map((src) => {
-                  const checked = (form.trigger_sources || []).includes(src.value);
-                  return (
-                    <label
-                      key={src.value}
-                      className={cn(
-                        'flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition-colors',
-                        checked ? 'border-primary/50 bg-primary/5' : 'border-border hover:bg-muted/30'
-                      )}
-                    >
-                      <Checkbox checked={checked} onCheckedChange={() => toggleSource(src.value)} />
-                      <span className="text-sm">{src.label}</span>
-                    </label>
-                  );
-                })}
-              </div>
+              <p className="text-xs text-muted-foreground mt-0.5 mb-2">
+                Seules ces sources déclencheront la séquence. <strong>Messenger / Instagram</strong> sont traités à part :
+                pas de numéro de téléphone, pas de fenêtre 24h WhatsApp, et le nom du prospect peut être vide
+                (l'IA enverra alors un message pour le demander et mettra à jour la fiche automatiquement).
+              </p>
+              {(['Ads & Web', 'Canaux Meta'] as const).map((group) => (
+                <div key={group} className="mb-3">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">{group}</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {LEAD_SOURCES.filter((s) => s.group === group).map((src) => {
+                      const checked = (form.trigger_sources || []).includes(src.value);
+                      return (
+                        <label
+                          key={src.value}
+                          className={cn(
+                            'flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition-colors',
+                            checked ? 'border-primary/50 bg-primary/5' : 'border-border hover:bg-muted/30'
+                          )}
+                        >
+                          <Checkbox checked={checked} onCheckedChange={() => toggleSource(src.value)} />
+                          <span className="text-sm">{src.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           </AccordionContent>
         </AccordionItem>
