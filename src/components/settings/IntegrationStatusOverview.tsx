@@ -300,6 +300,7 @@ export function IntegrationStatusOverview({ workspaceId, pages, formMappings, wa
             : "Lors de la reconnexion Meta, accepte bien les permissions Instagram Messaging.",
         },
       ],
+      extra: ig ? <IgTokenInput pageId={p.page_id} initial={ig.instagram_access_token} /> : null,
     });
   }
 
