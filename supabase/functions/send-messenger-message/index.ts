@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
       message: { text: message },
     };
 
-    const sendRes = await fetch(`${endpoint}?access_token=${identity.page_access_token}`, {
+    const sendRes = await fetch(`${endpoint}?access_token=${accessToken}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
