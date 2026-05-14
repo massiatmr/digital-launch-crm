@@ -53,6 +53,45 @@ interface IgIdentity {
   instagram_username: string | null;
   is_subscribed_instagram: boolean;
   is_subscribed_messages: boolean;
+  instagram_access_token: string | null;
+}
+
+function IgTokenInput({ pageId, initial }: { pageId: string; initial: string | null }) {
+  const [value, setValue] = useState(initial ?? "");
+  const [saving, setSaving] = useState(false);
+  const hasToken = !!initial;
+  const save = async () => {
+    setSaving(true);
+    const { error } = await supabase
+      .from("meta_channel_identities")
+      .update({ instagram_access_token: value.trim() || null } as any)
+      .eq("page_id", pageId);
+    setSaving(false);
+    if (error) toast.error("Erreur : " + error.message);
+    else toast.success(value.trim() ? "Token Instagram enregistré" : "Token Instagram supprimé");
+  };
+  return (
+    <div className="mt-2 space-y-1.5 rounded-md border border-border/40 bg-background/40 p-2">
+      <Label className="text-[11px] text-muted-foreground">
+        Token d'accès Instagram dédié {hasToken && <span className="text-green-500">· enregistré</span>}
+      </Label>
+      <div className="flex gap-1.5">
+        <Input
+          type="password"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={hasToken ? "•••••••• (laisser vide pour utiliser le page token)" : "Colle ici le token IG fourni par Meta"}
+          className="h-8 text-xs"
+        />
+        <Button size="sm" variant="outline" className="h-8" onClick={save} disabled={saving}>
+          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+        </Button>
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        Si Meta t'a fourni un token séparé pour Instagram, colle-le ici. Sinon le token de la Page sera utilisé.
+      </p>
+    </div>
+  );
 }
 
 function StateIcon({ state }: { state: StepState }) {
