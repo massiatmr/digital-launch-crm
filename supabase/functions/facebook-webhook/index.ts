@@ -656,7 +656,7 @@ async function processMessagingEvents(body: any, requestId: string) {
     // Résoudre l'identité (page_id pour Messenger, instagram_business_account_id pour IG)
     let identityQuery = supabase
       .from("meta_channel_identities")
-      .select("id, owner_id, workspace_id, page_id, page_access_token, instagram_business_account_id");
+      .select("id, owner_id, workspace_id, page_id, page_access_token, instagram_business_account_id, instagram_access_token");
     identityQuery = isInstagram
       ? identityQuery.eq("instagram_business_account_id", recipientPageOrIg)
       : identityQuery.eq("page_id", recipientPageOrIg);
