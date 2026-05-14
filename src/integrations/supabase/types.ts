@@ -2394,7 +2394,7 @@ export type Database = {
           verified_name: string | null
           verify_token: string
           webhook_subscribed: boolean
-          workspace_id: string | null
+          workspace_id: string
         }
         Insert: {
           access_token: string
@@ -2411,7 +2411,7 @@ export type Database = {
           verified_name?: string | null
           verify_token?: string
           webhook_subscribed?: boolean
-          workspace_id?: string | null
+          workspace_id: string
         }
         Update: {
           access_token?: string
@@ -2428,7 +2428,7 @@ export type Database = {
           verified_name?: string | null
           verify_token?: string
           webhook_subscribed?: boolean
-          workspace_id?: string | null
+          workspace_id?: string
         }
         Relationships: [
           {
