@@ -27,6 +27,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MetaCapiSection } from "@/components/settings/MetaCapiSection";
 import { LandingApiKeysSection } from "@/components/settings/LandingApiKeysSection";
+import { IntegrationStatusOverview } from "@/components/settings/IntegrationStatusOverview";
 import { useCurrentWorkspaceId, useWorkspaces } from "@/hooks/useWorkspaces";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -309,6 +310,14 @@ export default function SettingsIntegrationsPage() {
           </div>
         )}
       </div>
+
+      <IntegrationStatusOverview
+        workspaceId={workspaceId}
+        pages={pages}
+        formMappings={formOfferMappings}
+        waNumbers={waNumbers}
+        loading={loading || waLoading}
+      />
 
       {/* ============== META / FACEBOOK (one-click) ============== */}
       <Card>
