@@ -886,6 +886,93 @@ async function processMessagingEvents(body: any, requestId: string) {
           sent_at: new Date(sentAtMs).toISOString(),
         } as any);
 
+        // === Détection / demande automatique du nom (Messenger / Instagram) ===
+        // Sur les canaux Meta, le profil n'est souvent pas accessible (App en Dev mode,
+        // permission instagram_manage_messages non approuvée). On demande le prénom au
+        // prospect dès le 1er inbound, puis on parse sa réponse pour mettre à jour le lead.
+        if (direction === "inbound" && leadId) {
+          try {
+            const { data: leadRow } = await supabase
+              .from("leads").select("name").eq("id", leadId).maybeSingle();
+            const currentName = ((leadRow as any)?.name ?? "").toString().trim();
+            const isFallbackName = /^(Lead Messenger|Lead Instagram)$/i.test(currentName);
+
+            if (isFallbackName) {
+              // A-t-on déjà demandé le nom ?
+              const { data: priorAsk } = await supabase
+                .from("whatsapp_messages")
+                .select("id")
+                .eq("lead_id", leadId)
+                .eq("direction", "outbound")
+                .contains("metadata", { name_request: true } as any)
+                .limit(1)
+                .maybeSingle();
+
+              if (!priorAsk) {
+                // Premier inbound -> on demande le prénom via Graph API directement
+                const askText = "Salut 👋 ravi d'avoir ton message ! Pour bien te répondre, comment puis-je t'appeler ? (juste ton prénom 🙂)";
+                const igToken = (identity as any).instagram_access_token as string | null;
+                const sendToken = isInstagram ? (igToken || identity.page_access_token) : identity.page_access_token;
+                const endpoint = isInstagram && (identity as any).instagram_business_account_id
+                  ? `${graphApi}/${(identity as any).instagram_business_account_id}/messages`
+                  : `${graphApi}/me/messages`;
+                try {
+                  const r = await fetch(`${endpoint}?access_token=${sendToken}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      recipient: { id: externalThreadId },
+                      messaging_type: "RESPONSE",
+                      message: { text: askText },
+                    }),
+                  });
+                  const j = await r.json().catch(() => ({}));
+                  await supabase.from("whatsapp_messages").insert({
+                    lead_id: leadId,
+                    owner_id: identity.owner_id,
+                    workspace_id: identity.workspace_id,
+                    direction: "outbound",
+                    content: askText,
+                    channel: channel as any,
+                    external_thread_id: externalThreadId,
+                    wa_message_id: j?.message_id ?? null,
+                    status: r.ok ? "sent" : "failed",
+                    error_message: r.ok ? null : JSON.stringify(j?.error ?? j).slice(0, 500),
+                    metadata: { name_request: true } as any,
+                  } as any);
+                  logInfo(requestId, "Name request sent", { leadId, channel });
+                } catch (e) {
+                  logError(requestId, "Name request failed", { e: String(e) });
+                }
+              } else {
+                // On a déjà demandé -> ce inbound est probablement le prénom
+                const candidate = (content || "").trim().split(/\r?\n/)[0].trim();
+                // Heuristique simple : 2-60 chars, pas d'URL, principalement lettres/espaces/-/'
+                const looksLikeName =
+                  candidate.length >= 2 &&
+                  candidate.length <= 60 &&
+                  !/https?:\/\//i.test(candidate) &&
+                  /^[\p{L}][\p{L}\s'\-.]{1,59}$/u.test(candidate);
+                if (looksLikeName) {
+                  // Nettoyage : retire "moi c'est", "je m'appelle", "c'est"
+                  const cleaned = candidate
+                    .replace(/^(moi\s+c['e]?\s*est|je\s+m['e]?\s*appelle|c['e]?\s*est|my\s+name\s+is|i['']?m)\s+/i, "")
+                    .replace(/[.!?]+$/g, "")
+                    .trim();
+                  const finalName = (cleaned || candidate).slice(0, 60);
+                  await supabase
+                    .from("leads")
+                    .update({ name: finalName } as any)
+                    .eq("id", leadId);
+                  logInfo(requestId, "Lead name set from prospect reply", { leadId, name: finalName });
+                }
+              }
+            }
+          } catch (e) {
+            logError(requestId, "Name auto-detection failed", { e: String(e) });
+          }
+        }
+
         logInfo(requestId, "Messaging event stored", {
           channel,
           direction,

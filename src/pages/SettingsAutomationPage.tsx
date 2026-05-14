@@ -20,15 +20,18 @@ import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
-const LEAD_SOURCES: { value: string; label: string }[] = [
-  { value: 'facebook', label: 'Facebook Lead Ads' },
-  { value: 'website', label: 'Site web' },
-  { value: 'google_sheets', label: 'Google Sheets' },
-  { value: 'organic_social', label: 'Réseaux organic' },
-  { value: 'recommendation', label: 'Recommendation' },
-  { value: 'google_my_business', label: 'Google My Business' },
-  { value: 'manual', label: 'Manuel' },
-  { value: 'other', label: 'Autre' },
+const LEAD_SOURCES: { value: string; label: string; group?: string }[] = [
+  { value: 'facebook', label: 'Facebook Lead Ads', group: 'Ads & Web' },
+  { value: 'website', label: 'Site web', group: 'Ads & Web' },
+  { value: 'google_sheets', label: 'Google Sheets', group: 'Ads & Web' },
+  { value: 'organic_social', label: 'Réseaux organic', group: 'Ads & Web' },
+  { value: 'recommendation', label: 'Recommendation', group: 'Ads & Web' },
+  { value: 'google_my_business', label: 'Google My Business', group: 'Ads & Web' },
+  { value: 'manual', label: 'Manuel', group: 'Ads & Web' },
+  { value: 'other', label: 'Autre', group: 'Ads & Web' },
+  // Canaux Meta — traités séparément (logique de fenêtre 24h, pas de numéro, profil parfois vide)
+  { value: 'messenger', label: 'Messenger (Meta)', group: 'Canaux Meta' },
+  { value: 'instagram', label: 'Instagram DM (Meta)', group: 'Canaux Meta' },
 ];
 
 export default function SettingsAutomationPage() {
@@ -88,8 +91,8 @@ export default function SettingsAutomationPage() {
               <Bot className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <h1 className="font-heading text-xl">Automatisation WhatsApp</h1>
-              <p className="text-xs text-muted-foreground">Séquence de relances déclenchée à chaque nouveau lead.</p>
+              <h1 className="font-heading text-xl">Automatisation conversations</h1>
+              <p className="text-xs text-muted-foreground">WhatsApp, Messenger & Instagram — séquence déclenchée à chaque nouveau lead.</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -190,24 +193,33 @@ export default function SettingsAutomationPage() {
             </div>
             <div className="pt-3 border-t border-border">
               <Label className="text-sm">Sources de leads autorisées</Label>
-              <p className="text-xs text-muted-foreground mt-0.5 mb-2">Seuls ces sources déclencheront la séquence.</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {LEAD_SOURCES.map((src) => {
-                  const checked = (form.trigger_sources || []).includes(src.value);
-                  return (
-                    <label
-                      key={src.value}
-                      className={cn(
-                        'flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition-colors',
-                        checked ? 'border-primary/50 bg-primary/5' : 'border-border hover:bg-muted/30'
-                      )}
-                    >
-                      <Checkbox checked={checked} onCheckedChange={() => toggleSource(src.value)} />
-                      <span className="text-sm">{src.label}</span>
-                    </label>
-                  );
-                })}
-              </div>
+              <p className="text-xs text-muted-foreground mt-0.5 mb-2">
+                Seules ces sources déclencheront la séquence. <strong>Messenger / Instagram</strong> sont traités à part :
+                pas de numéro de téléphone, pas de fenêtre 24h WhatsApp, et le nom du prospect peut être vide
+                (l'IA enverra alors un message pour le demander et mettra à jour la fiche automatiquement).
+              </p>
+              {(['Ads & Web', 'Canaux Meta'] as const).map((group) => (
+                <div key={group} className="mb-3">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">{group}</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {LEAD_SOURCES.filter((s) => s.group === group).map((src) => {
+                      const checked = (form.trigger_sources || []).includes(src.value);
+                      return (
+                        <label
+                          key={src.value}
+                          className={cn(
+                            'flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition-colors',
+                            checked ? 'border-primary/50 bg-primary/5' : 'border-border hover:bg-muted/30'
+                          )}
+                        >
+                          <Checkbox checked={checked} onCheckedChange={() => toggleSource(src.value)} />
+                          <span className="text-sm">{src.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           </AccordionContent>
         </AccordionItem>
