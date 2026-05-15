@@ -248,6 +248,53 @@ export default function SettingsAccountPage() {
 function ExportBackupCard() {
   const { currentWorkspace } = useWorkspaces();
   const [loading, setLoading] = useState(false);
+  const [csvLoading, setCsvLoading] = useState(false);
+
+  const handleExportLeadsCsv = async () => {
+    if (!currentWorkspace) return toast.error('Aucun espace sélectionné');
+    setCsvLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('workspace_id', currentWorkspace.id)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        toast.info('Aucun lead à exporter');
+        return;
+      }
+      const headers = Array.from(
+        data.reduce((set: Set<string>, row: any) => {
+          Object.keys(row).forEach((k) => set.add(k));
+          return set;
+        }, new Set<string>())
+      );
+      const escape = (v: any) => {
+        if (v === null || v === undefined) return '';
+        let s = typeof v === 'object' ? JSON.stringify(v) : String(v);
+        if (/[",\n;]/.test(s)) s = `"${s.replace(/"/g, '""')}"`;
+        return s;
+      };
+      const csv = [
+        headers.join(','),
+        ...data.map((row: any) => headers.map((h) => escape(row[h])).join(',')),
+      ].join('\n');
+      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+      const dlUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = dlUrl;
+      a.download = `leads-${currentWorkspace.company_name || 'workspace'}-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(dlUrl);
+      toast.success(`${data.length} leads exportés`);
+    } catch (e: any) {
+      toast.error(e.message || 'Erreur lors de l\'export CSV');
+    } finally {
+      setCsvLoading(false);
+    }
+  };
 
   const handleExport = async () => {
     if (!currentWorkspace) return toast.error('Aucun espace sélectionné');
@@ -293,10 +340,14 @@ function ExportBackupCard() {
           Garde-le précieusement : c'est ta meilleure assurance contre toute perte de données.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-wrap gap-2">
         <Button onClick={handleExport} disabled={loading || !currentWorkspace} className="gap-2">
           <Download className="h-4 w-4" />
           {loading ? 'Préparation…' : `Exporter "${currentWorkspace?.company_name || ''}"`}
+        </Button>
+        <Button onClick={handleExportLeadsCsv} disabled={csvLoading || !currentWorkspace} variant="outline" className="gap-2">
+          <Download className="h-4 w-4" />
+          {csvLoading ? 'Préparation…' : 'Exporter les leads (CSV)'}
         </Button>
       </CardContent>
     </Card>
