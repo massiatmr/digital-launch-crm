@@ -340,10 +340,14 @@ function ExportBackupCard() {
           Garde-le précieusement : c'est ta meilleure assurance contre toute perte de données.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-wrap gap-2">
         <Button onClick={handleExport} disabled={loading || !currentWorkspace} className="gap-2">
           <Download className="h-4 w-4" />
           {loading ? 'Préparation…' : `Exporter "${currentWorkspace?.company_name || ''}"`}
+        </Button>
+        <Button onClick={handleExportLeadsCsv} disabled={csvLoading || !currentWorkspace} variant="outline" className="gap-2">
+          <Download className="h-4 w-4" />
+          {csvLoading ? 'Préparation…' : 'Exporter les leads (CSV)'}
         </Button>
       </CardContent>
     </Card>
