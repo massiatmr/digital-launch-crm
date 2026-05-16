@@ -15,10 +15,23 @@ const LOVABLE_AI = "https://ai.gateway.lovable.dev/v1/chat/completions";
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  // Internal-only endpoint: must be called with the service role key (server-to-server).
+  // Accept either the service role key (server-to-server from triggers/webhooks)
+  // or a valid user JWT (when called from the app via supabase.functions.invoke).
   const authHeader = req.headers.get("authorization") ?? "";
   const bearer = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : "";
-  if (!bearer || bearer !== SERVICE_KEY) {
+  let authorized = false;
+  if (bearer && bearer === SERVICE_KEY) {
+    authorized = true;
+  } else if (bearer) {
+    try {
+      const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
+        global: { headers: { Authorization: `Bearer ${bearer}` } },
+      });
+      const { data, error } = await userClient.auth.getClaims(bearer);
+      if (!error && data?.claims?.sub) authorized = true;
+    } catch (_) { /* ignore */ }
+  }
+  if (!authorized) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
