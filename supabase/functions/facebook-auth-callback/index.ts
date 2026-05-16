@@ -12,7 +12,6 @@ Deno.serve(async (req) => {
   if (errorParam) {
     return Response.redirect(`${redirectBase}?fb=error&reason=${encodeURIComponent(errorParam)}`, 302);
   }
-
   if (!code || !state) {
     return Response.redirect(`${redirectBase}?fb=error&reason=missing_params`, 302);
   }
@@ -26,77 +25,7 @@ Deno.serve(async (req) => {
     const redirectUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/facebook-auth-callback`;
     const graphApi = "https://graph.facebook.com/v21.0";
 
-    const subscribePage = async (pageId: string, pageToken: string) => {
-      // S'abonner à TOUS les fields utiles (leadgen + Messenger + IG comments)
-      const fields = [
-        "leadgen",
-        "messages",
-        "messaging_postbacks",
-        "message_reactions",
-        "message_reads",
-      ].join(",");
-      const subscribeRes = await fetch(
-        `${graphApi}/${pageId}/subscribed_apps?subscribed_fields=${fields}&access_token=${pageToken}`,
-        { method: "POST" },
-      );
-      const subscribeJson = await subscribeRes.json().catch(() => ({}));
-
-      const checkRes = await fetch(
-        `${graphApi}/${pageId}/subscribed_apps?access_token=${pageToken}`,
-      );
-      const checkJson = await checkRes.json().catch(() => ({}));
-      const apps = Array.isArray(checkJson?.data) ? checkJson.data : [];
-      const isSubscribed = apps.some((entry: { id?: string }) => entry?.id === appId);
-
-      return { isSubscribed, subscribeJson, checkJson };
-    };
-
-    // Récupère IG Business account lié à la page (si existe) et l'enregistre
-    const upsertChannelIdentity = async (
-      page: { id: string; name: string; access_token: string },
-    ) => {
-      let igId: string | null = null;
-      let igUsername: string | null = null;
-      try {
-        const igRes = await fetch(
-          `${graphApi}/${page.id}?fields=instagram_business_account{id,username}&access_token=${page.access_token}`,
-        );
-        const igJson = await igRes.json();
-        igId = igJson?.instagram_business_account?.id ?? null;
-        igUsername = igJson?.instagram_business_account?.username ?? null;
-        console.log("[fb-callback] IG account on page", { pageId: page.id, igId, igUsername });
-      } catch (e) {
-        console.error("[fb-callback] IG fetch failed", page.id, e);
-      }
-
-      const { data: existingIdentity } = await supabase
-        .from("meta_channel_identities")
-        .select("id")
-        .eq("page_id", page.id)
-        .maybeSingle();
-
-      const identityPayload: Record<string, unknown> = {
-        owner_id: userId,
-        workspace_id,
-        page_id: page.id,
-        page_name: page.name || "",
-        page_access_token: page.access_token,
-        instagram_business_account_id: igId,
-        instagram_username: igUsername,
-        is_subscribed_messages: true,
-        is_subscribed_instagram: !!igId,
-      };
-
-      if (existingIdentity) {
-        await supabase
-          .from("meta_channel_identities")
-          .update(identityPayload)
-          .eq("id", existingIdentity.id);
-      } else {
-        await supabase.from("meta_channel_identities").insert(identityPayload);
-      }
-    };
-
+    // 1. Exchange code -> long-lived user token
     const tokenRes = await fetch(
       `${graphApi}/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`,
     );
@@ -112,182 +41,52 @@ Deno.serve(async (req) => {
     const longJson = await longRes.json();
     const userToken = longJson.access_token || tokenJson.access_token;
 
+    // 2. Discover pages (no subscribe, no DB upsert)
     const pagesRes = await fetch(
       `${graphApi}/me/accounts?fields=id,name,access_token&access_token=${userToken}`,
     );
     const pagesJson = await pagesRes.json();
-    const pages = pagesJson.data || [];
+    const pages = (pagesJson.data || []) as Array<{ id: string; name: string; access_token: string }>;
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
-
-    let subscribedPages = 0;
-    let skippedPages = 0;
-
-    for (const p of pages) {
-      // Isolation stricte : si la page est déjà rattachée à un AUTRE workspace
-      // (ou à un autre owner pour les rows legacy), on l'ignore complètement.
-      const { data: takenElsewhere } = await supabase
-        .from("meta_pages")
-        .select("id, workspace_id, owner_id")
-        .eq("page_id", p.id);
-      const conflict = (takenElsewhere || []).some((row: any) => {
-        if (workspace_id) {
-          return row.workspace_id && row.workspace_id !== workspace_id;
-        }
-        // legacy scope: owner-only / workspace null
-        return row.workspace_id !== null || row.owner_id !== userId;
-      });
-      if (conflict) {
-        skippedPages++;
-        console.log("[fb-callback] page already attached to another workspace, skipping", {
-          pageId: p.id,
-          pageName: p.name,
-        });
-        continue;
-      }
-
-      const query = supabase.from("meta_pages").select("id").eq("page_id", p.id);
-      const scoped = workspace_id
-        ? query.eq("workspace_id", workspace_id)
-        : query.eq("owner_id", userId).is("workspace_id", null);
-      const { data: existing } = await scoped.maybeSingle();
-
-      let subscribed = false;
-      try {
-        const subscription = await subscribePage(p.id, p.access_token);
-        subscribed = subscription.isSubscribed;
-        console.log("[fb-callback] page subscription status", {
-          pageId: p.id,
-          pageName: p.name,
-          subscribed,
-          subscribeJson: subscription.subscribeJson,
-          checkJson: subscription.checkJson,
-        });
-      } catch (subscriptionError) {
-        console.error("[fb-callback] page subscription failed", {
-          pageId: p.id,
-          pageName: p.name,
-          error: subscriptionError instanceof Error ? subscriptionError.message : String(subscriptionError),
-        });
-      }
-
-      if (subscribed) subscribedPages++;
-
-      const payload = {
-        owner_id: userId,
-        workspace_id,
-        page_id: p.id,
-        page_name: p.name || "",
-        page_access_token: p.access_token,
-        is_active: true,
-        subscribed,
-      };
-
-      if (existing) {
-        await supabase.from("meta_pages").update(payload as any).eq("id", existing.id);
-      } else {
-        await supabase.from("meta_pages").insert(payload as any);
-      }
-
-      // Aussi : enregistrer comme identité de canal conversationnel (Messenger + IG)
-      try {
-        await upsertChannelIdentity(p);
-      } catch (e) {
-        console.error("[fb-callback] upsertChannelIdentity failed", p.id, e);
-      }
-    }
-
-    let waNumbersFound = 0;
-    let waNumbersSkipped = 0;
+    // 3. Discover WhatsApp numbers (no DB upsert)
+    const waNumbers: Array<{
+      phone_number_id: string;
+      business_account_id: string;
+      business_name: string;
+      display_phone_number: string;
+      verified_name: string;
+    }> = [];
     const wabaSeen = new Set<string>();
-    const upsertPhones = async (waba: { id: string; name?: string }, phones: any[]) => {
-      for (const ph of phones) {
-        // Isolation stricte : ignorer les numéros déjà rattachés à un autre workspace.
-        const { data: takenElsewhere } = await supabase
-          .from("whatsapp_config")
-          .select("id, workspace_id, owner_id")
-          .eq("phone_number_id", ph.id);
-        const conflict = (takenElsewhere || []).some((row: any) => {
-          if (workspace_id) return row.workspace_id && row.workspace_id !== workspace_id;
-          return row.workspace_id !== null || row.owner_id !== userId;
-        });
-        if (conflict) {
-          waNumbersSkipped++;
-          console.log("[fb-callback] WA number already in another workspace, skipping", {
-            phoneNumberId: ph.id,
-            displayPhoneNumber: ph.display_phone_number,
-          });
-          continue;
-        }
-
-        waNumbersFound++;
-        const existQ = supabase
-          .from("whatsapp_config")
-          .select("id, is_active")
-          .eq("phone_number_id", ph.id);
-        const existScoped = workspace_id
-          ? existQ.eq("workspace_id", workspace_id)
-          : existQ.eq("owner_id", userId).is("workspace_id", null);
-        const { data: existCfg } = await existScoped.maybeSingle();
-
-        const waPayload = {
-          owner_id: userId,
-          workspace_id,
-          phone_number_id: ph.id,
-          business_account_id: waba.id,
-          access_token: userToken,
-          display_phone_number: ph.display_phone_number || "",
-          verified_name: ph.verified_name || waba.name || "",
-          is_active: existCfg?.is_active ?? false,
-        };
-        if (existCfg) {
-          await supabase.from("whatsapp_config").update(waPayload).eq("id", existCfg.id);
-        } else {
-          await supabase.from("whatsapp_config").insert(waPayload);
-        }
-      }
-    };
-
-    const fetchWabaPhones = async (waba: { id: string; name?: string }) => {
-      if (wabaSeen.has(waba.id)) return;
-      wabaSeen.add(waba.id);
-      const phonesRes = await fetch(
-        `${graphApi}/${waba.id}/phone_numbers?fields=id,display_phone_number,verified_name&access_token=${userToken}`,
-      );
-      const phonesJson = await phonesRes.json();
-      console.log(`[fb-callback] WABA ${waba.id} (${waba.name}) phones:`, JSON.stringify(phonesJson));
-      await upsertPhones(waba, phonesJson.data || []);
-    };
 
     try {
-      try {
-        const debugRes = await fetch(
-          `${graphApi}/debug_token?input_token=${userToken}&access_token=${Deno.env.get("FB_APP_ID")}|${Deno.env.get("FB_APP_SECRET")}`,
-        );
-        const debugJson = await debugRes.json();
-        console.log("[fb-callback] token scopes:", JSON.stringify(debugJson?.data?.scopes));
-      } catch (_) { /* ignore */ }
-
       for (const bizType of ["", "?type=client_business"]) {
         const bizRes = await fetch(
           `${graphApi}/me/businesses${bizType}&fields=id,name&access_token=${userToken}`.replace("?&", "?"),
         );
         const bizJson = await bizRes.json();
-        console.log(`[fb-callback] businesses (${bizType || "owned"}):`, JSON.stringify(bizJson));
         const businesses = bizJson.data || [];
-
         for (const biz of businesses) {
           for (const edge of ["owned_whatsapp_business_accounts", "client_whatsapp_business_accounts"]) {
             const wabaRes = await fetch(
               `${graphApi}/${biz.id}/${edge}?fields=id,name&access_token=${userToken}`,
             );
             const wabaJson = await wabaRes.json();
-            console.log(`[fb-callback] biz ${biz.id} ${edge}:`, JSON.stringify(wabaJson));
             for (const waba of (wabaJson.data || [])) {
-              await fetchWabaPhones(waba);
+              if (wabaSeen.has(waba.id)) continue;
+              wabaSeen.add(waba.id);
+              const phonesRes = await fetch(
+                `${graphApi}/${waba.id}/phone_numbers?fields=id,display_phone_number,verified_name&access_token=${userToken}`,
+              );
+              const phonesJson = await phonesRes.json();
+              for (const ph of phonesJson.data || []) {
+                waNumbers.push({
+                  phone_number_id: ph.id,
+                  business_account_id: waba.id,
+                  business_name: waba.name || "",
+                  display_phone_number: ph.display_phone_number || "",
+                  verified_name: ph.verified_name || waba.name || "",
+                });
+              }
             }
           }
         }
@@ -295,10 +94,38 @@ Deno.serve(async (req) => {
     } catch (waErr) {
       console.error("[fb-callback] WA detection error", waErr);
     }
-    console.log(`[fb-callback] total WA numbers detected: ${waNumbersFound}`);
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+
+    // 4. Stash everything in pending table; UI will let user pick
+    const { data: pendingRow, error: pendingErr } = await supabase
+      .from("meta_oauth_pending")
+      .insert({
+        owner_id: userId,
+        workspace_id,
+        user_token: userToken,
+        pages,
+        wa_numbers: waNumbers,
+      } as any)
+      .select("id")
+      .single();
+
+    if (pendingErr || !pendingRow) {
+      console.error("[fb-callback] failed to stash pending", pendingErr);
+      return Response.redirect(`${redirectBase}?fb=error&reason=stash_failed`, 302);
+    }
+
+    // Cleanup older pending sessions for this user (>1h)
+    await supabase
+      .from("meta_oauth_pending")
+      .delete()
+      .lt("expires_at", new Date().toISOString());
 
     return Response.redirect(
-      `${redirectBase}?fb=connected&count=${pages.length}&subscribed=${subscribedPages}&wa=${waNumbersFound}&skipped_pages=${skippedPages}&skipped_wa=${waNumbersSkipped}`,
+      `${redirectBase}?fb=pick&session=${pendingRow.id}&pages=${pages.length}&wa=${waNumbers.length}`,
       302,
     );
   } catch (err) {
