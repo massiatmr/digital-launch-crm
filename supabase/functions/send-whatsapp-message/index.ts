@@ -164,6 +164,11 @@ Deno.serve(async (req) => {
       metadata: { sent_by_user: true },
     } as any);
 
+    // Au premier outbound réussi, basculer le lead "new" → "contacted"
+    if (logStatus === "sent" && lead.status === "new") {
+      await admin.from("leads").update({ status: "contacted", last_contacted_at: new Date().toISOString() } as any).eq("id", lead_id);
+    }
+
     return new Response(JSON.stringify({ success: logStatus !== "failed", dry_run: dryRun, status: logStatus, error: errorMessage }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
