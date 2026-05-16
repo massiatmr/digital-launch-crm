@@ -338,7 +338,10 @@ export default function PipelinePage() {
           });
         }
       },
-      onError: () => toast.error('Erreur lors du déplacement'),
+      onError: (err: any) => {
+        console.error('[Pipeline] move error', err);
+        toast.error(`Erreur: ${err?.message || 'déplacement échoué'}`);
+      },
     });
   };
 
