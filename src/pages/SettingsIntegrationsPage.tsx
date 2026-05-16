@@ -28,6 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MetaCapiSection } from "@/components/settings/MetaCapiSection";
 import { LandingApiKeysSection } from "@/components/settings/LandingApiKeysSection";
 import { IntegrationStatusOverview } from "@/components/settings/IntegrationStatusOverview";
+import { MetaOAuthPicker } from "@/components/settings/MetaOAuthPicker";
 import { useCurrentWorkspaceId, useWorkspaces } from "@/hooks/useWorkspaces";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -93,6 +94,7 @@ export default function SettingsIntegrationsPage() {
   const [manualPhoneId, setManualPhoneId] = useState("");
   const [manualWabaId, setManualWabaId] = useState("");
   const [manualToken, setManualToken] = useState("");
+  const [pickerSession, setPickerSession] = useState<string | null>(null);
 
   const activeWa = waNumbers.find((n) => n.is_active) || null;
 
@@ -189,21 +191,18 @@ export default function SettingsIntegrationsPage() {
     loadOffers();
     loadWaNumbers();
     const fb = params.get("fb");
-    if (fb === "connected") {
-      const count = params.get("count") || "0";
-      const subscribed = params.get("subscribed") || "0";
-      const wa = params.get("wa") || "0";
-      const skippedPages = parseInt(params.get("skipped_pages") || "0", 10);
-      const skippedWa = parseInt(params.get("skipped_wa") || "0", 10);
-      toast.success("Meta connecté", {
-        description: `${count} page(s) détectée(s) · ${subscribed} abonnée(s) · ${wa} numéro(s) WhatsApp`,
-      });
-      if (skippedPages > 0 || skippedWa > 0) {
-        toast.info("Éléments ignorés (déjà attribués à un autre espace)", {
-          description: `${skippedPages} page(s) Facebook · ${skippedWa} numéro(s) WhatsApp non importés. Supprimez-les d'abord de l'autre espace si vous voulez les déplacer.`,
-          duration: 8000,
+    if (fb === "pick") {
+      const session = params.get("session");
+      if (session) {
+        setPickerSession(session);
+        toast.info("Choisis quoi connecter", {
+          description: `${params.get("pages") || 0} page(s) · ${params.get("wa") || 0} numéro(s) WhatsApp détectés.`,
         });
       }
+      setParams({}, { replace: true });
+    } else if (fb === "connected") {
+      // Legacy callback fallback
+      toast.success("Meta connecté");
       setParams({}, { replace: true });
     } else if (fb === "error") {
       toast.error("Connexion Meta échouée", { description: params.get("reason") || "Erreur inconnue" });
