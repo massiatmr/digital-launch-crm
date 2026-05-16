@@ -821,6 +821,17 @@ export default function SettingsIntegrationsPage() {
       <MetaCapiSection />
 
       <LandingApiKeysSection />
+
+      <MetaOAuthPicker
+        sessionId={pickerSession}
+        workspaceName={currentWorkspace?.company_name}
+        onClose={() => setPickerSession(null)}
+        onAttached={() => {
+          setPickerSession(null);
+          loadPages();
+          loadWaNumbers();
+        }}
+      />
     </div>
   );
 }
