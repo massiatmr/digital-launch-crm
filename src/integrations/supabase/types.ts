@@ -1778,6 +1778,39 @@ export type Database = {
         }
         Relationships: []
       }
+      meta_oauth_pending: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          owner_id: string
+          pages: Json
+          user_token: string
+          wa_numbers: Json
+          workspace_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          owner_id: string
+          pages?: Json
+          user_token: string
+          wa_numbers?: Json
+          workspace_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          owner_id?: string
+          pages?: Json
+          user_token?: string
+          wa_numbers?: Json
+          workspace_id?: string | null
+        }
+        Relationships: []
+      }
       meta_pages: {
         Row: {
           created_at: string
