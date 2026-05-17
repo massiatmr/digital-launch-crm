@@ -996,20 +996,36 @@ async function processMessagingEvents(body: any, requestId: string) {
         }
 
         // === IA : qualification + détection RDV (fire-and-forget) ===
-        // Sur inbound Messenger/Instagram, on déclenche l'analyse IA comme pour WhatsApp.
+        // Gate par feature flag workspace "conversations" : si désactivé, on ne déclenche aucune IA.
         if (direction === "inbound" && leadId) {
-          const SB_URL = Deno.env.get("SUPABASE_URL")!;
-          const SRK = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-          fetch(`${SB_URL}/functions/v1/qualify-conversation`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${SRK}` },
-            body: JSON.stringify({ lead_id: leadId }),
-          }).catch((e) => logError(requestId, "qualify-conversation invoke failed", { e: String(e) }));
-          fetch(`${SB_URL}/functions/v1/detect-booking-from-conversation`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${SRK}` },
-            body: JSON.stringify({ lead_id: leadId }),
-          }).catch((e) => logError(requestId, "detect-booking invoke failed", { e: String(e) }));
+          const wsIdForFeat = identity?.workspace_id ?? null;
+          let aiAllowed = true;
+          if (wsIdForFeat) {
+            const { data: feat } = await supabase
+              .from("workspace_features")
+              .select("enabled")
+              .eq("workspace_id", wsIdForFeat)
+              .eq("feature_key", "conversations")
+              .maybeSingle();
+            if (feat && (feat as any).enabled === false) aiAllowed = false;
+          }
+
+          if (aiAllowed) {
+            const SB_URL = Deno.env.get("SUPABASE_URL")!;
+            const SRK = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+            fetch(`${SB_URL}/functions/v1/qualify-conversation`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${SRK}` },
+              body: JSON.stringify({ lead_id: leadId }),
+            }).catch((e) => logError(requestId, "qualify-conversation invoke failed", { e: String(e) }));
+            fetch(`${SB_URL}/functions/v1/detect-booking-from-conversation`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${SRK}` },
+              body: JSON.stringify({ lead_id: leadId }),
+            }).catch((e) => logError(requestId, "detect-booking invoke failed", { e: String(e) }));
+          } else {
+            logInfo(requestId, "conversations feature disabled, skipping IA", { workspace_id: wsIdForFeat, leadId });
+          }
         }
 
         logInfo(requestId, "Messaging event stored", {
