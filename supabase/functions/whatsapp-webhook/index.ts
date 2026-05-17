@@ -330,25 +330,42 @@ Deno.serve(async (req) => {
             reply_to_snapshot: replySnapshot,
           } as any);
 
-          // Qualification IA en fire-and-forget
-          fetch(`${SUPABASE_URL}/functions/v1/qualify-conversation`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            },
-            body: JSON.stringify({ lead_id: lead.id }),
-          }).catch((e) => console.error("qualify-conversation invoke failed:", e));
+          // Gate IA par feature flag workspace "conversations"
+          const wsIdForFeat = cfg.workspace_id ?? lead.workspace_id ?? null;
+          let aiAllowed = true;
+          if (wsIdForFeat) {
+            const { data: feat } = await admin
+              .from("workspace_features")
+              .select("enabled")
+              .eq("workspace_id", wsIdForFeat)
+              .eq("feature_key", "conversations")
+              .maybeSingle();
+            if (feat && feat.enabled === false) aiAllowed = false;
+          }
 
-          // Détection auto de RDV confirmé (fire-and-forget)
-          fetch(`${SUPABASE_URL}/functions/v1/detect-booking-from-conversation`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            },
-            body: JSON.stringify({ lead_id: lead.id }),
-          }).catch((e) => console.error("detect-booking invoke failed:", e));
+          if (aiAllowed) {
+            // Qualification IA en fire-and-forget
+            fetch(`${SUPABASE_URL}/functions/v1/qualify-conversation`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+              },
+              body: JSON.stringify({ lead_id: lead.id }),
+            }).catch((e) => console.error("qualify-conversation invoke failed:", e));
+
+            // Détection auto de RDV confirmé (fire-and-forget)
+            fetch(`${SUPABASE_URL}/functions/v1/detect-booking-from-conversation`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+              },
+              body: JSON.stringify({ lead_id: lead.id }),
+            }).catch((e) => console.error("detect-booking invoke failed:", e));
+          } else {
+            console.log("[whatsapp-webhook] conversations feature disabled, skipping IA", { workspace_id: wsIdForFeat, lead_id: lead.id });
+          }
 
           // Push notif via OneSignal
           try {
