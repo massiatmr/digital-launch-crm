@@ -155,7 +155,11 @@ export default function BookingsPage() {
                           <Badge className={`${statusColors[b.status]} text-[10px]`}>{statusLabels[b.status]}</Badge>
                         </div>
                         <div className="text-xs text-muted-foreground mt-0.5">
-                          {format(d, 'dd MMM', { locale: fr })} · {b.time_slot}
+                          {format(d, 'dd MMM', { locale: fr })} · <span className="font-mono">{b.time_slot}</span> <span className="opacity-60">{ownerTzLabel}</span>
+                          {(() => {
+                            const cl = clientTimeLabel(b.booking_date, b.time_slot, (b as any).client_timezone, ownerTz);
+                            return cl ? <span className="text-primary/70"> · <span className="font-mono">{cl.time}</span> {cl.tz}</span> : null;
+                          })()}
                           {b.offers?.name && ` · ${b.offers.name}`}
                         </div>
                       </button>
