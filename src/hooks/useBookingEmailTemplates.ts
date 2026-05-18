@@ -133,7 +133,7 @@ export function useWorkspaceBookingEmailTemplates(workspaceId: string | null) {
         .select("*")
         .eq("workspace_id", workspaceId!);
       if (error) throw error;
-      return (data || []) as WorkspaceBookingEmailTemplate[];
+      return ((data as any) || []) as WorkspaceBookingEmailTemplate[];
     },
   });
 }
