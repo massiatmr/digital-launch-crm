@@ -170,7 +170,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { name, email, phone, booking_date, time_slot, offer_id, notes } = await req.json();
+    const { name, email, phone, booking_date, time_slot, offer_id, notes, client_timezone } = await req.json();
 
     if (!name || !email || !phone || !booking_date || !time_slot || !offer_id) {
       return new Response(
@@ -234,6 +234,7 @@ Deno.serve(async (req) => {
       status: "pending",
       google_event_id: googleEventId,
       meet_link: meetLink,
+      client_timezone: client_timezone || null,
     });
 
     if (bookingError) {

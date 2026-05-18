@@ -157,6 +157,7 @@ export type Database = {
       bookings: {
         Row: {
           booking_date: string
+          client_timezone: string | null
           created_at: string
           created_from: string | null
           deleted_at: string | null
@@ -176,6 +177,7 @@ export type Database = {
         }
         Insert: {
           booking_date: string
+          client_timezone?: string | null
           created_at?: string
           created_from?: string | null
           deleted_at?: string | null
@@ -195,6 +197,7 @@ export type Database = {
         }
         Update: {
           booking_date?: string
+          client_timezone?: string | null
           created_at?: string
           created_from?: string | null
           deleted_at?: string | null

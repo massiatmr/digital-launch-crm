@@ -17,6 +17,8 @@ import { motion } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { useAvailabilitySettings } from '@/hooks/useAvailabilitySettings';
+import { clientTimeLabel, tzShortLabel, OWNER_DEFAULT_TZ } from '@/lib/bookingTime';
 
 const statusColors: Record<string, string> = {
   pending: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
@@ -34,6 +36,9 @@ const statusLabels: Record<string, string> = {
 export default function BookingsPage() {
   const { data: bookings, isLoading } = useBookings();
   const { data: offers } = useOffers();
+  const { data: availability } = useAvailabilitySettings();
+  const ownerTz = availability?.timezone || OWNER_DEFAULT_TZ;
+  const ownerTzLabel = tzShortLabel(ownerTz);
   const updateBooking = useUpdateBooking();
   const workspaceId = useCurrentWorkspaceId();
   const [offerFilter, setOfferFilter] = useState<string>('all');
@@ -150,7 +155,11 @@ export default function BookingsPage() {
                           <Badge className={`${statusColors[b.status]} text-[10px]`}>{statusLabels[b.status]}</Badge>
                         </div>
                         <div className="text-xs text-muted-foreground mt-0.5">
-                          {format(d, 'dd MMM', { locale: fr })} · {b.time_slot}
+                          {format(d, 'dd MMM', { locale: fr })} · <span className="font-mono">{b.time_slot}</span> <span className="opacity-60">{ownerTzLabel}</span>
+                          {(() => {
+                            const cl = clientTimeLabel(b.booking_date, b.time_slot, (b as any).client_timezone, ownerTz);
+                            return cl ? <span className="text-primary/70"> · <span className="font-mono">{cl.time}</span> {cl.tz}</span> : null;
+                          })()}
                           {b.offers?.name && ` · ${b.offers.name}`}
                         </div>
                       </button>
@@ -192,7 +201,20 @@ export default function BookingsPage() {
                         <Badge className={statusColors[b.status]}>{statusLabels[b.status]}</Badge>
                       </div>
                       <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
-                        <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{b.time_slot}</span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3.5 w-3.5" />
+                          <span className="font-mono">{b.time_slot}</span>
+                          <span className="text-[10px] opacity-70 uppercase tracking-wide">{ownerTzLabel}</span>
+                          {(() => {
+                            const cl = clientTimeLabel(b.booking_date, b.time_slot, (b as any).client_timezone, ownerTz);
+                            return cl ? (
+                              <span className="ml-1 text-primary/80 flex items-center gap-1">
+                                · <span className="font-mono">{cl.time}</span>
+                                <span className="text-[10px] opacity-70 uppercase tracking-wide">{cl.tz}</span>
+                              </span>
+                            ) : null;
+                          })()}
+                        </span>
                         <span className="flex items-center gap-1 truncate"><Mail className="h-3 w-3" />{b.email}</span>
                         {b.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{b.phone}</span>}
                       </div>
