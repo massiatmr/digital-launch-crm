@@ -4,8 +4,9 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { OfferEmailTemplatesEditor } from "./OfferEmailTemplatesEditor";
+import { WorkspaceEmailTemplatesList } from "./WorkspaceEmailTemplatesList";
 import { useState, useEffect } from "react";
-import { Mail, BellRing } from "lucide-react";
+import { Mail, BellRing, Layers } from "lucide-react";
 
 export function NotificationsTab({ workspaceId }: { workspaceId: string | null }) {
   const { data, update } = useWorkspaceAdminReminders(workspaceId);
@@ -63,10 +64,24 @@ export function NotificationsTab({ workspaceId }: { workspaceId: string | null }
       <Card className="border-white/5 bg-card/50 backdrop-blur">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
-            <Mail className="h-4 w-4 text-primary" /> Emails au client (par offre)
+            <Layers className="h-4 w-4 text-primary" /> Emails par défaut du workspace
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Personnalisez les emails de confirmation et les rappels (24h, 12h, 1h) envoyés au prospect pour chaque offre.
+            Ces modèles s'appliquent à toutes les offres. Toute personnalisation par offre les remplace.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <WorkspaceEmailTemplatesList workspaceId={workspaceId} />
+        </CardContent>
+      </Card>
+
+      <Card className="border-white/5 bg-card/50 backdrop-blur">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Mail className="h-4 w-4 text-primary" /> Personnalisation par offre
+          </CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            Surchargez les emails (confirmation, 24h, 12h, 1h) pour une offre spécifique.
           </p>
         </CardHeader>
         <CardContent>
