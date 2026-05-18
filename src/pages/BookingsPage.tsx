@@ -201,7 +201,20 @@ export default function BookingsPage() {
                         <Badge className={statusColors[b.status]}>{statusLabels[b.status]}</Badge>
                       </div>
                       <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
-                        <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{b.time_slot}</span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3.5 w-3.5" />
+                          <span className="font-mono">{b.time_slot}</span>
+                          <span className="text-[10px] opacity-70 uppercase tracking-wide">{ownerTzLabel}</span>
+                          {(() => {
+                            const cl = clientTimeLabel(b.booking_date, b.time_slot, (b as any).client_timezone, ownerTz);
+                            return cl ? (
+                              <span className="ml-1 text-primary/80 flex items-center gap-1">
+                                · <span className="font-mono">{cl.time}</span>
+                                <span className="text-[10px] opacity-70 uppercase tracking-wide">{cl.tz}</span>
+                              </span>
+                            ) : null;
+                          })()}
+                        </span>
                         <span className="flex items-center gap-1 truncate"><Mail className="h-3 w-3" />{b.email}</span>
                         {b.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{b.phone}</span>}
                       </div>
