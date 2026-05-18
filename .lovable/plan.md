@@ -1,80 +1,95 @@
-## Objectif
+## Objectifs
 
-Casser la page `/bookings` (actuellement tout affiché d'un coup) en 3 sous-onglets clairs, et permettre de configurer des emails personnalisés (admin + rappels client) par offre.
+1. Définir des **templates d'emails par défaut au niveau du workspace** (1 set pour toutes les offres), puis permettre une **personnalisation par offre** qui surcharge ces défauts.
+2. Rendre l'UI plus aérée : **liste cliquable** des emails (au lieu de 4 grandes cartes empilées) qui ouvre un éditeur dédié.
+3. Remplacer le textarea HTML brut par un **éditeur WYSIWYG** (TipTap) avec insertion 1 clic des variables.
+4. Ajouter une zone **"Envoyer un test"** dans l'éditeur : champ email + bouton qui envoie un vrai email rendu avec des valeurs d'exemple.
 
-## 1. Réorganisation UI — `src/pages/BookingsPage.tsx`
+## Nouvelle structure de l'onglet
 
-Wrapper la page dans un `Tabs` (composant `@/components/ui/tabs` déjà présent) avec 3 onglets :
-
-**Onglet 1 — "Rendez-vous" (par défaut)**
-- En haut : carte "Prochains RDV" pleine largeur (liste claire, badge statut, bouton ouvrir détail).
-- En dessous : la vue actuelle calendrier semaine (`WeekAvailabilityView`) + détail du jour sélectionné.
-- Filtre offre + connexion Google Calendar conservés dans le header.
-
-**Onglet 2 — "Disponibilités"**
-- `AvailabilityPanel` (horaires, jours travaillés, durée, lead time, blackouts).
-- Bouton connecter Google Calendar si pas connecté.
-
-**Onglet 3 — "Notifications & Rappels"**
-- Section "Notifications admin" : toggles pour activer mail confirmation immédiate aux membres workspace + rappel 1h avant (déjà actifs côté serveur ; on expose juste les toggles via `workspaces.notification_email` + une nouvelle colonne `booking_admin_reminders_enabled`).
-- Section "Emails au client" : sélecteur d'offre → éditeur des 4 templates (`confirmation`, `24h_before`, `12h_before`, `1h_before`) avec activable/désactivable, sujet + corps HTML, variables disponibles (`{{name}}`, `{{date}}`, `{{time}}`, `{{meet_link}}`, `{{offer_name}}`).
-- Bouton "Réinitialiser au défaut" par template.
-
-## 2. Schéma DB (migration)
-
-Nouvelle table `offer_booking_email_templates` :
-
-```
-id uuid pk, owner_id uuid, workspace_id uuid,
-offer_id uuid fk offers(id) on delete cascade,
-type booking_email_type not null,  -- enum existant
-enabled boolean default true,
-subject text, body_html text,
-created_at, updated_at,
-unique (offer_id, type)
+```text
+Notifications & Rappels
+├─ Card "Notifications admin"   (inchangé : switch + email workspace)
+├─ Card "Emails par défaut du workspace"
+│   └─ Liste cliquable des 4 types (Confirmation, 24h, 12h, 1h)
+│       Chaque ligne : icône • Label • Sujet (preview) • badge "Activé/Off" • →
+├─ Card "Personnalisation par offre"
+│   ├─ Sélecteur d'offre
+│   └─ Liste cliquable des 4 types
+│       Chaque ligne : Label • Sujet (preview) • badge "Hérité workspace" ou
+│       "Personnalisé" • Switch on/off • →
+└─ Dialog EmailTemplateEditor  (ouvert au clic sur une ligne)
+    ├─ Champ Sujet
+    ├─ Barre WYSIWYG (B I U • lien • listes • H2/P • undo/redo)
+    ├─ Boutons "Insérer variable" : {{name}} {{date}} {{time}} {{offer_name}}
+    │   {{offer_suffix}} {{meet_link}} {{meet_block}}
+    ├─ Aperçu rendu (toggle "Code / Visuel")
+    ├─ Zone test :  [email test] [Envoyer un test]
+    └─ Footer : [Réinitialiser au défaut]  [Annuler]  [Enregistrer]
 ```
 
-RLS : workspace_id-based comme `followup_sequence_steps`.
+## Logique de résolution des templates
 
-Nouvelle colonne `workspaces.booking_admin_reminders_enabled boolean default true`.
+Ordre de priorité côté backend (edge functions `handle-booking` et `process-booking-reminders`) :
 
-Defaults : pas de seed — si pas de row pour `(offer_id, type)`, on utilise les templates HTML codés en dur (déjà présents dans `handle-booking` et `process-booking-reminders`). Les éditer = créer la row.
+1. `offer_booking_email_templates` (offre + type) → si présent et `enabled`
+2. `workspace_booking_email_templates` (workspace + type) → si présent et `enabled`
+3. `DEFAULT_TEMPLATES` (hardcodés dans l'edge function)
 
-## 3. Edge functions
+Si la résolution finit sur un row `enabled = false`, on **n'envoie pas** l'email (déjà le comportement actuel pour l'offre, étendu au workspace).
 
-**`handle-booking/index.ts`** :
-- Quand on insère les rows `booking_emails` pour client, ne planifier `24h_before`/`12h_before`/`1h_before` que si la row offer-template correspondante est `enabled` (ou si pas de row = enabled par défaut).
-- Email confirmation client : si template offer existe, l'utiliser ; sinon défaut.
+## Détails techniques
 
-**`process-booking-reminders/index.ts`** :
-- Étendre pour gérer aussi `24h_before` et `12h_before` (pas seulement `1h_before`).
-- Pour chaque envoi : charger `offer_booking_email_templates` matching `(offer_id, type)` → utiliser subject/body si présent + remplacer placeholders ; sinon défaut.
-- Garder l'email admin (1h_before workspace members) en parallèle, gated par `workspaces.booking_admin_reminders_enabled`.
+### Base de données (migration)
 
-## 4. Hooks
+Nouvelle table `workspace_booking_email_templates` :
+- `workspace_id` (fk workspaces, cascade), `type` (enum `booking_email_type`)
+- `enabled` (bool, default true), `subject` (text), `body_html` (text)
+- Unique `(workspace_id, type)`
+- RLS : SELECT/INSERT/UPDATE/DELETE pour membres du workspace, idem que la table `offer_booking_email_templates`.
 
-Nouveau `src/hooks/useBookingEmailTemplates.ts` :
-- `useOfferBookingEmailTemplates(offerId)` → list 4 types
-- `useUpsertOfferBookingEmailTemplate()` → insert/update
-- `useResetOfferBookingEmailTemplate(offerId, type)` → delete row
+### Edge functions
 
-## 5. Composant éditeur
+- `handle-booking/index.ts` et `process-booking-reminders/index.ts` :
+  ajouter le lookup workspace après le lookup offre, avant de retomber sur les defaults.
+- Nouvelle edge function `send-test-booking-email/index.ts` (JWT requis) :
+  body `{ subject, body_html, to, sample_vars? }`. Rend les `{{vars}}` avec des valeurs d'exemple par défaut (date du jour, heure 14:00, nom "Jean Dupont", offre "Consultation"), wrappe le HTML dans le même template que `process-booking-reminders` (`wrapHtml`), puis invoque `send-smtp-email`.
 
-`src/components/bookings/OfferEmailTemplatesEditor.tsx` :
-- Sélecteur d'offre (réutilise `useOffers`).
-- 4 cards (une par type) avec Switch enabled, Input subject, Textarea body_html, badge variables disponibles, bouton "Aperçu" (modal HTML rendu), bouton "Réinitialiser".
+### Frontend
 
-## Fichiers touchés
+- Dépendances à ajouter : `@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/extension-link`, `@tiptap/extension-placeholder`.
+- Nouveaux fichiers :
+  - `src/hooks/useBookingEmailTemplates.ts` (étendu) :
+    - `useWorkspaceBookingEmailTemplates(workspaceId)`,
+      `useUpsertWorkspaceBookingEmailTemplate`,
+      `useResetWorkspaceBookingEmailTemplate`,
+      `useSendTestBookingEmail`.
+  - `src/components/bookings/EmailTemplateEditor.tsx` : Dialog réutilisable
+    pour workspace ou offre (prop `scope: 'workspace' | 'offer'` + ids).
+  - `src/components/bookings/WysiwygEditor.tsx` : wrapper TipTap minimal +
+    toolbar + méthode `insertText` pour les variables.
+  - `src/components/bookings/EmailTemplateRow.tsx` : ligne cliquable.
+- `OfferEmailTemplatesEditor.tsx` : refactorisé en liste cliquable (4 lignes)
+  avec badge "Hérité workspace" ou "Personnalisé" + switch on/off rapide.
+- `NotificationsTab.tsx` : ajoute la card "Emails par défaut du workspace".
 
-- migration SQL (table + colonne)
-- `src/pages/BookingsPage.tsx` (refactor en tabs)
-- `src/components/bookings/NotificationsTab.tsx` (nouveau)
-- `src/components/bookings/OfferEmailTemplatesEditor.tsx` (nouveau)
-- `src/hooks/useBookingEmailTemplates.ts` (nouveau)
-- `supabase/functions/handle-booking/index.ts` (lookup templates + gating)
-- `supabase/functions/process-booking-reminders/index.ts` (étendre aux 3 types + templates)
+### Comportements UI
 
-## Hors scope (à confirmer)
+- Badge "Hérité workspace" : la ligne offre ne montre pas de bouton Reset
+  tant que rien n'a été personnalisé. Au clic, l'éditeur s'ouvre pré-rempli
+  avec le contenu hérité (workspace ou DEFAULT) ; à l'enregistrement, ça
+  crée la ligne d'override.
+- Reset (icône RotateCcw) supprime la ligne d'override → retour à l'hérité.
+- Test d'envoi : disabled tant que `to` n'est pas un email valide ; toast
+  succès/erreur ; bouton montre un spinner pendant l'envoi ; pas de save
+  préalable nécessaire (le contenu courant du brouillon est envoyé).
+- Variables insérées via `editor.chain().focus().insertContent('{{name}}').run()`.
+- Stockage : on continue à stocker du HTML simple (le rendu actuel le supporte).
+  L'éditeur produit du HTML semantically clean (TipTap par défaut).
 
-- Préview live d'envoi test (bouton "M'envoyer cet email") — pas inclus, à ajouter si demandé.
-- Éditeur WYSIWYG : on reste en HTML brut + textarea pour rester simple.
+## Hors scope
+
+- Pas de gestion de versions / historique des templates.
+- Pas de placeholders dynamiques avancés (logique conditionnelle, i18n).
+- Pas de templates par canal autre qu'email (WhatsApp/SMS).
+- Pas de prévisualisation "responsive mobile" — uniquement l'aperçu HTML rendu.
