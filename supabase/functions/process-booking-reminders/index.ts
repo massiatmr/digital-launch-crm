@@ -111,17 +111,20 @@ Deno.serve(async (req) => {
           } catch (_) { /* ignore */ }
         }
 
-        // Offer + custom template per offer (per type)
+        // Offer + workspace_id + template overrides (per offer, fallback workspace, fallback default)
         let offerName = "";
+        let offerWorkspaceId: string | null = null;
         if (booking.offer_id) {
           const { data: offer } = await supabase
-            .from("offers").select("name").eq("id", booking.offer_id).maybeSingle();
+            .from("offers").select("name, workspace_id").eq("id", booking.offer_id).maybeSingle();
           offerName = (offer as any)?.name || "";
+          offerWorkspaceId = (offer as any)?.workspace_id || null;
         }
 
         let tplEnabled = true;
         let tplSubject = DEFAULT_TEMPLATES[row.type as BookingEmailType].subject;
         let tplBody = DEFAULT_TEMPLATES[row.type as BookingEmailType].body_html;
+        let resolved = false;
         if (booking.offer_id) {
           const { data: tpl } = await supabase
             .from("offer_booking_email_templates")
@@ -130,9 +133,23 @@ Deno.serve(async (req) => {
             .eq("type", row.type)
             .maybeSingle();
           if (tpl) {
+            resolved = true;
             tplEnabled = (tpl as any).enabled !== false;
             if ((tpl as any).subject) tplSubject = (tpl as any).subject;
             if ((tpl as any).body_html) tplBody = (tpl as any).body_html;
+          }
+        }
+        if (!resolved && offerWorkspaceId) {
+          const { data: wsTpl } = await supabase
+            .from("workspace_booking_email_templates")
+            .select("enabled, subject, body_html")
+            .eq("workspace_id", offerWorkspaceId)
+            .eq("type", row.type)
+            .maybeSingle();
+          if (wsTpl) {
+            tplEnabled = (wsTpl as any).enabled !== false;
+            if ((wsTpl as any).subject) tplSubject = (wsTpl as any).subject;
+            if ((wsTpl as any).body_html) tplBody = (wsTpl as any).body_html;
           }
         }
 
