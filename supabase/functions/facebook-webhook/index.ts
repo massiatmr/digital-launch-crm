@@ -766,19 +766,56 @@ async function processMessagingEvents(body: any, requestId: string) {
           return { name, pic: picUrl, username };
         };
 
-        // Trouve un lead existant du workspace par nom (case-insensitive) pour éviter les doublons cross-canal
+        // Trouve un lead existant du workspace pour éviter les doublons cross-canal.
+        // Stratégie :
+        // 1) match exact case-insensitive sur le nom complet
+        // 2) sinon, match sur le 1er prénom (token) pour les leads RÉCENTS (30j) de la
+        //    même page Meta qui n'ont PAS encore de conversation Messenger/IG attachée.
+        //    Cas type : lead arrivé via form Facebook puis qui DM la page.
         const findExistingLeadByName = async (candidateName: string): Promise<string | null> => {
           if (!candidateName) return null;
           const trimmed = candidateName.trim();
           if (!trimmed || /^Lead (Messenger|Instagram)$/i.test(trimmed)) return null;
-          const { data } = await supabase
+          // 1) Exact
+          const { data: exact } = await supabase
             .from("leads")
-            .select("id, name, source")
+            .select("id")
             .eq("workspace_id", identity.workspace_id)
             .is("deleted_at", null)
             .ilike("name", trimmed)
             .limit(1);
-          return (data && data[0]?.id) || null;
+          if (exact && exact[0]?.id) return exact[0].id;
+
+          // 2) Fuzzy par 1er prénom sur leads récents de la même page sans thread Meta
+          const firstToken = trimmed.split(/\s+/)[0];
+          if (!firstToken || firstToken.length < 3) return null;
+          const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+          const { data: candidates } = await supabase
+            .from("leads")
+            .select("id, name")
+            .eq("workspace_id", identity.workspace_id)
+            .eq("meta_page_id", identity.page_id)
+            .is("deleted_at", null)
+            .gte("created_at", since)
+            .ilike("name", `${firstToken}%`)
+            .limit(10);
+          if (!candidates || candidates.length === 0) return null;
+          for (const c of candidates) {
+            const { data: hasThread } = await supabase
+              .from("whatsapp_messages")
+              .select("id")
+              .eq("lead_id", (c as any).id)
+              .in("channel", ["messenger", "instagram"])
+              .limit(1)
+              .maybeSingle();
+            if (!hasThread) {
+              logInfo(requestId, "Fuzzy match: linking Messenger thread to existing form lead", {
+                leadId: (c as any).id, candidateName: trimmed, leadName: (c as any).name,
+              });
+              return (c as any).id;
+            }
+          }
+          return null;
         };
 
         // Trouver ou créer le lead
