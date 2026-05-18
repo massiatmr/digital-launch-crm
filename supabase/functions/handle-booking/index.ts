@@ -186,7 +186,7 @@ Deno.serve(async (req) => {
     // Derive owner_id server-side from the active offer (prevents cross-tenant booking creation).
     const { data: offer } = await supabase
       .from("offers")
-      .select("name, owner_id")
+      .select("name, owner_id, workspace_id")
       .eq("id", offer_id)
       .eq("is_active", true)
       .is("deleted_at", null)
@@ -199,6 +199,7 @@ Deno.serve(async (req) => {
       );
     }
     const owner_id = offer.owner_id;
+    const offer_workspace_id = (offer as any).workspace_id || null;
     const offerName = offer.name || "Consultation";
 
     // Try to create Google Calendar event
@@ -321,12 +322,32 @@ Deno.serve(async (req) => {
       { type: "1h_before", scheduled_at: new Date(bookingDateTime.getTime() - 1 * 60 * 60 * 1000).toISOString() },
     ];
 
-    // Charge les overrides de template par offre pour respecter les toggles enabled
-    const { data: tplRows } = await supabase
+    // Charge les overrides offre + workspace pour respecter les toggles enabled
+    const { data: offerTplRows } = await supabase
       .from("offer_booking_email_templates")
       .select("type, enabled")
       .eq("offer_id", offer_id);
-    const disabledTypes = new Set((tplRows || []).filter((r: any) => r.enabled === false).map((r: any) => r.type));
+    const offerByType = new Map<string, { enabled: boolean }>();
+    (offerTplRows || []).forEach((r: any) => offerByType.set(r.type, { enabled: r.enabled }));
+
+    const wsByType = new Map<string, { enabled: boolean }>();
+    if (offer_workspace_id) {
+      const { data: wsTplRows } = await supabase
+        .from("workspace_booking_email_templates")
+        .select("type, enabled")
+        .eq("workspace_id", offer_workspace_id);
+      (wsTplRows || []).forEach((r: any) => wsByType.set(r.type, { enabled: r.enabled }));
+    }
+
+    const disabledTypes = new Set<string>();
+    for (const es of emailSchedules) {
+      // offer override wins; else workspace default; else enabled true
+      if (offerByType.has(es.type)) {
+        if (offerByType.get(es.type)!.enabled === false) disabledTypes.add(es.type);
+      } else if (wsByType.has(es.type)) {
+        if (wsByType.get(es.type)!.enabled === false) disabledTypes.add(es.type);
+      }
+    }
 
     const emailInserts = emailSchedules
       .filter((es) => !disabledTypes.has(es.type))

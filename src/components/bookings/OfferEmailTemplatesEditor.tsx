@@ -1,96 +1,53 @@
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useOffers } from "@/hooks/useOfferData";
 import {
   useOfferBookingEmailTemplates,
   useUpsertOfferBookingEmailTemplate,
-  useResetOfferBookingEmailTemplate,
+  useWorkspaceBookingEmailTemplates,
   BOOKING_EMAIL_TYPES,
   DEFAULT_TEMPLATES,
   type BookingEmailType,
-  type OfferBookingEmailTemplate,
 } from "@/hooks/useBookingEmailTemplates";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { RotateCcw, Save } from "lucide-react";
-
-const VARIABLES = ["{{name}}", "{{date}}", "{{time}}", "{{offer_name}}", "{{offer_suffix}}", "{{meet_link}}", "{{meet_block}}"];
-
-interface RowState {
-  enabled: boolean;
-  subject: string;
-  body_html: string;
-}
+import { Switch } from "@/components/ui/switch";
+import { ChevronRight, Pencil } from "lucide-react";
+import { EmailTemplateEditor } from "./EmailTemplateEditor";
 
 export function OfferEmailTemplatesEditor({ workspaceId }: { workspaceId: string | null }) {
   const { data: offers } = useOffers();
   const [offerId, setOfferId] = useState<string | null>(null);
   const effectiveOfferId = offerId || offers?.[0]?.id || null;
-  const { data: templates } = useOfferBookingEmailTemplates(effectiveOfferId);
+  const { data: offerTemplates } = useOfferBookingEmailTemplates(effectiveOfferId);
+  const { data: wsTemplates } = useWorkspaceBookingEmailTemplates(workspaceId);
   const upsert = useUpsertOfferBookingEmailTemplate();
-  const reset = useResetOfferBookingEmailTemplate();
+  const [editing, setEditing] = useState<BookingEmailType | null>(null);
 
-  const byType = useMemo(() => {
-    const map = new Map<BookingEmailType, OfferBookingEmailTemplate>();
-    (templates || []).forEach(t => map.set(t.type, t));
-    return map;
-  }, [templates]);
+  const offerByType = useMemo(() => {
+    const m = new Map<BookingEmailType, { enabled: boolean; subject: string; body_html: string }>();
+    (offerTemplates || []).forEach(t => m.set(t.type, { enabled: t.enabled, subject: t.subject, body_html: t.body_html }));
+    return m;
+  }, [offerTemplates]);
 
-  const [drafts, setDrafts] = useState<Record<string, RowState>>({});
-
-  const getRow = (type: BookingEmailType): RowState => {
-    const key = `${effectiveOfferId}:${type}`;
-    if (drafts[key]) return drafts[key];
-    const existing = byType.get(type);
-    if (existing) return { enabled: existing.enabled, subject: existing.subject, body_html: existing.body_html };
-    return { enabled: true, subject: DEFAULT_TEMPLATES[type].subject, body_html: DEFAULT_TEMPLATES[type].body_html };
-  };
-
-  const setRow = (type: BookingEmailType, patch: Partial<RowState>) => {
-    const key = `${effectiveOfferId}:${type}`;
-    setDrafts(d => ({ ...d, [key]: { ...getRow(type), ...patch } }));
-  };
-
-  const save = (type: BookingEmailType) => {
-    if (!effectiveOfferId) return;
-    const row = getRow(type);
-    upsert.mutate({
-      offer_id: effectiveOfferId,
-      type,
-      enabled: row.enabled,
-      subject: row.subject,
-      body_html: row.body_html,
-      workspace_id: workspaceId,
-    });
-    const key = `${effectiveOfferId}:${type}`;
-    setDrafts(d => {
-      const next = { ...d };
-      delete next[key];
-      return next;
-    });
-  };
-
-  const resetTpl = (type: BookingEmailType) => {
-    if (!effectiveOfferId) return;
-    reset.mutate({ offer_id: effectiveOfferId, type });
-    const key = `${effectiveOfferId}:${type}`;
-    setDrafts(d => {
-      const next = { ...d };
-      delete next[key];
-      return next;
-    });
-  };
+  const wsByType = useMemo(() => {
+    const m = new Map<BookingEmailType, { enabled: boolean; subject: string; body_html: string }>();
+    (wsTemplates || []).forEach(t => m.set(t.type, { enabled: t.enabled, subject: t.subject, body_html: t.body_html }));
+    return m;
+  }, [wsTemplates]);
 
   if (!offers || offers.length === 0) {
     return <p className="text-sm text-muted-foreground">Créez d'abord une offre pour configurer ses emails.</p>;
   }
 
+  const resolveInherited = (type: BookingEmailType) => {
+    const ws = wsByType.get(type);
+    if (ws) return { subject: ws.subject, body_html: ws.body_html, source: "Défaut workspace", enabled: ws.enabled };
+    const d = DEFAULT_TEMPLATES[type];
+    return { subject: d.subject, body_html: d.body_html, source: "Modèle par défaut", enabled: true };
+  };
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex items-center gap-3 flex-wrap">
         <span className="text-sm text-muted-foreground">Offre :</span>
         <Select value={effectiveOfferId || ""} onValueChange={setOfferId}>
@@ -99,60 +56,69 @@ export function OfferEmailTemplatesEditor({ workspaceId }: { workspaceId: string
             {offers.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
           </SelectContent>
         </Select>
-        <div className="flex flex-wrap gap-1">
-          {VARIABLES.map(v => (
-            <Badge key={v} variant="outline" className="font-mono text-[10px]">{v}</Badge>
-          ))}
-        </div>
       </div>
 
-      {BOOKING_EMAIL_TYPES.map(({ type, label, description }) => {
-        const row = getRow(type);
-        const existing = byType.get(type);
-        const key = `${effectiveOfferId}:${type}`;
-        const dirty = !!drafts[key];
-        return (
-          <Card key={type} className="border-white/5 bg-card/50 backdrop-blur">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div>
-                  <CardTitle className="text-base">{label}</CardTitle>
-                  <p className="text-xs text-muted-foreground mt-1">{description}</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <Switch checked={row.enabled} onCheckedChange={(v) => setRow(type, { enabled: v })} />
-                    <span className="text-xs text-muted-foreground">{row.enabled ? "Activé" : "Désactivé"}</span>
-                  </div>
-                  {existing && (
-                    <Button variant="ghost" size="sm" onClick={() => resetTpl(type)} title="Réinitialiser au défaut">
-                      <RotateCcw className="h-3.5 w-3.5" />
-                    </Button>
+      <div className="space-y-2">
+        {BOOKING_EMAIL_TYPES.map(({ type, label, description }) => {
+          const offerOverride = offerByType.get(type);
+          const inherited = resolveInherited(type);
+          const subject = offerOverride?.subject || inherited.subject;
+          const enabled = offerOverride?.enabled ?? inherited.enabled;
+          const personalized = !!offerOverride;
+          return (
+            <button
+              key={type}
+              type="button"
+              onClick={() => setEditing(type)}
+              className="w-full text-left rounded-lg border border-white/5 bg-card/40 hover:bg-card/70 transition-colors p-3 flex items-center gap-3 group"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-medium">{label}</span>
+                  {personalized ? (
+                    <Badge className="text-[10px] bg-primary/15 text-primary border-primary/30">Personnalisé</Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px]">Hérité — {inherited.source}</Badge>
                   )}
-                  <Button size="sm" onClick={() => save(type)} disabled={!dirty && !!existing && existing.enabled === row.enabled}>
-                    <Save className="h-3.5 w-3.5 mr-1" /> Enregistrer
-                  </Button>
+                  {!enabled && <Badge variant="outline" className="text-[10px] text-muted-foreground">Off</Badge>}
                 </div>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">{subject}</p>
+                <p className="text-[10px] text-muted-foreground/70 mt-0.5">{description}</p>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <label className="text-xs text-muted-foreground">Sujet</label>
-                <Input value={row.subject} onChange={(e) => setRow(type, { subject: e.target.value })} disabled={!row.enabled} />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Corps HTML</label>
-                <Textarea
-                  value={row.body_html}
-                  onChange={(e) => setRow(type, { body_html: e.target.value })}
-                  disabled={!row.enabled}
-                  className="min-h-[160px] font-mono text-xs"
+              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                <Switch
+                  checked={enabled}
+                  onCheckedChange={(v) =>
+                    effectiveOfferId &&
+                    upsert.mutate({
+                      offer_id: effectiveOfferId,
+                      type,
+                      enabled: v,
+                      subject: offerOverride?.subject || inherited.subject,
+                      body_html: offerOverride?.body_html || inherited.body_html,
+                      workspace_id: workspaceId,
+                    })
+                  }
                 />
+                <Pencil className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
               </div>
-            </CardContent>
-          </Card>
-        );
-      })}
+            </button>
+          );
+        })}
+      </div>
+
+      {editing && effectiveOfferId && (
+        <EmailTemplateEditor
+          open={!!editing}
+          onOpenChange={(v) => !v && setEditing(null)}
+          scope={{ kind: "offer", offerId: effectiveOfferId, workspaceId }}
+          type={editing}
+          inheritedSubject={resolveInherited(editing).subject}
+          inheritedBody={resolveInherited(editing).body_html}
+          inheritedSource={resolveInherited(editing).source}
+        />
+      )}
     </div>
   );
 }
