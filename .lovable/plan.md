@@ -1,78 +1,80 @@
-# Inbox Meta unifié — Messenger + Instagram DM + WhatsApp
+## Objectif
 
-Objectif : transformer `/conversations` (aujourd'hui WhatsApp only) en inbox multi-canal Meta. Mode dev Meta suffit pour démarrer (pas besoin d'App Review immédiate).
+Casser la page `/bookings` (actuellement tout affiché d'un coup) en 3 sous-onglets clairs, et permettre de configurer des emails personnalisés (admin + rappels client) par offre.
 
-## 1. Scopes & autorisations Meta
+## 1. Réorganisation UI — `src/pages/BookingsPage.tsx`
 
-Mettre à jour `facebook-auth-init` pour ajouter ces scopes à la liste actuelle :
-- `pages_messaging` → recevoir/envoyer DM Messenger
-- `instagram_basic` → lire le compte IG lié à la Page
-- `instagram_manage_messages` → recevoir/envoyer DM Instagram
+Wrapper la page dans un `Tabs` (composant `@/components/ui/tabs` déjà présent) avec 3 onglets :
 
-Pré-requis côté utilisateur : le compte IG doit être **Business ou Creator** et **lié à une Page Facebook** (réglage à faire dans l'app Instagram). Sinon IG n'apparaîtra pas dans le picker.
+**Onglet 1 — "Rendez-vous" (par défaut)**
+- En haut : carte "Prochains RDV" pleine largeur (liste claire, badge statut, bouton ouvrir détail).
+- En dessous : la vue actuelle calendrier semaine (`WeekAvailabilityView`) + détail du jour sélectionné.
+- Filtre offre + connexion Google Calendar conservés dans le header.
 
-Bouton « Reconnecter Meta » dans `Settings > Intégrations` qui relance le flow OAuth pour accepter les nouveaux scopes (les tokens existants n'ont pas ces droits).
+**Onglet 2 — "Disponibilités"**
+- `AvailabilityPanel` (horaires, jours travaillés, durée, lead time, blackouts).
+- Bouton connecter Google Calendar si pas connecté.
 
-## 2. Configuration Meta App (côté dashboard developers.facebook.com)
+**Onglet 3 — "Notifications & Rappels"**
+- Section "Notifications admin" : toggles pour activer mail confirmation immédiate aux membres workspace + rappel 1h avant (déjà actifs côté serveur ; on expose juste les toggles via `workspaces.notification_email` + une nouvelle colonne `booking_admin_reminders_enabled`).
+- Section "Emails au client" : sélecteur d'offre → éditeur des 4 templates (`confirmation`, `24h_before`, `12h_before`, `1h_before`) avec activable/désactivable, sujet + corps HTML, variables disponibles (`{{name}}`, `{{date}}`, `{{time}}`, `{{meet_link}}`, `{{offer_name}}`).
+- Bouton "Réinitialiser au défaut" par template.
 
-À faire manuellement par toi (je te guiderai) :
-- Ajouter le produit **Messenger** + **Instagram** à l'app Meta
-- Ajouter les abonnements webhook sur la Page : `messages`, `messaging_postbacks`, `message_reactions` (objet `page` pour Messenger, objet `instagram` pour IG DM)
-- Réutiliser le même Callback URL et Verify Token que le webhook existant
+## 2. Schéma DB (migration)
 
-## 3. Base de données
+Nouvelle table `offer_booking_email_templates` :
 
-Migration sur la table existante `whatsapp_messages` (à renommer logiquement, on garde le nom physique pour pas casser) :
-- Ajouter colonne `channel` (`whatsapp` | `messenger` | `instagram`), default `whatsapp` pour le legacy
-- Ajouter colonne `external_thread_id` (PSID Messenger / IGSID Instagram)
-
-Nouvelle table `meta_channel_identities` (par workspace) :
-- `workspace_id`, `page_id`, `page_name`, `page_access_token`
-- `instagram_business_account_id` (nullable)
-- `is_subscribed_messages` (bool)
-
-Étendre `leads.source` enum pour inclure `messenger` et `instagram`.
-
-## 4. Webhook unifié
-
-Étendre `facebook-webhook` :
-- Si `entry[].messaging` présent + `object = page` → Messenger handler
-- Si `object = instagram` → IG DM handler
-- Mapper PSID/IGSID → lead existant (par `external_thread_id`) sinon créer le lead avec source `messenger` ou `instagram` (récupérer nom/photo via Graph API `/{psid}?fields=name,profile_pic`)
-- Insérer le message dans `whatsapp_messages` avec le bon `channel`
-- Trigger `notify-new-lead` comme pour les autres canaux
-
-## 5. Envoi de messages
-
-Deux nouvelles edge functions :
-- `send-messenger-message` → `POST graph.facebook.com/v21.0/me/messages` avec page token, body `{recipient:{id:psid}, message:{text}}`
-- `send-instagram-message` → idem mais sur le compte IG Business
-
-Une fonction wrapper côté client `sendChannelMessage(channel, ...)` qui dispatch vers la bonne edge function (WhatsApp existante / Messenger / IG). Gestion fenêtre 24h identique à WA dans l'UI.
-
-## 6. UI conversations multi-canal
-
-- `useWhatsAppInbox` → `useConversationsInbox` (charge tous canaux, filtre `channel`)
-- `ConversationsPage` : ajouter onglets/chips de filtre **Tous / WhatsApp / Messenger / Instagram** avec icônes
-- Badge canal sur chaque thread (logo WA vert / Messenger bleu / IG dégradé)
-- `WhatsAppChat` → `ChannelChat` : bandeau 24h, picker de scripts, et bouton envoi qui appelle la bonne fonction selon le canal du thread
-- `HeaderMessages` : compteur unread tous canaux confondus
-
-## 7. Détails techniques
-
-- **PSID vs phone** : Messenger/IG n'ont pas de numéro, on identifie le lead par `external_thread_id` + `meta_channel_identities.page_id`
-- **Fenêtre 24h** : Messenger autorise au-delà via tags (`HUMAN_AGENT`, `CONFIRMED_EVENT_UPDATE`...). Pour l'instant on bloque comme WA, on ajoutera les tags plus tard
-- **Pas d'App Review en mode dev** : seuls les comptes admins/dev/testeurs de l'app Meta peuvent envoyer des messages. Pour ouvrir à des clients externes il faudra soumettre `pages_messaging` et `instagram_manage_messages` (1-2 semaines, screencast + cas d'usage)
-- **Médias** : V1 texte uniquement. Images/audio Messenger+IG dans une itération suivante (fonctions dédiées avec `attachment.payload.url`)
-
-## 8. Découpage en livraisons
-
-```text
-Étape 1  Scopes + bouton reconnexion + migration DB              (rapide)
-Étape 2  Webhook Messenger + envoi Messenger                      (cœur)
-Étape 3  Webhook Instagram + envoi Instagram                      (idem patron)
-Étape 4  UI multi-canal (filtres, badges, ChannelChat)            (front)
-Étape 5  Polish : médias, tags 24h, App Review prep               (plus tard)
+```
+id uuid pk, owner_id uuid, workspace_id uuid,
+offer_id uuid fk offers(id) on delete cascade,
+type booking_email_type not null,  -- enum existant
+enabled boolean default true,
+subject text, body_html text,
+created_at, updated_at,
+unique (offer_id, type)
 ```
 
-Je propose d'enchaîner Étape 1 → 2 → 3 → 4 dans cette session si tu valides.
+RLS : workspace_id-based comme `followup_sequence_steps`.
+
+Nouvelle colonne `workspaces.booking_admin_reminders_enabled boolean default true`.
+
+Defaults : pas de seed — si pas de row pour `(offer_id, type)`, on utilise les templates HTML codés en dur (déjà présents dans `handle-booking` et `process-booking-reminders`). Les éditer = créer la row.
+
+## 3. Edge functions
+
+**`handle-booking/index.ts`** :
+- Quand on insère les rows `booking_emails` pour client, ne planifier `24h_before`/`12h_before`/`1h_before` que si la row offer-template correspondante est `enabled` (ou si pas de row = enabled par défaut).
+- Email confirmation client : si template offer existe, l'utiliser ; sinon défaut.
+
+**`process-booking-reminders/index.ts`** :
+- Étendre pour gérer aussi `24h_before` et `12h_before` (pas seulement `1h_before`).
+- Pour chaque envoi : charger `offer_booking_email_templates` matching `(offer_id, type)` → utiliser subject/body si présent + remplacer placeholders ; sinon défaut.
+- Garder l'email admin (1h_before workspace members) en parallèle, gated par `workspaces.booking_admin_reminders_enabled`.
+
+## 4. Hooks
+
+Nouveau `src/hooks/useBookingEmailTemplates.ts` :
+- `useOfferBookingEmailTemplates(offerId)` → list 4 types
+- `useUpsertOfferBookingEmailTemplate()` → insert/update
+- `useResetOfferBookingEmailTemplate(offerId, type)` → delete row
+
+## 5. Composant éditeur
+
+`src/components/bookings/OfferEmailTemplatesEditor.tsx` :
+- Sélecteur d'offre (réutilise `useOffers`).
+- 4 cards (une par type) avec Switch enabled, Input subject, Textarea body_html, badge variables disponibles, bouton "Aperçu" (modal HTML rendu), bouton "Réinitialiser".
+
+## Fichiers touchés
+
+- migration SQL (table + colonne)
+- `src/pages/BookingsPage.tsx` (refactor en tabs)
+- `src/components/bookings/NotificationsTab.tsx` (nouveau)
+- `src/components/bookings/OfferEmailTemplatesEditor.tsx` (nouveau)
+- `src/hooks/useBookingEmailTemplates.ts` (nouveau)
+- `supabase/functions/handle-booking/index.ts` (lookup templates + gating)
+- `supabase/functions/process-booking-reminders/index.ts` (étendre aux 3 types + templates)
+
+## Hors scope (à confirmer)
+
+- Préview live d'envoi test (bouton "M'envoyer cet email") — pas inclus, à ajouter si demandé.
+- Éditeur WYSIWYG : on reste en HTML brut + textarea pour rester simple.

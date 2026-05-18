@@ -320,15 +320,26 @@ Deno.serve(async (req) => {
       { type: "1h_before", scheduled_at: new Date(bookingDateTime.getTime() - 1 * 60 * 60 * 1000).toISOString() },
     ];
 
-    const emailInserts = emailSchedules.map((es) => ({
-      booking_id: bookingId,
-      type: es.type,
-      scheduled_at: es.scheduled_at,
-      status: "pending",
-    }));
+    // Charge les overrides de template par offre pour respecter les toggles enabled
+    const { data: tplRows } = await supabase
+      .from("offer_booking_email_templates")
+      .select("type, enabled")
+      .eq("offer_id", offer_id);
+    const disabledTypes = new Set((tplRows || []).filter((r: any) => r.enabled === false).map((r: any) => r.type));
 
-    const { error: emailError } = await supabase.from("booking_emails").insert(emailInserts);
-    if (emailError) console.error("Email schedule error:", emailError);
+    const emailInserts = emailSchedules
+      .filter((es) => !disabledTypes.has(es.type))
+      .map((es) => ({
+        booking_id: bookingId,
+        type: es.type,
+        scheduled_at: es.scheduled_at,
+        status: "pending",
+      }));
+
+    if (emailInserts.length > 0) {
+      const { error: emailError } = await supabase.from("booking_emails").insert(emailInserts);
+      if (emailError) console.error("Email schedule error:", emailError);
+    }
 
     // 4. Create reminders
     const reminderTimes = [

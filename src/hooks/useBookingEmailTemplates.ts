@@ -1,0 +1,141 @@
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+
+export type BookingEmailType = "confirmation" | "24h_before" | "12h_before" | "1h_before";
+
+export interface OfferBookingEmailTemplate {
+  id: string;
+  offer_id: string;
+  type: BookingEmailType;
+  enabled: boolean;
+  subject: string;
+  body_html: string;
+  workspace_id: string | null;
+  owner_id: string;
+}
+
+export const BOOKING_EMAIL_TYPES: { type: BookingEmailType; label: string; description: string }[] = [
+  { type: "confirmation", label: "Confirmation", description: "Envoyé immédiatement après la réservation" },
+  { type: "24h_before", label: "Rappel 24h avant", description: "Envoyé 24 heures avant le RDV" },
+  { type: "12h_before", label: "Rappel 12h avant", description: "Envoyé 12 heures avant le RDV" },
+  { type: "1h_before", label: "Rappel 1h avant", description: "Envoyé 1 heure avant le RDV" },
+];
+
+export const DEFAULT_TEMPLATES: Record<BookingEmailType, { subject: string; body_html: string }> = {
+  confirmation: {
+    subject: "✅ Votre rendez-vous est confirmé — {{date}} à {{time}}",
+    body_html: `<p>Bonjour {{name}},</p>
+<p>Votre rendez-vous est bien confirmé pour le <strong>{{date}} à {{time}}</strong>{{offer_suffix}}.</p>
+<p>{{meet_block}}</p>
+<p>À très vite !</p>`,
+  },
+  "24h_before": {
+    subject: "📅 Rappel — votre RDV est demain à {{time}}",
+    body_html: `<p>Bonjour {{name}},</p>
+<p>Petit rappel : nous avons rendez-vous <strong>demain à {{time}}</strong>{{offer_suffix}}.</p>
+<p>{{meet_block}}</p>
+<p>À demain !</p>`,
+  },
+  "12h_before": {
+    subject: "⏰ Votre RDV est dans 12h — {{time}}",
+    body_html: `<p>Bonjour {{name}},</p>
+<p>Votre rendez-vous approche : <strong>{{date}} à {{time}}</strong>.</p>
+<p>{{meet_block}}</p>`,
+  },
+  "1h_before": {
+    subject: "🚀 Votre RDV commence dans 1h — {{time}}",
+    body_html: `<p>Bonjour {{name}},</p>
+<p>Votre rendez-vous démarre dans 1h, à <strong>{{time}}</strong>.</p>
+<p>{{meet_block}}</p>
+<p>À tout de suite !</p>`,
+  },
+};
+
+export function useOfferBookingEmailTemplates(offerId: string | null) {
+  return useQuery({
+    queryKey: ["offer_booking_email_templates", offerId],
+    enabled: !!offerId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("offer_booking_email_templates")
+        .select("*")
+        .eq("offer_id", offerId!);
+      if (error) throw error;
+      return (data || []) as OfferBookingEmailTemplate[];
+    },
+  });
+}
+
+export function useUpsertOfferBookingEmailTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      offer_id: string;
+      type: BookingEmailType;
+      enabled: boolean;
+      subject: string;
+      body_html: string;
+      workspace_id: string | null;
+    }) => {
+      const { error } = await supabase
+        .from("offer_booking_email_templates")
+        .upsert(input as any, { onConflict: "offer_id,type" });
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["offer_booking_email_templates", vars.offer_id] });
+      toast.success("Template enregistré");
+    },
+    onError: (e: any) => toast.error(e.message || "Erreur"),
+  });
+}
+
+export function useResetOfferBookingEmailTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ offer_id, type }: { offer_id: string; type: BookingEmailType }) => {
+      const { error } = await supabase
+        .from("offer_booking_email_templates")
+        .delete()
+        .eq("offer_id", offer_id)
+        .eq("type", type);
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["offer_booking_email_templates", vars.offer_id] });
+      toast.success("Réinitialisé au défaut");
+    },
+  });
+}
+
+export function useWorkspaceAdminReminders(workspaceId: string | null) {
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: ["workspace_admin_reminders", workspaceId],
+    enabled: !!workspaceId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("workspaces")
+        .select("booking_admin_reminders_enabled, notification_email")
+        .eq("id", workspaceId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { booking_admin_reminders_enabled: boolean; notification_email: string | null };
+    },
+  });
+
+  const update = useMutation({
+    mutationFn: async (patch: { booking_admin_reminders_enabled?: boolean; notification_email?: string | null }) => {
+      const { error } = await supabase.from("workspaces").update(patch as any).eq("id", workspaceId!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["workspace_admin_reminders", workspaceId] });
+      toast.success("Préférences enregistrées");
+    },
+    onError: (e: any) => toast.error(e.message || "Erreur"),
+  });
+
+  return { ...query, update };
+}
