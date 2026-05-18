@@ -441,9 +441,9 @@ export function WhatsAppChat({ leadId, leadName, leadPhone, className }: { leadI
             ))}
             {pending.map((p) => (
               <div key={p.tempId} className="flex justify-end">
-                <div className={cn('max-w-[80%] rounded-2xl rounded-br-sm px-3 py-2 text-sm shadow-sm',
+                <div className={cn('max-w-[85%] md:max-w-[80%] rounded-2xl rounded-br-sm px-3 py-2 text-sm shadow-sm break-words overflow-hidden',
                   p.status === 'failed' ? 'bg-destructive/20' : 'bg-primary/10 opacity-70')}>
-                  <p className="whitespace-pre-line">{p.content}</p>
+                  <p className="whitespace-pre-line break-words">{p.content}</p>
                   <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
                     {p.status === 'sending' ? (<><Clock className="h-2.5 w-2.5" /> envoi…</>) : (<><AlertCircle className="h-2.5 w-2.5 text-destructive" /> échec</>)}
                   </div>
