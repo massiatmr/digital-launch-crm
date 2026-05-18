@@ -386,7 +386,7 @@ export function WhatsAppChat({ leadId, leadName, leadPhone, className }: { leadI
   };
 
   return (
-    <div className={cn('rounded-xl border border-border bg-muted/10 flex flex-col', className)}>
+    <div className={cn('rounded-xl border border-border bg-muted/10 flex flex-col min-w-0 overflow-hidden', className)}>
       {availableChannels.length > 1 && (
         <div className="px-2 pt-2 flex items-center gap-1 flex-wrap">
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-1">Canal :</span>
@@ -421,14 +421,14 @@ export function WhatsAppChat({ leadId, leadName, leadPhone, className }: { leadI
           <>
             {messages.map((m: any) => (
               <div key={m.id} className={cn('flex', m.direction === 'outbound' ? 'justify-end' : 'justify-start')}>
-                <div className={cn('max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm',
+                <div className={cn('max-w-[85%] md:max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm break-words overflow-hidden',
                   m.direction === 'outbound' ? 'bg-primary/20 rounded-br-sm' : 'bg-card rounded-bl-sm border border-border')}>
                   {isAudio(m) ? (
                     <AudioBubble path={m.media_storage_path} transcript={m.transcript} outbound={m.direction === 'outbound'} />
                   ) : isMedia(m) ? (
                     <MediaBubble path={m.media_storage_path} mime={m.media_type} filename={m.media_filename} caption={m.content && !['[Photo]','[Vidéo]','[Document]'].includes(m.content) ? m.content : null} />
                   ) : (
-                    <p className="whitespace-pre-line">{m.content}</p>
+                    <p className="whitespace-pre-line break-words">{m.content}</p>
                   )}
                   <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
                     {format(new Date(m.sent_at), 'HH:mm', { locale: fr })}
@@ -441,9 +441,9 @@ export function WhatsAppChat({ leadId, leadName, leadPhone, className }: { leadI
             ))}
             {pending.map((p) => (
               <div key={p.tempId} className="flex justify-end">
-                <div className={cn('max-w-[80%] rounded-2xl rounded-br-sm px-3 py-2 text-sm shadow-sm',
+                <div className={cn('max-w-[85%] md:max-w-[80%] rounded-2xl rounded-br-sm px-3 py-2 text-sm shadow-sm break-words overflow-hidden',
                   p.status === 'failed' ? 'bg-destructive/20' : 'bg-primary/10 opacity-70')}>
-                  <p className="whitespace-pre-line">{p.content}</p>
+                  <p className="whitespace-pre-line break-words">{p.content}</p>
                   <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
                     {p.status === 'sending' ? (<><Clock className="h-2.5 w-2.5" /> envoi…</>) : (<><AlertCircle className="h-2.5 w-2.5 text-destructive" /> échec</>)}
                   </div>
