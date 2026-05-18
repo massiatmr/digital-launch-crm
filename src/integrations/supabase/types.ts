@@ -2753,6 +2753,50 @@ export type Database = {
           },
         ]
       }
+      workspace_booking_email_templates: {
+        Row: {
+          body_html: string
+          created_at: string
+          enabled: boolean
+          id: string
+          owner_id: string
+          subject: string
+          type: Database["public"]["Enums"]["booking_email_type"]
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          body_html?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          owner_id?: string
+          subject?: string
+          type: Database["public"]["Enums"]["booking_email_type"]
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          body_html?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          owner_id?: string
+          subject?: string
+          type?: Database["public"]["Enums"]["booking_email_type"]
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_booking_email_templates_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspace_features: {
         Row: {
           created_at: string
