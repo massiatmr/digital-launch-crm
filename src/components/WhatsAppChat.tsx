@@ -428,7 +428,7 @@ export function WhatsAppChat({ leadId, leadName, leadPhone, className }: { leadI
                   ) : isMedia(m) ? (
                     <MediaBubble path={m.media_storage_path} mime={m.media_type} filename={m.media_filename} caption={m.content && !['[Photo]','[Vidéo]','[Document]'].includes(m.content) ? m.content : null} />
                   ) : (
-                    <p className="whitespace-pre-line">{m.content}</p>
+                    <p className="whitespace-pre-line break-words">{m.content}</p>
                   )}
                   <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
                     {format(new Date(m.sent_at), 'HH:mm', { locale: fr })}
