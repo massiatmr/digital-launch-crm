@@ -421,7 +421,7 @@ export function WhatsAppChat({ leadId, leadName, leadPhone, className }: { leadI
           <>
             {messages.map((m: any) => (
               <div key={m.id} className={cn('flex', m.direction === 'outbound' ? 'justify-end' : 'justify-start')}>
-                <div className={cn('max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm',
+                <div className={cn('max-w-[85%] md:max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm break-words overflow-hidden',
                   m.direction === 'outbound' ? 'bg-primary/20 rounded-br-sm' : 'bg-card rounded-bl-sm border border-border')}>
                   {isAudio(m) ? (
                     <AudioBubble path={m.media_storage_path} transcript={m.transcript} outbound={m.direction === 'outbound'} />
