@@ -305,39 +305,41 @@ export default function ConversationsPage() {
         </aside>
 
         {/* RIGHT: chat */}
-        <section className={cn('flex flex-col min-h-0', !selected && 'hidden md:flex')}>
+        <section className={cn('flex flex-col min-h-0 min-w-0 overflow-hidden', !selected && 'hidden md:flex')}>
           {!selected ? (
             <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
               Sélectionne une conversation
             </div>
           ) : (
-            <div className={cn('flex flex-col h-full rounded-xl border border-border bg-card overflow-hidden', flash && 'highlight-flash')}>
-              <header className="flex items-center gap-2 px-3 py-2.5 border-b border-border bg-muted/20">
-                <Button variant="ghost" size="icon" className="md:hidden h-8 w-8" onClick={back}>
+            <div className={cn('flex flex-col h-full rounded-xl border border-border bg-card overflow-hidden min-w-0', flash && 'highlight-flash')}>
+              <header className="flex items-center gap-1 px-2 md:px-3 py-2 border-b border-border bg-muted/20 min-w-0">
+                <Button variant="ghost" size="icon" className="md:hidden h-8 w-8 shrink-0" onClick={back}>
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
                     <p className="font-medium text-sm truncate">{selected.lead_name}</p>
                     <ChannelBadge channel={selected.channel} compact />
                   </div>
                   {selected.lead_phone && <p className="text-xs text-muted-foreground truncate">{selected.lead_phone}</p>}
                 </div>
-                <ConversationActions leadId={selected.lead_id} />
-                <CreateTaskForLeadDialog
-                  leadId={selected.lead_id}
-                  leadName={selected.lead_name}
-                  trigger={
-                    <Button variant="ghost" size="sm" className="gap-1 h-8 px-2 text-xs">
-                      <Plus className="h-3.5 w-3.5" /> Tâche
-                    </Button>
-                  }
-                />
-                <Button asChild variant="ghost" size="sm" className="gap-1">
-                  <Link to={`/leads/${selected.lead_id}`}>Fiche <ExternalLink className="h-3 w-3" /></Link>
-                </Button>
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <ConversationActions leadId={selected.lead_id} />
+                  <CreateTaskForLeadDialog
+                    leadId={selected.lead_id}
+                    leadName={selected.lead_name}
+                    trigger={
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Nouvelle tâche">
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    }
+                  />
+                  <Button asChild variant="ghost" size="icon" className="h-8 w-8" title="Voir la fiche">
+                    <Link to={`/leads/${selected.lead_id}`}><ExternalLink className="h-3.5 w-3.5" /></Link>
+                  </Button>
+                </div>
               </header>
-              <div className="flex-1 min-h-0 p-2">
+              <div className="flex-1 min-h-0 min-w-0 p-2 overflow-hidden">
                 <WhatsAppChat leadId={selected.lead_id} leadName={selected.lead_name} leadPhone={selected.lead_phone} className="h-full" />
               </div>
             </div>
