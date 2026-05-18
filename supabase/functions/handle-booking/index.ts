@@ -234,6 +234,7 @@ Deno.serve(async (req) => {
       status: "pending",
       google_event_id: googleEventId,
       meet_link: meetLink,
+      client_timezone: client_timezone || null,
     });
 
     if (bookingError) {
