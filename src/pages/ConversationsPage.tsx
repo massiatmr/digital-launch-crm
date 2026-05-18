@@ -120,20 +120,21 @@ export default function ConversationsPage() {
   const back = () => setParams({});
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-9rem)] md:h-[calc(100dvh-2rem)] -mx-4 md:mx-0 -mb-20 md:mb-0">
+    <div className="flex flex-col h-[calc(100dvh-9rem)] md:h-[calc(100dvh-2rem)] -mx-4 md:mx-0 -mb-20 md:mb-0 overflow-x-hidden max-w-[100vw]">
       {settings?.dry_run && (
         <div className="mx-2 md:mx-4 mt-2 rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 flex items-center justify-between gap-2 text-xs">
-          <span className="flex items-center gap-2 text-yellow-300">
-            <FlaskConical className="h-3.5 w-3.5" /> Mode test — aucun message WhatsApp réel n'est envoyé.
+          <span className="flex items-center gap-2 text-yellow-300 min-w-0">
+            <FlaskConical className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">Mode test — aucun message WhatsApp réel n'est envoyé.</span>
           </span>
-          <Link to="/settings/automation" className="underline text-yellow-200 shrink-0">Passer en LIVE</Link>
+          <Link to="/settings/automation" className="underline text-yellow-200 shrink-0">LIVE</Link>
         </div>
       )}
 
-      <div className="flex-1 grid md:grid-cols-[340px_1fr] min-h-0 gap-0 md:gap-2 p-2 md:p-4">
+      <div className="flex-1 grid md:grid-cols-[340px_1fr] min-h-0 gap-0 md:gap-2 p-2 md:p-4 min-w-0">
         {/* LEFT: list */}
         <aside className={cn(
-          'flex flex-col rounded-xl border border-border bg-card min-h-0',
+          'flex flex-col rounded-xl border border-border bg-card min-h-0 min-w-0 overflow-hidden',
           selected ? 'hidden md:flex' : 'flex'
         )}>
           <div className="p-3 border-b border-border space-y-2">
