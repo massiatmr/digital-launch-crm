@@ -323,12 +323,27 @@ Deno.serve(async (req) => {
     };
 
     // === Détection du canal du lead (whatsapp / messenger / instagram) ===
-    // Si lead.source = messenger/instagram, on route l'envoi via Graph Messenger/IG,
-    // pas WhatsApp Business. Templates WA sont alors ignorés (n'existent pas sur ces canaux).
-    const leadChannel: "whatsapp" | "messenger" | "instagram" =
-      lead.source === "messenger" ? "messenger"
-      : lead.source === "instagram" ? "instagram"
-      : "whatsapp";
+    // PRIORITÉ : on regarde le canal du dernier message échangé avec ce lead.
+    // Un lead peut être créé depuis un form Facebook (source=facebook) puis basculer
+    // sur Messenger/Instagram — on doit alors répondre sur le canal où la conv vit,
+    // pas sur WhatsApp par défaut. Fallback : lead.source.
+    let leadChannel: "whatsapp" | "messenger" | "instagram" = "whatsapp";
+    const { data: lastChanRow } = await admin
+      .from("whatsapp_messages")
+      .select("channel")
+      .eq("lead_id", task.lead_id)
+      .not("channel", "is", null)
+      .order("sent_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const lastChannel = (lastChanRow as any)?.channel as string | undefined;
+    if (lastChannel === "messenger" || lastChannel === "instagram" || lastChannel === "whatsapp") {
+      leadChannel = lastChannel;
+    } else if (lead.source === "messenger") {
+      leadChannel = "messenger";
+    } else if (lead.source === "instagram") {
+      leadChannel = "instagram";
+    }
     const isMetaChannel = leadChannel !== "whatsapp";
 
     // Helper : envoi via Messenger/IG Graph en utilisant meta_channel_identities du lead
