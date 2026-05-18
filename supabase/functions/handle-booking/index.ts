@@ -186,7 +186,7 @@ Deno.serve(async (req) => {
     // Derive owner_id server-side from the active offer (prevents cross-tenant booking creation).
     const { data: offer } = await supabase
       .from("offers")
-      .select("name, owner_id")
+      .select("name, owner_id, workspace_id")
       .eq("id", offer_id)
       .eq("is_active", true)
       .is("deleted_at", null)
@@ -199,6 +199,7 @@ Deno.serve(async (req) => {
       );
     }
     const owner_id = offer.owner_id;
+    const offer_workspace_id = (offer as any).workspace_id || null;
     const offerName = offer.name || "Consultation";
 
     // Try to create Google Calendar event
