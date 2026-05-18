@@ -1918,6 +1918,53 @@ export type Database = {
           },
         ]
       }
+      offer_booking_email_templates: {
+        Row: {
+          body_html: string
+          created_at: string
+          enabled: boolean
+          id: string
+          offer_id: string
+          owner_id: string
+          subject: string
+          type: Database["public"]["Enums"]["booking_email_type"]
+          updated_at: string
+          workspace_id: string | null
+        }
+        Insert: {
+          body_html?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          offer_id: string
+          owner_id?: string
+          subject?: string
+          type: Database["public"]["Enums"]["booking_email_type"]
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Update: {
+          body_html?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          offer_id?: string
+          owner_id?: string
+          subject?: string
+          type?: Database["public"]["Enums"]["booking_email_type"]
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "offer_booking_email_templates_offer_id_fkey"
+            columns: ["offer_id"]
+            isOneToOne: false
+            referencedRelation: "offers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       offer_pages: {
         Row: {
           body_content: Json | null
@@ -2773,6 +2820,7 @@ export type Database = {
       workspaces: {
         Row: {
           address: string | null
+          booking_admin_reminders_enabled: boolean
           brand_color: string | null
           company_name: string
           created_at: string
@@ -2797,6 +2845,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          booking_admin_reminders_enabled?: boolean
           brand_color?: string | null
           company_name?: string
           created_at?: string
@@ -2821,6 +2870,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          booking_admin_reminders_enabled?: boolean
           brand_color?: string | null
           company_name?: string
           created_at?: string
