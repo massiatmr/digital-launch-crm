@@ -36,6 +36,9 @@ const statusLabels: Record<string, string> = {
 export default function BookingsPage() {
   const { data: bookings, isLoading } = useBookings();
   const { data: offers } = useOffers();
+  const { data: availability } = useAvailabilitySettings();
+  const ownerTz = availability?.timezone || OWNER_DEFAULT_TZ;
+  const ownerTzLabel = tzShortLabel(ownerTz);
   const updateBooking = useUpdateBooking();
   const workspaceId = useCurrentWorkspaceId();
   const [offerFilter, setOfferFilter] = useState<string>('all');
