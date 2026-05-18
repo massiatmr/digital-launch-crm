@@ -386,7 +386,7 @@ export function WhatsAppChat({ leadId, leadName, leadPhone, className }: { leadI
   };
 
   return (
-    <div className={cn('rounded-xl border border-border bg-muted/10 flex flex-col', className)}>
+    <div className={cn('rounded-xl border border-border bg-muted/10 flex flex-col min-w-0 overflow-hidden', className)}>
       {availableChannels.length > 1 && (
         <div className="px-2 pt-2 flex items-center gap-1 flex-wrap">
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-1">Canal :</span>
