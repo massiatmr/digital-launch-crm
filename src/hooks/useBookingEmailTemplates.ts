@@ -15,6 +15,16 @@ export interface OfferBookingEmailTemplate {
   owner_id: string;
 }
 
+export interface WorkspaceBookingEmailTemplate {
+  id: string;
+  workspace_id: string;
+  type: BookingEmailType;
+  enabled: boolean;
+  subject: string;
+  body_html: string;
+  owner_id: string;
+}
+
 export const BOOKING_EMAIL_TYPES: { type: BookingEmailType; label: string; description: string }[] = [
   { type: "confirmation", label: "Confirmation", description: "Envoyé immédiatement après la réservation" },
   { type: "24h_before", label: "Rappel 24h avant", description: "Envoyé 24 heures avant le RDV" },
@@ -51,6 +61,8 @@ export const DEFAULT_TEMPLATES: Record<BookingEmailType, { subject: string; body
 <p>À tout de suite !</p>`,
   },
 };
+
+// ---------- Offer-level overrides ----------
 
 export function useOfferBookingEmailTemplates(offerId: string | null) {
   return useQuery({
@@ -108,6 +120,81 @@ export function useResetOfferBookingEmailTemplate() {
     },
   });
 }
+
+// ---------- Workspace-level defaults ----------
+
+export function useWorkspaceBookingEmailTemplates(workspaceId: string | null) {
+  return useQuery({
+    queryKey: ["workspace_booking_email_templates", workspaceId],
+    enabled: !!workspaceId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("workspace_booking_email_templates" as any)
+        .select("*")
+        .eq("workspace_id", workspaceId!);
+      if (error) throw error;
+      return (data || []) as WorkspaceBookingEmailTemplate[];
+    },
+  });
+}
+
+export function useUpsertWorkspaceBookingEmailTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      workspace_id: string;
+      type: BookingEmailType;
+      enabled: boolean;
+      subject: string;
+      body_html: string;
+    }) => {
+      const { error } = await supabase
+        .from("workspace_booking_email_templates" as any)
+        .upsert(input as any, { onConflict: "workspace_id,type" });
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["workspace_booking_email_templates", vars.workspace_id] });
+      toast.success("Template par défaut enregistré");
+    },
+    onError: (e: any) => toast.error(e.message || "Erreur"),
+  });
+}
+
+export function useResetWorkspaceBookingEmailTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ workspace_id, type }: { workspace_id: string; type: BookingEmailType }) => {
+      const { error } = await supabase
+        .from("workspace_booking_email_templates" as any)
+        .delete()
+        .eq("workspace_id", workspace_id)
+        .eq("type", type);
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["workspace_booking_email_templates", vars.workspace_id] });
+      toast.success("Réinitialisé au défaut global");
+    },
+  });
+}
+
+// ---------- Test send ----------
+
+export function useSendTestBookingEmail() {
+  return useMutation({
+    mutationFn: async (input: { subject: string; body_html: string; to: string }) => {
+      const { error } = await supabase.functions.invoke("send-test-booking-email", {
+        body: input,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => toast.success("Email de test envoyé"),
+    onError: (e: any) => toast.error(e.message || "Erreur d'envoi"),
+  });
+}
+
+// ---------- Workspace admin reminders (existing) ----------
 
 export function useWorkspaceAdminReminders(workspaceId: string | null) {
   const qc = useQueryClient();
