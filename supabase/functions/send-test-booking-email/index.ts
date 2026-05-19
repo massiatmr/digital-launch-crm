@@ -65,10 +65,40 @@ Deno.serve(async (req) => {
     const renderedSubject = `[TEST] ${render(subject, sample)}`;
     const renderedHtml = wrapHtml(render(body_html, sample), renderedSubject);
 
+    const messageId = `booking-test-${crypto.randomUUID()}`;
+    const templateName = String(body.template_name || "booking-test");
+
+    await supabase.from("email_send_log").insert({
+      message_id: messageId,
+      template_name: templateName,
+      recipient_email: to,
+      status: "pending",
+      metadata: { test: true, user_id: user.id, subject: renderedSubject },
+    });
+
     const { error: sendErr } = await supabase.functions.invoke("send-smtp-email", {
       body: { to: [to], subject: renderedSubject, html: renderedHtml },
     });
-    if (sendErr) throw sendErr;
+
+    if (sendErr) {
+      await supabase.from("email_send_log").insert({
+        message_id: messageId,
+        template_name: templateName,
+        recipient_email: to,
+        status: "failed",
+        error_message: sendErr.message || String(sendErr),
+        metadata: { test: true, user_id: user.id },
+      });
+      throw sendErr;
+    }
+
+    await supabase.from("email_send_log").insert({
+      message_id: messageId,
+      template_name: templateName,
+      recipient_email: to,
+      status: "sent",
+      metadata: { test: true, user_id: user.id, subject: renderedSubject },
+    });
 
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
