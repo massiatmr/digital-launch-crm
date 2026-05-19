@@ -349,6 +349,19 @@ Deno.serve(async (req) => {
     }
     const isMetaChannel = leadChannel !== "whatsapp";
 
+    // === IA DÉSACTIVÉE sur Messenger / Instagram ===
+    // L'utilisateur a demandé de désactiver complètement les envois automatiques sur
+    // ces canaux. On annule la tâche au lieu de l'exécuter.
+    if (isMetaChannel) {
+      await admin
+        .from("lead_followup_tasks")
+        .update({ status: "cancelled", updated_at: new Date().toISOString(), error_message: "IA désactivée sur Messenger/Instagram" } as any)
+        .eq("id", task.id);
+      return new Response(JSON.stringify({ skipped: true, reason: "ai_disabled_on_meta_channel", channel: leadChannel }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Helper : envoi via Messenger/IG Graph en utilisant meta_channel_identities du lead
     const sendViaMetaChannel = async (text: string): Promise<{ ok: boolean; messageId: string | null; error: string | null }> => {
       // Récup dernier thread du canal
