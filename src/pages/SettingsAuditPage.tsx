@@ -42,11 +42,6 @@ export default function SettingsAuditPage() {
       return (data || []) as any[];
     },
   });
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data || []) as any[];
-    },
-  });
 
   const restore = useMutation({
     mutationFn: async (auditId: string) => {
