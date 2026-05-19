@@ -108,8 +108,8 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
             </span>
           )}
           <span className="flex items-center gap-1 text-muted-foreground/80">
-            <Globe className="h-3 w-3" /> Horaires <span className="text-foreground font-medium">{ownerTzLabel}</span>
-            {showViewer && <span className="opacity-70">· chez vous : {viewerTzLabel}</span>}
+            <Globe className="h-3 w-3" /> Horaires <span className="text-foreground font-medium">{showViewer ? viewerTzLabel : ownerTzLabel}</span>
+            {showViewer && <span className="opacity-70">· compte : {ownerTzLabel}</span>}
           </span>
           {data?.synced ? (
             <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/20 gap-1 ml-auto">
@@ -184,6 +184,7 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
                       {day.slots.map(s => {
                         const st = STATUS_STYLES[s.status];
                         const vw = showViewer ? viewerTimeLabel(day.date, s.time, ownerTz, viewerTz) : null;
+                        const primary = vw ? vw.time : s.time;
                         return (
                           <div
                             key={s.time}
@@ -191,11 +192,11 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
                               'rounded-md border px-2 py-1 text-xs flex items-center gap-1.5 font-mono',
                               st.className
                             )}
-                            title={`${s.time} ${ownerTzLabel}${vw ? ` · ${vw.time} ${vw.tz}` : ''} – ${st.label}`}
+                            title={`${primary} ${vw ? vw.tz : ownerTzLabel}${vw ? ` · ${s.time} ${ownerTzLabel}` : ''} – ${st.label}`}
                           >
                             <span className={cn('w-1.5 h-1.5 rounded-full', st.dot)} />
-                            {s.time}
-                            {vw && <span className="opacity-60 text-[10px] font-normal">/{vw.time}</span>}
+                            {primary}
+                            {vw && <span className="opacity-60 text-[10px] font-normal">/{s.time}</span>}
                           </div>
                         );
                       })}
