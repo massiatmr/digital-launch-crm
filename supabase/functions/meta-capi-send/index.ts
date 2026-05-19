@@ -35,9 +35,26 @@ async function hashIfPresent(v: string | null): Promise<string | undefined> {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
-  // Require service role — only called by DB triggers / internal functions
+  // Auth: accept service role, OR an internal shared secret (used by DB trigger via pg_net),
+  // OR a valid authenticated user JWT.
   const auth = req.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
-  if (auth !== Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) {
+  const internalSecret = req.headers.get("x-internal-token") ?? "";
+  const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const internalExpected = Deno.env.get("INTERNAL_FUNCTION_SECRET") ?? "";
+  let authorized = auth === serviceRole;
+  if (!authorized && internalExpected && internalSecret === internalExpected) authorized = true;
+  if (!authorized && auth) {
+    try {
+      const supa = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_ANON_KEY')!,
+        { global: { headers: { Authorization: `Bearer ${auth}` } } },
+      );
+      const { data: claims } = await supa.auth.getClaims(auth);
+      if (claims?.claims?.sub) authorized = true;
+    } catch { /* ignore */ }
+  }
+  if (!authorized) {
     return new Response(JSON.stringify({ error: "Forbidden" }), {
       status: 403,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
