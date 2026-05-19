@@ -61,6 +61,7 @@ interface BookingSectionProps {
   ctaText?: string;
   subtitle?: string;
   accentColor?: string; // tailwind class for accent, e.g. "red" or "indigo"
+  currency?: string | null; // used as TZ fallback if browser tz unavailable
 }
 
 export default function BookingSection({
@@ -70,10 +71,13 @@ export default function BookingSection({
   ctaText = 'Réserver un Appel',
   subtitle = 'Pour un devis sans engagement',
   accentColor = 'indigo',
+  currency = null,
 }: BookingSectionProps) {
   const [form, setForm] = useState({ name: '', email: '', phone: '', booking_date: '', time_slot: '' });
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [ownerTz, setOwnerTz] = useState<string>(OWNER_DEFAULT_TZ);
+  const [clientTz] = useState<string>(() => resolveClientTz(currency));
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [slotsSynced, setSlotsSynced] = useState(false);
   const [submitted, setSubmitted] = useState(false);
