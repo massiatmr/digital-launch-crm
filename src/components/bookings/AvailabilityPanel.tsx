@@ -137,6 +137,28 @@ export function AvailabilityPanel() {
       </CardHeader>
       <CardContent className="space-y-5">
         <div>
+          <Label className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+            <Globe className="h-3 w-3" /> Fuseau horaire
+          </Label>
+          <Select
+            value={settings.timezone}
+            onValueChange={async (v) => { await upsert.mutateAsync({ timezone: v } as any); toast.success('Fuseau mis à jour'); }}
+          >
+            <SelectTrigger className="mt-2 h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {TZ_OPTIONS.map(tz => (
+                <SelectItem key={tz} value={tz} className="text-sm">
+                  {tzShortLabel(tz)} <span className="text-muted-foreground ml-1">({tz})</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            Tous tes créneaux sont stockés et affichés dans ce fuseau. Ton navigateur est sur <span className="text-foreground font-medium">{tzShortLabel(getViewerTz())}</span>.
+          </p>
+        </div>
+
+        <div>
           <Label className="text-xs text-muted-foreground uppercase tracking-wider">Jours travaillés</Label>
           <div className="flex flex-wrap gap-1.5 mt-2">
             {DAYS.map(d => {
