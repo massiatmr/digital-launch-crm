@@ -184,6 +184,7 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
                       {day.slots.map(s => {
                         const st = STATUS_STYLES[s.status];
                         const vw = showViewer ? viewerTimeLabel(day.date, s.time, ownerTz, viewerTz) : null;
+                        const primary = vw ? vw.time : s.time;
                         return (
                           <div
                             key={s.time}
@@ -191,11 +192,11 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
                               'rounded-md border px-2 py-1 text-xs flex items-center gap-1.5 font-mono',
                               st.className
                             )}
-                            title={`${s.time} ${ownerTzLabel}${vw ? ` · ${vw.time} ${vw.tz}` : ''} – ${st.label}`}
+                            title={`${primary} ${vw ? vw.tz : ownerTzLabel}${vw ? ` · ${s.time} ${ownerTzLabel}` : ''} – ${st.label}`}
                           >
                             <span className={cn('w-1.5 h-1.5 rounded-full', st.dot)} />
-                            {s.time}
-                            {vw && <span className="opacity-60 text-[10px] font-normal">/{vw.time}</span>}
+                            {primary}
+                            {vw && <span className="opacity-60 text-[10px] font-normal">/{s.time}</span>}
                           </div>
                         );
                       })}
