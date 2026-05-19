@@ -1,55 +1,49 @@
 ## Objectif
-Empêcher qu’un même prospect venant d’un Lead Form puis de WhatsApp crée deux leads, deux conversations et deux automatisations, puis ajouter une façon propre de fusionner les doublons existants.
+Permettre, lors d'une fusion de leads, de choisir lead par lead **quelles infos garder** (nom, email, téléphone, société, notes, message, source, offre…) tout en gardant **toutes les conversations et l'historique** sur le lead conservé.
 
-## Solution proposée
+## Cas d'usage concret
+Tu as :
+- Lead A (WhatsApp) : conversations WhatsApp riches, mais nom/email incomplets.
+- Lead B (Lead Form) : email pro, téléphone correct, société, mais pas de conv WhatsApp.
 
-1. **Identifier un prospect avec une vraie clé cross-canal**
-   - Ajouter une table dédiée aux identités de contact par workspace : téléphone normalisé, email, identifiant WhatsApp, Messenger/Instagram si utile plus tard.
-   - Quand un Lead Form arrive, on enregistre ses identités disponibles.
-   - Quand un WhatsApp arrive, on cherche d’abord cette identité avant de créer un lead.
-   - Le match téléphone sera basé sur chiffres normalisés, pas sur le format affiché (`075...`, `+33...`, espaces, etc.).
+Tu veux garder **A comme lead final** (pour ses conversations) mais récupérer **email + téléphone + société de B**.
 
-2. **Changer le comportement WhatsApp**
-   - Si le numéro WhatsApp correspond à un lead existant du même workspace, le message est rattaché au lead existant.
-   - Le lead existant est enrichi avec le numéro WhatsApp si besoin.
-   - Aucune nouvelle automation “nouveau lead” n’est créée dans ce cas.
-   - La conversation WhatsApp apparaît donc dans le même dossier lead.
+## Nouveau flux de fusion
 
-3. **Sécuriser l’automatisation anti-double message**
-   - Lorsqu’un lead existant reçoit un signal WhatsApp entrant, annuler les relances automatiques encore en attente sur les doublons potentiels.
-   - Garder une seule séquence active par lead réel.
-   - Éviter qu’un template initial parte deux fois si le Lead Form et WhatsApp arrivent très proches dans le temps.
+### Étape 1 — Choisir le lead à conserver
+Comme aujourd'hui : recherche du doublon, sélection du "lead conservé" (target) vs "lead archivé" (source). Tout l'historique conversationnel (WhatsApp, Messenger, IG, appels, tâches, bookings, activités, qualifications, rappels) part automatiquement sur le lead conservé.
 
-4. **Ajouter une fusion propre de leads**
-   - Créer une fonction backend `merge_leads(source_lead_id, target_lead_id)`.
-   - Elle déplacera vers le lead cible :
-     - messages WhatsApp/Messenger/Instagram,
-     - appels WhatsApp,
-     - tâches de relance,
-     - état de conversation,
-     - qualifications IA,
-     - activités,
-     - rappels,
-     - bookings,
-     - scripts/messages générés,
-     - labels de conversation.
-   - Elle fusionnera les champs utiles sans écraser les données existantes : email, téléphone, société, notes, message, offer/source si manquants.
-   - Puis elle marquera le doublon comme supprimé (`deleted_at`) au lieu de le supprimer définitivement.
+### Étape 2 — Choisir champ par champ quoi garder (nouveau)
+Affichage côte à côte des deux fiches avec, pour chaque champ modifiable, **un radio** :
 
-5. **Ajouter une action dans l’interface**
-   - Dans la fiche lead ou la conversation, ajouter “Fusionner avec un autre lead”.
-   - Recherche par nom/téléphone/email.
-   - Confirmation claire : choisir le lead à garder, puis fusionner.
-   - Après fusion, rediriger automatiquement vers le lead conservé.
+```
+                  ◉ Lead conservé (A)      ○ Lead archivé (B)
+Nom               Seydou Ali                DLR Transport
+Email             (vide)                    contact@dlr.fr
+Téléphone         +33 6 12 34 56 78         +33 7 98 76 54 32
+Société           (vide)                    DLR TRANSPORT
+Message initial   "Salut"                   "Bonjour, je cherche..."
+Notes             (vide)                    "Vu sur FB Ads"
+Source            whatsapp                  facebook
+Offre liée        (aucune)                  Déménageur
+Score             warm                      hot
+```
 
-## Pour ton cas actuel
-Je fusionnerais le lead WhatsApp `DLR TRANSPORT` dans le lead Facebook `Seydou Ali`, parce que le Facebook contient déjà le formulaire complet, l’email et le contexte ads. Les messages WhatsApp et les notes IA seraient déplacés dessus, puis le lead WhatsApp serait archivé.
+Boutons rapides : **"Tout prendre du conservé"**, **"Tout prendre de l'archivé"**, **"Prendre le plus complet"** (auto-sélectionne la valeur non-vide).
 
-## Fichiers / zones à modifier
-- Migrations Lovable Cloud : table d’identités + fonction `merge_leads` + index utiles.
-- `supabase/functions/whatsapp-webhook/index.ts` : résolution du lead par identité téléphone avant création.
-- `supabase/functions/facebook-webhook/index.ts` et `supabase/functions/ingest-lead/index.ts` : création/mise à jour des identités à chaque signal Lead Form.
-- UI lead/conversation : bouton de fusion + dialogue de recherche/confirmation.
+### Étape 3 — Confirmation
+Récap clair : "Le lead conservé sera mis à jour avec : email = X, téléphone = Y, société = Z. Toutes les conversations des 2 leads seront regroupées sur ce lead. Le lead archivé sera supprimé."
 
-## Résultat attendu
-Un prospect = un lead = une conversation unifiée = une seule automation, même s’il arrive par Lead Form puis écrit lui-même sur WhatsApp.
+## Modifs techniques
+
+1. **Fonction SQL `merge_leads`** : ajouter un paramètre `field_overrides jsonb` (ex: `{"email":"contact@dlr.fr","phone":"+33...","company_name":"DLR"}`). Après le déplacement des relations, faire un `UPDATE leads SET ... WHERE id = target_id` en appliquant uniquement les champs présents dans `field_overrides`. Les champs absents gardent la valeur actuelle du target.
+
+2. **`MergeLeadDialog.tsx`** : ajouter un 2e écran après le choix du lead à conserver, avec le tableau de radios champ par champ. État local `overrides`, transmis à l'appel RPC.
+
+3. **Champs concernés** : `name`, `email`, `phone`, `company_name`, `message`, `notes`, `source`, `offer_id`, `score`, `status`, `meta_*` (campaign/ad/form/page/adset).
+   Champs **non-modifiables** par l'utilisateur (forcés) : `id`, `owner_id`, `workspace_id`, `created_at`, conversations, tâches, etc.
+
+4. **Backward compat** : si `field_overrides` est `null` ou `{}`, comportement actuel (target garde ses valeurs, complétées uniquement si vides — la règle "ne pas écraser" reste le défaut).
+
+## Résultat
+Tu choisis quel lead garde l'historique, et tu rapatries les bonnes infos de l'autre. Une seule fiche propre, toutes les conversations regroupées.

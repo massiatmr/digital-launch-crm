@@ -2997,10 +2997,16 @@ export type Database = {
         }[]
       }
       mark_overdue_invoices: { Args: never; Returns: undefined }
-      merge_leads: {
-        Args: { p_source: string; p_target: string }
-        Returns: Json
-      }
+      merge_leads:
+        | { Args: { p_source: string; p_target: string }; Returns: Json }
+        | {
+            Args: {
+              p_field_overrides: Json
+              p_source: string
+              p_target: string
+            }
+            Returns: Json
+          }
       move_to_dlq: {
         Args: {
           dlq_name: string
