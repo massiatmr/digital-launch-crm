@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const path = `onboarding/${clientId}/${Date.now()}-${file.name}`;
+    const path = `onboarding/${clientId}/${Date.now()}-${safeName}`;
     const arrayBuf = await file.arrayBuffer();
     const { error: uploadError } = await supabase.storage
       .from("client-resources")
@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
       .createSignedUrl(path, 3600 * 24 * 365);
 
     return new Response(
-      JSON.stringify({ url: urlData?.signedUrl || "", name: file.name }),
+      JSON.stringify({ url: urlData?.signedUrl || "", name: safeName }),
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
