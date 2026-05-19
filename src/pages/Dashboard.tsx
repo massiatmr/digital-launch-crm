@@ -114,10 +114,10 @@ export default function Dashboard() {
 
   const { from: rangeFrom, to: rangeTo } = getDateRange(period, anchorDate, customFrom, customTo);
 
-  // Filter leads by period
+  // Filter leads by creation date for the period
   const leads = useMemo(() =>
     allLeads.filter(l => {
-      const d = new Date(l.updated_at);
+      const d = new Date(l.created_at);
       return isAfter(d, rangeFrom) && isBefore(d, rangeTo);
     }),
     [allLeads, rangeFrom, rangeTo]
@@ -157,9 +157,26 @@ export default function Dashboard() {
   const pendingReminders = reminders.filter(r => !r.done);
   const overdueReminders = pendingReminders.filter(r => new Date(r.due_date) < new Date());
 
-  // — KPI 5: Closing rate (gagné / total présents au RDV)
-  const wonLeads = leads.filter(l => l.status === 'won');
-  const allShowedUp = leads.filter(l => l.show_status === 'show');
+  // — KPI 5: Closing rate — based on when lead transitioned to "won" (updated_at)
+  // not when lead was created. Denominator = leads marked as "show" during the period.
+  const wonInPeriod = useMemo(() =>
+    allLeads.filter(l => {
+      if (l.status !== 'won') return false;
+      const d = new Date(l.updated_at);
+      return isAfter(d, rangeFrom) && isBefore(d, rangeTo);
+    }),
+    [allLeads, rangeFrom, rangeTo]
+  );
+  const showedUpInPeriod = useMemo(() =>
+    allLeads.filter(l => {
+      if (l.show_status !== 'show') return false;
+      const d = new Date(l.updated_at);
+      return isAfter(d, rangeFrom) && isBefore(d, rangeTo);
+    }),
+    [allLeads, rangeFrom, rangeTo]
+  );
+  const wonLeads = wonInPeriod;
+  const allShowedUp = showedUpInPeriod;
   const closingRate = allShowedUp.length > 0 ? Math.round((wonLeads.length / allShowedUp.length) * 100) : 0;
 
   // — KPI 6: Qualification rate (qualifiés+ / total leads)
