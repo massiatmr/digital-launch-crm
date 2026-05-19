@@ -320,53 +320,50 @@ export function MergeLeadDialog({
                 <div className="bg-muted/50 px-3 py-2 font-medium">
                   Archivé : <span className="text-muted-foreground">{source.name || '—'}</span>
                 </div>
-                {FIELDS.map((k) => {
-                  const tv = (target as any)[k];
-                  const sv = (source as any)[k];
-                  return (
-                    <Fragment key={k}>
-
-                      <div key={k + '-l'} className="bg-background px-3 py-2 text-muted-foreground">
-                        {FIELD_LABELS[k]}
-                      </div>
-                      <label
-                        key={k + '-t'}
-                        className={cn(
-                          'flex cursor-pointer items-start gap-2 bg-background px-3 py-2 text-sm transition',
-                          choices[k] === 'target' && 'bg-primary/10',
-                        )}
-                      >
-                        <input
-                          type="radio"
-                          className="mt-0.5 accent-primary"
-                          checked={choices[k] === 'target'}
-                          onChange={() => setChoices((c) => ({ ...c, [k]: 'target' }))}
-                        />
-                        <span className={cn('break-words', (!tv || tv === '') && 'text-muted-foreground italic')}>
-                          {displayValue(k, tv)}
-                        </span>
-                      </label>
-                      <label
-                        key={k + '-s'}
-                        className={cn(
-                          'flex cursor-pointer items-start gap-2 bg-background px-3 py-2 text-sm transition',
-                          choices[k] === 'source' && 'bg-primary/10',
-                        )}
-                      >
-                        <input
-                          type="radio"
-                          className="mt-0.5 accent-primary"
-                          checked={choices[k] === 'source'}
-                          onChange={() => setChoices((c) => ({ ...c, [k]: 'source' }))}
-                        />
-                        <span className={cn('break-words', (!sv || sv === '') && 'text-muted-foreground italic')}>
-                          {displayValue(k, sv)}
-                        </span>
-                      </label>
-                    </Fragment>
-                  );
-                })}
               </div>
+              {FIELDS.map((k) => {
+                const tv = (target as any)[k] as string | null;
+                const sv = (source as any)[k] as string | null;
+                return (
+                  <div key={k} className="grid grid-cols-[110px_1fr_1fr] gap-px border-t border-border bg-border text-xs">
+                    <div className="bg-background px-3 py-2 text-muted-foreground">{FIELD_LABELS[k]}</div>
+                    <label
+                      className={cn(
+                        'flex cursor-pointer items-start gap-2 bg-background px-3 py-2 text-sm transition',
+                        choices[k] === 'target' && 'bg-primary/10',
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        className="mt-0.5 accent-primary"
+                        checked={choices[k] === 'target'}
+                        onChange={() => setChoices((c) => ({ ...c, [k]: 'target' }))}
+                      />
+                      <span className={cn('break-words', (!tv || tv === '') && 'text-muted-foreground italic')}>
+                        {displayValue(k, tv)}
+                      </span>
+                    </label>
+                    <label
+                      className={cn(
+                        'flex cursor-pointer items-start gap-2 bg-background px-3 py-2 text-sm transition',
+                        choices[k] === 'source' && 'bg-primary/10',
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        className="mt-0.5 accent-primary"
+                        checked={choices[k] === 'source'}
+                        onChange={() => setChoices((c) => ({ ...c, [k]: 'source' }))}
+                      />
+                      <span className={cn('break-words', (!sv || sv === '') && 'text-muted-foreground italic')}>
+                        {displayValue(k, sv)}
+                      </span>
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+
             </div>
           </div>
         )}
