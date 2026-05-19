@@ -363,7 +363,7 @@ export function MergeLeadDialog({
                           {displayValue(k, sv)}
                         </span>
                       </label>
-                    </>
+                    </Fragment>
                   );
                 })}
               </div>
