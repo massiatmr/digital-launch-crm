@@ -39,6 +39,8 @@ export default function BookingsPage() {
   const { data: availability } = useAvailabilitySettings();
   const ownerTz = availability?.timezone || OWNER_DEFAULT_TZ;
   const ownerTzLabel = tzShortLabel(ownerTz);
+  const viewerTz = getViewerTz();
+  const viewerTzLabel = tzShortLabel(viewerTz);
   const updateBooking = useUpdateBooking();
   const workspaceId = useCurrentWorkspaceId();
   const [offerFilter, setOfferFilter] = useState<string>('all');
