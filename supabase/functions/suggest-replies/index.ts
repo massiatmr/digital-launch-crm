@@ -61,6 +61,7 @@ STYLE OBLIGATOIRE :
 - Ton naturel, parlé, fluide. Pas de formules corporate.
 - INTERDIT : tirets cadratins (— ou –), emojis, ponctuation excessive (!!!, ???, ...), majuscules pour insister.
 - Pas de "n'hésite pas", "je reste à disposition", "je me permets".
+- RÈGLE ABSOLUE : MAX 1 QUESTION par suggestion. Jamais 2 questions enchaînées dans la même réponse, même implicites (ex INTERDIT : "Tu es satisfait ou tu veux passer un cap. Tu bosses en équipe ou en solo ?"). Compte les "?" : 0 ou 1, jamais 2.
 
 Réponds UNIQUEMENT avec un JSON: {"suggestions": ["réponse 1", "réponse 2", "réponse 3"]}`;
     const sys = (settings?.suggest_replies_system_prompt?.trim()) || DEFAULT_SUGGEST_PROMPT;
