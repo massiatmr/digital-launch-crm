@@ -107,6 +107,10 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
               · {data.day_start_time}–{data.day_end_time} · {data.slot_duration_minutes}min
             </span>
           )}
+          <span className="flex items-center gap-1 text-muted-foreground/80">
+            <Globe className="h-3 w-3" /> Horaires <span className="text-foreground font-medium">{ownerTzLabel}</span>
+            {showViewer && <span className="opacity-70">· chez vous : {viewerTzLabel}</span>}
+          </span>
           {data?.synced ? (
             <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/20 gap-1 ml-auto">
               <CheckCircle2 className="h-3 w-3" /> Google sync
