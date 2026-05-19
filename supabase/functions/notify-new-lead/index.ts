@@ -167,7 +167,16 @@ function buildEmailHtml(lead: any, leadUrl: string, sourceLabel: string, workspa
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  // Internal-only: require service role bearer
+  const _bearer = req.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
+  if (_bearer !== SUPABASE_SERVICE_ROLE_KEY) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  
 
   try {
     const { lead_id } = await req.json();

@@ -24,6 +24,36 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Validate file size & type to prevent storage abuse and malicious uploads
+    const MAX_SIZE = 25 * 1024 * 1024; // 25 MB
+    const ALLOWED_TYPES = new Set([
+      "image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif",
+      "application/pdf",
+      "video/mp4", "video/quicktime", "video/webm",
+      "audio/mpeg", "audio/mp4", "audio/webm", "audio/ogg",
+      "text/plain", "text/csv",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ]);
+    if (file.size > MAX_SIZE) {
+      return new Response(JSON.stringify({ error: "File too large (max 25MB)" }), {
+        status: 413,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!ALLOWED_TYPES.has(file.type)) {
+      return new Response(JSON.stringify({ error: "File type not allowed" }), {
+        status: 415,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const safeName = (file.name || "file")
+      .replace(/[^a-zA-Z0-9._-]/g, "_")
+      .replace(/_+/g, "_")
+      .slice(0, 100);
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
@@ -43,7 +73,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const path = `onboarding/${clientId}/${Date.now()}-${file.name}`;
+    const path = `onboarding/${clientId}/${Date.now()}-${safeName}`;
     const arrayBuf = await file.arrayBuffer();
     const { error: uploadError } = await supabase.storage
       .from("client-resources")
@@ -61,7 +91,7 @@ Deno.serve(async (req) => {
       .createSignedUrl(path, 3600 * 24 * 365);
 
     return new Response(
-      JSON.stringify({ url: urlData?.signedUrl || "", name: file.name }),
+      JSON.stringify({ url: urlData?.signedUrl || "", name: safeName }),
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
