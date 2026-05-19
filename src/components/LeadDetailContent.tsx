@@ -206,7 +206,16 @@ export function LeadDetailContent({
                   )}
                 </div>
 
-                <div className="flex gap-2 border-t border-border/50 pt-2">
+                <div className="flex flex-wrap gap-2 border-t border-border/50 pt-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => setMergeOpen(true)}
+                  >
+                    <Merge className="h-3.5 w-3.5" />
+                    Fusionner
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -218,6 +227,17 @@ export function LeadDetailContent({
                   </Button>
                 </div>
               </div>
+
+              <MergeLeadDialog
+                open={mergeOpen}
+                onOpenChange={setMergeOpen}
+                currentLeadId={lead.id}
+                currentLeadName={lead.name}
+                workspaceId={(lead as any).workspace_id ?? null}
+                onMerged={(keptId) => {
+                  if (keptId !== lead.id) onDeleted?.();
+                }}
+              />
 
               <LeadEditForm lead={lead} inline />
 
