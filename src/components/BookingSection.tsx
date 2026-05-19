@@ -14,6 +14,10 @@ import { z } from 'zod';
 import { format, isBefore, startOfDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import {
+  OWNER_DEFAULT_TZ, resolveClientTz, tzShortLabel,
+  wallTimeToUtc, formatTimeInTz,
+} from '@/lib/bookingTime';
 
 function generateGoogleCalendarUrl(name: string, date: string, time: string, offerName: string) {
   const startDate = new Date(`${date}T${time}:00`);
