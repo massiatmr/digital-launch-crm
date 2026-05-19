@@ -324,7 +324,8 @@ export function MergeLeadDialog({
                   const tv = (target as any)[k];
                   const sv = (source as any)[k];
                   return (
-                    <>
+                    <Fragment key={k}>
+
                       <div key={k + '-l'} className="bg-background px-3 py-2 text-muted-foreground">
                         {FIELD_LABELS[k]}
                       </div>
