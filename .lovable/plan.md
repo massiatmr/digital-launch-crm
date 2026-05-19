@@ -1,95 +1,55 @@
-## Objectifs
+## Objectif
+Empêcher qu’un même prospect venant d’un Lead Form puis de WhatsApp crée deux leads, deux conversations et deux automatisations, puis ajouter une façon propre de fusionner les doublons existants.
 
-1. Définir des **templates d'emails par défaut au niveau du workspace** (1 set pour toutes les offres), puis permettre une **personnalisation par offre** qui surcharge ces défauts.
-2. Rendre l'UI plus aérée : **liste cliquable** des emails (au lieu de 4 grandes cartes empilées) qui ouvre un éditeur dédié.
-3. Remplacer le textarea HTML brut par un **éditeur WYSIWYG** (TipTap) avec insertion 1 clic des variables.
-4. Ajouter une zone **"Envoyer un test"** dans l'éditeur : champ email + bouton qui envoie un vrai email rendu avec des valeurs d'exemple.
+## Solution proposée
 
-## Nouvelle structure de l'onglet
+1. **Identifier un prospect avec une vraie clé cross-canal**
+   - Ajouter une table dédiée aux identités de contact par workspace : téléphone normalisé, email, identifiant WhatsApp, Messenger/Instagram si utile plus tard.
+   - Quand un Lead Form arrive, on enregistre ses identités disponibles.
+   - Quand un WhatsApp arrive, on cherche d’abord cette identité avant de créer un lead.
+   - Le match téléphone sera basé sur chiffres normalisés, pas sur le format affiché (`075...`, `+33...`, espaces, etc.).
 
-```text
-Notifications & Rappels
-├─ Card "Notifications admin"   (inchangé : switch + email workspace)
-├─ Card "Emails par défaut du workspace"
-│   └─ Liste cliquable des 4 types (Confirmation, 24h, 12h, 1h)
-│       Chaque ligne : icône • Label • Sujet (preview) • badge "Activé/Off" • →
-├─ Card "Personnalisation par offre"
-│   ├─ Sélecteur d'offre
-│   └─ Liste cliquable des 4 types
-│       Chaque ligne : Label • Sujet (preview) • badge "Hérité workspace" ou
-│       "Personnalisé" • Switch on/off • →
-└─ Dialog EmailTemplateEditor  (ouvert au clic sur une ligne)
-    ├─ Champ Sujet
-    ├─ Barre WYSIWYG (B I U • lien • listes • H2/P • undo/redo)
-    ├─ Boutons "Insérer variable" : {{name}} {{date}} {{time}} {{offer_name}}
-    │   {{offer_suffix}} {{meet_link}} {{meet_block}}
-    ├─ Aperçu rendu (toggle "Code / Visuel")
-    ├─ Zone test :  [email test] [Envoyer un test]
-    └─ Footer : [Réinitialiser au défaut]  [Annuler]  [Enregistrer]
-```
+2. **Changer le comportement WhatsApp**
+   - Si le numéro WhatsApp correspond à un lead existant du même workspace, le message est rattaché au lead existant.
+   - Le lead existant est enrichi avec le numéro WhatsApp si besoin.
+   - Aucune nouvelle automation “nouveau lead” n’est créée dans ce cas.
+   - La conversation WhatsApp apparaît donc dans le même dossier lead.
 
-## Logique de résolution des templates
+3. **Sécuriser l’automatisation anti-double message**
+   - Lorsqu’un lead existant reçoit un signal WhatsApp entrant, annuler les relances automatiques encore en attente sur les doublons potentiels.
+   - Garder une seule séquence active par lead réel.
+   - Éviter qu’un template initial parte deux fois si le Lead Form et WhatsApp arrivent très proches dans le temps.
 
-Ordre de priorité côté backend (edge functions `handle-booking` et `process-booking-reminders`) :
+4. **Ajouter une fusion propre de leads**
+   - Créer une fonction backend `merge_leads(source_lead_id, target_lead_id)`.
+   - Elle déplacera vers le lead cible :
+     - messages WhatsApp/Messenger/Instagram,
+     - appels WhatsApp,
+     - tâches de relance,
+     - état de conversation,
+     - qualifications IA,
+     - activités,
+     - rappels,
+     - bookings,
+     - scripts/messages générés,
+     - labels de conversation.
+   - Elle fusionnera les champs utiles sans écraser les données existantes : email, téléphone, société, notes, message, offer/source si manquants.
+   - Puis elle marquera le doublon comme supprimé (`deleted_at`) au lieu de le supprimer définitivement.
 
-1. `offer_booking_email_templates` (offre + type) → si présent et `enabled`
-2. `workspace_booking_email_templates` (workspace + type) → si présent et `enabled`
-3. `DEFAULT_TEMPLATES` (hardcodés dans l'edge function)
+5. **Ajouter une action dans l’interface**
+   - Dans la fiche lead ou la conversation, ajouter “Fusionner avec un autre lead”.
+   - Recherche par nom/téléphone/email.
+   - Confirmation claire : choisir le lead à garder, puis fusionner.
+   - Après fusion, rediriger automatiquement vers le lead conservé.
 
-Si la résolution finit sur un row `enabled = false`, on **n'envoie pas** l'email (déjà le comportement actuel pour l'offre, étendu au workspace).
+## Pour ton cas actuel
+Je fusionnerais le lead WhatsApp `DLR TRANSPORT` dans le lead Facebook `Seydou Ali`, parce que le Facebook contient déjà le formulaire complet, l’email et le contexte ads. Les messages WhatsApp et les notes IA seraient déplacés dessus, puis le lead WhatsApp serait archivé.
 
-## Détails techniques
+## Fichiers / zones à modifier
+- Migrations Lovable Cloud : table d’identités + fonction `merge_leads` + index utiles.
+- `supabase/functions/whatsapp-webhook/index.ts` : résolution du lead par identité téléphone avant création.
+- `supabase/functions/facebook-webhook/index.ts` et `supabase/functions/ingest-lead/index.ts` : création/mise à jour des identités à chaque signal Lead Form.
+- UI lead/conversation : bouton de fusion + dialogue de recherche/confirmation.
 
-### Base de données (migration)
-
-Nouvelle table `workspace_booking_email_templates` :
-- `workspace_id` (fk workspaces, cascade), `type` (enum `booking_email_type`)
-- `enabled` (bool, default true), `subject` (text), `body_html` (text)
-- Unique `(workspace_id, type)`
-- RLS : SELECT/INSERT/UPDATE/DELETE pour membres du workspace, idem que la table `offer_booking_email_templates`.
-
-### Edge functions
-
-- `handle-booking/index.ts` et `process-booking-reminders/index.ts` :
-  ajouter le lookup workspace après le lookup offre, avant de retomber sur les defaults.
-- Nouvelle edge function `send-test-booking-email/index.ts` (JWT requis) :
-  body `{ subject, body_html, to, sample_vars? }`. Rend les `{{vars}}` avec des valeurs d'exemple par défaut (date du jour, heure 14:00, nom "Jean Dupont", offre "Consultation"), wrappe le HTML dans le même template que `process-booking-reminders` (`wrapHtml`), puis invoque `send-smtp-email`.
-
-### Frontend
-
-- Dépendances à ajouter : `@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/extension-link`, `@tiptap/extension-placeholder`.
-- Nouveaux fichiers :
-  - `src/hooks/useBookingEmailTemplates.ts` (étendu) :
-    - `useWorkspaceBookingEmailTemplates(workspaceId)`,
-      `useUpsertWorkspaceBookingEmailTemplate`,
-      `useResetWorkspaceBookingEmailTemplate`,
-      `useSendTestBookingEmail`.
-  - `src/components/bookings/EmailTemplateEditor.tsx` : Dialog réutilisable
-    pour workspace ou offre (prop `scope: 'workspace' | 'offer'` + ids).
-  - `src/components/bookings/WysiwygEditor.tsx` : wrapper TipTap minimal +
-    toolbar + méthode `insertText` pour les variables.
-  - `src/components/bookings/EmailTemplateRow.tsx` : ligne cliquable.
-- `OfferEmailTemplatesEditor.tsx` : refactorisé en liste cliquable (4 lignes)
-  avec badge "Hérité workspace" ou "Personnalisé" + switch on/off rapide.
-- `NotificationsTab.tsx` : ajoute la card "Emails par défaut du workspace".
-
-### Comportements UI
-
-- Badge "Hérité workspace" : la ligne offre ne montre pas de bouton Reset
-  tant que rien n'a été personnalisé. Au clic, l'éditeur s'ouvre pré-rempli
-  avec le contenu hérité (workspace ou DEFAULT) ; à l'enregistrement, ça
-  crée la ligne d'override.
-- Reset (icône RotateCcw) supprime la ligne d'override → retour à l'hérité.
-- Test d'envoi : disabled tant que `to` n'est pas un email valide ; toast
-  succès/erreur ; bouton montre un spinner pendant l'envoi ; pas de save
-  préalable nécessaire (le contenu courant du brouillon est envoyé).
-- Variables insérées via `editor.chain().focus().insertContent('{{name}}').run()`.
-- Stockage : on continue à stocker du HTML simple (le rendu actuel le supporte).
-  L'éditeur produit du HTML semantically clean (TipTap par défaut).
-
-## Hors scope
-
-- Pas de gestion de versions / historique des templates.
-- Pas de placeholders dynamiques avancés (logique conditionnelle, i18n).
-- Pas de templates par canal autre qu'email (WhatsApp/SMS).
-- Pas de prévisualisation "responsive mobile" — uniquement l'aperçu HTML rendu.
+## Résultat attendu
+Un prospect = un lead = une conversation unifiée = une seule automation, même s’il arrive par Lead Form puis écrit lui-même sur WhatsApp.
