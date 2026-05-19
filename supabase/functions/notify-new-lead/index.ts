@@ -176,7 +176,7 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  
 
   try {
     const { lead_id } = await req.json();
