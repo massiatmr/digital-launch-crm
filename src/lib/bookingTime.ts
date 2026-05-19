@@ -53,6 +53,25 @@ export function getViewerTz(): string {
   }
 }
 
+/** Default timezone hint based on currency code (used as a fallback). */
+const CURRENCY_TZ: Record<string, string> = {
+  EUR: 'Europe/Paris', GBP: 'Europe/London', CHF: 'Europe/Zurich',
+  USD: 'America/New_York', CAD: 'America/Toronto', AUD: 'Australia/Sydney',
+  MAD: 'Africa/Casablanca', DZD: 'Africa/Algiers', TND: 'Africa/Tunis',
+  AED: 'Asia/Dubai', SAR: 'Asia/Riyadh', JPY: 'Asia/Tokyo', CNY: 'Asia/Shanghai',
+};
+export function tzFromCurrency(code: string | null | undefined): string | null {
+  if (!code) return null;
+  return CURRENCY_TZ[code.toUpperCase()] || null;
+}
+
+/** Pick the best display timezone for an end-user (browser first, currency fallback, owner last). */
+export function resolveClientTz(currency?: string | null, ownerTz: string = OWNER_DEFAULT_TZ): string {
+  const browser = getViewerTz();
+  if (browser && browser !== 'UTC') return browser;
+  return tzFromCurrency(currency) || ownerTz;
+}
+
 /**
  * Convert a wall-clock owner time slot into the viewer's local time.
  * Returns null when both timezones produce the same wall time.

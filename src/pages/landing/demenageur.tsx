@@ -646,6 +646,7 @@ export default function DemenageurLanding({ offer, branding }: Props) {
               offerName={offer.name}
               ctaText={ctaText}
               accentColor="red"
+              currency={(offer as any).currency}
             />
           </motion.div>
         </div>
