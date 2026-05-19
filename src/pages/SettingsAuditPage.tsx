@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useCurrentWorkspaceId } from '@/hooks/useWorkspaces';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,15 +23,18 @@ export default function SettingsAuditPage() {
   const [actionFilter, setActionFilter] = useState<string>('all');
   const [entityFilter, setEntityFilter] = useState<string>('all');
   const [expanded, setExpanded] = useState<string | null>(null);
+  const wsId = useCurrentWorkspaceId();
   const qc = useQueryClient();
 
   const { data = [], isLoading } = useQuery({
-    queryKey: ['audit_log', actionFilter, entityFilter],
+    queryKey: ['audit_log', actionFilter, entityFilter, wsId],
+    enabled: !!wsId,
     queryFn: async () => {
       let q: any = (supabase.from('audit_log' as any) as any)
         .select('*')
         .order('created_at', { ascending: false })
         .limit(200);
+      if (wsId) q = q.eq('workspace_id', wsId);
       if (actionFilter !== 'all') q = q.eq('action', actionFilter);
       if (entityFilter !== 'all') q = q.eq('entity_type', entityFilter);
       const { data, error } = await q;
