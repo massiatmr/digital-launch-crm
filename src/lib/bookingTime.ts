@@ -2,6 +2,7 @@
 // the workspace timezone, default Europe/Paris) in another timezone.
 
 export const OWNER_DEFAULT_TZ = 'Europe/Paris';
+export const CLIENT_DEFAULT_TZ = 'Europe/Paris';
 
 /**
  * Convert a wall-clock (date "YYYY-MM-DD", time "HH:MM") interpreted in `tz`
@@ -65,11 +66,24 @@ export function tzFromCurrency(code: string | null | undefined): string | null {
   return CURRENCY_TZ[code.toUpperCase()] || null;
 }
 
-/** Pick the best display timezone for an end-user (browser first, currency fallback, owner last). */
+/** Pick the best display timezone for an end-user (offer/currency first, never the owner's browser). */
 export function resolveClientTz(currency?: string | null, ownerTz: string = OWNER_DEFAULT_TZ): string {
-  const browser = getViewerTz();
-  if (browser && browser !== 'UTC') return browser;
-  return tzFromCurrency(currency) || ownerTz;
+  return tzFromCurrency(currency) || CLIENT_DEFAULT_TZ || ownerTz;
+}
+
+export function timeLabelInTz(
+  bookingDate: string,
+  timeSlot: string,
+  sourceTz: string,
+  targetTz: string,
+): { time: string; tz: string } | null {
+  if (!targetTz || targetTz === sourceTz) return null;
+  try {
+    const utc = wallTimeToUtc(bookingDate, timeSlot, sourceTz);
+    return { time: formatTimeInTz(utc, targetTz), tz: tzShortLabel(targetTz) };
+  } catch {
+    return null;
+  }
 }
 
 /**
