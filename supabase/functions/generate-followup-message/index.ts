@@ -647,6 +647,30 @@ Génère UNIQUEMENT le texte du message WhatsApp (français, max ${isSlotConfirm
       message = message.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F000}-\u{1F2FF}]/gu, "").replace(/ {2,}/g, " ").trim();
     }
 
+    // Garde-fou final : au max UNE question par message.
+    // On découpe en phrases, on garde toutes les phrases jusqu'à la 1re question incluse,
+    // puis on stoppe (les questions suivantes sont coupées). Détecte aussi les questions
+    // implicites de type "A ou B." (sans "?") en fin de phrase.
+    if (!isSlotConfirmation) {
+      const sentences = message.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [message];
+      const looksLikeImplicitQuestion = (s: string) =>
+        /\b(ou|vs)\b/i.test(s) && /\b(tu|vous|t'?es|vous êtes|préfères|préférez|veux|voulez|travailles|bosses|aimerais|aimeriez)\b/i.test(s);
+      const kept: string[] = [];
+      let questionFound = false;
+      for (const raw of sentences) {
+        const s = raw.trim();
+        if (!s) continue;
+        const isQuestion = s.includes("?") || looksLikeImplicitQuestion(s);
+        if (isQuestion) {
+          if (questionFound) break; // 2e question → on coupe
+          questionFound = true;
+        }
+        kept.push(s);
+      }
+      const rebuilt = kept.join(" ").replace(/ {2,}/g, " ").trim();
+      if (rebuilt) message = rebuilt;
+    }
+
     return new Response(JSON.stringify({ message, prompt_used: promptKey, variant: variant ?? "A" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
