@@ -18,7 +18,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAvailabilitySettings } from '@/hooks/useAvailabilitySettings';
-import { CLIENT_DEFAULT_TZ, clientTimeLabel, tzShortLabel, OWNER_DEFAULT_TZ } from '@/lib/bookingTime';
+import { CLIENT_DEFAULT_TZ, clientTimeLabel, tzShortLabel, timeLabelInTz, OWNER_DEFAULT_TZ } from '@/lib/bookingTime';
 
 const statusColors: Record<string, string> = {
   pending: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
@@ -86,6 +86,22 @@ export default function BookingsPage() {
     .filter(b => b.status !== 'cancelled' && b.status !== 'completed' && (isToday(parseISO(b.booking_date)) || isAfter(parseISO(b.booking_date), new Date())))
     .sort((a, b) => a.booking_date.localeCompare(b.booking_date) || a.time_slot.localeCompare(b.time_slot));
 
+  const getBookingTimes = (b: any) => {
+    const clientTz = b.client_timezone || CLIENT_DEFAULT_TZ;
+    if (b.client_timezone) {
+      return {
+        clientTime: clientTimeLabel(b.booking_date, b.time_slot, clientTz, ownerTz)?.time || b.time_slot,
+        clientLabel: tzShortLabel(clientTz),
+        ownerTime: b.time_slot,
+      };
+    }
+    return {
+      clientTime: b.time_slot,
+      clientLabel: tzShortLabel(clientTz),
+      ownerTime: timeLabelInTz(b.booking_date, b.time_slot, clientTz, ownerTz)?.time || b.time_slot,
+    };
+  };
+
   if (isLoading) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
@@ -144,6 +160,7 @@ export default function BookingsPage() {
                   {upcoming.slice(0, 9).map(b => {
                     const d = parseISO(b.booking_date);
                     const isSel = isSameDay(d, selectedDate);
+                    const times = getBookingTimes(b);
                     return (
                       <button
                         key={b.id}
@@ -155,11 +172,8 @@ export default function BookingsPage() {
                           <Badge className={`${statusColors[b.status]} text-[10px]`}>{statusLabels[b.status]}</Badge>
                         </div>
                         <div className="text-xs text-muted-foreground mt-0.5">
-                          {format(d, 'dd MMM', { locale: fr })} · <span className="font-mono">{b.time_slot}</span> <span className="opacity-60">{ownerTzLabel}</span>
-                          {(() => {
-                            const cl = clientTimeLabel(b.booking_date, b.time_slot, (b as any).client_timezone || CLIENT_DEFAULT_TZ, ownerTz);
-                            return cl ? <span className="opacity-60"> · <span className="font-mono">{cl.time}</span> {cl.tz} (client)</span> : null;
-                          })()}
+                          {format(d, 'dd MMM', { locale: fr })} · <span className="font-mono">{times.clientTime}</span> <span className="opacity-60">{times.clientLabel}</span>
+                          {times.ownerTime !== times.clientTime && <span className="opacity-60"> · <span className="font-mono">{times.ownerTime}</span> {ownerTzLabel} (toi)</span>}
                           {b.offers?.name && ` · ${b.offers.name}`}
                         </div>
                       </button>
@@ -186,8 +200,9 @@ export default function BookingsPage() {
               {dayBookings.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-6">Aucun rendez-vous ce jour-là.</p>
               ) : (
-                dayBookings.map((b, i) => (
-                  <motion.div
+                dayBookings.map((b, i) => {
+                  const times = getBookingTimes(b);
+                  return <motion.div
                     key={b.id}
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -203,17 +218,14 @@ export default function BookingsPage() {
                       <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
                         <span className="flex items-center gap-1">
                           <Clock className="h-3.5 w-3.5" />
-                          <span className="font-mono">{b.time_slot}</span>
-                          <span className="text-[10px] opacity-70 uppercase tracking-wide">{ownerTzLabel}</span>
-                          {(() => {
-                            const cl = clientTimeLabel(b.booking_date, b.time_slot, (b as any).client_timezone || CLIENT_DEFAULT_TZ, ownerTz);
-                            return cl ? (
-                              <span className="ml-1 opacity-70 flex items-center gap-1">
-                                · <span className="font-mono">{cl.time}</span>
-                                <span className="text-[10px] opacity-70 normal-case">{cl.tz} (client)</span>
-                              </span>
-                            ) : null;
-                          })()}
+                          <span className="font-mono">{times.clientTime}</span>
+                          <span className="text-[10px] opacity-70 uppercase tracking-wide">{times.clientLabel} client</span>
+                          {times.ownerTime !== times.clientTime && (
+                            <span className="ml-1 opacity-70 flex items-center gap-1">
+                              · <span className="font-mono">{times.ownerTime}</span>
+                              <span className="text-[10px] opacity-70 normal-case">{ownerTzLabel} (toi)</span>
+                            </span>
+                          )}
                         </span>
                         <span className="flex items-center gap-1 truncate"><Mail className="h-3 w-3" />{b.email}</span>
                         {b.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{b.phone}</span>}
@@ -243,8 +255,8 @@ export default function BookingsPage() {
                         <Button size="sm" variant="secondary" onClick={() => updateBooking.mutate({ id: b.id, status: 'completed' })}>Terminé</Button>
                       )}
                     </div>
-                  </motion.div>
-                ))
+                  </motion.div>;
+                })
               )}
             </CardContent>
           </Card>
