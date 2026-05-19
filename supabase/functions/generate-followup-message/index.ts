@@ -572,7 +572,16 @@ ${contextualPrompt}${variantHint}
 
 RÈGLES STRICTES :
 - ${isSlotConfirmation ? "4 phrases max" : `MAX ${maxSentences} phrase(s)`}
-- ${isSlotConfirmation ? "Aucune nouvelle question (sauf si email inconnu OU créneau non disponible)" : `${maxQuestions} question(s) MAX par message`}
+- ${isSlotConfirmation
+  ? "Aucune nouvelle question (sauf si email inconnu OU créneau non disponible)"
+  : `RÈGLE ABSOLUE — UNE SEULE QUESTION PAR MESSAGE :
+  • Tu n'as le droit de poser qu'UNE SEULE question, point. JAMAIS deux.
+  • Compte les "?" : il doit y en avoir 0 ou 1, jamais 2.
+  • Compte aussi les questions implicites sans "?" ("Tu travailles seul ou en équipe.", "Tu préfères mardi ou jeudi.") : elles comptent aussi comme une question.
+  • Une question alternative ("A ou B ?") = 1 question, autorisé.
+  • Deux questions sur 2 sujets différents = INTERDIT, même si l'une finit par un point au lieu d'un "?".
+  • Exemple INTERDIT : "Tu es satisfait des résultats actuels ou tu veux passer un cap. Tu bosses en équipe ou en solo ?" (2 sujets → 2 questions)
+  • Si tu hésites entre 2 questions à poser, choisis la plus utile maintenant et garde l'autre pour le prochain message.`}
 ${greetingRule ? greetingRule + "\n" : ""}${signatureRule ? signatureRule + "\n" : ""}- ${isSlotConfirmation ? "Vérifie que l'heure acceptée est dans la liste de créneaux libres ci-dessous. Sinon, refuse poliment et propose 2 créneaux RÉELS de la liste." : `Pour proposer un RDV : réponds à la contrainte du lead en priorité, propose 1 ou 2 créneaux EXACTS de la liste ci-dessous, ou partage le lien ${bookingLink ?? '(aucun lien)'}`}
 ${nicheRule}
 ${forbiddenRule}
@@ -636,6 +645,30 @@ Génère UNIQUEMENT le texte du message WhatsApp (français, max ${isSlotConfirm
     if (maxEmojis === 0) {
       // Strip emojis (large emoji ranges)
       message = message.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F000}-\u{1F2FF}]/gu, "").replace(/ {2,}/g, " ").trim();
+    }
+
+    // Garde-fou final : au max UNE question par message.
+    // On découpe en phrases, on garde toutes les phrases jusqu'à la 1re question incluse,
+    // puis on stoppe (les questions suivantes sont coupées). Détecte aussi les questions
+    // implicites de type "A ou B." (sans "?") en fin de phrase.
+    if (!isSlotConfirmation) {
+      const sentences = message.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [message];
+      const looksLikeImplicitQuestion = (s: string) =>
+        /\b(ou|vs)\b/i.test(s) && /\b(tu|vous|t'?es|vous êtes|préfères|préférez|veux|voulez|travailles|bosses|aimerais|aimeriez)\b/i.test(s);
+      const kept: string[] = [];
+      let questionFound = false;
+      for (const raw of sentences) {
+        const s = raw.trim();
+        if (!s) continue;
+        const isQuestion = s.includes("?") || looksLikeImplicitQuestion(s);
+        if (isQuestion) {
+          if (questionFound) break; // 2e question → on coupe
+          questionFound = true;
+        }
+        kept.push(s);
+      }
+      const rebuilt = kept.join(" ").replace(/ {2,}/g, " ").trim();
+      if (rebuilt) message = rebuilt;
     }
 
     return new Response(JSON.stringify({ message, prompt_used: promptKey, variant: variant ?? "A" }), {
