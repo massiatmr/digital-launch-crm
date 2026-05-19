@@ -81,9 +81,10 @@ export function MergeLeadDialog({
   const [currentLead, setCurrentLead] = useState<LeadFull | null>(null);
   const [direction, setDirection] = useState<'keep_current' | 'keep_other'>('keep_current');
   // For each field: 'target' or 'source' — which lead's value to keep
-  const [choices, setChoices] = useState<Record<FieldKey, 'target' | 'source'>(
+  const [choices, setChoices] = useState<Record<FieldKey, 'target' | 'source'>>(
     {} as Record<FieldKey, 'target' | 'source'>,
-  )};
+  );
+
   const [merging, setMerging] = useState(false);
   const qc = useQueryClient();
 
