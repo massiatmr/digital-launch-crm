@@ -183,6 +183,7 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
                     <div className="flex flex-wrap gap-1.5 px-3 pb-2.5">
                       {day.slots.map(s => {
                         const st = STATUS_STYLES[s.status];
+                        const vw = showViewer ? viewerTimeLabel(day.date, s.time, ownerTz, viewerTz) : null;
                         return (
                           <div
                             key={s.time}
@@ -190,10 +191,11 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
                               'rounded-md border px-2 py-1 text-xs flex items-center gap-1.5 font-mono',
                               st.className
                             )}
-                            title={`${s.time} – ${st.label}`}
+                            title={`${s.time} ${ownerTzLabel}${vw ? ` · ${vw.time} ${vw.tz}` : ''} – ${st.label}`}
                           >
                             <span className={cn('w-1.5 h-1.5 rounded-full', st.dot)} />
                             {s.time}
+                            {vw && <span className="opacity-60 text-[10px] font-normal">/{vw.time}</span>}
                           </div>
                         );
                       })}
