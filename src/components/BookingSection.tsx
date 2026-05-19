@@ -298,8 +298,11 @@ export default function BookingSection({
             <div className="p-4 rounded-xl bg-[var(--brand-softer,rgba(220,38,38,0.10))] border border-[var(--brand-border,rgba(239,68,68,0.20))]">
               <p className="text-sm text-[var(--brand-light,#fca5a5)] font-medium">📅 Votre rendez-vous</p>
               <p className="text-white font-semibold mt-1">
-                {format(selectedDate, 'EEEE d MMMM yyyy', { locale: fr })} à {form.time_slot}
+                {format(selectedDate, 'EEEE d MMMM yyyy', { locale: fr })} à {clientTz !== ownerTz ? formatTimeInTz(wallTimeToUtc(form.booking_date, form.time_slot, ownerTz), clientTz) : form.time_slot} {tzShortLabel(clientTz)}
               </p>
+              {clientTz !== ownerTz && (
+                <p className="text-xs text-gray-400 mt-1">{form.time_slot} {tzShortLabel(ownerTz)} côté prestataire</p>
+              )}
             </div>
           )}
 
