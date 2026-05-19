@@ -84,6 +84,28 @@ function hasAcceptedNotification(json: any) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  // Auth: accept service role OR a valid authenticated user JWT
+  const auth = req.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
+  const isServiceRole = auth && auth === SUPABASE_SERVICE_ROLE_KEY;
+  let authorized = Boolean(isServiceRole);
+  if (!authorized && auth) {
+    try {
+      const supa = createClient(
+        SUPABASE_URL,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: `Bearer ${auth}` } } },
+      );
+      const { data: claims } = await supa.auth.getClaims(auth);
+      if (claims?.claims?.sub) authorized = true;
+    } catch { /* ignore */ }
+  }
+  if (!authorized) {
+    return new Response(JSON.stringify({ error: "Forbidden" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
     if (!ONESIGNAL_REST_API_KEY) {
       return respond({
