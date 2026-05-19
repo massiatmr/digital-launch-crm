@@ -19,7 +19,9 @@ import {
   Activity,
   LayoutGrid,
   Save,
+  Merge,
 } from 'lucide-react';
+import { MergeLeadDialog } from '@/components/MergeLeadDialog';
 import { ShowStatusToggle } from '@/components/ShowStatusToggle';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
 import ReactMarkdown from 'react-markdown';
@@ -52,6 +54,7 @@ export function LeadDetailContent({
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [hardDelete, setHardDelete] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
   const [notesDirty, setNotesDirty] = useState(false);
 
@@ -203,7 +206,16 @@ export function LeadDetailContent({
                   )}
                 </div>
 
-                <div className="flex gap-2 border-t border-border/50 pt-2">
+                <div className="flex flex-wrap gap-2 border-t border-border/50 pt-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => setMergeOpen(true)}
+                  >
+                    <Merge className="h-3.5 w-3.5" />
+                    Fusionner
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -215,6 +227,17 @@ export function LeadDetailContent({
                   </Button>
                 </div>
               </div>
+
+              <MergeLeadDialog
+                open={mergeOpen}
+                onOpenChange={setMergeOpen}
+                currentLeadId={lead.id}
+                currentLeadName={lead.name}
+                workspaceId={(lead as any).workspace_id ?? null}
+                onMerged={(keptId) => {
+                  if (keptId !== lead.id) onDeleted?.();
+                }}
+              />
 
               <LeadEditForm lead={lead} inline />
 

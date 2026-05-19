@@ -296,16 +296,17 @@ Deno.serve(async (req) => {
             } catch { return null; }
           })();
 
-          // Fallback dédup : match par nom récent (24h) du même workspace
-          // (couvre form Facebook / Messenger arrivés juste avant le WhatsApp)
+          // Fallback dédup : match par nom OU par raison sociale (company_name) sur leads récents (7j) du même workspace.
+          // Couvre form Facebook / Messenger arrivés juste avant le WhatsApp, y compris quand le profil WA
+          // est le nom commercial (ex: "DLR TRANSPORT" vs lead "Seydou Ali" / company "DLR Transport").
           if (!lead && profileName) {
-            const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+            const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
             let nq = admin
               .from("leads")
-              .select("id, name, workspace_id, phone")
-              .ilike("name", profileName)
+              .select("id, name, workspace_id, phone, company_name")
+              .or(`name.ilike.${profileName},company_name.ilike.${profileName}`)
               .is("deleted_at", null)
-              .gte("created_at", since24h)
+              .gte("created_at", since7d)
               .order("created_at", { ascending: false })
               .limit(1);
             if (cfg.workspace_id) nq = nq.eq("workspace_id", cfg.workspace_id);
@@ -313,11 +314,10 @@ Deno.serve(async (req) => {
             const { data: nameMatch } = await nq.maybeSingle();
             if (nameMatch) {
               lead = nameMatch as any;
-              // Si le lead trouvé n'avait pas de téléphone WA, on le complète
               if (!(nameMatch as any).phone) {
                 await (admin.from("leads") as any).update({ phone: `+${from}` }).eq("id", (nameMatch as any).id);
               }
-              console.log("WA dedup: linked inbound to existing lead by name", { leadId: (nameMatch as any).id, profileName });
+              console.log("WA dedup: linked inbound to existing lead by name/company", { leadId: (nameMatch as any).id, profileName });
             }
           }
 
