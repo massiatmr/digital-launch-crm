@@ -35,6 +35,15 @@ async function hashIfPresent(v: string | null): Promise<string | undefined> {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
+  // Require service role — only called by DB triggers / internal functions
+  const auth = req.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
+  if (auth !== Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) {
+    return new Response(JSON.stringify({ error: "Forbidden" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
     const { workspace_id, lead_id, event_name, booking_id } = await req.json();
     if (!workspace_id || !lead_id || !event_name) {
