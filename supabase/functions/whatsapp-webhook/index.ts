@@ -286,13 +286,48 @@ Deno.serve(async (req) => {
           const { data: leads } = await leadQuery;
           let lead = leads?.[0];
 
+          // Profile name from WA contacts payload (utile pour la dédup par nom)
+          const profileName: string | null = (() => {
+            try {
+              const contacts = Array.isArray(value?.contacts) ? value.contacts : [];
+              const match = contacts.find((c: any) => normalizePhone(c?.wa_id || "") === from);
+              const n = (match?.profile?.name || "").toString().trim();
+              return n.length >= 3 ? n : null;
+            } catch { return null; }
+          })();
+
+          // Fallback dédup : match par nom récent (24h) du même workspace
+          // (couvre form Facebook / Messenger arrivés juste avant le WhatsApp)
+          if (!lead && profileName) {
+            const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+            let nq = admin
+              .from("leads")
+              .select("id, name, workspace_id, phone")
+              .ilike("name", profileName)
+              .is("deleted_at", null)
+              .gte("created_at", since24h)
+              .order("created_at", { ascending: false })
+              .limit(1);
+            if (cfg.workspace_id) nq = nq.eq("workspace_id", cfg.workspace_id);
+            else nq = nq.eq("owner_id", cfg.owner_id);
+            const { data: nameMatch } = await nq.maybeSingle();
+            if (nameMatch) {
+              lead = nameMatch as any;
+              // Si le lead trouvé n'avait pas de téléphone WA, on le complète
+              if (!(nameMatch as any).phone) {
+                await (admin.from("leads") as any).update({ phone: `+${from}` }).eq("id", (nameMatch as any).id);
+              }
+              console.log("WA dedup: linked inbound to existing lead by name", { leadId: (nameMatch as any).id, profileName });
+            }
+          }
+
           // Auto-create lead from unknown WhatsApp number
           if (!lead) {
             const displayPhone = `+${from}`;
             const { data: created, error: createErr } = await admin
               .from("leads")
               .insert({
-                name: displayPhone,
+                name: profileName || displayPhone,
                 phone: displayPhone,
                 source: "whatsapp",
                 status: "new",
