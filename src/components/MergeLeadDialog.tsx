@@ -307,7 +307,7 @@ export function MergeLeadDialog({
                 Tout du conservé
               </Button>
               <Button size="sm" variant="ghost" onClick={() => applyBulk('source')}>
-                Tout de l'archivé
+                Tout de l&apos;archivé
               </Button>
             </div>
 
