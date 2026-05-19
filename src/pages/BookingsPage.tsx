@@ -159,8 +159,12 @@ export default function BookingsPage() {
                         <div className="text-xs text-muted-foreground mt-0.5">
                           {format(d, 'dd MMM', { locale: fr })} · <span className="font-mono">{b.time_slot}</span> <span className="opacity-60">{ownerTzLabel}</span>
                           {(() => {
+                            const vw = viewerTimeLabel(b.booking_date, b.time_slot, ownerTz, viewerTz);
+                            return vw ? <span className="text-primary/70"> · <span className="font-mono">{vw.time}</span> chez vous</span> : null;
+                          })()}
+                          {(() => {
                             const cl = clientTimeLabel(b.booking_date, b.time_slot, (b as any).client_timezone, ownerTz);
-                            return cl ? <span className="text-primary/70"> · <span className="font-mono">{cl.time}</span> {cl.tz}</span> : null;
+                            return cl ? <span className="opacity-60"> · <span className="font-mono">{cl.time}</span> {cl.tz} (client)</span> : null;
                           })()}
                           {b.offers?.name && ` · ${b.offers.name}`}
                         </div>
