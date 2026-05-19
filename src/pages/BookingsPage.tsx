@@ -18,7 +18,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAvailabilitySettings } from '@/hooks/useAvailabilitySettings';
-import { clientTimeLabel, tzShortLabel, OWNER_DEFAULT_TZ } from '@/lib/bookingTime';
+import { clientTimeLabel, tzShortLabel, viewerTimeLabel, getViewerTz, OWNER_DEFAULT_TZ } from '@/lib/bookingTime';
 
 const statusColors: Record<string, string> = {
   pending: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
