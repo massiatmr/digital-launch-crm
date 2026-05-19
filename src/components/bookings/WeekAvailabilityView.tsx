@@ -34,6 +34,12 @@ interface Props {
 
 export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const { data: availability } = useAvailabilitySettings();
+  const ownerTz = availability?.timezone || OWNER_DEFAULT_TZ;
+  const ownerTzLabel = tzShortLabel(ownerTz);
+  const viewerTz = getViewerTz();
+  const viewerTzLabel = tzShortLabel(viewerTz);
+  const showViewer = viewerTz !== ownerTz;
   const dateFrom = format(weekStart, 'yyyy-MM-dd');
   const weekEnd = addDays(weekStart, 6);
 
