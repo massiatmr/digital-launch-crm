@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { Bot, Plug, FlaskConical, UserPlus, Building2, User, Bell, ShieldAlert, Trash2, History, MessageSquareText, Sparkles } from 'lucide-react';
+import { Bot, Plug, FlaskConical, UserPlus, Building2, User, Bell, ShieldAlert, Trash2, History, MessageSquareText, Sparkles, Mail } from 'lucide-react';
 import SettingsAutomationPage from './SettingsAutomationPage';
 import SettingsAiBehaviorPage from './SettingsAiBehaviorPage';
 import SettingsScriptsPage from './SettingsScriptsPage';
@@ -11,6 +11,7 @@ import SettingsAccountPage from './SettingsAccountPage';
 import SettingsNotificationsPage from './SettingsNotificationsPage';
 import SettingsTrashPage from './SettingsTrashPage';
 import SettingsAuditPage from './SettingsAuditPage';
+import SettingsEmailLogsPage from './SettingsEmailLogsPage';
 import { useIsAdmin, useWorkspaceFeatures } from '@/hooks/useWorkspaceFeatures';
 import { useWorkspaces } from '@/hooks/useWorkspaces';
 import { cn } from '@/lib/utils';
@@ -38,6 +39,7 @@ const SECTIONS: Section[] = [
   { key: 'integrations', label: 'Intégrations', icon: Plug, description: 'WhatsApp, Meta, Google Calendar', group: 'Workspace', ownerOnly: true, Component: SettingsIntegrationsPage },
   { key: 'trash', label: 'Corbeille', icon: Trash2, description: 'Restaurer les éléments supprimés (30 jours)', group: 'Workspace', Component: SettingsTrashPage },
   { key: 'audit', label: 'Journal d\'audit', icon: History, description: 'Historique complet des suppressions', group: 'Système', adminOnly: true, Component: SettingsAuditPage },
+  { key: 'email-logs', label: 'Logs emails', icon: Mail, description: 'Suivi des envois (rappels RDV, confirmations…)', group: 'Système', adminOnly: true, Component: SettingsEmailLogsPage },
   { key: 'tests', label: 'Tests système', icon: FlaskConical, description: 'Diagnostic des envois', group: 'Système', adminOnly: true, Component: SettingsTestsPage },
   { key: 'invitations', label: 'Invitations', icon: UserPlus, description: 'Gestion globale des invitations', group: 'Système', adminOnly: true, Component: SettingsInvitationsPage },
 ];
