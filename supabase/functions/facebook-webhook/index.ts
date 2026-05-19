@@ -485,6 +485,28 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
           }
         }
 
+        // Fallback dédup : match par nom sur leads récents (24h) du même workspace.
+        // Couvre le cas messenger/IG/WA arrivés juste avant le formulaire pour la même personne.
+        if (!existingLead && name && name.trim().length >= 3) {
+          const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+          let q = supabase
+            .from("leads")
+            .select("id, notes")
+            .ilike("name", name.trim())
+            .is("deleted_at", null)
+            .gte("created_at", since24h)
+            .order("created_at", { ascending: false })
+            .limit(1);
+          q = effectiveWorkspaceId
+            ? q.eq("workspace_id", effectiveWorkspaceId)
+            : q.eq("owner_id", effectiveOwnerId).is("workspace_id", null);
+          const { data } = await q.maybeSingle();
+          if (data) {
+            existingLead = data;
+            logInfo(requestId, "Lead matched by recent name (24h dedup)", { leadgenId, leadId: data.id, name });
+          }
+        }
+
         if (!email && !phone) {
           logInfo(requestId, "No email or phone available for deduplication", {
             leadgenId,
