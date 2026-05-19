@@ -461,6 +461,7 @@ export default function PublicOfferPage() {
               ownerId={offer.owner_id}
               offerName={offer.name}
               ctaText={ctaText}
+              currency={(offer as any).currency}
             />
           </motion.div>
         </div>
