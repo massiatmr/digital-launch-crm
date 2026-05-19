@@ -227,12 +227,12 @@ Deno.serve(async (req) => {
 
     if (!accessToken) {
       const displaySlots = ownerSlots
-        .map((slot) => formatTimeInTimeZone(zonedDateTimeToUtc(date, slot, ownerTimeZone), "Europe/Paris"))
+        .map((slot) => formatTimeInTimeZone(zonedDateTimeToUtc(date, slot, ownerTimeZone), ownerTimeZone))
         .filter((slotDate, index, arr) => arr.indexOf(slotDate) === index)
         .sort();
 
       return new Response(
-        JSON.stringify({ slots: displaySlots, synced: false }),
+        JSON.stringify({ slots: displaySlots, synced: false, owner_timezone: ownerTimeZone }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -257,12 +257,12 @@ Deno.serve(async (req) => {
     if (!freeBusyRes.ok) {
       console.error("FreeBusy API error:", await freeBusyRes.text());
       const displaySlots = ownerSlots
-        .map((slot) => formatTimeInTimeZone(zonedDateTimeToUtc(date, slot, ownerTimeZone), "Europe/Paris"))
+        .map((slot) => formatTimeInTimeZone(zonedDateTimeToUtc(date, slot, ownerTimeZone), ownerTimeZone))
         .filter((slotDate, index, arr) => arr.indexOf(slotDate) === index)
         .sort();
 
       return new Response(
-        JSON.stringify({ slots: displaySlots, synced: false }),
+        JSON.stringify({ slots: displaySlots, synced: false, owner_timezone: ownerTimeZone }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -280,12 +280,12 @@ Deno.serve(async (req) => {
         if (slotStart < busyEnd && slotEnd > busyStart) return [];
       }
 
-      if (formatDateInTimeZone(slotStart, "Europe/Paris") !== date) return [];
-      return [formatTimeInTimeZone(slotStart, "Europe/Paris")];
+      if (formatDateInTimeZone(slotStart, ownerTimeZone) !== date) return [];
+      return [formatTimeInTimeZone(slotStart, ownerTimeZone)];
     });
 
     return new Response(
-      JSON.stringify({ slots: [...new Set(availableSlots)].sort(), synced: true }),
+      JSON.stringify({ slots: [...new Set(availableSlots)].sort(), synced: true, owner_timezone: ownerTimeZone }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
