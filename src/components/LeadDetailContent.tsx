@@ -54,6 +54,7 @@ export function LeadDetailContent({
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [hardDelete, setHardDelete] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
   const [notesDirty, setNotesDirty] = useState(false);
 
