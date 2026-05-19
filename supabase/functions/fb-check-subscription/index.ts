@@ -9,6 +9,14 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const auth = req.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
+  if (auth !== Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
     const token = Deno.env.get('FB_PAGE_ACCESS_TOKEN');
     if (!token) {
@@ -35,7 +43,15 @@ Deno.serve(async (req) => {
     const accountsRes = await fetch(
       `${API}/me/accounts?fields=id,name,access_token,tasks&access_token=${token}`
     );
-    result.me_accounts = await accountsRes.json();
+    const accountsJson = await accountsRes.json();
+    // Strip access_token from each page before returning
+    if (accountsJson?.data) {
+      accountsJson.data = accountsJson.data.map((p: Record<string, unknown>) => {
+        const { access_token: _omit, ...rest } = p;
+        return { ...rest, has_page_token: Boolean(_omit) };
+      });
+    }
+    result.me_accounts = accountsJson;
 
     // 4. If /me returned a page id directly (PAGE token), check its subscribed_apps
     const meData = result.me as { id?: string };
