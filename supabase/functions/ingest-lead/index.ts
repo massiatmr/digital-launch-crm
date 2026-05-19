@@ -271,13 +271,15 @@ Deno.serve(async (req) => {
       .update({ last_used_at: new Date().toISOString() })
       .eq('id', keyRow.id);
 
-    // Fire push + email notification (same as Facebook Lead Ads flow)
-    try {
-      await supabase.functions.invoke('notify-new-lead', {
-        body: { lead_id: lead.id },
-      });
-    } catch (notifyErr) {
-      console.error('notify-new-lead invocation failed', notifyErr);
+    // Fire push + email notification UNIQUEMENT pour les nouveaux leads (pas les dédup).
+    if (!existingLeadId) {
+      try {
+        await supabase.functions.invoke('notify-new-lead', {
+          body: { lead_id: lead.id },
+        });
+      } catch (notifyErr) {
+        console.error('notify-new-lead invocation failed', notifyErr);
+      }
     }
 
     return new Response(JSON.stringify({ ok: true, lead_id: lead.id }), {
