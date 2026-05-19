@@ -34,6 +34,14 @@ async function pushNotif(userId: string, title: string, body: string, leadId: st
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  const bearer = req.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
+  if (bearer !== SERVICE_KEY) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
     const now = new Date();
