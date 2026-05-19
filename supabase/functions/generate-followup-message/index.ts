@@ -411,18 +411,20 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    const isInternalCron = req.headers.get("x-internal-cron") === "1";
+    const bearer = authHeader?.replace("Bearer ", "") ?? "";
+    const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const isServiceRole = bearer === serviceRole;
     const cronOwnerId = req.headers.get("x-owner-id");
-    if (!authHeader && !isInternalCron) {
+    if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const supabase = isInternalCron
-      ? createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!)
+    const supabase = isServiceRole
+      ? createClient(Deno.env.get("SUPABASE_URL")!, serviceRole)
       : createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: authHeader! } } });
 
-    let ownerId = cronOwnerId;
-    if (!isInternalCron) {
+    let ownerId = isServiceRole ? cronOwnerId : null;
+    if (!isServiceRole) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       ownerId = user.id;
