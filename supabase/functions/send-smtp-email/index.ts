@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
       replyTo,
       subject,
       content: plainText,
-      html: html || undefined,
+      html: safeHtml,
       attachments: attachments?.map((a) => ({
         filename: a.filename,
         content: a.content,
