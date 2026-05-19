@@ -1,0 +1,1 @@
+UPDATE public.availability_settings SET timezone = 'Europe/Paris' WHERE timezone = 'Africa/Algiers';
