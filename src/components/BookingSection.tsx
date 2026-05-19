@@ -241,6 +241,7 @@ export default function BookingSection({
             )}
             {errors.time_slot && <p className="text-xs text-[var(--brand-light,#f87171)] mt-2">{errors.time_slot}</p>}
           </div>
+          </div>
         )}
       </div>
 
