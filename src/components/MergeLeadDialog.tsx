@@ -363,10 +363,9 @@ export function MergeLeadDialog({
                 );
               })}
             </div>
-
-            </div>
           </div>
         )}
+
 
         <DialogFooter>
           {step === 'fields' && (
