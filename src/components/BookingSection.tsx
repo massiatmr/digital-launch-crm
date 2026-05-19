@@ -96,6 +96,7 @@ export default function BookingSection({
       if (fnErr) throw fnErr;
       setAvailableSlots(data?.slots || []);
       setSlotsSynced(data?.synced || false);
+      if (data?.owner_timezone) setOwnerTz(data.owner_timezone);
     } catch {
       setAvailableSlots([]);
     } finally {
