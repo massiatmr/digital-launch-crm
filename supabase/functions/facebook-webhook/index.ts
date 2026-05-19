@@ -458,15 +458,23 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
         }
 
         if (!existingLead && phone) {
+          // Dédup tolérante : on matche par les 9 derniers chiffres pour gérer
+          // les variations de format (+33, 0, 00, espaces, etc.) et aligner avec
+          // la dédup utilisée par whatsapp-webhook (qui crée les leads en `+${from}`).
+          const phoneDigits = phone.replace(/[^0-9]/g, "");
+          const tail = phoneDigits.slice(-9);
           let q = supabase
             .from("leads")
             .select("id, notes")
-            .eq("owner_id", effectiveOwnerId)
-            .eq("phone", phone);
+            .ilike("phone", `%${tail}%`)
+            .is("deleted_at", null);
           q = effectiveWorkspaceId
             ? q.eq("workspace_id", effectiveWorkspaceId)
-            : q.is("workspace_id", null);
-          const { data, error } = await q.maybeSingle();
+            : q.eq("owner_id", effectiveOwnerId).is("workspace_id", null);
+          const { data, error } = await q
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
 
           if (error) {
             logError(requestId, "Lead lookup by phone failed", {
@@ -478,8 +486,9 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
             });
           } else {
             existingLead = data;
-            logInfo(requestId, "Lead lookup by phone completed", {
+            logInfo(requestId, "Lead lookup by phone (tail dedup) completed", {
               leadgenId,
+              tail,
               found: Boolean(data),
             });
           }
