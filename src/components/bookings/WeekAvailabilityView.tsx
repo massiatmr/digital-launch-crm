@@ -9,7 +9,7 @@ import { ChevronLeft, ChevronRight, Calendar as CalIcon, Loader2, CheckCircle2, 
 import { format, startOfWeek, addDays, parseISO, isSameDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { getViewerTz, tzShortLabel, viewerTimeLabel, OWNER_DEFAULT_TZ } from '@/lib/bookingTime';
+import { CLIENT_DEFAULT_TZ, tzShortLabel, timeLabelInTz, OWNER_DEFAULT_TZ } from '@/lib/bookingTime';
 
 type SlotStatus = 'past' | 'non_working' | 'blackout' | 'booked' | 'busy' | 'free' | 'out_of_range';
 interface DayData {
@@ -37,9 +37,9 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
   const { data: availability } = useAvailabilitySettings();
   const ownerTz = availability?.timezone || OWNER_DEFAULT_TZ;
   const ownerTzLabel = tzShortLabel(ownerTz);
-  const viewerTz = getViewerTz();
-  const viewerTzLabel = tzShortLabel(viewerTz);
-  const showViewer = viewerTz !== ownerTz;
+  const clientTz = CLIENT_DEFAULT_TZ;
+  const clientTzLabel = tzShortLabel(clientTz);
+  const showClient = clientTz !== ownerTz;
   const dateFrom = format(weekStart, 'yyyy-MM-dd');
   const weekEnd = addDays(weekStart, 6);
 
@@ -108,8 +108,8 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
             </span>
           )}
           <span className="flex items-center gap-1 text-muted-foreground/80">
-            <Globe className="h-3 w-3" /> Horaires <span className="text-foreground font-medium">{showViewer ? viewerTzLabel : ownerTzLabel}</span>
-            {showViewer && <span className="opacity-70">· compte : {ownerTzLabel}</span>}
+            <Globe className="h-3 w-3" /> Horaires <span className="text-foreground font-medium">{ownerTzLabel}</span>
+            {showClient && <span className="opacity-70">· clients : {clientTzLabel}</span>}
           </span>
           {data?.synced ? (
             <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/20 gap-1 ml-auto">
@@ -183,8 +183,8 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
                     <div className="flex flex-wrap gap-1.5 px-3 pb-2.5">
                       {day.slots.map(s => {
                         const st = STATUS_STYLES[s.status];
-                        const vw = showViewer ? viewerTimeLabel(day.date, s.time, ownerTz, viewerTz) : null;
-                        const primary = vw ? vw.time : s.time;
+                        const client = showClient ? timeLabelInTz(day.date, s.time, ownerTz, clientTz) : null;
+                        const primary = s.time;
                         return (
                           <div
                             key={s.time}
@@ -192,11 +192,11 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
                               'rounded-md border px-2 py-1 text-xs flex items-center gap-1.5 font-mono',
                               st.className
                             )}
-                            title={`${primary} ${vw ? vw.tz : ownerTzLabel}${vw ? ` · ${s.time} ${ownerTzLabel}` : ''} – ${st.label}`}
+                            title={`${primary} ${ownerTzLabel}${client ? ` · ${client.time} ${client.tz}` : ''} – ${st.label}`}
                           >
                             <span className={cn('w-1.5 h-1.5 rounded-full', st.dot)} />
                             {primary}
-                            {vw && <span className="opacity-60 text-[10px] font-normal">/{s.time}</span>}
+                            {client && <span className="opacity-60 text-[10px] font-normal">/{client.time}</span>}
                           </div>
                         );
                       })}
