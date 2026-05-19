@@ -19,7 +19,9 @@ import {
   Activity,
   LayoutGrid,
   Save,
+  Merge,
 } from 'lucide-react';
+import { MergeLeadDialog } from '@/components/MergeLeadDialog';
 import { ShowStatusToggle } from '@/components/ShowStatusToggle';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
 import ReactMarkdown from 'react-markdown';
