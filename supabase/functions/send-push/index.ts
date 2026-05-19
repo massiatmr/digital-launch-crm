@@ -61,6 +61,27 @@ async function importVapidKeyPair(rawPrivateKey: string): Promise<CryptoKeyPair>
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  // Auth: accept service role OR a valid authenticated user JWT
+  const authToken = req.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
+  let authorized = Boolean(authToken) && authToken === SUPABASE_SERVICE_ROLE_KEY;
+  if (!authorized && authToken) {
+    try {
+      const supa = createClient(
+        SUPABASE_URL,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: `Bearer ${authToken}` } } },
+      );
+      const { data: claims } = await supa.auth.getClaims(authToken);
+      if (claims?.claims?.sub) authorized = true;
+    } catch { /* ignore */ }
+  }
+  if (!authorized) {
+    return new Response(JSON.stringify({ error: "Forbidden" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
     const {
       user_id,
