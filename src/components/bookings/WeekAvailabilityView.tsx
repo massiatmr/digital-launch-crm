@@ -1,13 +1,15 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAvailabilitySettings } from '@/hooks/useAvailabilitySettings';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Calendar as CalIcon, Loader2, CheckCircle2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalIcon, Loader2, CheckCircle2, X, Globe } from 'lucide-react';
 import { format, startOfWeek, addDays, parseISO, isSameDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { getViewerTz, tzShortLabel, viewerTimeLabel, OWNER_DEFAULT_TZ } from '@/lib/bookingTime';
 
 type SlotStatus = 'past' | 'non_working' | 'blackout' | 'booked' | 'busy' | 'free' | 'out_of_range';
 interface DayData {
