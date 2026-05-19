@@ -11,10 +11,24 @@ import {
   useBlackouts,
   useToggleBlackout,
 } from '@/hooks/useAvailabilitySettings';
-import { Loader2, X, CalendarOff, Clock } from 'lucide-react';
+import { Loader2, X, CalendarOff, Clock, Globe } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { getViewerTz, tzShortLabel } from '@/lib/bookingTime';
+
+const TZ_OPTIONS = [
+  'Europe/Paris',
+  'Europe/London',
+  'Europe/Brussels',
+  'Europe/Madrid',
+  'Africa/Algiers',
+  'Africa/Casablanca',
+  'America/New_York',
+  'America/Los_Angeles',
+  'UTC',
+];
 
 const DAYS = [
   { v: 1, label: 'Lun' },
@@ -122,6 +136,28 @@ export function AvailabilityPanel() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
+        <div>
+          <Label className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+            <Globe className="h-3 w-3" /> Fuseau horaire
+          </Label>
+          <Select
+            value={settings.timezone}
+            onValueChange={async (v) => { await upsert.mutateAsync({ timezone: v } as any); toast.success('Fuseau mis à jour'); }}
+          >
+            <SelectTrigger className="mt-2 h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {TZ_OPTIONS.map(tz => (
+                <SelectItem key={tz} value={tz} className="text-sm">
+                  {tzShortLabel(tz)} <span className="text-muted-foreground ml-1">({tz})</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            Tous tes créneaux sont stockés et affichés dans ce fuseau. Ton navigateur est sur <span className="text-foreground font-medium">{tzShortLabel(getViewerTz())}</span>.
+          </p>
+        </div>
+
         <div>
           <Label className="text-xs text-muted-foreground uppercase tracking-wider">Jours travaillés</Label>
           <div className="flex flex-wrap gap-1.5 mt-2">

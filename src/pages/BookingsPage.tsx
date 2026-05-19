@@ -18,7 +18,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAvailabilitySettings } from '@/hooks/useAvailabilitySettings';
-import { clientTimeLabel, tzShortLabel, OWNER_DEFAULT_TZ } from '@/lib/bookingTime';
+import { clientTimeLabel, tzShortLabel, viewerTimeLabel, getViewerTz, OWNER_DEFAULT_TZ } from '@/lib/bookingTime';
 
 const statusColors: Record<string, string> = {
   pending: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
@@ -39,6 +39,8 @@ export default function BookingsPage() {
   const { data: availability } = useAvailabilitySettings();
   const ownerTz = availability?.timezone || OWNER_DEFAULT_TZ;
   const ownerTzLabel = tzShortLabel(ownerTz);
+  const viewerTz = getViewerTz();
+  const viewerTzLabel = tzShortLabel(viewerTz);
   const updateBooking = useUpdateBooking();
   const workspaceId = useCurrentWorkspaceId();
   const [offerFilter, setOfferFilter] = useState<string>('all');
@@ -157,8 +159,12 @@ export default function BookingsPage() {
                         <div className="text-xs text-muted-foreground mt-0.5">
                           {format(d, 'dd MMM', { locale: fr })} · <span className="font-mono">{b.time_slot}</span> <span className="opacity-60">{ownerTzLabel}</span>
                           {(() => {
+                            const vw = viewerTimeLabel(b.booking_date, b.time_slot, ownerTz, viewerTz);
+                            return vw ? <span className="text-primary/70"> · <span className="font-mono">{vw.time}</span> chez vous</span> : null;
+                          })()}
+                          {(() => {
                             const cl = clientTimeLabel(b.booking_date, b.time_slot, (b as any).client_timezone, ownerTz);
-                            return cl ? <span className="text-primary/70"> · <span className="font-mono">{cl.time}</span> {cl.tz}</span> : null;
+                            return cl ? <span className="opacity-60"> · <span className="font-mono">{cl.time}</span> {cl.tz} (client)</span> : null;
                           })()}
                           {b.offers?.name && ` · ${b.offers.name}`}
                         </div>
@@ -206,11 +212,20 @@ export default function BookingsPage() {
                           <span className="font-mono">{b.time_slot}</span>
                           <span className="text-[10px] opacity-70 uppercase tracking-wide">{ownerTzLabel}</span>
                           {(() => {
+                            const vw = viewerTimeLabel(b.booking_date, b.time_slot, ownerTz, viewerTz);
+                            return vw ? (
+                              <span className="ml-1 text-primary/80 flex items-center gap-1">
+                                · <span className="font-mono">{vw.time}</span>
+                                <span className="text-[10px] opacity-70 normal-case">chez vous ({vw.tz})</span>
+                              </span>
+                            ) : null;
+                          })()}
+                          {(() => {
                             const cl = clientTimeLabel(b.booking_date, b.time_slot, (b as any).client_timezone, ownerTz);
                             return cl ? (
-                              <span className="ml-1 text-primary/80 flex items-center gap-1">
+                              <span className="ml-1 opacity-70 flex items-center gap-1">
                                 · <span className="font-mono">{cl.time}</span>
-                                <span className="text-[10px] opacity-70 uppercase tracking-wide">{cl.tz}</span>
+                                <span className="text-[10px] opacity-70 normal-case">{cl.tz} (client)</span>
                               </span>
                             ) : null;
                           })()}

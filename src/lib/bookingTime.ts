@@ -44,6 +44,36 @@ export function tzShortLabel(tz: string): string {
   return seg.replace(/_/g, ' ');
 }
 
+/** The viewer's browser timezone, e.g. "Europe/Paris". */
+export function getViewerTz(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || OWNER_DEFAULT_TZ;
+  } catch {
+    return OWNER_DEFAULT_TZ;
+  }
+}
+
+/**
+ * Convert a wall-clock owner time slot into the viewer's local time.
+ * Returns null when both timezones produce the same wall time.
+ */
+export function viewerTimeLabel(
+  bookingDate: string,
+  timeSlot: string,
+  ownerTz: string = OWNER_DEFAULT_TZ,
+  viewerTz: string = getViewerTz(),
+): { time: string; tz: string } | null {
+  if (!viewerTz || viewerTz === ownerTz) return null;
+  try {
+    const utc = wallTimeToUtc(bookingDate, timeSlot, ownerTz);
+    const viewerTime = formatTimeInTz(utc, viewerTz);
+    if (viewerTime === timeSlot) return null;
+    return { time: viewerTime, tz: tzShortLabel(viewerTz) };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Returns the client-side display string for a booking time when the client
  * timezone is known and differs from the owner timezone. Otherwise null.

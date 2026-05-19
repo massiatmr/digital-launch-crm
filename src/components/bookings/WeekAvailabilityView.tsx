@@ -1,13 +1,15 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAvailabilitySettings } from '@/hooks/useAvailabilitySettings';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Calendar as CalIcon, Loader2, CheckCircle2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalIcon, Loader2, CheckCircle2, X, Globe } from 'lucide-react';
 import { format, startOfWeek, addDays, parseISO, isSameDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { getViewerTz, tzShortLabel, viewerTimeLabel, OWNER_DEFAULT_TZ } from '@/lib/bookingTime';
 
 type SlotStatus = 'past' | 'non_working' | 'blackout' | 'booked' | 'busy' | 'free' | 'out_of_range';
 interface DayData {
@@ -32,6 +34,12 @@ interface Props {
 
 export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const { data: availability } = useAvailabilitySettings();
+  const ownerTz = availability?.timezone || OWNER_DEFAULT_TZ;
+  const ownerTzLabel = tzShortLabel(ownerTz);
+  const viewerTz = getViewerTz();
+  const viewerTzLabel = tzShortLabel(viewerTz);
+  const showViewer = viewerTz !== ownerTz;
   const dateFrom = format(weekStart, 'yyyy-MM-dd');
   const weekEnd = addDays(weekStart, 6);
 
@@ -99,6 +107,10 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
               · {data.day_start_time}–{data.day_end_time} · {data.slot_duration_minutes}min
             </span>
           )}
+          <span className="flex items-center gap-1 text-muted-foreground/80">
+            <Globe className="h-3 w-3" /> Horaires <span className="text-foreground font-medium">{ownerTzLabel}</span>
+            {showViewer && <span className="opacity-70">· chez vous : {viewerTzLabel}</span>}
+          </span>
           {data?.synced ? (
             <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/20 gap-1 ml-auto">
               <CheckCircle2 className="h-3 w-3" /> Google sync
@@ -171,6 +183,7 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
                     <div className="flex flex-wrap gap-1.5 px-3 pb-2.5">
                       {day.slots.map(s => {
                         const st = STATUS_STYLES[s.status];
+                        const vw = showViewer ? viewerTimeLabel(day.date, s.time, ownerTz, viewerTz) : null;
                         return (
                           <div
                             key={s.time}
@@ -178,10 +191,11 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
                               'rounded-md border px-2 py-1 text-xs flex items-center gap-1.5 font-mono',
                               st.className
                             )}
-                            title={`${s.time} – ${st.label}`}
+                            title={`${s.time} ${ownerTzLabel}${vw ? ` · ${vw.time} ${vw.tz}` : ''} – ${st.label}`}
                           >
                             <span className={cn('w-1.5 h-1.5 rounded-full', st.dot)} />
                             {s.time}
+                            {vw && <span className="opacity-60 text-[10px] font-normal">/{vw.time}</span>}
                           </div>
                         );
                       })}
