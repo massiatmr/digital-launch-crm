@@ -11,10 +11,24 @@ import {
   useBlackouts,
   useToggleBlackout,
 } from '@/hooks/useAvailabilitySettings';
-import { Loader2, X, CalendarOff, Clock } from 'lucide-react';
+import { Loader2, X, CalendarOff, Clock, Globe } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { getViewerTz, tzShortLabel } from '@/lib/bookingTime';
+
+const TZ_OPTIONS = [
+  'Europe/Paris',
+  'Europe/London',
+  'Europe/Brussels',
+  'Europe/Madrid',
+  'Africa/Algiers',
+  'Africa/Casablanca',
+  'America/New_York',
+  'America/Los_Angeles',
+  'UTC',
+];
 
 const DAYS = [
   { v: 1, label: 'Lun' },
