@@ -66,11 +66,13 @@ export function OfferEmailTemplatesEditor({ workspaceId }: { workspaceId: string
           const enabled = offerOverride?.enabled ?? inherited.enabled;
           const personalized = !!offerOverride;
           return (
-            <button
+            <div
               key={type}
-              type="button"
+              role="button"
+              tabIndex={0}
               onClick={() => setEditing(type)}
-              className="w-full text-left rounded-lg border border-white/5 bg-card/40 hover:bg-card/70 transition-colors p-3 flex items-center gap-3 group"
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditing(type); } }}
+              className="w-full text-left rounded-lg border border-white/5 bg-card/40 hover:bg-card/70 transition-colors p-3 flex items-center gap-3 group cursor-pointer"
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -85,25 +87,34 @@ export function OfferEmailTemplatesEditor({ workspaceId }: { workspaceId: string
                 <p className="text-xs text-muted-foreground mt-0.5 truncate">{subject}</p>
                 <p className="text-[10px] text-muted-foreground/70 mt-0.5">{description}</p>
               </div>
-              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                <Switch
-                  checked={enabled}
-                  onCheckedChange={(v) =>
-                    effectiveOfferId &&
-                    upsert.mutate({
-                      offer_id: effectiveOfferId,
-                      type,
-                      enabled: v,
-                      subject: offerOverride?.subject || inherited.subject,
-                      body_html: offerOverride?.body_html || inherited.body_html,
-                      workspace_id: workspaceId,
-                    })
-                  }
-                />
-                <Pencil className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+              <div className="flex items-center gap-2">
+                <div onClick={(e) => e.stopPropagation()}>
+                  <Switch
+                    checked={enabled}
+                    onCheckedChange={(v) =>
+                      effectiveOfferId &&
+                      upsert.mutate({
+                        offer_id: effectiveOfferId,
+                        type,
+                        enabled: v,
+                        subject: offerOverride?.subject || inherited.subject,
+                        body_html: offerOverride?.body_html || inherited.body_html,
+                        workspace_id: workspaceId,
+                      })
+                    }
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setEditing(type); }}
+                  className="p-1.5 rounded-md hover:bg-white/5 transition-colors"
+                  aria-label="Modifier"
+                >
+                  <Pencil className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+                </button>
                 <ChevronRight className="h-4 w-4 text-muted-foreground" />
               </div>
-            </button>
+            </div>
           );
         })}
       </div>
