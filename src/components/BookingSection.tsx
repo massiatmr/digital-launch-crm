@@ -123,9 +123,6 @@ export default function BookingSection({
     }
     setSubmitting(true);
     try {
-      const client_timezone = (() => {
-        try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch { return null; }
-      })();
       const { data, error: fnError } = await supabase.functions.invoke('handle-booking', {
         body: { ...form, offer_id: offerId, client_timezone: clientTz },
       });
