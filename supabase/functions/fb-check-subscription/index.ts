@@ -43,7 +43,15 @@ Deno.serve(async (req) => {
     const accountsRes = await fetch(
       `${API}/me/accounts?fields=id,name,access_token,tasks&access_token=${token}`
     );
-    result.me_accounts = await accountsRes.json();
+    const accountsJson = await accountsRes.json();
+    // Strip access_token from each page before returning
+    if (accountsJson?.data) {
+      accountsJson.data = accountsJson.data.map((p: Record<string, unknown>) => {
+        const { access_token: _omit, ...rest } = p;
+        return { ...rest, has_page_token: Boolean(_omit) };
+      });
+    }
+    result.me_accounts = accountsJson;
 
     // 4. If /me returned a page id directly (PAGE token), check its subscribed_apps
     const meData = result.me as { id?: string };
