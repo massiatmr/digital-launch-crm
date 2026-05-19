@@ -175,15 +175,95 @@ Deno.serve(async (req) => {
     };
     if (offerId) leadPayload.offer_id = offerId;
 
-    const { data: lead, error: insertErr } = await supabase
-      .from('leads')
-      .insert(leadPayload)
-      .select('id')
-      .single();
+    // ---- Dédup : email exact, puis téléphone (9 derniers chiffres), puis nom récent (24h) ----
+    let existingLeadId: string | null = null;
 
-    if (insertErr) {
-      console.error('insert lead error', insertErr);
-      return new Response(JSON.stringify({ error: 'insert_failed' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (email) {
+      const { data: byEmail } = await supabase
+        .from('leads')
+        .select('id')
+        .eq('workspace_id', keyRow.workspace_id)
+        .eq('email', email)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (byEmail) existingLeadId = byEmail.id;
+    }
+
+    if (!existingLeadId && phone) {
+      const tail = phone.replace(/[^0-9]/g, '').slice(-9);
+      if (tail.length >= 8) {
+        const { data: byPhone } = await supabase
+          .from('leads')
+          .select('id')
+          .eq('workspace_id', keyRow.workspace_id)
+          .ilike('phone', `%${tail}%`)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (byPhone) existingLeadId = byPhone.id;
+      }
+    }
+
+    if (!existingLeadId && name && name.trim().length >= 3) {
+      const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { data: byName } = await supabase
+        .from('leads')
+        .select('id')
+        .eq('workspace_id', keyRow.workspace_id)
+        .ilike('name', name.trim())
+        .is('deleted_at', null)
+        .gte('created_at', since24h)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (byName) existingLeadId = byName.id;
+    }
+
+    let lead: { id: string } | null = null;
+
+    if (existingLeadId) {
+      // Enrichir le lead existant sans écraser les valeurs déjà présentes
+      const enrich: Record<string, any> = { updated_at: new Date().toISOString() };
+      if (email) enrich.email = email;
+      if (phone) enrich.phone = phone;
+      if (companyName) enrich.company_name = companyName;
+      if (offerId) enrich.offer_id = offerId;
+      // append du message dans les notes pour ne rien perdre
+      const appendNote = `\n\n— Nouveau signal (${new Date().toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}, ${source}) —\n${finalMessage}`.slice(0, 8000);
+
+      const { data: cur } = await supabase
+        .from('leads')
+        .select('notes')
+        .eq('id', existingLeadId)
+        .maybeSingle();
+      enrich.notes = ((cur?.notes || '') + appendNote).slice(0, 16000);
+
+      const { data: updated, error: updErr } = await supabase
+        .from('leads')
+        .update(enrich)
+        .eq('id', existingLeadId)
+        .select('id')
+        .single();
+      if (updErr) {
+        console.error('update existing lead failed', updErr);
+      }
+      lead = updated ?? { id: existingLeadId };
+      console.log('ingest-lead: deduped to existing lead', { existingLeadId, via: email ? 'email' : phone ? 'phone' : 'name' });
+    } else {
+      const { data: created, error: insertErr } = await supabase
+        .from('leads')
+        .insert(leadPayload)
+        .select('id')
+        .single();
+
+      if (insertErr) {
+        console.error('insert lead error', insertErr);
+        return new Response(JSON.stringify({ error: 'insert_failed' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      lead = created;
     }
 
     await supabase
