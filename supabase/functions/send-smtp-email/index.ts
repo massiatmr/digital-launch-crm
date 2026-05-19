@@ -85,6 +85,13 @@ Deno.serve(async (req) => {
     // Strip HTML for the plain-text fallback when only HTML is provided
     const plainText = text || (html ? html.replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim() : "");
 
+    // Convert all non-ASCII chars in HTML to numeric entities so rendering is
+    // charset-agnostic (fixes "À" → "3€" mojibake on Outlook/Apple Mail when
+    // the MIME Content-Type charset is not forced to utf-8).
+    const encodeHtmlEntities = (s: string) =>
+      s.replace(/[\u0080-\uFFFF]/g, (c) => `&#${c.charCodeAt(0)};`);
+    const safeHtml = html ? encodeHtmlEntities(html) : undefined;
+
     await client.send({
       from: SMTP_FROM!,
       to,
