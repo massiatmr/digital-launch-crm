@@ -16,12 +16,41 @@ Deno.serve(async (req) => {
   try {
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
+    // Auth: accept service role (cron) OR a logged-in user (UI). Reject anonymous.
+    const bearer = req.headers.get('Authorization')?.replace('Bearer ', '') ?? '';
+    const isServiceRole = bearer.length > 0 && bearer === SERVICE_KEY;
+    let callerUserId: string | null = null;
+    if (!isServiceRole) {
+      if (!bearer) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const userClient = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY')!, {
+        global: { headers: { Authorization: `Bearer ${bearer}` } },
+      });
+      const { data: claims, error: claimsErr } = await userClient.auth.getClaims(bearer);
+      if (claimsErr || !claims?.claims?.sub) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      callerUserId = claims.claims.sub as string;
+    }
+
     // Optional: limit to a single owner if invoked from UI
     let ownerFilter: string | null = null;
     try {
       const body = await req.json().catch(() => ({}));
       if (body?.owner_id) ownerFilter = body.owner_id;
     } catch (_) {}
+
+    // Non-service callers can only process their own tasks
+    if (!isServiceRole) {
+      ownerFilter = callerUserId;
+    }
 
     let query = admin
       .from('lead_followup_tasks')
