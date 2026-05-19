@@ -187,7 +187,8 @@ export default function BookingSection({
 
         {selectedDate && (
           <div className="mt-6">
-            <div className="flex items-center justify-between mb-3">
+          <div className="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
               <h4 className="text-sm font-medium flex items-center gap-2">
                 <Clock className="h-4 w-4 text-[var(--brand,#ef4444)]" />
                 Créneaux — {format(selectedDate, 'd MMMM yyyy', { locale: fr })}
@@ -198,6 +199,10 @@ export default function BookingSection({
                 </Badge>
               )}
             </div>
+            <p className="text-[11px] text-gray-400 mb-3">
+              Heures affichées dans votre fuseau : <span className="text-gray-200 font-medium">{tzShortLabel(clientTz)}</span>
+              {clientTz !== ownerTz && <span className="opacity-70"> (heure locale du prestataire : {tzShortLabel(ownerTz)})</span>}
+            </p>
             {slotsLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-5 w-5 animate-spin text-[var(--brand,#ef4444)]" />
@@ -207,21 +212,31 @@ export default function BookingSection({
               <p className="text-sm text-gray-500 text-center py-6">Aucun créneau disponible ce jour</p>
             ) : (
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                {availableSlots.map(slot => (
-                  <button
-                    key={slot}
-                    type="button"
-                    onClick={() => setForm(f => ({ ...f, time_slot: slot }))}
-                    className={cn(
-                      "text-sm py-2.5 rounded-lg border transition-all font-medium",
-                      form.time_slot === slot
-                        ? "bg-[var(--brand,#dc2626)] text-white border-[var(--brand,#ef4444)] shadow-lg shadow-[var(--brand-glow,rgba(220,38,38,0.20))]"
-                        : "bg-white/[0.03] border-white/[0.08] text-gray-300 hover:border-[var(--brand-border,rgba(239,68,68,0.40))] hover:bg-[var(--brand-softer,rgba(220,38,38,0.10))]"
-                    )}
-                  >
-                    {slot}
-                  </button>
-                ))}
+                {availableSlots.map(slot => {
+                  const clientTime = clientTz !== ownerTz
+                    ? formatTimeInTz(wallTimeToUtc(form.booking_date, slot, ownerTz), clientTz)
+                    : slot;
+                  const isSel = form.time_slot === slot;
+                  return (
+                    <button
+                      key={slot}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, time_slot: slot }))}
+                      title={clientTz !== ownerTz ? `${clientTime} chez vous · ${slot} ${tzShortLabel(ownerTz)}` : slot}
+                      className={cn(
+                        "text-sm py-2.5 rounded-lg border transition-all font-medium flex flex-col items-center justify-center leading-tight",
+                        isSel
+                          ? "bg-[var(--brand,#dc2626)] text-white border-[var(--brand,#ef4444)] shadow-lg shadow-[var(--brand-glow,rgba(220,38,38,0.20))]"
+                          : "bg-white/[0.03] border-white/[0.08] text-gray-300 hover:border-[var(--brand-border,rgba(239,68,68,0.40))] hover:bg-[var(--brand-softer,rgba(220,38,38,0.10))]"
+                      )}
+                    >
+                      <span>{clientTime}</span>
+                      {clientTz !== ownerTz && (
+                        <span className="text-[10px] opacity-60 font-normal">{slot} {tzShortLabel(ownerTz)}</span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             )}
             {errors.time_slot && <p className="text-xs text-[var(--brand-light,#f87171)] mt-2">{errors.time_slot}</p>}
