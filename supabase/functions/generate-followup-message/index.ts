@@ -563,7 +563,8 @@ Deno.serve(async (req) => {
   • INTERDIT : ponctuation excessive (pas de !!!, pas de ???, pas de "..." sauf si vraiment justifié, pas de majuscules pour insister).
   • ${maxEmojis === 0 ? "INTERDIT : aucun emoji." : `Maximum ${maxEmojis} emoji(s), uniquement si vraiment naturel.`}
   • Pas de tournures corporate ("n'hésite pas", "je reste à votre disposition", "je me permets de").
-  • Évite les doubles espaces et les virgules superflues.`;
+  • Évite les doubles espaces et les virgules superflues.
+  • JAMAIS de point final "." à la toute fin du message (style WhatsApp naturel). Les "?", "!" et "..." sont autorisés en fin de message, mais pas le simple ".". Si ta dernière phrase se termine par un point, retire-le.`;
 
     const systemPrompt = `${baseInstructions}
 
