@@ -478,6 +478,39 @@ Deno.serve(async (req) => {
 
     // Mode édition manuelle (custom_message fourni) → on envoie texte libre
     // Sinon : si template mappé, on envoie template. Sinon, on génère via IA.
+    // === Délai de sécurité 30s avant envoi réel ===
+    // Laisse le temps de détecter une discussion WhatsApp/Messenger déjà en cours
+    // (réponse manuelle, nouveau message entrant, autre tâche en parallèle).
+    // Skippé en dry-run pour ne pas ralentir les previews UI.
+    if (!dryRun) {
+      await new Promise((r) => setTimeout(r, 30_000));
+      // Re-check : inbound ou outbound apparu pendant l'attente ?
+      const since = new Date(Date.now() - 35 * 1000).toISOString();
+      const { data: recentMsgs } = await admin
+        .from("whatsapp_messages")
+        .select("id, direction, task_id, sent_at")
+        .eq("lead_id", task.lead_id)
+        .gt("sent_at", since)
+        .order("sent_at", { ascending: false })
+        .limit(5);
+      const hasInbound = (recentMsgs ?? []).some((m: any) => m.direction === "inbound");
+      const hasOtherOutbound = (recentMsgs ?? []).some(
+        (m: any) => m.direction === "outbound" && m.task_id !== task_id,
+      );
+      if (hasInbound || hasOtherOutbound) {
+        await admin.from("lead_followup_tasks").update({
+          status: "cancelled",
+          error_message: hasInbound
+            ? "Annulée : nouvelle réponse du lead détectée pendant le délai de sécurité 30s"
+            : "Annulée : un autre message a été envoyé pendant le délai de sécurité 30s",
+          updated_at: new Date().toISOString(),
+        } as any).eq("id", task_id);
+        return new Response(JSON.stringify({ ok: true, skipped: true, reason: hasInbound ? "inbound_during_safety_delay" : "concurrent_outbound_during_safety_delay" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     if (custom_message) {
       messageContent = custom_message;
       // Envoi texte libre (uniquement si lead a répondu — sinon Meta refusera)
