@@ -903,42 +903,17 @@ async function processMessagingEvents(body: any, requestId: string) {
           }
 
           if (!leadId) {
-            const noteLines: string[] = [];
-            noteLines.push(`📥 Conversation ${channel === "instagram" ? "Instagram DM" : "Messenger"}`);
-            if (prof.username) noteLines.push(`• @${prof.username}`);
-            noteLines.push(`• Identifiant : ${externalThreadId}`);
-            if (prof.pic) noteLines.push(`• Photo : ${prof.pic}`);
-
-            const { data: newLead, error: insErr } = await supabase
-              .from("leads")
-              .insert({
-                name: displayName,
-                email: "",
-                phone: "",
-                source: channel as any,
-                status: "new" as any,
-                score: "cold" as any,
-                owner_id: identity.owner_id,
-                workspace_id: identity.workspace_id,
-                message: `Nouveau message ${channel}`,
-                notes: noteLines.join("\n"),
-                meta_page_id: identity.page_id,
-              } as any)
-              .select("id")
-              .maybeSingle();
-            if (insErr || !newLead) {
-              logError(requestId, "Lead creation failed for messaging", { error: insErr?.message });
-              continue;
-            }
-            leadId = newLead.id;
-
-            try {
-              await supabase.functions.invoke("notify-new-lead", { body: { lead_id: leadId } });
-            } catch (e) {
-              logError(requestId, "notify-new-lead failed", { e: String(e) });
-            }
+            // Désactivé : on ne crée plus de lead à partir d'un simple message Messenger/Instagram.
+            // Le message est ignoré tant qu'aucun lead existant ne correspond (thread ou nom).
+            logInfo(requestId, "No matching lead for inbound DM, skipping lead creation", {
+              channel,
+              externalThreadId,
+              candidateName: prof.name || null,
+            });
+            continue;
           }
         }
+
 
         // Insérer le message
         await supabase.from("whatsapp_messages").insert({
