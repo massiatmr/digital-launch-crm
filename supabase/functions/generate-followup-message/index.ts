@@ -565,7 +565,7 @@ Deno.serve(async (req) => {
   • Pas de tournures corporate ("n'hésite pas", "je reste à votre disposition", "je me permets de").
   • Évite les doubles espaces et les virgules superflues.
   • JAMAIS de point final "." à la toute fin du message (style WhatsApp naturel). Les "?", "!" et "..." sont autorisés en fin de message, mais pas le simple ".". Si ta dernière phrase se termine par un point, retire-le.
-  • INTERDIT ABSOLU de mentionner un fuseau horaire ou un pays/ville : pas de "heure de Paris", "heure d'Alger", "GMT", "UTC", "fuseau", "décalage horaire". Donne juste l'heure brute (ex: "14h", "11h30") comme si tu étais dans le même fuseau que le lead.
+  • INTERDIT ABSOLU de mentionner un fuseau horaire ou un pays/ville : pas de "heure de Paris", "heure d'Alger", "GMT", "UTC", "fuseau", "décalage horaire". Donne juste l'heure brute (ex: "14h", "11h30") comme si tu étais dans le même fuseau que le lead.`;
 
     const systemPrompt = `${baseInstructions}
 
