@@ -18,10 +18,12 @@ Deno.serve(async (req) => {
 
     // Auth: accept service role (cron) OR a logged-in user (UI). Reject anonymous.
     const bearer = req.headers.get('Authorization')?.replace('Bearer ', '') ?? '';
-    const internalCron = req.headers.get('x-internal-cron') === '1';
     const isServiceRole = bearer.length > 0 && bearer === SERVICE_KEY;
+    // Internal cron header MUST be combined with valid service-role bearer.
+    // Header alone is not sufficient (would be an auth bypass).
+    const internalCron = isServiceRole && req.headers.get('x-internal-cron') === '1';
     let callerUserId: string | null = null;
-    if (!isServiceRole && !internalCron) {
+    if (!isServiceRole) {
       if (!bearer) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
           status: 401,
@@ -47,7 +49,7 @@ Deno.serve(async (req) => {
     } catch (_) {}
 
     // Non-service callers can only process their own tasks
-    if (!isServiceRole && !internalCron && callerUserId) {
+    if (!isServiceRole && callerUserId) {
       ownerFilter = callerUserId;
     }
 
