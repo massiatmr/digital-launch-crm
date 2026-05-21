@@ -122,6 +122,32 @@ function logError(requestId: string, message: string, meta?: Record<string, unkn
   console.error(`[facebook-webhook][${requestId}] ${message}`);
 }
 
+async function verifyMetaSignature(appSecret: string, rawBody: string, header: string): Promise<boolean> {
+  if (!header || !header.startsWith("sha256=")) return false;
+  const provided = header.slice(7).toLowerCase();
+  try {
+    const key = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(appSecret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"],
+    );
+    const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawBody));
+    const computed = Array.from(new Uint8Array(sig))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    if (computed.length !== provided.length) return false;
+    let diff = 0;
+    for (let i = 0; i < computed.length; i++) {
+      diff |= computed.charCodeAt(i) ^ provided.charCodeAt(i);
+    }
+    return diff === 0;
+  } catch {
+    return false;
+  }
+}
+
 Deno.serve(async (req) => {
   // ─── ABSOLUTE FIRST LOG — proof Meta hit the endpoint ───
   console.log("WEBHOOK RECEIVED");
