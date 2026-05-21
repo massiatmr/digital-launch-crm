@@ -151,9 +151,16 @@ STYLE OBLIGATOIRE :
 Réponds UNIQUEMENT avec un JSON: {"suggestions": ["réponse 1", "réponse 2", "réponse 3"]}`;
     const sys = (settings?.suggest_replies_system_prompt?.trim()) || DEFAULT_SUGGEST_PROMPT;
 
+    // Build availability hint (uses service role since we need cross-RLS read for blackouts/settings)
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const availabilityHint = lead?.owner_id
+      ? await buildAvailabilityHint(admin, lead.owner_id, lead.workspace_id ?? null)
+      : "";
+
     const userPrompt = `LEAD: ${lead?.name ?? "?"}${lead?.company_name ? ` (${lead.company_name})` : ""}
 ${qual?.summary ? `Résumé qualif: ${qual.summary}\n` : ""}${qual?.pain_point ? `Pain: ${qual.pain_point}\n` : ""}${qual?.urgency ? `Urgence: ${qual.urgency}\n` : ""}${Array.isArray(qual?.objections) && qual.objections.length ? `Objections: ${(qual.objections as any[]).join(', ')}\n` : ""}
 Message initial du lead: ${lead?.message ?? "-"}
+${availabilityHint}
 
 Conversation récente :
 ${history}
