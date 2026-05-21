@@ -252,17 +252,50 @@ export function GlobalNaturalLanguageInput({ onDone }: { onDone?: () => void }) 
   // ---------- Context for AI ----------
   const pipelineSummary = useMemo(() => {
     const byStatus: Record<string, number> = {}; const byScore: Record<string, number> = {};
-    leads.forEach((l) => { byStatus[l.status] = (byStatus[l.status] || 0) + 1; byScore[l.score] = (byScore[l.score] || 0) + 1; });
+    const bySource: Record<string, number> = {}; const lostReasons: Record<string, number> = {};
+    const byShow: Record<string, number> = {};
+    leads.forEach((l: any) => {
+      byStatus[l.status] = (byStatus[l.status] || 0) + 1;
+      byScore[l.score] = (byScore[l.score] || 0) + 1;
+      if (l.source) bySource[l.source] = (bySource[l.source] || 0) + 1;
+      if (l.show_status) byShow[l.show_status] = (byShow[l.show_status] || 0) + 1;
+      if (l.status === 'lost') {
+        const r = (l.lost_reason || '').trim() || 'Non précisée';
+        lostReasons[r] = (lostReasons[r] || 0) + 1;
+      }
+    });
     const next = leads.filter((l) => l.next_action).slice(0, 8).map((l) => `- ${l.name}: ${l.next_action}`);
+    const lostBlock = Object.keys(lostReasons).length
+      ? Object.entries(lostReasons).sort((a, b) => b[1] - a[1]).map(([k, v]) => `  • ${k}: ${v}`).join('\n')
+      : '  • Aucun lead perdu';
     return `Total: ${leads.length}
 Statuts: ${Object.entries(byStatus).map(([k, v]) => `${STATUS_LABELS[k] || k}=${v}`).join(', ')}
 Scores: ${Object.entries(byScore).map(([k, v]) => `${SCORE_LABELS[k] || k}=${v}`).join(', ')}
+Sources: ${Object.entries(bySource).map(([k, v]) => `${k}=${v}`).join(', ') || 'n/a'}
+Présence RDV: ${Object.entries(byShow).map(([k, v]) => `${k}=${v}`).join(', ') || 'n/a'}
+Raisons des leads perdus:
+${lostBlock}
 Prochaines actions:
 ${next.join('\n') || 'Aucune'}`;
   }, [leads]);
 
   const leadsIndex = useMemo(() => {
-    return leads.slice(0, 80).map((l) => `${l.id} - ${l.name}${l.company_name ? ' (' + l.company_name + ')' : ''} - ${STATUS_LABELS[l.status] || l.status}`).join('\n');
+    return leads.slice(0, 200).map((l: any) => {
+      const parts: string[] = [
+        l.id,
+        l.name + (l.company_name ? ` (${l.company_name})` : ''),
+        `statut=${STATUS_LABELS[l.status] || l.status}`,
+        `score=${SCORE_LABELS[l.score] || l.score}`,
+      ];
+      if (l.source) parts.push(`source=${l.source}`);
+      if (l.status === 'lost' && l.lost_reason) parts.push(`raison_perdu="${l.lost_reason}"`);
+      if (l.show_status && l.show_status !== 'pending') parts.push(`presence=${l.show_status}`);
+      if (l.next_action) parts.push(`next="${l.next_action}"`);
+      if (l.last_contacted_at) parts.push(`last_contact=${String(l.last_contacted_at).slice(0, 10)}`);
+      if (l.email) parts.push(`email=${l.email}`);
+      if (l.phone) parts.push(`tel=${l.phone}`);
+      return parts.join(' | ');
+    }).join('\n');
   }, [leads]);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, thinking]);
