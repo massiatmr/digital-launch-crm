@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
     } catch (_) {}
 
     // Non-service callers can only process their own tasks
-    if (!isServiceRole && !internalCron && callerUserId) {
+    if (!isServiceRole && callerUserId) {
       ownerFilter = callerUserId;
     }
 
