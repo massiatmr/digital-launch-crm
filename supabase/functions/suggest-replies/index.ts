@@ -8,6 +8,90 @@ const corsHeaders = {
 
 const LOVABLE_AI = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
+const DISPLAY_TIME_ZONE = "Europe/Paris";
+const DAY_LABELS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+
+function addDays(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
+}
+
+function todayInTz(tz: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" })
+    .formatToParts(new Date());
+  const map = Object.fromEntries(parts.filter((p) => p.type !== "literal").map((p) => [p.type, p.value]));
+  return `${map.year}-${map.month}-${map.day}`;
+}
+
+/**
+ * Builds an availability hint to inject in the AI prompt so it never proposes
+ * a closed day, a blackout (vacances), or a fully-booked day.
+ * Lightweight: no Google Calendar sync (kept for generate-followup-message).
+ */
+async function buildAvailabilityHint(
+  admin: any,
+  ownerId: string,
+  workspaceId: string | null,
+): Promise<string> {
+  try {
+    const { data: settings } = await admin
+      .from("availability_settings")
+      .select("working_days, max_future_days, timezone, day_start_time, day_end_time")
+      .eq("owner_id", ownerId)
+      .maybeSingle();
+    const tz: string = settings?.timezone ?? DISPLAY_TIME_ZONE;
+    const workingDays: number[] = settings?.working_days ?? [1, 2, 3, 4, 5];
+    const maxDays: number = settings?.max_future_days ?? 14;
+    const dayStart: string = settings?.day_start_time ?? "11:00";
+    const dayEnd: string = settings?.day_end_time ?? "15:00";
+
+    const today = todayInTz(tz);
+    const endDate = addDays(today, maxDays);
+    const { data: blackouts } = await admin
+      .from("availability_blackouts")
+      .select("blackout_date")
+      .eq("owner_id", ownerId)
+      .gte("blackout_date", today)
+      .lte("blackout_date", endDate);
+    const blackoutSet = new Set<string>((blackouts ?? []).map((b: any) => b.blackout_date));
+
+    // Closed weekdays (e.g. samedi/dimanche if not coché)
+    const closedDayNames = [0, 1, 2, 3, 4, 5, 6]
+      .filter((dow) => !workingDays.includes(dow))
+      .map((dow) => DAY_LABELS[dow]);
+
+    // Next 3 open days = working_days AND not blackout
+    const openDays: string[] = [];
+    for (let i = 0; i <= maxDays && openDays.length < 3; i++) {
+      const ds = addDays(today, i);
+      const dow = new Date(`${ds}T12:00:00Z`).getUTCDay();
+      if (!workingDays.includes(dow)) continue;
+      if (blackoutSet.has(ds)) continue;
+      const d = new Date(`${ds}T12:00:00Z`);
+      const label = d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: DISPLAY_TIME_ZONE });
+      openDays.push(label);
+    }
+
+    const blackoutLabels = Array.from(blackoutSet).slice(0, 10).map((ds) => {
+      const d = new Date(`${ds}T12:00:00Z`);
+      return d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: DISPLAY_TIME_ZONE });
+    });
+
+    const lines: string[] = [];
+    lines.push(`\nDISPONIBILITÉS (à respecter ABSOLUMENT) :`);
+    lines.push(`- Plage horaire : ${dayStart}–${dayEnd} (${tz})`);
+    if (closedDayNames.length) lines.push(`- Jours fermés (récurrents) : ${closedDayNames.join(", ")}`);
+    if (blackoutLabels.length) lines.push(`- Jours bloqués / vacances : ${blackoutLabels.join(", ")}`);
+    if (openDays.length) lines.push(`- Prochains jours ouverts : ${openDays.join(", ")}`);
+    lines.push(`⚠️ N'invente JAMAIS un créneau hors plage, ne propose JAMAIS un jour fermé ou bloqué. Si tu proposes un RDV, prends un jour de la liste "Prochains jours ouverts" uniquement.`);
+    return lines.join("\n");
+  } catch (_) {
+    return "";
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
