@@ -1,5 +1,6 @@
-// Generic SMTP sender. Replaces Lovable Email infra for transactional sends.
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+// Generic SMTP sender. Uses nodemailer (battle-tested MIME/QP encoder) to
+// avoid the quoted-printable bugs in denomailer that corrupted subjects and HTML.
+import nodemailer from "npm:nodemailer@6.9.16";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -39,10 +40,9 @@ Deno.serve(async (req) => {
   const SMTP_PASSWORD = Deno.env.get("SMTP_PASSWORD");
   const SMTP_FROM_EMAIL = Deno.env.get("SMTP_FROM") || SMTP_USER;
   const SMTP_FROM_NAME = Deno.env.get("SMTP_FROM_NAME") || "Digital Launch Agency";
-  // Format as "Name <email>" if not already formatted
   const SMTP_FROM = SMTP_FROM_EMAIL?.includes("<")
     ? SMTP_FROM_EMAIL
-    : `${SMTP_FROM_NAME} <${SMTP_FROM_EMAIL}>`;
+    : `"${SMTP_FROM_NAME}" <${SMTP_FROM_EMAIL}>`;
 
   if (!SMTP_HOST || !SMTP_USER || !SMTP_PASSWORD) {
     return new Response(JSON.stringify({ error: "SMTP not configured" }), {
@@ -69,36 +69,36 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Port 465 = implicit TLS, others (587/25) = STARTTLS
-  const useTls = SMTP_PORT === 465;
+  const useTls = SMTP_PORT === 465; // implicit TLS on 465, STARTTLS otherwise
 
-  const client = new SMTPClient({
-    connection: {
-      hostname: SMTP_HOST,
-      port: SMTP_PORT,
-      tls: useTls,
-      auth: { username: SMTP_USER, password: SMTP_PASSWORD },
-    },
+  const transporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: useTls,
+    auth: { user: SMTP_USER, pass: SMTP_PASSWORD },
   });
 
   try {
-    // Strip HTML for the plain-text fallback when only HTML is provided
-    const plainText = text || (html ? html.replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim() : "");
+    const plainText =
+      text ||
+      (html
+        ? html
+            .replace(/<style[\s\S]*?<\/style>/gi, "")
+            .replace(/<[^>]+>/g, "")
+            .replace(/\s+/g, " ")
+            .trim()
+        : "");
 
-    // Convert all non-ASCII chars in HTML to numeric entities so rendering is
-    // charset-agnostic (fixes "À" → "3€" mojibake on Outlook/Apple Mail when
-    // the MIME Content-Type charset is not forced to utf-8).
-    const encodeHtmlEntities = (s: string) =>
-      s.replace(/[\u0080-\uFFFF]/g, (c) => `&#${c.charCodeAt(0)};`);
-    const safeHtml = html ? encodeHtmlEntities(html) : undefined;
-
-    await client.send({
+    await transporter.sendMail({
       from: SMTP_FROM!,
       to,
       replyTo,
       subject,
-      content: plainText,
-      html: safeHtml,
+      text: plainText,
+      html,
+      // Force base64 to avoid any QP line-wrap corruption on accented chars/emojis
+      encoding: "base64",
+      textEncoding: "base64",
       attachments: attachments?.map((a) => ({
         filename: a.filename,
         content: a.content,
@@ -106,14 +106,12 @@ Deno.serve(async (req) => {
         contentType: a.contentType,
       })),
     });
-    await client.close();
 
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
     console.error("SMTP send failed:", e);
-    try { await client.close(); } catch { /* ignore */ }
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
