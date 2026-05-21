@@ -225,6 +225,7 @@ Deno.serve(async (req) => {
     const { error: bookingError } = await supabase.from("bookings").insert({
       id: bookingId,
       owner_id,
+      workspace_id: offer_workspace_id,
       offer_id,
       name,
       email,
@@ -267,6 +268,7 @@ Deno.serve(async (req) => {
       await supabase.from("leads").insert({
         id: leadId,
         owner_id,
+        workspace_id: offer_workspace_id,
         name,
         email,
         phone: phone || "",
