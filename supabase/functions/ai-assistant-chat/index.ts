@@ -165,8 +165,9 @@ Deno.serve(async (req) => {
 
     const today = new Date().toISOString().slice(0, 10);
     const contextPreamble = `Contexte CRM (date du jour: ${today}).
-Tu as accès à toutes les infos ci-dessous pour répondre, analyser, agréger, classer et résumer SANS demander à l'utilisateur de te les fournir.
-Si une donnée demandée est présente dans le contexte (ex: raisons des leads perdus, sources, scores, présence RDV, dernier contact), réponds directement avec les chiffres/listes. Ne dis JAMAIS "je n'ai pas accès" si l'info figure dans le contexte.
+Tu as accès à toutes les infos ci-dessous pour répondre, analyser, agréger, classer, filtrer par date et résumer SANS demander à l'utilisateur de te les fournir.
+Chaque lead a des champs datés (format YYYY-MM-DD) : cree_le, maj_le, perdu_le (pour les leads perdus), next_le, last_contact. Tu PEUX et DOIS filtrer par fenêtre temporelle (ex: "10 derniers jours", "ce mois-ci", "cette semaine") en comparant ces dates à la date du jour.
+Si une donnée demandée est présente dans le contexte (raisons des leads perdus, sources, scores, présence RDV, dernier contact, dates), réponds directement avec les chiffres/listes filtrés. Ne dis JAMAIS "je ne peux pas filtrer par date" ou "je n'ai pas accès" : les dates sont là, fais le calcul toi-même.
 
 ${ctx.pipeline_summary ? "=== Pipeline ===\n" + ctx.pipeline_summary : ""}
 ${ctx.leads_index ? "\n=== Leads (id | nom | champs clés) ===\n" + ctx.leads_index : ""}`;
