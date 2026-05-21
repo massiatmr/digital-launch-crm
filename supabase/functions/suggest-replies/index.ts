@@ -81,11 +81,12 @@ async function buildAvailabilityHint(
 
     const lines: string[] = [];
     lines.push(`\nDISPONIBILITÉS (à respecter ABSOLUMENT) :`);
-    lines.push(`- Plage horaire : ${dayStart}–${dayEnd} (${tz})`);
+    lines.push(`- Plage horaire (heure du lead) : ${dayStart}–${dayEnd}`);
     if (closedDayNames.length) lines.push(`- Jours fermés (récurrents) : ${closedDayNames.join(", ")}`);
     if (blackoutLabels.length) lines.push(`- Jours bloqués / vacances : ${blackoutLabels.join(", ")}`);
     if (openDays.length) lines.push(`- Prochains jours ouverts : ${openDays.join(", ")}`);
     lines.push(`⚠️ N'invente JAMAIS un créneau hors plage, ne propose JAMAIS un jour fermé ou bloqué. Si tu proposes un RDV, prends un jour de la liste "Prochains jours ouverts" uniquement.`);
+    lines.push(`⚠️ INTERDIT ABSOLU : ne mentionne JAMAIS de fuseau horaire (pas de "heure de Paris", "heure d'Alger", "GMT", "UTC", "fuseau", etc.). Donne juste l'heure brute (ex: "14h", "11h30") comme si vous étiez dans le même fuseau.`);
     return lines.join("\n");
   } catch (_) {
     return "";
