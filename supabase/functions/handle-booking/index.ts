@@ -268,6 +268,7 @@ Deno.serve(async (req) => {
       await supabase.from("leads").insert({
         id: leadId,
         owner_id,
+        workspace_id: offer_workspace_id,
         name,
         email,
         phone: phone || "",
