@@ -288,9 +288,15 @@ ${next.join('\n') || 'Aucune'}`;
         `score=${SCORE_LABELS[l.score] || l.score}`,
       ];
       if (l.source) parts.push(`source=${l.source}`);
-      if (l.status === 'lost' && l.lost_reason) parts.push(`raison_perdu="${l.lost_reason}"`);
+      if (l.created_at) parts.push(`cree_le=${String(l.created_at).slice(0, 10)}`);
+      if (l.updated_at) parts.push(`maj_le=${String(l.updated_at).slice(0, 10)}`);
+      if (l.status === 'lost') {
+        if (l.lost_reason) parts.push(`raison_perdu="${l.lost_reason}"`);
+        if (l.updated_at) parts.push(`perdu_le=${String(l.updated_at).slice(0, 10)}`);
+      }
       if (l.show_status && l.show_status !== 'pending') parts.push(`presence=${l.show_status}`);
       if (l.next_action) parts.push(`next="${l.next_action}"`);
+      if (l.next_action_date) parts.push(`next_le=${String(l.next_action_date).slice(0, 10)}`);
       if (l.last_contacted_at) parts.push(`last_contact=${String(l.last_contacted_at).slice(0, 10)}`);
       if (l.email) parts.push(`email=${l.email}`);
       if (l.phone) parts.push(`tel=${l.phone}`);
