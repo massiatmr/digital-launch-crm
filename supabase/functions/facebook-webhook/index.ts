@@ -185,9 +185,22 @@ Deno.serve(async (req) => {
 
   // ── POST: Receive leadgen events ──
   if (req.method === "POST") {
+    // Verify Meta HMAC-SHA256 signature (X-Hub-Signature-256)
+    const appSecret = Deno.env.get("FB_APP_SECRET");
+    const sigHeader = req.headers.get("x-hub-signature-256") || "";
+    if (!appSecret) {
+      logError(requestId, "FB_APP_SECRET not configured — rejecting webhook");
+      return new Response("Forbidden", { status: 403 });
+    }
+    const ok = await verifyMetaSignature(appSecret, rawBody, sigHeader);
+    if (!ok) {
+      logError(requestId, "Invalid X-Hub-Signature-256 — rejecting webhook");
+      return new Response("Forbidden", { status: 403 });
+    }
+
     let body: any;
     try {
-      body = await req.json();
+      body = JSON.parse(rawBody);
     } catch {
       logError(requestId, "POST payload is not valid JSON");
       return new Response("OK", { status: 200 });
