@@ -65,8 +65,22 @@ Deno.serve(async (req) => {
 
   if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
 
+  // Verify Meta HMAC signature
+  const appSecret = Deno.env.get("FB_APP_SECRET");
+  if (!appSecret) {
+    console.error("FB_APP_SECRET not configured — rejecting webhook");
+    return new Response("Forbidden", { status: 403 });
+  }
+  const rawBody = await req.text();
+  const sigHeader = req.headers.get("x-hub-signature-256") || "";
+  const sigOk = await verifyMetaSignature(appSecret, rawBody, sigHeader);
+  if (!sigOk) {
+    console.error("Invalid X-Hub-Signature-256 — rejecting webhook");
+    return new Response("Forbidden", { status: 403 });
+  }
+
   try {
-    const body = await req.json();
+    const body = JSON.parse(rawBody);
     for (const entry of body.entry ?? []) {
       for (const change of entry.changes ?? []) {
         const value = change.value;
