@@ -164,9 +164,12 @@ Deno.serve(async (req) => {
     const ctx = body?.context || {};
 
     const today = new Date().toISOString().slice(0, 10);
-    const contextPreamble = `Contexte CRM (date du jour: ${today}):
-${ctx.pipeline_summary ? "Pipeline:\n" + ctx.pipeline_summary : ""}
-${ctx.leads_index ? "\nLeads disponibles (id - nom - statut):\n" + ctx.leads_index : ""}`;
+    const contextPreamble = `Contexte CRM (date du jour: ${today}).
+Tu as accès à toutes les infos ci-dessous pour répondre, analyser, agréger, classer et résumer SANS demander à l'utilisateur de te les fournir.
+Si une donnée demandée est présente dans le contexte (ex: raisons des leads perdus, sources, scores, présence RDV, dernier contact), réponds directement avec les chiffres/listes. Ne dis JAMAIS "je n'ai pas accès" si l'info figure dans le contexte.
+
+${ctx.pipeline_summary ? "=== Pipeline ===\n" + ctx.pipeline_summary : ""}
+${ctx.leads_index ? "\n=== Leads (id | nom | champs clés) ===\n" + ctx.leads_index : ""}`;
 
     const aiPayload = {
       model: "google/gemini-2.5-flash",
