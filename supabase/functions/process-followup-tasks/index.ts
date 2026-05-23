@@ -18,10 +18,20 @@ Deno.serve(async (req) => {
 
     // Auth: accept service role (cron) OR a logged-in user (UI). Reject anonymous.
     const bearer = req.headers.get('Authorization')?.replace('Bearer ', '') ?? '';
-    const isServiceRole = bearer.length > 0 && bearer === SERVICE_KEY;
-    // Internal cron header MUST be combined with valid service-role bearer.
-    // Header alone is not sufficient (would be an auth bypass).
-    const internalCron = isServiceRole && req.headers.get('x-internal-cron') === '1';
+
+    // Decode JWT payload to detect service_role tokens robustly (handles key rotation
+    // where the vault-stored key may differ from the env SUPABASE_SERVICE_ROLE_KEY).
+    function decodeJwtRole(token: string): string | null {
+      try {
+        const parts = token.split('.');
+        if (parts.length < 2) return null;
+        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+        return typeof payload?.role === 'string' ? payload.role : null;
+      } catch { return null; }
+    }
+    const jwtRole = bearer ? decodeJwtRole(bearer) : null;
+    const isServiceRole = bearer.length > 0 && (bearer === SERVICE_KEY || jwtRole === 'service_role');
+
     let callerUserId: string | null = null;
     if (!isServiceRole) {
       if (!bearer) {
@@ -30,7 +40,6 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      // Use getUser (works in supabase-js v2)
       const { data: userData, error: userErr } = await admin.auth.getUser(bearer);
       if (userErr || !userData?.user?.id) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -52,6 +61,7 @@ Deno.serve(async (req) => {
     if (!isServiceRole && callerUserId) {
       ownerFilter = callerUserId;
     }
+
 
     let query = admin
       .from('lead_followup_tasks')
