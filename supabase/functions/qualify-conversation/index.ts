@@ -20,7 +20,15 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get("authorization") ?? "";
   const bearer = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : "";
   let authorized = false;
-  if (bearer && bearer === SERVICE_KEY) {
+  function decodeJwtRole(token: string): string | null {
+    try {
+      const parts = token.split('.');
+      if (parts.length < 2) return null;
+      const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+      return typeof payload?.role === 'string' ? payload.role : null;
+    } catch { return null; }
+  }
+  if (bearer && (bearer === SERVICE_KEY || decodeJwtRole(bearer) === 'service_role')) {
     authorized = true;
   } else if (bearer) {
     try {
