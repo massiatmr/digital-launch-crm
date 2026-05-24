@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
         recipient_email: to,
         status: "failed",
         error_message: sendErr.message || String(sendErr),
-        metadata: { test: true, user_id: user.id },
+        metadata: { test: !asReal, manual: asReal, user_id: user.id },
       });
       throw sendErr;
     }
@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
       template_name: templateName,
       recipient_email: to,
       status: "sent",
-      metadata: { test: true, user_id: user.id, subject: renderedSubject },
+      metadata: { test: !asReal, manual: asReal, user_id: user.id, subject: renderedSubject },
     });
 
     return new Response(JSON.stringify({ ok: true }), {
