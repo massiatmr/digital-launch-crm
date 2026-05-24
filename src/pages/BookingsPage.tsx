@@ -48,6 +48,7 @@ export default function BookingsPage() {
   const [googleConnected, setGoogleConnected] = useState(false);
   const [checkingGoogle, setCheckingGoogle] = useState(true);
   const [tab, setTab] = useState('appointments');
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (searchParams.get('google') === 'connected') toast.success('Google Calendar connecté !');
