@@ -43,6 +43,7 @@ Deno.serve(async (req) => {
     const subject = String(body.subject || "").trim();
     const body_html = String(body.body_html || "").trim();
     const to = String(body.to || "").trim();
+    const asReal = body.as_real === true;
     if (!subject || !body_html || !to || !/.+@.+\..+/.test(to)) {
       return new Response(JSON.stringify({ error: "subject, body_html and valid to required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -62,18 +63,18 @@ Deno.serve(async (req) => {
       ...(body.sample_vars || {}),
     };
 
-    const renderedSubject = `[TEST] ${render(subject, sample)}`;
+    const renderedSubject = asReal ? render(subject, sample) : `[TEST] ${render(subject, sample)}`;
     const renderedHtml = wrapHtml(render(body_html, sample), renderedSubject);
 
-    const messageId = `booking-test-${crypto.randomUUID()}`;
-    const templateName = String(body.template_name || "booking-test");
+    const messageId = `${asReal ? "booking-manual" : "booking-test"}-${crypto.randomUUID()}`;
+    const templateName = String(body.template_name || (asReal ? "booking-manual" : "booking-test"));
 
     await supabase.from("email_send_log").insert({
       message_id: messageId,
       template_name: templateName,
       recipient_email: to,
       status: "pending",
-      metadata: { test: true, user_id: user.id, subject: renderedSubject },
+      metadata: { test: !asReal, manual: asReal, user_id: user.id, subject: renderedSubject },
     });
 
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -89,7 +90,7 @@ Deno.serve(async (req) => {
         recipient_email: to,
         status: "failed",
         error_message: sendErr.message || String(sendErr),
-        metadata: { test: true, user_id: user.id },
+        metadata: { test: !asReal, manual: asReal, user_id: user.id },
       });
       throw sendErr;
     }
@@ -99,7 +100,7 @@ Deno.serve(async (req) => {
       template_name: templateName,
       recipient_email: to,
       status: "sent",
-      metadata: { test: true, user_id: user.id, subject: renderedSubject },
+      metadata: { test: !asReal, manual: asReal, user_id: user.id, subject: renderedSubject },
     });
 
     return new Response(JSON.stringify({ ok: true }), {

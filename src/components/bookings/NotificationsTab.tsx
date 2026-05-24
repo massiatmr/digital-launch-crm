@@ -5,12 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { OfferEmailTemplatesEditor } from "./OfferEmailTemplatesEditor";
 import { WorkspaceEmailTemplatesList } from "./WorkspaceEmailTemplatesList";
+import { SendBookingEmailToLeadDialog } from "./SendBookingEmailToLeadDialog";
 import { useState, useEffect } from "react";
-import { Mail, BellRing, Layers } from "lucide-react";
+import { Mail, BellRing, Layers, Send } from "lucide-react";
 
 export function NotificationsTab({ workspaceId }: { workspaceId: string | null }) {
   const { data, update } = useWorkspaceAdminReminders(workspaceId);
   const [email, setEmail] = useState("");
+  const [manualSendOpen, setManualSendOpen] = useState(false);
 
   useEffect(() => {
     if (data?.notification_email !== undefined) setEmail(data.notification_email || "");
@@ -63,12 +65,25 @@ export function NotificationsTab({ workspaceId }: { workspaceId: string | null }
 
       <Card className="border-white/5 bg-card/50 backdrop-blur">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Layers className="h-4 w-4 text-primary" /> Emails par défaut du workspace
-          </CardTitle>
-          <p className="text-xs text-muted-foreground mt-1">
-            Ces modèles s'appliquent à toutes les offres. Toute personnalisation par offre les remplace.
-          </p>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Layers className="h-4 w-4 text-primary" /> Emails par défaut du workspace
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Ces modèles s'appliquent à toutes les offres. Toute personnalisation par offre les remplace.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setManualSendOpen(true)}
+              disabled={!workspaceId}
+              className="shrink-0"
+            >
+              <Send className="h-3.5 w-3.5 mr-1.5" /> Envoyer à un lead
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <WorkspaceEmailTemplatesList workspaceId={workspaceId} />
@@ -94,6 +109,12 @@ export function NotificationsTab({ workspaceId }: { workspaceId: string | null }
           <OfferEmailTemplatesEditor workspaceId={workspaceId} />
         </CardContent>
       </Card>
+
+      <SendBookingEmailToLeadDialog
+        open={manualSendOpen}
+        onOpenChange={setManualSendOpen}
+        workspaceId={workspaceId}
+      />
     </div>
   );
 }
