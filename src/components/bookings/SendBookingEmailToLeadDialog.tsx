@@ -63,9 +63,12 @@ export function SendBookingEmailToLeadDialog({ open, onOpenChange, workspaceId }
   const [date, setDate] = useState(todayIsoDate());
   const [time, setTime] = useState("14:00");
   const [meetLink, setMeetLink] = useState("");
+  const [offerName, setOfferName] = useState("");
   const [leadPickerOpen, setLeadPickerOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [autofillInfo, setAutofillInfo] = useState<string | null>(null);
+  const [loadingBooking, setLoadingBooking] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -75,7 +78,9 @@ export function SendBookingEmailToLeadDialog({ open, onOpenChange, workspaceId }
       setDate(todayIsoDate());
       setTime("14:00");
       setMeetLink("");
+      setOfferName("");
       setConfirmed(false);
+      setAutofillInfo(null);
     }
   }, [open]);
 
@@ -88,6 +93,57 @@ export function SendBookingEmailToLeadDialog({ open, onOpenChange, workspaceId }
     () => leadsWithEmail.find((l: any) => l.id === leadId),
     [leadsWithEmail, leadId]
   );
+
+  // Auto-détection du RDV à la sélection du lead
+  useEffect(() => {
+    if (!leadId) return;
+    let cancelled = false;
+    (async () => {
+      setLoadingBooking(true);
+      setAutofillInfo(null);
+      try {
+        const todayIso = new Date().toISOString().slice(0, 10);
+        let { data } = await supabase
+          .from("bookings")
+          .select("booking_date, time_slot, meet_link, offer_id, offers(name)")
+          .eq("lead_id", leadId)
+          .is("deleted_at", null)
+          .gte("booking_date", todayIso)
+          .order("booking_date", { ascending: true })
+          .order("time_slot", { ascending: true })
+          .limit(1);
+        if (!data || data.length === 0) {
+          const r = await supabase
+            .from("bookings")
+            .select("booking_date, time_slot, meet_link, offer_id, offers(name)")
+            .eq("lead_id", leadId)
+            .is("deleted_at", null)
+            .order("booking_date", { ascending: false })
+            .order("time_slot", { ascending: false })
+            .limit(1);
+          data = r.data as any;
+        }
+        if (cancelled) return;
+        const b: any = data?.[0];
+        if (b) {
+          setDate(b.booking_date);
+          setTime((b.time_slot || "14:00").slice(0, 5));
+          setMeetLink(b.meet_link || "");
+          setOfferName(b.offers?.name || "");
+          setAutofillInfo(
+            `RDV détecté : ${formatFrDate(b.booking_date)} à ${(b.time_slot || "").slice(0, 5)}${b.offers?.name ? ` — ${b.offers.name}` : ""}`
+          );
+        } else {
+          setAutofillInfo("Aucun RDV trouvé pour ce lead — remplis les champs manuellement.");
+        }
+      } finally {
+        if (!cancelled) setLoadingBooking(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [leadId]);
 
   const recipient = (emailOverride.trim() || lead?.email || "").trim();
   const recipientName = (lead?.name as string) || "Client";
@@ -107,12 +163,12 @@ export function SendBookingEmailToLeadDialog({ open, onOpenChange, workspaceId }
       name: recipientName,
       date: formatFrDate(date),
       time,
-      offer_name: "",
-      offer_suffix: "",
+      offer_name: offerName,
+      offer_suffix: offerName ? ` (${offerName})` : "",
       meet_link: meetLink,
       meet_block,
     };
-  }, [recipientName, date, time, meetLink]);
+  }, [recipientName, date, time, meetLink, offerName]);
 
   const renderedSubject = render(tpl.subject, sampleVars);
   const renderedHtml = render(tpl.body_html, sampleVars);
