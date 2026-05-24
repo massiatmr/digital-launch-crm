@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Send, Sparkles, Mic, MicOff, Copy, Trash2, Loader2, Paperclip, FileText } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
@@ -152,11 +153,56 @@ const STATUS_LABELS: Record<string, string> = {
 const SCORE_LABELS: Record<string, string> = { hot: '🔥', warm: '🟡', cold: '❄️' };
 
 const uid = () => Math.random().toString(36).slice(2);
+const compact = (value: unknown, max = 280) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 
 export function GlobalNaturalLanguageInput({ onDone }: { onDone?: () => void }) {
   const { data: leads = [] } = useLeads();
   const { user } = useAuth();
   const wsId = useCurrentWorkspaceId();
+  const leadIds = useMemo(() => leads.slice(0, 200).map((lead) => lead.id), [leads]);
+
+  const { data: leadQualifications = [] } = useQuery({
+    queryKey: ['assistant-lead-qualifications', wsId, leadIds],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('lead_qualification')
+        .select('lead_id, interest_level, intent, decision_maker, budget_signal, urgency, pain_point, objections, summary, last_qualified_at')
+        .in('lead_id', leadIds);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!wsId && leadIds.length > 0,
+  });
+
+  const { data: leadMessages = [] } = useQuery({
+    queryKey: ['assistant-lead-messages', wsId, leadIds],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('whatsapp_messages')
+        .select('lead_id, direction, content, sent_at, created_at')
+        .in('lead_id', leadIds)
+        .order('sent_at', { ascending: false })
+        .limit(600);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!wsId && leadIds.length > 0,
+  });
+
+  const { data: leadActivities = [] } = useQuery({
+    queryKey: ['assistant-lead-activities', wsId, leadIds],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('lead_activities')
+        .select('lead_id, activity_type, description, lead_response, created_at')
+        .in('lead_id', leadIds)
+        .order('created_at', { ascending: false })
+        .limit(400);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!wsId && leadIds.length > 0,
+  });
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -280,7 +326,22 @@ ${next.join('\n') || 'Aucune'}`;
   }, [leads]);
 
   const leadsIndex = useMemo(() => {
+    const qualificationByLead = new Map((leadQualifications as any[]).map((q) => [q.lead_id, q]));
+    const messagesByLead = new Map<string, any[]>();
+    (leadMessages as any[]).forEach((message) => {
+      const items = messagesByLead.get(message.lead_id) || [];
+      if (items.length < 3) messagesByLead.set(message.lead_id, [...items, message]);
+    });
+    const activitiesByLead = new Map<string, any[]>();
+    (leadActivities as any[]).forEach((activity) => {
+      const items = activitiesByLead.get(activity.lead_id) || [];
+      if (items.length < 2) activitiesByLead.set(activity.lead_id, [...items, activity]);
+    });
+
     return leads.slice(0, 200).map((l: any) => {
+      const qualification = qualificationByLead.get(l.id);
+      const recentMessages = messagesByLead.get(l.id) || [];
+      const recentActivities = activitiesByLead.get(l.id) || [];
       const parts: string[] = [
         l.id,
         l.name + (l.company_name ? ` (${l.company_name})` : ''),
@@ -300,9 +361,24 @@ ${next.join('\n') || 'Aucune'}`;
       if (l.last_contacted_at) parts.push(`last_contact=${String(l.last_contacted_at).slice(0, 10)}`);
       if (l.email) parts.push(`email=${l.email}`);
       if (l.phone) parts.push(`tel=${l.phone}`);
+      if (l.message) parts.push(`demande="${compact(l.message)}"`);
+      if (l.notes) parts.push(`notes="${compact(l.notes, 360)}"`);
+      if (l.ai_summary) parts.push(`resume_ia="${compact(l.ai_summary, 360)}"`);
+      if (l.sales_angle) parts.push(`angle_vente="${compact(l.sales_angle)}"`);
+      if (qualification) {
+        if (qualification.interest_level !== null && qualification.interest_level !== undefined) parts.push(`interet=${qualification.interest_level}/100`);
+        if (qualification.intent) parts.push(`intention=${qualification.intent}`);
+        if (qualification.budget_signal) parts.push(`budget_signal="${compact(qualification.budget_signal, 160)}"`);
+        if (qualification.urgency) parts.push(`urgence=${qualification.urgency}`);
+        if (qualification.pain_point) parts.push(`besoin="${compact(qualification.pain_point, 220)}"`);
+        if (qualification.summary) parts.push(`qualification="${compact(qualification.summary, 280)}"`);
+        if (Array.isArray(qualification.objections) && qualification.objections.length) parts.push(`objections="${compact(JSON.stringify(qualification.objections), 180)}"`);
+      }
+      if (recentMessages.length) parts.push(`echanges_recents="${recentMessages.map((m) => `${String(m.sent_at || m.created_at).slice(0, 10)} ${m.direction}: ${compact(m.content, 140)}`).join(' || ')}"`);
+      if (recentActivities.length) parts.push(`activites="${recentActivities.map((a) => `${String(a.created_at).slice(0, 10)} ${a.activity_type}: ${compact(a.description, 120)}${a.lead_response ? ` rep: ${compact(a.lead_response, 100)}` : ''}`).join(' || ')}"`);
       return parts.join(' | ');
     }).join('\n');
-  }, [leads]);
+  }, [leads, leadActivities, leadMessages, leadQualifications]);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, thinking]);
 

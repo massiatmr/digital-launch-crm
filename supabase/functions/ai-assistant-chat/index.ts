@@ -167,10 +167,12 @@ Deno.serve(async (req) => {
     const contextPreamble = `Contexte CRM (date du jour: ${today}).
 Tu as accès à toutes les infos ci-dessous pour répondre, analyser, agréger, classer, filtrer par date et résumer SANS demander à l'utilisateur de te les fournir.
 Chaque lead a des champs datés (format YYYY-MM-DD) : cree_le, maj_le, perdu_le (pour les leads perdus), next_le, last_contact. Tu PEUX et DOIS filtrer par fenêtre temporelle (ex: "10 derniers jours", "ce mois-ci", "cette semaine") en comparant ces dates à la date du jour.
-Si une donnée demandée est présente dans le contexte (raisons des leads perdus, sources, scores, présence RDV, dernier contact, dates), réponds directement avec les chiffres/listes filtrés. Ne dis JAMAIS "je ne peux pas filtrer par date" ou "je n'ai pas accès" : les dates sont là, fais le calcul toi-même.
+Les champs demande, notes, resume_ia, angle_vente, qualification, budget_signal, besoin, objections, echanges_recents et activites contiennent les détails bruts/importés/conversationnels. Utilise-les pour déduire les infos métier même si elles ne sont pas dans une colonne dédiée (ex: nombre de véhicules, flotte, budget probable, urgence, qualité du lead).
+Si l'utilisateur demande "les plus qualifiés", classe en priorité par interet/100, score, statut qualifié/proposition, signaux de budget, urgence, besoin explicite et échanges récents. Si l'utilisateur demande "plus de 3 véhicules", cherche aussi dans demande/notes/résumé/conversation des formulations comme "4 véhicules", "flotte", "camions", "utilitaires", "voitures".
+Si une donnée demandée est présente ou déductible dans le contexte, réponds directement avec les chiffres/listes filtrés. Ne dis JAMAIS "je ne peux pas filtrer par date" ou "je n'ai pas accès" avant d'avoir cherché dans tous ces champs. Si une donnée reste incertaine, donne un classement avec le niveau de confiance et cite le signal utilisé.
 
 ${ctx.pipeline_summary ? "=== Pipeline ===\n" + ctx.pipeline_summary : ""}
-${ctx.leads_index ? "\n=== Leads (id | nom | champs clés) ===\n" + ctx.leads_index : ""}`;
+${ctx.leads_index ? "\n=== Leads enrichis (id | nom | champs clés | détails bruts | qualification | derniers échanges) ===\n" + ctx.leads_index : ""}`;
 
     const aiPayload = {
       model: "google/gemini-2.5-flash",
