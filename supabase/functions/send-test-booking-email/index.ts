@@ -80,10 +80,9 @@ Deno.serve(async (req) => {
       metadata: { test: !asReal, manual: asReal, user_id: user.id, subject: renderedSubject },
     });
 
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const { error: sendErr } = await supabase.functions.invoke("send-smtp-email", {
       body: { to: [to], subject: renderedSubject, html: renderedHtml },
-      headers: { Authorization: `Bearer ${serviceKey}` },
+      headers: { Authorization: `Bearer ${SERVICE_KEY}` },
     });
 
     if (sendErr) {
