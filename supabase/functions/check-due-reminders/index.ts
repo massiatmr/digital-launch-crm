@@ -13,7 +13,17 @@ Deno.serve(async (req) => {
   }
 
   const bearer = req.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
-  if (bearer !== SUPABASE_SERVICE_ROLE_KEY) {
+  function decodeJwtRole(token: string): string | null {
+    try {
+      const parts = token.split('.');
+      if (parts.length < 2) return null;
+      const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+      return typeof payload?.role === 'string' ? payload.role : null;
+    } catch { return null; }
+  }
+  const jwtRole = bearer ? decodeJwtRole(bearer) : null;
+  const isServiceRole = bearer.length > 0 && (bearer === SUPABASE_SERVICE_ROLE_KEY || jwtRole === 'service_role');
+  if (!isServiceRole) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
