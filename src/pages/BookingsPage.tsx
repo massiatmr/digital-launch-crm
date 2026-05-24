@@ -5,6 +5,7 @@ import { ShowStatusToggle } from '@/components/ShowStatusToggle';
 import { AvailabilityPanel } from '@/components/bookings/AvailabilityPanel';
 import { WeekAvailabilityView } from '@/components/bookings/WeekAvailabilityView';
 import { NotificationsTab } from '@/components/bookings/NotificationsTab';
+import { BookingDetailSheet } from '@/components/bookings/BookingDetailSheet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
