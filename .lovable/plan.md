@@ -1,49 +1,63 @@
-## Objectif
-Permettre, lors d'une fusion de leads, de choisir lead par lead **quelles infos garder** (nom, email, téléphone, société, notes, message, source, offre…) tout en gardant **toutes les conversations et l'historique** sur le lead conservé.
+# Détail RDV : conversation + rappels manuels
 
-## Cas d'usage concret
-Tu as :
-- Lead A (WhatsApp) : conversations WhatsApp riches, mais nom/email incomplets.
-- Lead B (Lead Form) : email pro, téléphone correct, société, mais pas de conv WhatsApp.
+Ouvrir un panneau de détail au clic sur une carte de "Prochains RDV" (et sur les RDV du jour) montrant tout ce qu'il faut pour gérer le RDV, voir l'historique des rappels et en envoyer un manuellement.
 
-Tu veux garder **A comme lead final** (pour ses conversations) mais récupérer **email + téléphone + société de B**.
+## 1. Nouveau composant `BookingDetailSheet`
 
-## Nouveau flux de fusion
+Fichier : `src/components/bookings/BookingDetailSheet.tsx`
 
-### Étape 1 — Choisir le lead à conserver
-Comme aujourd'hui : recherche du doublon, sélection du "lead conservé" (target) vs "lead archivé" (source). Tout l'historique conversationnel (WhatsApp, Messenger, IG, appels, tâches, bookings, activités, qualifications, rappels) part automatiquement sur le lead conservé.
+Sheet (côté droit, largeur ~520px) avec 3 sections :
 
-### Étape 2 — Choisir champ par champ quoi garder (nouveau)
-Affichage côte à côte des deux fiches avec, pour chaque champ modifiable, **un radio** :
+### a) Détails du RDV
+- Nom, statut (badge), offre
+- Date + heure client (TZ client) + heure owner (TZ owner)
+- Email, téléphone (cliquable wa.me si dispo)
+- Lien Meet (bouton)
+- Bouton "Voir le lead" → `/leads/:leadId` si `lead_id`
+- Actions rapides : Confirmer / Annuler / Terminé / toggle `show_status`
 
-```
-                  ◉ Lead conservé (A)      ○ Lead archivé (B)
-Nom               Seydou Ali                DLR Transport
-Email             (vide)                    contact@dlr.fr
-Téléphone         +33 6 12 34 56 78         +33 7 98 76 54 32
-Société           (vide)                    DLR TRANSPORT
-Message initial   "Salut"                   "Bonjour, je cherche..."
-Notes             (vide)                    "Vu sur FB Ads"
-Source            whatsapp                  facebook
-Offre liée        (aucune)                  Déménageur
-Score             warm                      hot
-```
+### b) Résumé de la conversation
+- Si `lead_id` : derniers messages WhatsApp (`whatsapp_messages`, 10 derniers, ordonnés)
+- Bullet récap "Qualification" depuis `lead_qualification` (interest_level, pain_point, objections, summary) si dispo
+- Lien "Ouvrir la conversation complète" → `/conversations?lead=:leadId`
 
-Boutons rapides : **"Tout prendre du conservé"**, **"Tout prendre de l'archivé"**, **"Prendre le plus complet"** (auto-sélectionne la valeur non-vide).
+### c) Rappels (Reminders)
+Timeline des 4 types (`confirmation`, `24h_before`, `12h_before`, `1h_before`) :
+- Source : `booking_emails` filtré sur `booking_id`
+- Pour chaque ligne : type (label FR), statut (pending / sent / skipped / failed), `scheduled_at`, `sent_at`
+- Corrélation log : jointure logique via `email_send_log.metadata->>'booking_id'` = booking.id pour afficher l'erreur si `dlq`/`failed`
+- Bouton "Envoyer maintenant" sur chaque rappel `pending` ou `failed` → ouvre dialog d'aperçu (réutilise `SendBookingEmailToLeadDialog` en mode pré-rempli, ou nouvelle variante `SendBookingReminderDialog`) avec sujet/corps du template correspondant et possibilité d'éditer avant envoi
+- Bouton "Renvoyer" sur rappels déjà `sent` (avec confirmation)
+- Bouton "Envoyer un rappel custom" → choisir type + preview + envoyer
 
-### Étape 3 — Confirmation
-Récap clair : "Le lead conservé sera mis à jour avec : email = X, téléphone = Y, société = Z. Toutes les conversations des 2 leads seront regroupées sur ce lead. Le lead archivé sera supprimé."
+L'envoi passe par `send-test-booking-email` (déjà en place, log dans `email_send_log`) en passant `bookingId` réel pour que les variables (date/heure/meet/offre) soient résolues automatiquement côté edge function — pas besoin de retaper les vars.
 
-## Modifs techniques
+## 2. Intégration dans `BookingsPage.tsx`
 
-1. **Fonction SQL `merge_leads`** : ajouter un paramètre `field_overrides jsonb` (ex: `{"email":"contact@dlr.fr","phone":"+33...","company_name":"DLR"}`). Après le déplacement des relations, faire un `UPDATE leads SET ... WHERE id = target_id` en appliquant uniquement les champs présents dans `field_overrides`. Les champs absents gardent la valeur actuelle du target.
+- State `selectedBookingId: string | null`
+- Le `<button>` de chaque carte "Prochains RDV" : au lieu de seulement `setSelectedDate`, ouvre aussi le sheet (`setSelectedBookingId(b.id)`)
+- Idem sur les `<motion.div>` du détail du jour : devient cliquable et ouvre le sheet
+- `<BookingDetailSheet bookingId={selectedBookingId} onOpenChange={...} />` monté en bas de la page
 
-2. **`MergeLeadDialog.tsx`** : ajouter un 2e écran après le choix du lead à conserver, avec le tableau de radios champ par champ. État local `overrides`, transmis à l'appel RPC.
+## 3. Edge function : petite extension de `send-test-booking-email`
 
-3. **Champs concernés** : `name`, `email`, `phone`, `company_name`, `message`, `notes`, `source`, `offer_id`, `score`, `status`, `meta_*` (campaign/ad/form/page/adset).
-   Champs **non-modifiables** par l'utilisateur (forcés) : `id`, `owner_id`, `workspace_id`, `created_at`, conversations, tâches, etc.
+Ajouter un mode "send for real booking" :
+- Si le payload contient `bookingId` (au lieu de `sampleVars`), le edge function :
+  1. lit le booking + offer + owner
+  2. construit les vars (`date`, `time`, `meetLink`, `offerName`, `name`, etc.) à partir des données réelles
+  3. envoie au `recipientEmail = booking.email` (ou override fourni)
+  4. met à jour la ligne `booking_emails` correspondante : `status = 'sent'`, `sent_at = now()` si le type matche
+- Log `email_send_log` avec `metadata: { booking_id, type, manual: true }`
 
-4. **Backward compat** : si `field_overrides` est `null` ou `{}`, comportement actuel (target garde ses valeurs, complétées uniquement si vides — la règle "ne pas écraser" reste le défaut).
+## Détails techniques
 
-## Résultat
-Tu choisis quel lead garde l'historique, et tu rapatries les bonnes infos de l'autre. Une seule fiche propre, toutes les conversations regroupées.
+- Réutilise `useBookingEmailTemplates` pour récupérer le sujet/corps par `type` (offre → workspace → défaut)
+- Query React : `useQuery(['booking-emails', bookingId])` + `useQuery(['booking-send-logs', bookingId])`
+- Realtime non requis ; invalider à l'envoi
+- Section conversation : `useQuery(['booking-conversation', leadId])` qui select `whatsapp_messages` + `lead_qualification`
+
+## Fichiers touchés
+
+- **Créé** : `src/components/bookings/BookingDetailSheet.tsx`
+- **Modifié** : `src/pages/BookingsPage.tsx` (cartes cliquables + montage du sheet)
+- **Modifié** : `supabase/functions/send-test-booking-email/index.ts` (support `bookingId` + update `booking_emails`)
