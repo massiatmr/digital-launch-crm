@@ -5,6 +5,7 @@ import { ShowStatusToggle } from '@/components/ShowStatusToggle';
 import { AvailabilityPanel } from '@/components/bookings/AvailabilityPanel';
 import { WeekAvailabilityView } from '@/components/bookings/WeekAvailabilityView';
 import { NotificationsTab } from '@/components/bookings/NotificationsTab';
+import { BookingDetailSheet } from '@/components/bookings/BookingDetailSheet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -47,6 +48,7 @@ export default function BookingsPage() {
   const [googleConnected, setGoogleConnected] = useState(false);
   const [checkingGoogle, setCheckingGoogle] = useState(true);
   const [tab, setTab] = useState('appointments');
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (searchParams.get('google') === 'connected') toast.success('Google Calendar connecté !');
@@ -164,7 +166,7 @@ export default function BookingsPage() {
                     return (
                       <button
                         key={b.id}
-                        onClick={() => setSelectedDate(d)}
+                        onClick={() => { setSelectedDate(d); setSelectedBookingId(b.id); }}
                         className={`text-left rounded-lg border p-2.5 transition-all ${isSel ? 'border-primary/40 bg-primary/5' : 'border-white/5 bg-background/40 hover:border-white/20'}`}
                       >
                         <div className="flex items-center justify-between gap-2">
@@ -207,7 +209,8 @@ export default function BookingsPage() {
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.03 }}
-                    className="rounded-lg border border-white/5 bg-background/40 p-3 flex items-start justify-between gap-3"
+                    onClick={() => setSelectedBookingId(b.id)}
+                    className="rounded-lg border border-white/5 bg-background/40 p-3 flex items-start justify-between gap-3 cursor-pointer hover:border-primary/30 hover:bg-primary/5 transition-colors"
                   >
                     <div className="space-y-1.5 min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -230,7 +233,7 @@ export default function BookingsPage() {
                         <span className="flex items-center gap-1 truncate"><Mail className="h-3 w-3" />{b.email}</span>
                         {b.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{b.phone}</span>}
                       </div>
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
                         {b.offers?.name && <Badge variant="outline" className="text-xs">{b.offers.name}</Badge>}
                         {b.meet_link && (
                           <a href={b.meet_link} target="_blank" rel="noopener noreferrer">
@@ -244,7 +247,7 @@ export default function BookingsPage() {
                         )}
                       </div>
                     </div>
-                    <div className="flex flex-col gap-1 shrink-0">
+                    <div className="flex flex-col gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                       {b.status === 'pending' && (
                         <Button size="sm" onClick={() => updateBooking.mutate({ id: b.id, status: 'confirmed' })}>Confirmer</Button>
                       )}
@@ -272,6 +275,11 @@ export default function BookingsPage() {
           <NotificationsTab workspaceId={workspaceId} />
         </TabsContent>
       </Tabs>
+
+      <BookingDetailSheet
+        bookingId={selectedBookingId}
+        onOpenChange={(open) => { if (!open) setSelectedBookingId(null); }}
+      />
     </div>
   );
 }

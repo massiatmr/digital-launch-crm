@@ -6,6 +6,36 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+const DEFAULT_TEMPLATES: Record<string, { subject: string; body_html: string }> = {
+  confirmation: {
+    subject: "✅ Votre rendez-vous est confirmé — {{date}} à {{time}}",
+    body_html: `<p>Bonjour {{name}},</p>
+<p>Votre rendez-vous est bien confirmé pour le <strong>{{date}} à {{time}}</strong>{{offer_suffix}}.</p>
+<p>{{meet_block}}</p>
+<p>À très vite !</p>`,
+  },
+  "24h_before": {
+    subject: "📅 Rappel — votre RDV est demain à {{time}}",
+    body_html: `<p>Bonjour {{name}},</p>
+<p>Petit rappel : nous avons rendez-vous <strong>demain à {{time}}</strong>{{offer_suffix}}.</p>
+<p>{{meet_block}}</p>
+<p>À demain !</p>`,
+  },
+  "12h_before": {
+    subject: "⏰ Votre RDV est dans 12h — {{time}}",
+    body_html: `<p>Bonjour {{name}},</p>
+<p>Votre rendez-vous approche : <strong>{{date}} à {{time}}</strong>.</p>
+<p>{{meet_block}}</p>`,
+  },
+  "1h_before": {
+    subject: "🚀 Votre RDV commence dans 1h — {{time}}",
+    body_html: `<p>Bonjour {{name}},</p>
+<p>Votre rendez-vous démarre dans 1h, à <strong>{{time}}</strong>.</p>
+<p>{{meet_block}}</p>
+<p>À tout de suite !</p>`,
+  },
+};
+
 function render(tpl: string, vars: Record<string, string>): string {
   return tpl.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? "");
 }
@@ -15,6 +45,33 @@ function wrapHtml(inner: string, title: string): string {
 <body style="background:#fff;font-family:'Plus Jakarta Sans',Arial,sans-serif;margin:0;padding:0;color:#111827">
   <div style="max-width:560px;margin:0 auto;padding:28px 24px;font-size:14px;line-height:1.6">${inner}</div>
 </body></html>`;
+}
+
+async function resolveTemplate(
+  supabase: any,
+  type: string,
+  offerId: string | null,
+  workspaceId: string | null,
+): Promise<{ subject: string; body_html: string }> {
+  if (offerId) {
+    const { data } = await supabase
+      .from("offer_booking_email_templates")
+      .select("subject, body_html, enabled")
+      .eq("offer_id", offerId)
+      .eq("type", type)
+      .maybeSingle();
+    if (data?.subject && data?.body_html) return { subject: data.subject, body_html: data.body_html };
+  }
+  if (workspaceId) {
+    const { data } = await supabase
+      .from("workspace_booking_email_templates")
+      .select("subject, body_html, enabled")
+      .eq("workspace_id", workspaceId)
+      .eq("type", type)
+      .maybeSingle();
+    if (data?.subject && data?.body_html) return { subject: data.subject, body_html: data.body_html };
+  }
+  return DEFAULT_TEMPLATES[type] || DEFAULT_TEMPLATES.confirmation;
 }
 
 Deno.serve(async (req) => {
@@ -29,7 +86,6 @@ Deno.serve(async (req) => {
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    // Client lié au user uniquement pour valider le JWT
     const userClient = createClient(SUPABASE_URL, SERVICE_KEY, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -39,10 +95,126 @@ Deno.serve(async (req) => {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    // Client service role (sans header user) pour bypass RLS sur email_send_log
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
     const body = await req.json().catch(() => ({}));
+
+    // ---- MODE: send for real booking ----
+    // payload: { bookingId, type ('confirmation'|'24h_before'|'12h_before'|'1h_before'), bookingEmailId? (link), subjectOverride?, bodyOverride? }
+    if (body.bookingId && body.type) {
+      const bookingId = String(body.bookingId);
+      const type = String(body.type);
+      const { data: booking, error: bErr } = await supabase
+        .from("bookings")
+        .select("id, name, email, booking_date, time_slot, meet_link, offer_id, workspace_id, owner_id, offers(name, workspace_id)")
+        .eq("id", bookingId)
+        .maybeSingle();
+      if (bErr || !booking) {
+        return new Response(JSON.stringify({ error: "Booking not found" }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (booking.owner_id !== user.id) {
+        // allow workspace member
+        const { data: isMember } = await supabase.rpc("is_workspace_member", {
+          _workspace_id: booking.workspace_id,
+          _user_id: user.id,
+        });
+        if (!isMember) {
+          return new Response(JSON.stringify({ error: "Forbidden" }), {
+            status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      const tpl = await resolveTemplate(
+        supabase,
+        type,
+        booking.offer_id,
+        booking.workspace_id || (booking as any).offers?.workspace_id || null,
+      );
+      const subject = String(body.subjectOverride || tpl.subject);
+      const bodyHtml = String(body.bodyOverride || tpl.body_html);
+
+      const offerName = (booking as any).offers?.name || "";
+      const dateStr = new Date(booking.booking_date + "T12:00:00Z").toLocaleDateString("fr-FR", {
+        day: "2-digit", month: "long", year: "numeric",
+      });
+      const meetLink = booking.meet_link || "";
+      const vars: Record<string, string> = {
+        name: booking.name || "",
+        date: dateStr,
+        time: booking.time_slot || "",
+        offer_name: offerName,
+        offer_suffix: offerName ? ` (${offerName})` : "",
+        meet_link: meetLink,
+        meet_block: meetLink
+          ? `<a href="${meetLink}" style="color:#7c3aed;font-weight:600">🔗 Rejoindre Google Meet</a>`
+          : "",
+      };
+
+      const renderedSubject = render(subject, vars);
+      const renderedHtml = wrapHtml(render(bodyHtml, vars), renderedSubject);
+      const to = String(body.to || booking.email);
+      const messageId = `booking-manual-${bookingId}-${type}-${Date.now()}`;
+      const templateName = `booking-${type}`;
+
+      await supabase.from("email_send_log").insert({
+        message_id: messageId,
+        template_name: templateName,
+        recipient_email: to,
+        status: "pending",
+        metadata: { manual: true, user_id: user.id, booking_id: bookingId, type, subject: renderedSubject },
+      });
+
+      const { error: sendErr } = await supabase.functions.invoke("send-smtp-email", {
+        body: { to: [to], subject: renderedSubject, html: renderedHtml },
+        headers: { Authorization: `Bearer ${SERVICE_KEY}` },
+      });
+
+      if (sendErr) {
+        await supabase.from("email_send_log").insert({
+          message_id: messageId,
+          template_name: templateName,
+          recipient_email: to,
+          status: "failed",
+          error_message: sendErr.message || String(sendErr),
+          metadata: { manual: true, user_id: user.id, booking_id: bookingId, type },
+        });
+        throw sendErr;
+      }
+
+      await supabase.from("email_send_log").insert({
+        message_id: messageId,
+        template_name: templateName,
+        recipient_email: to,
+        status: "sent",
+        metadata: { manual: true, user_id: user.id, booking_id: bookingId, type, subject: renderedSubject },
+      });
+
+      // Mark booking_emails row(s) of this type as sent (or insert a manual record)
+      if (body.bookingEmailId) {
+        await supabase
+          .from("booking_emails")
+          .update({ status: "sent", sent_at: new Date().toISOString() } as any)
+          .eq("id", String(body.bookingEmailId));
+      } else {
+        // Insert a manual record so it shows up in the timeline
+        await supabase.from("booking_emails").insert({
+          booking_id: bookingId,
+          type,
+          status: "sent",
+          scheduled_at: new Date().toISOString(),
+          sent_at: new Date().toISOString(),
+        } as any);
+      }
+
+      return new Response(JSON.stringify({ ok: true, to, subject: renderedSubject }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ---- MODE: legacy test / manual lead email ----
     const subject = String(body.subject || "").trim();
     const body_html = String(body.body_html || "").trim();
     const to = String(body.to || "").trim();
