@@ -109,6 +109,12 @@ export function NotificationsTab({ workspaceId }: { workspaceId: string | null }
           <OfferEmailTemplatesEditor workspaceId={workspaceId} />
         </CardContent>
       </Card>
+
+      <SendBookingEmailToLeadDialog
+        open={manualSendOpen}
+        onOpenChange={setManualSendOpen}
+        workspaceId={workspaceId}
+      />
     </div>
   );
 }
