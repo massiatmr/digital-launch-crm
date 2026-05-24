@@ -428,6 +428,75 @@ ${transcript}`;
 
     await markLeadBookedAndStopAutomations(admin, lead, `Booking auto-created (${bookingId})`);
 
+    // Schedule reminder emails (confirmation + 24h/12h/1h before) so admin & client get notified.
+    // Mirrors logic in handle-booking. created_from=conversation_ai bookings previously skipped this.
+    try {
+      const parisOffsetHours = (() => {
+        const probe = new Date(`${parsed.booking_date}T12:00:00Z`);
+        const parisHour = parseInt(new Intl.DateTimeFormat("en-GB", {
+          timeZone: "Europe/Paris", hour: "2-digit", hour12: false,
+        }).format(probe));
+        const utcHour = probe.getUTCHours();
+        let diff = parisHour - utcHour;
+        if (diff > 12) diff -= 24;
+        if (diff < -12) diff += 24;
+        return diff;
+      })();
+      const [hh, mm] = parsed.time_slot.split(":").map(Number);
+      const bookingDateTime = new Date(
+        `${parsed.booking_date}T${String(hh - parisOffsetHours).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00Z`
+      );
+
+      const emailSchedules = [
+        { type: "confirmation", scheduled_at: new Date().toISOString() },
+        { type: "24h_before", scheduled_at: new Date(bookingDateTime.getTime() - 24 * 3600 * 1000).toISOString() },
+        { type: "12h_before", scheduled_at: new Date(bookingDateTime.getTime() - 12 * 3600 * 1000).toISOString() },
+        { type: "1h_before", scheduled_at: new Date(bookingDateTime.getTime() - 1 * 3600 * 1000).toISOString() },
+      ];
+
+      // Respect enabled/disabled toggles (offer override > workspace default)
+      const { data: offerTplRows } = await admin
+        .from("offer_booking_email_templates").select("type, enabled").eq("offer_id", resolvedOfferId);
+      const offerByType = new Map<string, { enabled: boolean }>();
+      (offerTplRows || []).forEach((r: any) => offerByType.set(r.type, { enabled: r.enabled }));
+      const wsByType = new Map<string, { enabled: boolean }>();
+      if (lead.workspace_id) {
+        const { data: wsTplRows } = await admin
+          .from("workspace_booking_email_templates").select("type, enabled").eq("workspace_id", lead.workspace_id);
+        (wsTplRows || []).forEach((r: any) => wsByType.set(r.type, { enabled: r.enabled }));
+      }
+      const disabled = new Set<string>();
+      for (const es of emailSchedules) {
+        if (offerByType.has(es.type)) {
+          if (offerByType.get(es.type)!.enabled === false) disabled.add(es.type);
+        } else if (wsByType.has(es.type)) {
+          if (wsByType.get(es.type)!.enabled === false) disabled.add(es.type);
+        }
+      }
+      const inserts = emailSchedules
+        .filter((es) => !disabled.has(es.type))
+        .map((es) => ({ booking_id: bookingId, type: es.type, scheduled_at: es.scheduled_at, status: "pending" }));
+      if (inserts.length > 0) {
+        const { error: emailErr } = await admin.from("booking_emails").insert(inserts as any);
+        if (emailErr) console.error("booking_emails insert error:", emailErr);
+      }
+
+      // Backfill the same reminders rows that handle-booking creates (4h + 1h before)
+      for (const rt of [{ offset: 4 * 3600 * 1000, label: "4h avant" }, { offset: 1 * 3600 * 1000, label: "1h avant" }]) {
+        const due = new Date(bookingDateTime.getTime() - rt.offset);
+        if (due > new Date()) {
+          await admin.from("reminders").insert({
+            owner_id: lead.owner_id,
+            lead_id: lead.id,
+            due_date: due.toISOString(),
+            action: `RDV ${rt.label} — ${lead.name} (${parsed.time_slot})`,
+          } as any);
+        }
+      }
+    } catch (e) {
+      console.error("[detect-booking] schedule reminders failed:", e);
+    }
+
     // Envoie un message de confirmation chaleureux au prospect (évite l'effet "ghosted")
     try {
       await sendBookingConfirmationWhatsApp(admin, lead, parsed.booking_date, parsed.time_slot, offerName, meetLink);
