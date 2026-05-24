@@ -65,12 +65,25 @@ export function NotificationsTab({ workspaceId }: { workspaceId: string | null }
 
       <Card className="border-white/5 bg-card/50 backdrop-blur">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Layers className="h-4 w-4 text-primary" /> Emails par défaut du workspace
-          </CardTitle>
-          <p className="text-xs text-muted-foreground mt-1">
-            Ces modèles s'appliquent à toutes les offres. Toute personnalisation par offre les remplace.
-          </p>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Layers className="h-4 w-4 text-primary" /> Emails par défaut du workspace
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Ces modèles s'appliquent à toutes les offres. Toute personnalisation par offre les remplace.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setManualSendOpen(true)}
+              disabled={!workspaceId}
+              className="shrink-0"
+            >
+              <Send className="h-3.5 w-3.5 mr-1.5" /> Envoyer à un lead
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <WorkspaceEmailTemplatesList workspaceId={workspaceId} />
