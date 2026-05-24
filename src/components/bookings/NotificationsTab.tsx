@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { OfferEmailTemplatesEditor } from "./OfferEmailTemplatesEditor";
 import { WorkspaceEmailTemplatesList } from "./WorkspaceEmailTemplatesList";
+import { SendBookingEmailToLeadDialog } from "./SendBookingEmailToLeadDialog";
 import { useState, useEffect } from "react";
-import { Mail, BellRing, Layers } from "lucide-react";
+import { Mail, BellRing, Layers, Send } from "lucide-react";
 
 export function NotificationsTab({ workspaceId }: { workspaceId: string | null }) {
   const { data, update } = useWorkspaceAdminReminders(workspaceId);
