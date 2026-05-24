@@ -326,7 +326,22 @@ ${next.join('\n') || 'Aucune'}`;
   }, [leads]);
 
   const leadsIndex = useMemo(() => {
+    const qualificationByLead = new Map((leadQualifications as any[]).map((q) => [q.lead_id, q]));
+    const messagesByLead = new Map<string, any[]>();
+    (leadMessages as any[]).forEach((message) => {
+      const items = messagesByLead.get(message.lead_id) || [];
+      if (items.length < 3) messagesByLead.set(message.lead_id, [...items, message]);
+    });
+    const activitiesByLead = new Map<string, any[]>();
+    (leadActivities as any[]).forEach((activity) => {
+      const items = activitiesByLead.get(activity.lead_id) || [];
+      if (items.length < 2) activitiesByLead.set(activity.lead_id, [...items, activity]);
+    });
+
     return leads.slice(0, 200).map((l: any) => {
+      const qualification = qualificationByLead.get(l.id);
+      const recentMessages = messagesByLead.get(l.id) || [];
+      const recentActivities = activitiesByLead.get(l.id) || [];
       const parts: string[] = [
         l.id,
         l.name + (l.company_name ? ` (${l.company_name})` : ''),
@@ -346,9 +361,24 @@ ${next.join('\n') || 'Aucune'}`;
       if (l.last_contacted_at) parts.push(`last_contact=${String(l.last_contacted_at).slice(0, 10)}`);
       if (l.email) parts.push(`email=${l.email}`);
       if (l.phone) parts.push(`tel=${l.phone}`);
+      if (l.message) parts.push(`demande="${compact(l.message)}"`);
+      if (l.notes) parts.push(`notes="${compact(l.notes, 360)}"`);
+      if (l.ai_summary) parts.push(`resume_ia="${compact(l.ai_summary, 360)}"`);
+      if (l.sales_angle) parts.push(`angle_vente="${compact(l.sales_angle)}"`);
+      if (qualification) {
+        if (qualification.interest_level !== null && qualification.interest_level !== undefined) parts.push(`interet=${qualification.interest_level}/100`);
+        if (qualification.intent) parts.push(`intention=${qualification.intent}`);
+        if (qualification.budget_signal) parts.push(`budget_signal="${compact(qualification.budget_signal, 160)}"`);
+        if (qualification.urgency) parts.push(`urgence=${qualification.urgency}`);
+        if (qualification.pain_point) parts.push(`besoin="${compact(qualification.pain_point, 220)}"`);
+        if (qualification.summary) parts.push(`qualification="${compact(qualification.summary, 280)}"`);
+        if (Array.isArray(qualification.objections) && qualification.objections.length) parts.push(`objections="${compact(JSON.stringify(qualification.objections), 180)}"`);
+      }
+      if (recentMessages.length) parts.push(`echanges_recents="${recentMessages.map((m) => `${String(m.sent_at || m.created_at).slice(0, 10)} ${m.direction}: ${compact(m.content, 140)}`).join(' || ')}"`);
+      if (recentActivities.length) parts.push(`activites="${recentActivities.map((a) => `${String(a.created_at).slice(0, 10)} ${a.activity_type}: ${compact(a.description, 120)}${a.lead_response ? ` rep: ${compact(a.lead_response, 100)}` : ''}`).join(' || ')}"`);
       return parts.join(' | ');
     }).join('\n');
-  }, [leads]);
+  }, [leads, leadActivities, leadMessages, leadQualifications]);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, thinking]);
 
