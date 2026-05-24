@@ -275,6 +275,11 @@ export default function BookingsPage() {
           <NotificationsTab workspaceId={workspaceId} />
         </TabsContent>
       </Tabs>
+
+      <BookingDetailSheet
+        bookingId={selectedBookingId}
+        onOpenChange={(open) => { if (!open) setSelectedBookingId(null); }}
+      />
     </div>
   );
 }
