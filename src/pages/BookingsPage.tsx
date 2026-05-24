@@ -233,7 +233,7 @@ export default function BookingsPage() {
                         <span className="flex items-center gap-1 truncate"><Mail className="h-3 w-3" />{b.email}</span>
                         {b.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{b.phone}</span>}
                       </div>
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
                         {b.offers?.name && <Badge variant="outline" className="text-xs">{b.offers.name}</Badge>}
                         {b.meet_link && (
                           <a href={b.meet_link} target="_blank" rel="noopener noreferrer">
@@ -247,7 +247,7 @@ export default function BookingsPage() {
                         )}
                       </div>
                     </div>
-                    <div className="flex flex-col gap-1 shrink-0">
+                    <div className="flex flex-col gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                       {b.status === 'pending' && (
                         <Button size="sm" onClick={() => updateBooking.mutate({ id: b.id, status: 'confirmed' })}>Confirmer</Button>
                       )}
