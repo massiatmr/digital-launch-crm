@@ -27,17 +27,20 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
-    const { data: { user }, error: userErr } = await supabase.auth.getUser();
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    // Client lié au user uniquement pour valider le JWT
+    const userClient = createClient(SUPABASE_URL, SERVICE_KEY, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user }, error: userErr } = await userClient.auth.getUser();
     if (userErr || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    // Client service role (sans header user) pour bypass RLS sur email_send_log
+    const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
     const body = await req.json().catch(() => ({}));
     const subject = String(body.subject || "").trim();
@@ -77,10 +80,9 @@ Deno.serve(async (req) => {
       metadata: { test: !asReal, manual: asReal, user_id: user.id, subject: renderedSubject },
     });
 
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const { error: sendErr } = await supabase.functions.invoke("send-smtp-email", {
       body: { to: [to], subject: renderedSubject, html: renderedHtml },
-      headers: { Authorization: `Bearer ${serviceKey}` },
+      headers: { Authorization: `Bearer ${SERVICE_KEY}` },
     });
 
     if (sendErr) {
