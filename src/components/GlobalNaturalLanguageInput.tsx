@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Send, Sparkles, Mic, MicOff, Copy, Trash2, Loader2, Paperclip, FileText } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
@@ -152,11 +153,56 @@ const STATUS_LABELS: Record<string, string> = {
 const SCORE_LABELS: Record<string, string> = { hot: '🔥', warm: '🟡', cold: '❄️' };
 
 const uid = () => Math.random().toString(36).slice(2);
+const compact = (value: unknown, max = 280) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 
 export function GlobalNaturalLanguageInput({ onDone }: { onDone?: () => void }) {
   const { data: leads = [] } = useLeads();
   const { user } = useAuth();
   const wsId = useCurrentWorkspaceId();
+  const leadIds = useMemo(() => leads.slice(0, 200).map((lead) => lead.id), [leads]);
+
+  const { data: leadQualifications = [] } = useQuery({
+    queryKey: ['assistant-lead-qualifications', wsId, leadIds],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('lead_qualification')
+        .select('lead_id, interest_level, intent, decision_maker, budget_signal, urgency, pain_point, objections, summary, last_qualified_at')
+        .in('lead_id', leadIds);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!wsId && leadIds.length > 0,
+  });
+
+  const { data: leadMessages = [] } = useQuery({
+    queryKey: ['assistant-lead-messages', wsId, leadIds],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('whatsapp_messages')
+        .select('lead_id, direction, content, sent_at, created_at')
+        .in('lead_id', leadIds)
+        .order('sent_at', { ascending: false })
+        .limit(600);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!wsId && leadIds.length > 0,
+  });
+
+  const { data: leadActivities = [] } = useQuery({
+    queryKey: ['assistant-lead-activities', wsId, leadIds],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('lead_activities')
+        .select('lead_id, activity_type, description, lead_response, created_at')
+        .in('lead_id', leadIds)
+        .order('created_at', { ascending: false })
+        .limit(400);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!wsId && leadIds.length > 0,
+  });
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
