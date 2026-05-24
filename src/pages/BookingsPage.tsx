@@ -166,7 +166,7 @@ export default function BookingsPage() {
                     return (
                       <button
                         key={b.id}
-                        onClick={() => setSelectedDate(d)}
+                        onClick={() => { setSelectedDate(d); setSelectedBookingId(b.id); }}
                         className={`text-left rounded-lg border p-2.5 transition-all ${isSel ? 'border-primary/40 bg-primary/5' : 'border-white/5 bg-background/40 hover:border-white/20'}`}
                       >
                         <div className="flex items-center justify-between gap-2">
