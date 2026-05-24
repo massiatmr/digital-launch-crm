@@ -339,6 +339,16 @@ export function SendBookingEmailToLeadDialog({ open, onOpenChange, workspaceId }
               />
             </div>
 
+            {(loadingBooking || autofillInfo) && (
+              <div className="text-[11px] rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-muted-foreground flex items-center gap-1.5">
+                {loadingBooking ? (
+                  <><Loader2 className="h-3 w-3 animate-spin" /> Recherche du RDV…</>
+                ) : (
+                  <span>{autofillInfo}</span>
+                )}
+              </div>
+            )}
+
             <label className="flex items-start gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/5 p-2.5 cursor-pointer">
               <input
                 type="checkbox"
