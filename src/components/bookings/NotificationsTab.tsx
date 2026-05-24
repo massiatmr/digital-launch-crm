@@ -12,6 +12,7 @@ import { Mail, BellRing, Layers, Send } from "lucide-react";
 export function NotificationsTab({ workspaceId }: { workspaceId: string | null }) {
   const { data, update } = useWorkspaceAdminReminders(workspaceId);
   const [email, setEmail] = useState("");
+  const [manualSendOpen, setManualSendOpen] = useState(false);
 
   useEffect(() => {
     if (data?.notification_email !== undefined) setEmail(data.notification_email || "");
