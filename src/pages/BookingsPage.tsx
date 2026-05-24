@@ -209,7 +209,8 @@ export default function BookingsPage() {
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.03 }}
-                    className="rounded-lg border border-white/5 bg-background/40 p-3 flex items-start justify-between gap-3"
+                    onClick={() => setSelectedBookingId(b.id)}
+                    className="rounded-lg border border-white/5 bg-background/40 p-3 flex items-start justify-between gap-3 cursor-pointer hover:border-primary/30 hover:bg-primary/5 transition-colors"
                   >
                     <div className="space-y-1.5 min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
