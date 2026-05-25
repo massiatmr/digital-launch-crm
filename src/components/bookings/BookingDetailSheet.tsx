@@ -245,6 +245,124 @@ export function BookingDetailSheet({ bookingId, onOpenChange }: Props) {
     return s.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? "");
   };
 
+  const sendNotificationEmail = async (
+    templateName: "booking-rescheduled" | "booking-cancelled",
+    templateData: Record<string, any>,
+  ) => {
+    if (!booking?.email) {
+      toast.error("Aucun email destinataire");
+      return;
+    }
+    const idempotencyKey = `${templateName}-${booking.id}-${Date.now()}`;
+    const { error } = await supabase.functions.invoke("send-transactional-email", {
+      body: {
+        templateName,
+        recipientEmail: booking.email,
+        idempotencyKey,
+        templateData: { name: booking.name, ...templateData },
+      },
+    });
+    if (error) throw error;
+  };
+
+  const handleReschedule = async () => {
+    if (!booking || !newDate || !newTime) {
+      toast.error("Date et heure requises");
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const oldDate = booking.booking_date;
+      const oldTime = booking.time_slot;
+      await updateBooking.mutateAsync({
+        id: booking.id,
+        booking_date: newDate,
+        time_slot: newTime,
+        status: "confirmed",
+      } as any);
+      toast.success("RDV reporté");
+      setRescheduleOpen(false);
+      qc.invalidateQueries({ queryKey: ["booking-detail", booking.id] });
+      // Open notify dialog
+      setNotifyKind("rescheduled");
+      setNotifyContext({
+        oldDate: format(parseISO(oldDate), "dd MMMM yyyy", { locale: fr }),
+        oldTime,
+        newDate: format(parseISO(newDate), "dd MMMM yyyy", { locale: fr }),
+        newTime,
+        offerName: booking.offers?.name,
+        meetLink: booking.meet_link,
+        reason: rescheduleReason || undefined,
+      });
+      setNotifyOpen(true);
+      setRescheduleReason("");
+      setNewDate("");
+      setNewTime("");
+    } catch (e: any) {
+      toast.error(e.message || "Erreur");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!booking) return;
+    setActionLoading(true);
+    try {
+      await updateBooking.mutateAsync({ id: booking.id, status: "cancelled" } as any);
+      toast.success("RDV annulé");
+      setCancelOpen(false);
+      qc.invalidateQueries({ queryKey: ["booking-detail", booking.id] });
+      setNotifyKind("cancelled");
+      setNotifyContext({
+        bookingDate: format(parseISO(booking.booking_date), "dd MMMM yyyy", { locale: fr }),
+        timeSlot: booking.time_slot,
+        offerName: booking.offers?.name,
+        reason: cancelReason || undefined,
+      });
+      setNotifyOpen(true);
+      setCancelReason("");
+    } catch (e: any) {
+      toast.error(e.message || "Erreur");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleComplete = async () => {
+    if (!booking) return;
+    setActionLoading(true);
+    try {
+      await updateBooking.mutateAsync({ id: booking.id, status: "completed" } as any);
+      toast.success("RDV marqué comme terminé");
+      qc.invalidateQueries({ queryKey: ["booking-detail", booking.id] });
+    } catch (e: any) {
+      toast.error(e.message || "Erreur");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const confirmNotify = async () => {
+    if (!notifyKind || !notifyContext) return;
+    setActionLoading(true);
+    try {
+      if (notifyKind === "rescheduled") {
+        await sendNotificationEmail("booking-rescheduled", notifyContext);
+      } else if (notifyKind === "cancelled") {
+        await sendNotificationEmail("booking-cancelled", notifyContext);
+      }
+      toast.success("Email envoyé au lead");
+      setNotifyOpen(false);
+      setNotifyKind(null);
+      setNotifyContext(null);
+    } catch (e: any) {
+      toast.error(e.message || "Erreur envoi email");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   return (
     <Sheet open={!!bookingId} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-xl overflow-y-auto bg-card border-white/10">
