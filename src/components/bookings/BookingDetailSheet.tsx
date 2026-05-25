@@ -263,8 +263,12 @@ export function BookingDetailSheet({ bookingId, onOpenChange }: Props) {
               <TabsContent value="reminders" className="space-y-2.5 mt-4">
                 {BOOKING_EMAIL_TYPES.map(({ type, label, description }) => {
                   const row = remindersByType.get(type);
-                  const log = lastLogByType.get(type);
-                  const status = row?.status || "pending";
+                  const logs = logsByType.get(type) || [];
+                  const latestLog = logs[0];
+                  // Effective status: prefer booking_emails row, fallback on latest log
+                  const status =
+                    row?.status ||
+                    (latestLog?.status === "sent" ? "sent" : latestLog?.status === "failed" ? "failed" : "pending");
                   const meta = reminderStatusBadge[status] || reminderStatusBadge.pending;
                   const Icon = meta.icon;
                   return (
@@ -278,19 +282,11 @@ export function BookingDetailSheet({ bookingId, onOpenChange }: Props) {
                             </Badge>
                           </div>
                           <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
-                          <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                            {row?.scheduled_at && (
-                              <div>Prévu : {format(parseISO(row.scheduled_at), "dd MMM HH:mm", { locale: fr })}</div>
-                            )}
-                            {row?.sent_at && (
-                              <div className="text-green-400">Envoyé le {format(parseISO(row.sent_at), "dd MMM HH:mm", { locale: fr })}</div>
-                            )}
-                            {log?.error_message && (
-                              <div className="text-destructive truncate" title={log.error_message}>
-                                Erreur : {log.error_message}
-                              </div>
-                            )}
-                          </div>
+                          {row?.scheduled_at && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              Prévu : {format(parseISO(row.scheduled_at), "dd MMM HH:mm", { locale: fr })}
+                            </div>
+                          )}
                         </div>
                         <Button
                           size="sm"
@@ -301,6 +297,46 @@ export function BookingDetailSheet({ bookingId, onOpenChange }: Props) {
                           {status === "sent" ? <><RefreshCw className="h-3.5 w-3.5" /> Renvoyer</> : <><Send className="h-3.5 w-3.5" /> Envoyer</>}
                         </Button>
                       </div>
+
+                      {/* Historique des envois (log entries) */}
+                      {logs.length > 0 && (
+                        <div className="mt-2.5 pt-2.5 border-t border-white/5 space-y-1.5">
+                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
+                            Historique ({logs.length})
+                          </div>
+                          {logs.slice(0, 5).map((l) => {
+                            const ok = l.status === "sent";
+                            const isManual = l.metadata?.manual === true;
+                            return (
+                              <div key={l.id} className="flex items-start gap-2 text-xs">
+                                {ok ? (
+                                  <CheckCircle2 className="h-3.5 w-3.5 text-green-400 shrink-0 mt-0.5" />
+                                ) : (
+                                  <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className={ok ? "text-green-400" : "text-destructive"}>
+                                      {ok ? "Envoyé" : "Échec"}
+                                    </span>
+                                    <span className="text-muted-foreground">
+                                      · {format(parseISO(l.created_at), "dd MMM HH:mm", { locale: fr })}
+                                    </span>
+                                    <Badge variant="outline" className="text-[9px] py-0 px-1.5 h-4">
+                                      {isManual ? "Manuel" : "Auto"}
+                                    </Badge>
+                                  </div>
+                                  {l.error_message && (
+                                    <div className="text-destructive/80 text-[11px] truncate mt-0.5" title={l.error_message}>
+                                      {l.error_message}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -308,6 +344,7 @@ export function BookingDetailSheet({ bookingId, onOpenChange }: Props) {
                   Aperçu avant envoi · Variables résolues automatiquement depuis le RDV
                 </p>
               </TabsContent>
+
 
               {/* ===== DETAILS ===== */}
               <TabsContent value="details" className="space-y-3 mt-4">
