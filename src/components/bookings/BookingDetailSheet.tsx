@@ -320,6 +320,16 @@ export function BookingDetailSheet({ bookingId, onOpenChange }: Props) {
     setActionLoading(true);
     try {
       await updateBooking.mutateAsync({ id: booking.id, status: "cancelled" } as any);
+      // Remove Google Calendar event
+      try {
+        const { data: syncRes, error: syncErr } = await supabase.functions.invoke("sync-booking-calendar", {
+          body: { booking_id: booking.id, action: "cancel" },
+        });
+        if (syncErr) console.warn("Calendar cancel error:", syncErr);
+        else if (syncRes?.ok === false) console.warn("Calendar cancel failed:", syncRes?.error);
+      } catch (e) {
+        console.warn("Calendar cancel invoke failed:", e);
+      }
       toast.success("RDV annulé");
       setCancelOpen(false);
       qc.invalidateQueries({ queryKey: ["booking-detail", booking.id] });
