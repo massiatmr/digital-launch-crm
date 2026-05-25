@@ -267,9 +267,12 @@ Deno.serve(async (req) => {
     const parisWeekday = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", weekday: "long" }).format(new Date());
     const detectionPrompt = `Tu analyses une conversation WhatsApp entre un commercial (MOI) et un prospect (LEAD).
 
-Détermine si un RENDEZ-VOUS a été CONFIRMÉ par les DEUX parties (proposition par l'un + accord explicite de l'autre).
+Détermine si un RENDEZ-VOUS a été CONFIRMÉ. Deux cas valides :
+  (A) Accord mutuel : proposition d'une partie + acceptation explicite de l'autre.
+  (B) Confirmation unilatérale du commercial : le DERNIER message MOI annonce explicitement un créneau précis avec une formule du type "c'est noté", "confirmé", "je te bloque", "à lundi 17h", etc., ET le LEAD n'a pas refusé ce créneau précis APRÈS ce message.
+
 Un simple "ok je vais y réfléchir", "peut-être", "je te rappelle" n'est PAS une confirmation.
-Un accord ferme sur une date + heure précise EST une confirmation.
+Si le LEAD a refusé un créneau MAIS que le commercial a ensuite "noté" un autre créneau (ou le même) sans réaction négative postérieure du LEAD, considère le rendez-vous comme confirmé (cas B).
 
 Date du jour : ${today} (${parisWeekday}, timezone Europe/Paris, horaires 11h–15h30 jours ouvrés).
 IMPORTANT : "dimanche" = le PROCHAIN dimanche À PARTIR de la date du jour ci-dessus. Si aujourd'hui est déjà ce jour-là, c'est aujourd'hui (pas la semaine suivante). Ne jamais ajouter +1 jour par sécurité.
@@ -277,8 +280,8 @@ IMPORTANT : "dimanche" = le PROCHAIN dimanche À PARTIR de la date du jour ci-de
 Réponds UNIQUEMENT en JSON :
 {
   "confirmed": true|false,
-  "booking_date": "YYYY-MM-DD" | null,  // date résolue (ex: "vendredi" = prochain vendredi)
-  "time_slot": "HH:MM" | null,          // format 24h sur tranches de 30min (11:00, 11:30, 12:00, etc.)
+  "booking_date": "YYYY-MM-DD" | null,
+  "time_slot": "HH:MM" | null,
   "reason": "courte explication"
 }
 
