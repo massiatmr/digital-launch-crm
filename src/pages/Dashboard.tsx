@@ -156,6 +156,10 @@ export default function Dashboard() {
   // — KPI 4: Pending tasks
   const pendingReminders = reminders.filter(r => !r.done);
   const overdueReminders = pendingReminders.filter(r => new Date(r.due_date) < new Date());
+  const endOfToday = new Date(); endOfToday.setHours(23, 59, 59, 999);
+  const dueNowReminders = pendingReminders.filter(r => new Date(r.due_date) <= endOfToday);
+  const upcomingPendingReminders = pendingReminders.filter(r => new Date(r.due_date) > endOfToday);
+
 
   // — KPI 5: Closing rate — based on when lead transitioned to "won" (updated_at)
   // not when lead was created. Denominator = leads marked as "show" during the period.
