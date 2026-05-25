@@ -52,6 +52,21 @@ export function BookingDetailSheet({ bookingId, onOpenChange }: Props) {
   const [previewTo, setPreviewTo] = useState("");
   const [previewEmailId, setPreviewEmailId] = useState<string | null>(null);
 
+  // Action dialogs
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [newDate, setNewDate] = useState("");
+  const [newTime, setNewTime] = useState("");
+  const [rescheduleReason, setRescheduleReason] = useState("");
+
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+
+  // Post-action notify dialog
+  const [notifyOpen, setNotifyOpen] = useState(false);
+  const [notifyKind, setNotifyKind] = useState<"rescheduled" | "cancelled" | "completed" | null>(null);
+  const [notifyContext, setNotifyContext] = useState<any>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+
   const { data: booking, isLoading } = useQuery({
     queryKey: ["booking-detail", bookingId],
     enabled: !!bookingId,
