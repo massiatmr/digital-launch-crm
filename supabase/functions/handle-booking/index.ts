@@ -608,6 +608,8 @@ Deno.serve(async (req) => {
       }
     } catch (e) {
       console.error("Notification email failed:", e);
+    }
+
 
     return new Response(
       JSON.stringify({
