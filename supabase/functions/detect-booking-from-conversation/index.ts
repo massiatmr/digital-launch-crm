@@ -451,11 +451,32 @@ ${transcript}`;
       );
 
       const emailSchedules = [
-        { type: "confirmation", scheduled_at: new Date().toISOString() },
         { type: "24h_before", scheduled_at: new Date(bookingDateTime.getTime() - 24 * 3600 * 1000).toISOString() },
         { type: "12h_before", scheduled_at: new Date(bookingDateTime.getTime() - 12 * 3600 * 1000).toISOString() },
         { type: "1h_before", scheduled_at: new Date(bookingDateTime.getTime() - 1 * 3600 * 1000).toISOString() },
       ];
+
+      // Send confirmation email immediately (only if we have a real email — skip @whatsapp.tmp)
+      if (lead.email && !lead.email.endsWith("@whatsapp.tmp")) {
+        try {
+          await admin.functions.invoke("send-transactional-email", {
+            body: {
+              templateName: "booking-confirmation",
+              recipientEmail: lead.email,
+              idempotencyKey: `booking-confirm-${bookingId}`,
+              templateData: {
+                name: lead.name,
+                bookingDate: parsed.booking_date,
+                timeSlot: parsed.time_slot,
+                offerName,
+                meetLink: meetLink || undefined,
+              },
+            },
+          });
+        } catch (e) {
+          console.error("[detect-booking] booking-confirmation email failed:", e);
+        }
+      }
 
       // Respect enabled/disabled toggles (offer override > workspace default)
       const { data: offerTplRows } = await admin
