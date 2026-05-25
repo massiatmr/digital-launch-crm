@@ -156,6 +156,10 @@ export default function Dashboard() {
   // — KPI 4: Pending tasks
   const pendingReminders = reminders.filter(r => !r.done);
   const overdueReminders = pendingReminders.filter(r => new Date(r.due_date) < new Date());
+  const endOfToday = new Date(); endOfToday.setHours(23, 59, 59, 999);
+  const dueNowReminders = pendingReminders.filter(r => new Date(r.due_date) <= endOfToday);
+  const upcomingPendingReminders = pendingReminders.filter(r => new Date(r.due_date) > endOfToday);
+
 
   // — KPI 5: Closing rate — based on when lead transitioned to "won" (updated_at)
   // not when lead was created. Denominator = leads marked as "show" during the period.
@@ -390,15 +394,22 @@ export default function Dashboard() {
           iconColor="text-emerald-400"
         />
         <KpiCard
-          label="Tâches en attente"
-          value={pendingReminders.length}
-          subtitle={overdueReminders.length > 0 ? `🔴 ${overdueReminders.length} en retard` : 'Tout est à jour'}
-          subtitleColor={overdueReminders.length > 0 ? 'text-red-400' : 'text-emerald-400'}
+          label="Tâches à faire"
+          value={dueNowReminders.length}
+          subtitle={
+            overdueReminders.length > 0
+              ? `🔴 ${overdueReminders.length} en retard${upcomingPendingReminders.length > 0 ? ` · ${upcomingPendingReminders.length} à venir` : ''}`
+              : upcomingPendingReminders.length > 0
+                ? `${upcomingPendingReminders.length} à venir`
+                : 'Tout est à jour'
+          }
+          subtitleColor={overdueReminders.length > 0 ? 'text-red-400' : dueNowReminders.length === 0 ? 'text-emerald-400' : undefined}
           icon={ListChecks}
           gradient="from-purple-500/20 to-purple-600/5"
           iconColor="text-purple-400"
         />
       </motion.div>
+
 
       {/* KPIs Row 2 */}
       <motion.div variants={item} className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
