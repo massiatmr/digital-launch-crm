@@ -394,15 +394,22 @@ export default function Dashboard() {
           iconColor="text-emerald-400"
         />
         <KpiCard
-          label="Tâches en attente"
-          value={pendingReminders.length}
-          subtitle={overdueReminders.length > 0 ? `🔴 ${overdueReminders.length} en retard` : 'Tout est à jour'}
-          subtitleColor={overdueReminders.length > 0 ? 'text-red-400' : 'text-emerald-400'}
+          label="Tâches à faire"
+          value={dueNowReminders.length}
+          subtitle={
+            overdueReminders.length > 0
+              ? `🔴 ${overdueReminders.length} en retard${upcomingPendingReminders.length > 0 ? ` · ${upcomingPendingReminders.length} à venir` : ''}`
+              : upcomingPendingReminders.length > 0
+                ? `${upcomingPendingReminders.length} à venir`
+                : 'Tout est à jour'
+          }
+          subtitleColor={overdueReminders.length > 0 ? 'text-red-400' : dueNowReminders.length === 0 ? 'text-emerald-400' : undefined}
           icon={ListChecks}
           gradient="from-purple-500/20 to-purple-600/5"
           iconColor="text-purple-400"
         />
       </motion.div>
+
 
       {/* KPIs Row 2 */}
       <motion.div variants={item} className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
