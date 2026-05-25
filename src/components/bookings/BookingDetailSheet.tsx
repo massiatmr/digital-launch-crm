@@ -10,12 +10,13 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Calendar, Clock, Mail, Phone, Video, User, Send, Loader2, CheckCircle2,
-  XCircle, AlertCircle, ExternalLink, MessageSquare, RefreshCw,
+  XCircle, AlertCircle, ExternalLink, MessageSquare, RefreshCw, CalendarClock, Ban, CheckCheck,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { BOOKING_EMAIL_TYPES, DEFAULT_TEMPLATES, type BookingEmailType } from "@/hooks/useBookingEmailTemplates";
 import { useUpdateBooking } from "@/hooks/useOfferData";
 
