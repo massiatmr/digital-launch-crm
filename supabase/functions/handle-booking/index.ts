@@ -578,17 +578,36 @@ Deno.serve(async (req) => {
     </div>
   </div>
 </body></html>`;
-      await supabase.functions.invoke("send-smtp-email", {
-        body: {
-          to: recipients,
-          subject: `📅 ${wsPrefix}Nouveau RDV — ${name} (${booking_date} ${time_slot})`,
-          html,
-          replyTo: email,
-        },
-      });
+      const adminNotifyMsgId = `booking-admin-notify-${bookingId}`;
+      try {
+        await supabase.functions.invoke("send-smtp-email", {
+          body: {
+            to: recipients,
+            subject: `📅 ${wsPrefix}Nouveau RDV — ${name} (${booking_date} ${time_slot})`,
+            html,
+            replyTo: email,
+          },
+        });
+        await supabase.from("email_send_log").insert({
+          template_name: "booking-admin-notify",
+          recipient_email: recipients.join(","),
+          status: "sent",
+          message_id: adminNotifyMsgId,
+          metadata: { booking_id: bookingId, lead_id: leadId, recipients, automated: true },
+        });
+      } catch (e) {
+        console.error("Notification email failed:", e);
+        await supabase.from("email_send_log").insert({
+          template_name: "booking-admin-notify",
+          recipient_email: recipients.join(","),
+          status: "failed",
+          message_id: adminNotifyMsgId,
+          error_message: e instanceof Error ? e.message : String(e),
+          metadata: { booking_id: bookingId, lead_id: leadId, recipients, automated: true },
+        });
+      }
     } catch (e) {
       console.error("Notification email failed:", e);
-    }
 
     return new Response(
       JSON.stringify({
