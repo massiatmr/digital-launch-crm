@@ -280,6 +280,16 @@ export function BookingDetailSheet({ bookingId, onOpenChange }: Props) {
         time_slot: newTime,
         status: "confirmed",
       } as any);
+      // Sync Google Calendar event (PATCH start/end)
+      try {
+        const { data: syncRes, error: syncErr } = await supabase.functions.invoke("sync-booking-calendar", {
+          body: { booking_id: booking.id, action: "update" },
+        });
+        if (syncErr) console.warn("Calendar sync error:", syncErr);
+        else if (syncRes?.ok === false) console.warn("Calendar sync failed:", syncRes?.error);
+      } catch (e) {
+        console.warn("Calendar sync invoke failed:", e);
+      }
       toast.success("RDV reporté");
       setRescheduleOpen(false);
       qc.invalidateQueries({ queryKey: ["booking-detail", booking.id] });
