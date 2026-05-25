@@ -10,12 +10,13 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Calendar, Clock, Mail, Phone, Video, User, Send, Loader2, CheckCircle2,
-  XCircle, AlertCircle, ExternalLink, MessageSquare, RefreshCw,
+  XCircle, AlertCircle, ExternalLink, MessageSquare, RefreshCw, CalendarClock, Ban, CheckCheck,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { BOOKING_EMAIL_TYPES, DEFAULT_TEMPLATES, type BookingEmailType } from "@/hooks/useBookingEmailTemplates";
 import { useUpdateBooking } from "@/hooks/useOfferData";
 
@@ -50,6 +51,21 @@ export function BookingDetailSheet({ bookingId, onOpenChange }: Props) {
   const [previewBody, setPreviewBody] = useState("");
   const [previewTo, setPreviewTo] = useState("");
   const [previewEmailId, setPreviewEmailId] = useState<string | null>(null);
+
+  // Action dialogs
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [newDate, setNewDate] = useState("");
+  const [newTime, setNewTime] = useState("");
+  const [rescheduleReason, setRescheduleReason] = useState("");
+
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+
+  // Post-action notify dialog
+  const [notifyOpen, setNotifyOpen] = useState(false);
+  const [notifyKind, setNotifyKind] = useState<"rescheduled" | "cancelled" | "completed" | null>(null);
+  const [notifyContext, setNotifyContext] = useState<any>(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
   const { data: booking, isLoading } = useQuery({
     queryKey: ["booking-detail", bookingId],
@@ -229,6 +245,124 @@ export function BookingDetailSheet({ bookingId, onOpenChange }: Props) {
     return s.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? "");
   };
 
+  const sendNotificationEmail = async (
+    templateName: "booking-rescheduled" | "booking-cancelled",
+    templateData: Record<string, any>,
+  ) => {
+    if (!booking?.email) {
+      toast.error("Aucun email destinataire");
+      return;
+    }
+    const idempotencyKey = `${templateName}-${booking.id}-${Date.now()}`;
+    const { error } = await supabase.functions.invoke("send-transactional-email", {
+      body: {
+        templateName,
+        recipientEmail: booking.email,
+        idempotencyKey,
+        templateData: { name: booking.name, ...templateData },
+      },
+    });
+    if (error) throw error;
+  };
+
+  const handleReschedule = async () => {
+    if (!booking || !newDate || !newTime) {
+      toast.error("Date et heure requises");
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const oldDate = booking.booking_date;
+      const oldTime = booking.time_slot;
+      await updateBooking.mutateAsync({
+        id: booking.id,
+        booking_date: newDate,
+        time_slot: newTime,
+        status: "confirmed",
+      } as any);
+      toast.success("RDV reporté");
+      setRescheduleOpen(false);
+      qc.invalidateQueries({ queryKey: ["booking-detail", booking.id] });
+      // Open notify dialog
+      setNotifyKind("rescheduled");
+      setNotifyContext({
+        oldDate: format(parseISO(oldDate), "dd MMMM yyyy", { locale: fr }),
+        oldTime,
+        newDate: format(parseISO(newDate), "dd MMMM yyyy", { locale: fr }),
+        newTime,
+        offerName: booking.offers?.name,
+        meetLink: booking.meet_link,
+        reason: rescheduleReason || undefined,
+      });
+      setNotifyOpen(true);
+      setRescheduleReason("");
+      setNewDate("");
+      setNewTime("");
+    } catch (e: any) {
+      toast.error(e.message || "Erreur");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!booking) return;
+    setActionLoading(true);
+    try {
+      await updateBooking.mutateAsync({ id: booking.id, status: "cancelled" } as any);
+      toast.success("RDV annulé");
+      setCancelOpen(false);
+      qc.invalidateQueries({ queryKey: ["booking-detail", booking.id] });
+      setNotifyKind("cancelled");
+      setNotifyContext({
+        bookingDate: format(parseISO(booking.booking_date), "dd MMMM yyyy", { locale: fr }),
+        timeSlot: booking.time_slot,
+        offerName: booking.offers?.name,
+        reason: cancelReason || undefined,
+      });
+      setNotifyOpen(true);
+      setCancelReason("");
+    } catch (e: any) {
+      toast.error(e.message || "Erreur");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleComplete = async () => {
+    if (!booking) return;
+    setActionLoading(true);
+    try {
+      await updateBooking.mutateAsync({ id: booking.id, status: "completed" } as any);
+      toast.success("RDV marqué comme terminé");
+      qc.invalidateQueries({ queryKey: ["booking-detail", booking.id] });
+    } catch (e: any) {
+      toast.error(e.message || "Erreur");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const confirmNotify = async () => {
+    if (!notifyKind || !notifyContext) return;
+    setActionLoading(true);
+    try {
+      if (notifyKind === "rescheduled") {
+        await sendNotificationEmail("booking-rescheduled", notifyContext);
+      } else if (notifyKind === "cancelled") {
+        await sendNotificationEmail("booking-cancelled", notifyContext);
+      }
+      toast.success("Email envoyé au lead");
+      setNotifyOpen(false);
+      setNotifyKind(null);
+      setNotifyContext(null);
+    } catch (e: any) {
+      toast.error(e.message || "Erreur envoi email");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   return (
     <Sheet open={!!bookingId} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-xl overflow-y-auto bg-card border-white/10">
@@ -390,17 +524,35 @@ export function BookingDetailSheet({ bookingId, onOpenChange }: Props) {
                 <div className="flex gap-2 flex-wrap">
                   {booking.status === "pending" && (
                     <Button size="sm" onClick={() => updateBooking.mutate({ id: booking.id, status: "confirmed" })}>
-                      Confirmer
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Confirmer
                     </Button>
                   )}
                   {(booking.status === "pending" || booking.status === "confirmed") && (
-                    <Button size="sm" variant="outline" onClick={() => updateBooking.mutate({ id: booking.id, status: "cancelled" })}>
-                      Annuler
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setNewDate(booking.booking_date);
+                        setNewTime(booking.time_slot);
+                        setRescheduleOpen(true);
+                      }}
+                    >
+                      <CalendarClock className="h-3.5 w-3.5" /> Reporter
                     </Button>
                   )}
                   {booking.status === "confirmed" && (
-                    <Button size="sm" variant="secondary" onClick={() => updateBooking.mutate({ id: booking.id, status: "completed" })}>
-                      Terminé
+                    <Button size="sm" variant="secondary" onClick={handleComplete} disabled={actionLoading}>
+                      <CheckCheck className="h-3.5 w-3.5" /> Terminé
+                    </Button>
+                  )}
+                  {(booking.status === "pending" || booking.status === "confirmed") && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-destructive border-destructive/40 hover:bg-destructive/10"
+                      onClick={() => setCancelOpen(true)}
+                    >
+                      <Ban className="h-3.5 w-3.5" /> Annuler
                     </Button>
                   )}
                   {booking.lead_id && (
@@ -547,6 +699,94 @@ export function BookingDetailSheet({ bookingId, onOpenChange }: Props) {
           </>
         )}
       </SheetContent>
+
+      {/* ===== RESCHEDULE DIALOG ===== */}
+      <Dialog open={rescheduleOpen} onOpenChange={setRescheduleOpen}>
+        <DialogContent className="bg-card border-white/10">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><CalendarClock className="h-5 w-5" /> Reporter le rendez-vous</DialogTitle>
+            <DialogDescription>Choisis un nouveau créneau. Tu pourras notifier le lead juste après.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Nouvelle date</Label>
+                <Input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
+              </div>
+              <div>
+                <Label className="text-xs">Nouvelle heure</Label>
+                <Input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Motif (optionnel)</Label>
+              <Textarea
+                value={rescheduleReason}
+                onChange={(e) => setRescheduleReason(e.target.value)}
+                placeholder="Ex. Indisponibilité de dernière minute"
+                className="min-h-[70px]"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRescheduleOpen(false)} disabled={actionLoading}>Annuler</Button>
+            <Button onClick={handleReschedule} disabled={actionLoading || !newDate || !newTime}>
+              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
+              Reporter
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== CANCEL DIALOG ===== */}
+      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <DialogContent className="bg-card border-white/10">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive"><Ban className="h-5 w-5" /> Annuler le rendez-vous</DialogTitle>
+            <DialogDescription>Le RDV passera en statut annulé. Tu pourras notifier le lead juste après.</DialogDescription>
+          </DialogHeader>
+          <div>
+            <Label className="text-xs">Motif (optionnel)</Label>
+            <Textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Ex. Empêchement de dernière minute"
+              className="min-h-[80px]"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelOpen(false)} disabled={actionLoading}>Retour</Button>
+            <Button variant="destructive" onClick={handleCancel} disabled={actionLoading}>
+              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
+              Confirmer l'annulation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== NOTIFY LEAD DIALOG ===== */}
+      <Dialog open={notifyOpen} onOpenChange={(o) => { if (!o) { setNotifyOpen(false); setNotifyKind(null); } }}>
+        <DialogContent className="bg-card border-white/10">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Mail className="h-5 w-5" /> Prévenir le lead ?</DialogTitle>
+            <DialogDescription>
+              {notifyKind === "rescheduled"
+                ? "Envoyer un email au lead avec les nouvelles informations du rendez-vous."
+                : "Envoyer un email au lead pour l'informer de l'annulation."}
+              {booking?.email && <span className="block mt-1 font-mono text-xs">{booking.email}</span>}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setNotifyOpen(false); setNotifyKind(null); }} disabled={actionLoading}>
+              Non, pas maintenant
+            </Button>
+            <Button onClick={confirmNotify} disabled={actionLoading || !booking?.email}>
+              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              Envoyer l'email
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Sheet>
   );
 }
