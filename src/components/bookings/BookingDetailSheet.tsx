@@ -524,17 +524,35 @@ export function BookingDetailSheet({ bookingId, onOpenChange }: Props) {
                 <div className="flex gap-2 flex-wrap">
                   {booking.status === "pending" && (
                     <Button size="sm" onClick={() => updateBooking.mutate({ id: booking.id, status: "confirmed" })}>
-                      Confirmer
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Confirmer
                     </Button>
                   )}
                   {(booking.status === "pending" || booking.status === "confirmed") && (
-                    <Button size="sm" variant="outline" onClick={() => updateBooking.mutate({ id: booking.id, status: "cancelled" })}>
-                      Annuler
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setNewDate(booking.booking_date);
+                        setNewTime(booking.time_slot);
+                        setRescheduleOpen(true);
+                      }}
+                    >
+                      <CalendarClock className="h-3.5 w-3.5" /> Reporter
                     </Button>
                   )}
                   {booking.status === "confirmed" && (
-                    <Button size="sm" variant="secondary" onClick={() => updateBooking.mutate({ id: booking.id, status: "completed" })}>
-                      Terminé
+                    <Button size="sm" variant="secondary" onClick={handleComplete} disabled={actionLoading}>
+                      <CheckCheck className="h-3.5 w-3.5" /> Terminé
+                    </Button>
+                  )}
+                  {(booking.status === "pending" || booking.status === "confirmed") && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-destructive border-destructive/40 hover:bg-destructive/10"
+                      onClick={() => setCancelOpen(true)}
+                    >
+                      <Ban className="h-3.5 w-3.5" /> Annuler
                     </Button>
                   )}
                   {booking.lead_id && (
