@@ -124,15 +124,19 @@ export function BookingDetailSheet({ bookingId, onOpenChange }: Props) {
     return map;
   }, [reminders]);
 
-  const lastLogByType = useMemo(() => {
-    const map = new Map<string, any>();
+  // All logs grouped by reminder type (sorted desc by created_at)
+  const logsByType = useMemo(() => {
+    const map = new Map<string, any[]>();
     (sendLogs || []).forEach((l) => {
       const type = l.metadata?.type;
       if (!type) return;
-      if (!map.has(type)) map.set(type, l);
+      const arr = map.get(type) || [];
+      arr.push(l);
+      map.set(type, arr);
     });
     return map;
   }, [sendLogs]);
+
 
   const sendReminder = useMutation({
     mutationFn: async (input: {
