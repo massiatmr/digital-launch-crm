@@ -699,6 +699,94 @@ export function BookingDetailSheet({ bookingId, onOpenChange }: Props) {
           </>
         )}
       </SheetContent>
+
+      {/* ===== RESCHEDULE DIALOG ===== */}
+      <Dialog open={rescheduleOpen} onOpenChange={setRescheduleOpen}>
+        <DialogContent className="bg-card border-white/10">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><CalendarClock className="h-5 w-5" /> Reporter le rendez-vous</DialogTitle>
+            <DialogDescription>Choisis un nouveau créneau. Tu pourras notifier le lead juste après.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Nouvelle date</Label>
+                <Input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
+              </div>
+              <div>
+                <Label className="text-xs">Nouvelle heure</Label>
+                <Input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Motif (optionnel)</Label>
+              <Textarea
+                value={rescheduleReason}
+                onChange={(e) => setRescheduleReason(e.target.value)}
+                placeholder="Ex. Indisponibilité de dernière minute"
+                className="min-h-[70px]"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRescheduleOpen(false)} disabled={actionLoading}>Annuler</Button>
+            <Button onClick={handleReschedule} disabled={actionLoading || !newDate || !newTime}>
+              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
+              Reporter
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== CANCEL DIALOG ===== */}
+      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <DialogContent className="bg-card border-white/10">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive"><Ban className="h-5 w-5" /> Annuler le rendez-vous</DialogTitle>
+            <DialogDescription>Le RDV passera en statut annulé. Tu pourras notifier le lead juste après.</DialogDescription>
+          </DialogHeader>
+          <div>
+            <Label className="text-xs">Motif (optionnel)</Label>
+            <Textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Ex. Empêchement de dernière minute"
+              className="min-h-[80px]"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelOpen(false)} disabled={actionLoading}>Retour</Button>
+            <Button variant="destructive" onClick={handleCancel} disabled={actionLoading}>
+              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
+              Confirmer l'annulation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== NOTIFY LEAD DIALOG ===== */}
+      <Dialog open={notifyOpen} onOpenChange={(o) => { if (!o) { setNotifyOpen(false); setNotifyKind(null); } }}>
+        <DialogContent className="bg-card border-white/10">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Mail className="h-5 w-5" /> Prévenir le lead ?</DialogTitle>
+            <DialogDescription>
+              {notifyKind === "rescheduled"
+                ? "Envoyer un email au lead avec les nouvelles informations du rendez-vous."
+                : "Envoyer un email au lead pour l'informer de l'annulation."}
+              {booking?.email && <span className="block mt-1 font-mono text-xs">{booking.email}</span>}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setNotifyOpen(false); setNotifyKind(null); }} disabled={actionLoading}>
+              Non, pas maintenant
+            </Button>
+            <Button onClick={confirmNotify} disabled={actionLoading || !booking?.email}>
+              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              Envoyer l'email
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Sheet>
   );
 }
