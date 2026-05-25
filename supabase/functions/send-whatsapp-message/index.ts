@@ -169,6 +169,18 @@ Deno.serve(async (req) => {
       await admin.from("leads").update({ status: "contacted", last_contacted_at: new Date().toISOString() } as any).eq("id", lead_id);
     }
 
+    // Détection auto de RDV confirmé après outbound manuel (fire-and-forget).
+    // Couvre le cas où l'utilisateur tape lui-même la confirmation dans WhatsAppChat.
+    if (logStatus === "sent") {
+      const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+      const SRK = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      fetch(`${SUPABASE_URL}/functions/v1/detect-booking-from-conversation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${SRK}` },
+        body: JSON.stringify({ lead_id }),
+      }).catch((e) => console.error("detect-booking invoke failed:", e));
+    }
+
     return new Response(JSON.stringify({ success: logStatus !== "failed", dry_run: dryRun, status: logStatus, error: errorMessage }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
