@@ -195,12 +195,28 @@ Deno.serve(async (req) => {
 
         // 1) Email au client
         if (booking.email) {
+          const clientMsgId = `booking-reminder-${row.id}`;
           try {
             await supabase.functions.invoke("send-smtp-email", {
               body: { to: [booking.email], subject, html },
             });
+            await supabase.from("email_send_log").insert({
+              template_name: `booking-${row.type}`,
+              recipient_email: booking.email,
+              status: "sent",
+              message_id: clientMsgId,
+              metadata: { booking_id: booking.id, type: row.type, automated: true },
+            });
           } catch (e) {
             console.error("[process-booking-reminders] client send failed", e);
+            await supabase.from("email_send_log").insert({
+              template_name: `booking-${row.type}`,
+              recipient_email: booking.email,
+              status: "failed",
+              message_id: clientMsgId,
+              error_message: e instanceof Error ? e.message : String(e),
+              metadata: { booking_id: booking.id, type: row.type, automated: true },
+            });
           }
         }
 
@@ -226,6 +242,7 @@ Deno.serve(async (req) => {
               </div>
               <a href="${leadUrl}" style="background:#7c3aed;color:#fff;padding:11px 22px;border-radius:6px;font-weight:600;text-decoration:none;display:inline-block">Ouvrir la fiche lead</a>
             `, "RDV dans 1h");
+            const adminMsgId = `booking-reminder-admin-${row.id}`;
             try {
               await supabase.functions.invoke("send-smtp-email", {
                 body: {
@@ -235,8 +252,23 @@ Deno.serve(async (req) => {
                   replyTo: booking.email || undefined,
                 },
               });
+              await supabase.from("email_send_log").insert({
+                template_name: "booking-1h_before-admin",
+                recipient_email: recipients.join(","),
+                status: "sent",
+                message_id: adminMsgId,
+                metadata: { booking_id: booking.id, type: "1h_before_admin", automated: true, recipients },
+              });
             } catch (e) {
               console.error("[process-booking-reminders] admin send failed", e);
+              await supabase.from("email_send_log").insert({
+                template_name: "booking-1h_before-admin",
+                recipient_email: recipients.join(","),
+                status: "failed",
+                message_id: adminMsgId,
+                error_message: e instanceof Error ? e.message : String(e),
+                metadata: { booking_id: booking.id, type: "1h_before_admin", automated: true, recipients },
+              });
             }
           }
         }
