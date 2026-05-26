@@ -487,18 +487,26 @@ export default function SettingsIntegrationsPage() {
                           {p.forms.map((f) => {
                             const mapping = formOfferMappings.find((m) => m.form_id === f.id);
                             const currentOfferId = mapping?.offer_id || "";
+                            const isIgnored = ignoredForms.some((m) => m.form_id === f.id);
                             return (
                               <div
                                 key={f.id}
-                                className="flex flex-wrap items-center gap-2 p-2 rounded-md bg-muted/30 border"
+                                className={`flex flex-wrap items-center gap-2 p-2 rounded-md border ${isIgnored ? "bg-destructive/5 border-destructive/30 opacity-75" : "bg-muted/30"}`}
                               >
                                 <div className="min-w-0 flex-1">
-                                  <div className="text-sm font-medium truncate">{f.name}</div>
+                                  <div className={`text-sm font-medium truncate ${isIgnored ? "line-through text-muted-foreground" : ""}`}>
+                                    {f.name}
+                                  </div>
                                   <div className="text-[10px] font-mono text-muted-foreground flex items-center gap-2">
                                     {f.id}
                                     {f.status && (
                                       <Badge variant="outline" className="text-[10px] px-1.5 py-0">
                                         {f.status}
+                                      </Badge>
+                                    )}
+                                    {isIgnored && (
+                                      <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                                        Ignoré
                                       </Badge>
                                     )}
                                   </div>
@@ -509,9 +517,9 @@ export default function SettingsIntegrationsPage() {
                                     onValueChange={(v) =>
                                       setFormOffer(f.id, f.name, p.page_id, v === "__none__" ? null : v)
                                     }
-                                    disabled={busy === `map:${f.id}`}
+                                    disabled={busy === `map:${f.id}` || isIgnored}
                                   >
-                                    <SelectTrigger className="w-[220px] h-8 text-xs">
+                                    <SelectTrigger className="w-[200px] h-8 text-xs">
                                       <SelectValue placeholder="Aucune offre" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -523,6 +531,21 @@ export default function SettingsIntegrationsPage() {
                                       ))}
                                     </SelectContent>
                                   </Select>
+                                  <Button
+                                    size="sm"
+                                    variant={isIgnored ? "outline" : "ghost"}
+                                    className="h-8 text-xs"
+                                    disabled={busy === `ignore:${f.id}`}
+                                    onClick={() => toggleIgnoreForm(f.id, f.name, p.page_id, !isIgnored)}
+                                  >
+                                    {busy === `ignore:${f.id}` ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : isIgnored ? (
+                                      "Réactiver"
+                                    ) : (
+                                      "Ignorer"
+                                    )}
+                                  </Button>
                                   {busy === `map:${f.id}` && (
                                     <Loader2 className="h-3 w-3 animate-spin" />
                                   )}
@@ -530,6 +553,7 @@ export default function SettingsIntegrationsPage() {
                               </div>
                             );
                           })}
+
                           {offers.length === 0 && (
                             <p className="text-xs text-muted-foreground">
                               Aucune offre dans cet espace. Créez d'abord des offres dans la section Offres.
