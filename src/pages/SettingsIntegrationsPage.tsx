@@ -60,6 +60,12 @@ interface FormOfferMapping {
   page_id: string;
 }
 
+interface IgnoredForm {
+  form_id: string;
+  page_id: string;
+}
+
+
 interface OfferLite {
   id: string;
   name: string;
