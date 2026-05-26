@@ -372,6 +372,23 @@ async function processWebhook(body: any, accessToken: string, ownerId: string, r
           formId,
         });
 
+        // Skip if this form is marked as ignored for this workspace/owner
+        if (formId) {
+          let igq = supabase
+            .from("meta_ignored_forms")
+            .select("id")
+            .eq("form_id", String(formId));
+          igq = effectiveWorkspaceId
+            ? igq.eq("workspace_id", effectiveWorkspaceId)
+            : igq.eq("owner_id", effectiveOwnerId).is("workspace_id", null);
+          const { data: ignoredRow } = await igq.maybeSingle();
+          if (ignoredRow) {
+            logInfo(requestId, "Form marked as ignored — skipping lead", { formId, leadgenId });
+            continue;
+          }
+        }
+
+
         let leadData: FacebookLeadData | null = null;
 
         for (let attempt = 1; attempt <= 3; attempt++) {
