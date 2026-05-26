@@ -148,13 +148,52 @@ Deno.serve(async (req) => {
         admin.from("meta_form_offer_mapping").select("form_id, offer_id, page_id"),
       );
 
+      // Fetch ignored forms for this scope
+      const { data: ignored } = await scope(
+        admin.from("meta_ignored_forms").select("form_id, page_id"),
+      );
+
       return new Response(JSON.stringify({
         pages: pages.map(({ page_access_token, ...page }) => page),
         form_offer_mappings: mappings || [],
+        ignored_forms: ignored || [],
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    if (action === "toggle_ignore_form") {
+      const { form_id, form_name, page_id: fp_page_id, ignored } = body;
+      if (!form_id || !fp_page_id) {
+        return new Response(JSON.stringify({ error: "form_id et page_id requis" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (ignored) {
+        const { data: existing } = await scope(
+          admin.from("meta_ignored_forms").select("id").eq("form_id", form_id),
+        ).maybeSingle();
+        if (!existing) {
+          const { error } = await admin.from("meta_ignored_forms").insert({
+            owner_id: user.id,
+            workspace_id,
+            page_id: fp_page_id,
+            form_id,
+            form_name: form_name || "",
+          });
+          if (error) throw error;
+        }
+      } else {
+        const { error } = await scope(
+          admin.from("meta_ignored_forms").delete().eq("form_id", form_id),
+        );
+        if (error) throw error;
+      }
+      return new Response(JSON.stringify({ ok: true, ignored: !!ignored }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
 
     if (action === "set_form_offer") {
       const { form_id, form_name, page_id: fp_page_id, offer_id } = body;
