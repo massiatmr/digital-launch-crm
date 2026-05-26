@@ -161,12 +161,11 @@ export default function Dashboard() {
   const upcomingPendingReminders = pendingReminders.filter(r => new Date(r.due_date) > endOfToday);
 
 
-  // — KPI 5: Closing rate — based on when lead transitioned to "won" (updated_at)
-  // not when lead was created. Denominator = leads marked as "show" during the period.
+  // — KPI 5: Closing rate — basé sur la date de création du lead (même repère que les autres KPI)
   const wonInPeriod = useMemo(() =>
     allLeads.filter(l => {
       if (l.status !== 'won') return false;
-      const d = new Date(l.updated_at);
+      const d = new Date(l.created_at);
       return isAfter(d, rangeFrom) && isBefore(d, rangeTo);
     }),
     [allLeads, rangeFrom, rangeTo]
@@ -174,7 +173,7 @@ export default function Dashboard() {
   const showedUpInPeriod = useMemo(() =>
     allLeads.filter(l => {
       if (l.show_status !== 'show') return false;
-      const d = new Date(l.updated_at);
+      const d = new Date(l.created_at);
       return isAfter(d, rangeFrom) && isBefore(d, rangeTo);
     }),
     [allLeads, rangeFrom, rangeTo]
