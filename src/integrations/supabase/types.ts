@@ -1781,6 +1781,44 @@ export type Database = {
         }
         Relationships: []
       }
+      meta_ignored_forms: {
+        Row: {
+          created_at: string
+          form_id: string
+          form_name: string | null
+          id: string
+          owner_id: string
+          page_id: string
+          workspace_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          form_id: string
+          form_name?: string | null
+          id?: string
+          owner_id: string
+          page_id: string
+          workspace_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          form_id?: string
+          form_name?: string | null
+          id?: string
+          owner_id?: string
+          page_id?: string
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_ignored_forms_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meta_oauth_pending: {
         Row: {
           created_at: string
