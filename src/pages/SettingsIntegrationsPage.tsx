@@ -116,7 +116,34 @@ export default function SettingsIntegrationsPage() {
     } else {
       setPages(data?.pages || []);
       setFormOfferMappings(data?.form_offer_mappings || []);
+      setIgnoredForms(data?.ignored_forms || []);
     }
+    setLoading(false);
+  };
+
+  const toggleIgnoreForm = async (form_id: string, form_name: string, page_id: string, ignored: boolean) => {
+    setBusy(`ignore:${form_id}`);
+    const { error } = await supabase.functions.invoke("facebook-pages-manage", {
+      body: {
+        action: "toggle_ignore_form",
+        workspace_id: workspaceId,
+        form_id,
+        form_name,
+        page_id,
+        ignored,
+      },
+    });
+    setBusy(null);
+    if (error) {
+      toast.error("Échec", { description: error.message });
+      return;
+    }
+    toast.success(ignored ? "Formulaire ignoré — aucun lead ne sera collecté" : "Collecte réactivée pour ce formulaire");
+    setIgnoredForms((prev) => {
+      const filtered = prev.filter((m) => m.form_id !== form_id);
+      return ignored ? [...filtered, { form_id, page_id }] : filtered;
+    });
+
     setLoading(false);
   };
 
