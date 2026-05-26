@@ -82,7 +82,9 @@ export default function SettingsIntegrationsPage() {
   const { currentWorkspace } = useWorkspaces();
   const [pages, setPages] = useState<MetaPage[]>([]);
   const [formOfferMappings, setFormOfferMappings] = useState<FormOfferMapping[]>([]);
+  const [ignoredForms, setIgnoredForms] = useState<IgnoredForm[]>([]);
   const [offers, setOffers] = useState<OfferLite[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
