@@ -60,6 +60,12 @@ interface FormOfferMapping {
   page_id: string;
 }
 
+interface IgnoredForm {
+  form_id: string;
+  page_id: string;
+}
+
+
 interface OfferLite {
   id: string;
   name: string;
@@ -76,7 +82,9 @@ export default function SettingsIntegrationsPage() {
   const { currentWorkspace } = useWorkspaces();
   const [pages, setPages] = useState<MetaPage[]>([]);
   const [formOfferMappings, setFormOfferMappings] = useState<FormOfferMapping[]>([]);
+  const [ignoredForms, setIgnoredForms] = useState<IgnoredForm[]>([]);
   const [offers, setOffers] = useState<OfferLite[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -108,7 +116,34 @@ export default function SettingsIntegrationsPage() {
     } else {
       setPages(data?.pages || []);
       setFormOfferMappings(data?.form_offer_mappings || []);
+      setIgnoredForms(data?.ignored_forms || []);
     }
+    setLoading(false);
+  };
+
+  const toggleIgnoreForm = async (form_id: string, form_name: string, page_id: string, ignored: boolean) => {
+    setBusy(`ignore:${form_id}`);
+    const { error } = await supabase.functions.invoke("facebook-pages-manage", {
+      body: {
+        action: "toggle_ignore_form",
+        workspace_id: workspaceId,
+        form_id,
+        form_name,
+        page_id,
+        ignored,
+      },
+    });
+    setBusy(null);
+    if (error) {
+      toast.error("Échec", { description: error.message });
+      return;
+    }
+    toast.success(ignored ? "Formulaire ignoré — aucun lead ne sera collecté" : "Collecte réactivée pour ce formulaire");
+    setIgnoredForms((prev) => {
+      const filtered = prev.filter((m) => m.form_id !== form_id);
+      return ignored ? [...filtered, { form_id, page_id }] : filtered;
+    });
+
     setLoading(false);
   };
 
@@ -452,18 +487,26 @@ export default function SettingsIntegrationsPage() {
                           {p.forms.map((f) => {
                             const mapping = formOfferMappings.find((m) => m.form_id === f.id);
                             const currentOfferId = mapping?.offer_id || "";
+                            const isIgnored = ignoredForms.some((m) => m.form_id === f.id);
                             return (
                               <div
                                 key={f.id}
-                                className="flex flex-wrap items-center gap-2 p-2 rounded-md bg-muted/30 border"
+                                className={`flex flex-wrap items-center gap-2 p-2 rounded-md border ${isIgnored ? "bg-destructive/5 border-destructive/30 opacity-75" : "bg-muted/30"}`}
                               >
                                 <div className="min-w-0 flex-1">
-                                  <div className="text-sm font-medium truncate">{f.name}</div>
+                                  <div className={`text-sm font-medium truncate ${isIgnored ? "line-through text-muted-foreground" : ""}`}>
+                                    {f.name}
+                                  </div>
                                   <div className="text-[10px] font-mono text-muted-foreground flex items-center gap-2">
                                     {f.id}
                                     {f.status && (
                                       <Badge variant="outline" className="text-[10px] px-1.5 py-0">
                                         {f.status}
+                                      </Badge>
+                                    )}
+                                    {isIgnored && (
+                                      <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                                        Ignoré
                                       </Badge>
                                     )}
                                   </div>
@@ -474,9 +517,9 @@ export default function SettingsIntegrationsPage() {
                                     onValueChange={(v) =>
                                       setFormOffer(f.id, f.name, p.page_id, v === "__none__" ? null : v)
                                     }
-                                    disabled={busy === `map:${f.id}`}
+                                    disabled={busy === `map:${f.id}` || isIgnored}
                                   >
-                                    <SelectTrigger className="w-[220px] h-8 text-xs">
+                                    <SelectTrigger className="w-[200px] h-8 text-xs">
                                       <SelectValue placeholder="Aucune offre" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -488,6 +531,21 @@ export default function SettingsIntegrationsPage() {
                                       ))}
                                     </SelectContent>
                                   </Select>
+                                  <Button
+                                    size="sm"
+                                    variant={isIgnored ? "outline" : "ghost"}
+                                    className="h-8 text-xs"
+                                    disabled={busy === `ignore:${f.id}`}
+                                    onClick={() => toggleIgnoreForm(f.id, f.name, p.page_id, !isIgnored)}
+                                  >
+                                    {busy === `ignore:${f.id}` ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : isIgnored ? (
+                                      "Réactiver"
+                                    ) : (
+                                      "Ignorer"
+                                    )}
+                                  </Button>
                                   {busy === `map:${f.id}` && (
                                     <Loader2 className="h-3 w-3 animate-spin" />
                                   )}
@@ -495,6 +553,7 @@ export default function SettingsIntegrationsPage() {
                               </div>
                             );
                           })}
+
                           {offers.length === 0 && (
                             <p className="text-xs text-muted-foreground">
                               Aucune offre dans cet espace. Créez d'abord des offres dans la section Offres.
