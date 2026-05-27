@@ -1,4 +1,6 @@
 import { useWorkspaceAdminReminders } from "@/hooks/useBookingEmailTemplates";
+import { useWorkspaceBookingWaTemplates, useWorkspaceWhatsAppTemplates, BOOKING_WA_TYPES } from "@/hooks/useBookingWaTemplates";
+import { WaReminderRow } from "./WaReminderRow";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
@@ -7,7 +9,7 @@ import { OfferEmailTemplatesEditor } from "./OfferEmailTemplatesEditor";
 import { WorkspaceEmailTemplatesList } from "./WorkspaceEmailTemplatesList";
 import { SendBookingEmailToLeadDialog } from "./SendBookingEmailToLeadDialog";
 import { useState, useEffect } from "react";
-import { Mail, BellRing, Layers, Send } from "lucide-react";
+import { Mail, BellRing, Layers, Send, MessageCircle } from "lucide-react";
 
 export function NotificationsTab({ workspaceId }: { workspaceId: string | null }) {
   const { data, update } = useWorkspaceAdminReminders(workspaceId);
