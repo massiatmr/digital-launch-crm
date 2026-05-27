@@ -365,6 +365,18 @@ Deno.serve(async (req) => {
       if (emailError) console.error("Email schedule error:", emailError);
     }
 
+    // 3.bis - Plannifier les rappels WhatsApp (template HSM). Le cron filtrera selon enabled + phone + template configuré.
+    const waInserts = emailSchedules.map((es) => ({
+      booking_id: bookingId,
+      type: es.type,
+      scheduled_at: es.scheduled_at,
+      status: "pending",
+    }));
+    if (waInserts.length > 0) {
+      const { error: waErr } = await supabase.from("booking_wa_reminders").insert(waInserts);
+      if (waErr) console.error("WA reminders schedule error:", waErr);
+    }
+
     // 4. Create reminders
     const reminderTimes = [
       { offset: 4 * 60 * 60 * 1000, label: "4h avant" },
