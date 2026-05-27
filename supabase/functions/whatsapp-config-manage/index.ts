@@ -210,7 +210,7 @@ Deno.serve(async (req) => {
       }
 
       const { data: existing } = await applyScope(
-        admin.from("whatsapp_config").select("id"),
+        admin.from("whatsapp_config").select("id").eq("phone_number_id", phone_number_id),
       ).maybeSingle();
 
       const payload = {
@@ -229,11 +229,11 @@ Deno.serve(async (req) => {
       if (existing) {
         const { error } = await admin
           .from("whatsapp_config")
-          .update(payload)
+          .update(payload as any)
           .eq("id", existing.id);
         if (error) return json({ error: error.message }, 500);
       } else {
-        const { error } = await admin.from("whatsapp_config").insert(payload);
+        const { error } = await admin.from("whatsapp_config").insert(payload as any);
         if (error) return json({ error: error.message }, 500);
       }
 
