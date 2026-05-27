@@ -166,8 +166,7 @@ export function WhatsAppSystemUserWizard({ open, onOpenChange, onSuccess, existi
     }
   };
 
-  const save = async () => {
-    const picked = numbers.find((n) => n.phone_number_id === selectedPhoneId);
+  const saveNumber = async (picked?: DiscoveredNumber) => {
     if (!picked) return;
     setSaving(true);
     const { data, error } = await supabase.functions.invoke("whatsapp-config-manage", {
@@ -187,6 +186,11 @@ export function WhatsAppSystemUserWizard({ open, onOpenChange, onSuccess, existi
     toast.success("Numéro enregistré", { description: "Active-le maintenant depuis la liste." });
     onOpenChange(false);
     onSuccess?.();
+  };
+
+  const save = async () => {
+    const picked = numbers.find((n) => n.phone_number_id === selectedPhoneId);
+    await saveNumber(picked);
   };
 
   return (
