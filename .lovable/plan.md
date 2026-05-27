@@ -1,63 +1,74 @@
-# Détail RDV : conversation + rappels manuels
+# Activation auto WhatsApp Cloud API par workspace (agence multi-clients, mode Dev)
 
-Ouvrir un panneau de détail au clic sur une carte de "Prochains RDV" (et sur les RDV du jour) montrant tout ce qu'il faut pour gérer le RDV, voir l'historique des rappels et en envoyer un manuellement.
+## Contexte
+L'agence est admin sur les Business Managers de ses clients. L'OAuth Facebook existant détecte déjà les WABA des clients mais elles ne sont pas utilisables car : (1) pas abonnées à l'app Meta de l'agence, (2) pas de `phone_number_id` stocké. On résout les deux d'un clic avec le token agency (qui contient déjà `whatsapp_business_management`), avec un fallback System User pour les cas où l'abonnement échoue.
 
-## 1. Nouveau composant `BookingDetailSheet`
+## 1. UI — `MetaOAuthPicker` : activation 1-clic des WABA
 
-Fichier : `src/components/bookings/BookingDetailSheet.tsx`
+Dans le picker post-OAuth, pour chaque WABA détectée :
+- Liste les **numéros de téléphone** de la WABA (un appel `GET /{waba_id}/phone_numbers` au moment d'ouvrir le picker)
+- Pour chaque numéro : badge statut (`Non connecté` / `Connecté ici` / `Connecté ailleurs`) + bouton **"Activer dans ce workspace"**
+- Au clic → invoke edge function `whatsapp-activate-waba` qui :
+  1. `POST /{waba_id}/subscribed_apps` avec le token agency → abonne la WABA à l'app
+  2. Récupère `phone_number_id` + nom d'affichage
+  3. Upsert dans `whatsapp_config` du workspace courant (token agency + phone_number_id + waba_id + display_name + app_secret depuis env)
+  4. Retourne `{ ok, error? }`
+- En cas d'échec (permission refusée par le BM client, WABA déjà claim par une autre app, etc.) → toast d'erreur + bouton **"Configurer manuellement (System User)"** qui ouvre le mini-wizard fallback
 
-Sheet (côté droit, largeur ~520px) avec 3 sections :
+## 2. Mini-wizard fallback (`WhatsAppSystemUserWizard.tsx`)
+Sheet 4 étapes, chacune avec capture/lien direct vers le BM du client :
+1. Aller dans **Business Manager > Users > System Users** du client → "Add" → nom suggéré "DigitalLaunch CRM" → rôle Admin
+2. Cliquer **"Add Assets"** → sélectionner la WABA + l'app `Digital Launch CRM`
+3. **"Generate Token"** → cocher `whatsapp_business_messaging` + `whatsapp_business_management` → expiration "Never" → copier
+4. Coller le token + sélectionner le numéro dans un dropdown (rempli par appel API avec le token saisi)
+→ Submit invoke `whatsapp-activate-waba` avec `manual_token: true`, qui fait le `subscribed_apps` + stocke en DB.
 
-### a) Détails du RDV
-- Nom, statut (badge), offre
-- Date + heure client (TZ client) + heure owner (TZ owner)
-- Email, téléphone (cliquable wa.me si dispo)
-- Lien Meet (bouton)
-- Bouton "Voir le lead" → `/leads/:leadId` si `lead_id`
-- Actions rapides : Confirmer / Annuler / Terminé / toggle `show_status`
+## 3. Bouton "?" Help — Guide WhatsApp complet (`WhatsAppHelpDialog.tsx`)
+Dialog accordéon avec sections :
+- **Activation auto** : explique le flux 1-clic et ce que ça fait techniquement
+- **Activation manuelle (System User)** : repris du wizard, version détaillée
+- **Limites mode Dev** : quotas (1000 conv/24h, ~5 WABA), quand passer en Live, lien App Review
+- **Compteur consommation** : appel `GET /{app_id}/conversations_analytics` → affiche `X / 1000 conversations utilisées (24h glissantes)` avec barre de progression + warning si > 80%
+- **Webhook** : confirme que l'URL est gérée côté plateforme (rien à faire côté client)
+- **Dépannage** : "WABA Connecté ailleurs" → contacter Digital Launch ; "Permission refusée" → re-vérifier rôle Admin BM ; "Numéro déjà utilisé par WhatsApp Business app mobile" → migrer vers Cloud API
 
-### b) Résumé de la conversation
-- Si `lead_id` : derniers messages WhatsApp (`whatsapp_messages`, 10 derniers, ordonnés)
-- Bullet récap "Qualification" depuis `lead_qualification` (interest_level, pain_point, objections, summary) si dispo
-- Lien "Ouvrir la conversation complète" → `/conversations?lead=:leadId`
+## 4. Backend
 
-### c) Rappels (Reminders)
-Timeline des 4 types (`confirmation`, `24h_before`, `12h_before`, `1h_before`) :
-- Source : `booking_emails` filtré sur `booking_id`
-- Pour chaque ligne : type (label FR), statut (pending / sent / skipped / failed), `scheduled_at`, `sent_at`
-- Corrélation log : jointure logique via `email_send_log.metadata->>'booking_id'` = booking.id pour afficher l'erreur si `dlq`/`failed`
-- Bouton "Envoyer maintenant" sur chaque rappel `pending` ou `failed` → ouvre dialog d'aperçu (réutilise `SendBookingEmailToLeadDialog` en mode pré-rempli, ou nouvelle variante `SendBookingReminderDialog`) avec sujet/corps du template correspondant et possibilité d'éditer avant envoi
-- Bouton "Renvoyer" sur rappels déjà `sent` (avec confirmation)
-- Bouton "Envoyer un rappel custom" → choisir type + preview + envoyer
+### `whatsapp-activate-waba` (nouvelle edge function)
+- Input : `{ workspace_id, waba_id, phone_number_id, manual_token? }`
+- Vérifie que l'user est membre du workspace
+- Récupère le token : soit `manual_token`, soit le token agency stocké dans `meta_oauth_tokens` (ou équivalent) de l'user
+- Appelle `POST https://graph.facebook.com/v21.0/{waba_id}/subscribed_apps` avec le token
+- Si OK → fetch `GET /{phone_number_id}?fields=display_phone_number,verified_name`
+- Upsert `whatsapp_config` (workspace_id, phone_number_id, waba_id, access_token, app_secret, display_name, business_name, connected_at)
+- Retourne erreur précise pour driver le fallback côté UI
 
-L'envoi passe par `send-test-booking-email` (déjà en place, log dans `email_send_log`) en passant `bookingId` réel pour que les variables (date/heure/meet/offre) soient résolues automatiquement côté edge function — pas besoin de retaper les vars.
+### `whatsapp-app-usage` (nouvelle edge function, lecture seule)
+- Appelle Graph API pour compter les conversations actives sur les dernières 24h de l'app
+- Cache 5 min (sinon spam)
+- Utilisé par le compteur du Help
 
-## 2. Intégration dans `BookingsPage.tsx`
+### `whatsapp-webhook` (existant)
+- Vérifier qu'il route bien par `phone_number_id` → workspace via `whatsapp_config`
+- Valider signature avec `app_secret` (env partagé, c'est la même app Meta agence)
 
-- State `selectedBookingId: string | null`
-- Le `<button>` de chaque carte "Prochains RDV" : au lieu de seulement `setSelectedDate`, ouvre aussi le sheet (`setSelectedBookingId(b.id)`)
-- Idem sur les `<motion.div>` du détail du jour : devient cliquable et ouvre le sheet
-- `<BookingDetailSheet bookingId={selectedBookingId} onOpenChange={...} />` monté en bas de la page
+## 5. Migration DB
+Ajouter à `whatsapp_config` si manquant :
+- `display_name`, `business_name`, `verified_name`, `connected_at`, `last_health_check_at`, `health_status` (text: 'ok' | 'subscription_failed' | 'token_expired')
 
-## 3. Edge function : petite extension de `send-test-booking-email`
+Pas de nouvelle table. RLS owner/workspace existante conservée.
 
-Ajouter un mode "send for real booking" :
-- Si le payload contient `bookingId` (au lieu de `sampleVars`), le edge function :
-  1. lit le booking + offer + owner
-  2. construit les vars (`date`, `time`, `meetLink`, `offerName`, `name`, etc.) à partir des données réelles
-  3. envoie au `recipientEmail = booking.email` (ou override fourni)
-  4. met à jour la ligne `booking_emails` correspondante : `status = 'sent'`, `sent_at = now()` si le type matche
-- Log `email_send_log` avec `metadata: { booking_id, type, manual: true }`
+## 6. Fichiers touchés
+- `supabase/migrations/...` — colonnes additives sur `whatsapp_config`
+- `supabase/functions/whatsapp-activate-waba/index.ts` — nouveau
+- `supabase/functions/whatsapp-app-usage/index.ts` — nouveau
+- `supabase/functions/whatsapp-webhook/index.ts` — vérif routing multi-workspace
+- `src/components/settings/MetaOAuthPicker.tsx` — ajout liste numéros + bouton activation
+- `src/components/settings/WhatsAppSystemUserWizard.tsx` — nouveau (fallback)
+- `src/components/settings/WhatsAppHelpDialog.tsx` — nouveau (bouton "?")
+- `src/pages/SettingsIntegrationsPage.tsx` — intégration du bouton "?" + compteur usage
 
-## Détails techniques
-
-- Réutilise `useBookingEmailTemplates` pour récupérer le sujet/corps par `type` (offre → workspace → défaut)
-- Query React : `useQuery(['booking-emails', bookingId])` + `useQuery(['booking-send-logs', bookingId])`
-- Realtime non requis ; invalider à l'envoi
-- Section conversation : `useQuery(['booking-conversation', leadId])` qui select `whatsapp_messages` + `lead_qualification`
-
-## Fichiers touchés
-
-- **Créé** : `src/components/bookings/BookingDetailSheet.tsx`
-- **Modifié** : `src/pages/BookingsPage.tsx` (cartes cliquables + montage du sheet)
-- **Modifié** : `supabase/functions/send-test-booking-email/index.ts` (support `bookingId` + update `booking_emails`)
+## Notes techniques
+- L'`app_secret` Meta reste un secret global de l'app agency (pas par workspace)
+- Le token utilisé pour envoyer/recevoir = le token user agency tant que sa session OAuth est valide ; si expiration → fallback System User devient nécessaire (à terme, prévoir refresh). Pour démarrer : on stocke le long-lived token (60j) du user agency par workspace
+- Le mode Dev limite à ~5 WABA actives simultanément sur l'app ; au-delà l'App Review devient inévitable (le compteur Help le rendra visible)
