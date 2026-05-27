@@ -75,6 +75,7 @@ export function WhatsAppSystemUserWizard({ open, onOpenChange, onSuccess, existi
           display_phone_number: phone.display_phone_number,
           verified_name: phone.verified_name || "",
           business_account_id: waba.id,
+          source: "meta",
         });
       }
     };
@@ -133,11 +134,25 @@ export function WhatsAppSystemUserWizard({ open, onOpenChange, onSuccess, existi
         }
       }
 
+      if (found.length === 0 && existingNumbers.length > 0) {
+        for (const n of existingNumbers) {
+          if (!n.phone_number_id || !n.business_account_id) continue;
+          if (found.some((f) => f.phone_number_id === n.phone_number_id)) continue;
+          found.push({ ...n, source: "known" });
+        }
+        if (found.length > 0) {
+          toast.info("Autodétection limitée par Meta", {
+            description: "Le token System User ne liste pas les Business assets, donc j’utilise les numéros déjà visibles dans le CRM pour y attacher le token permanent.",
+            duration: 8000,
+          });
+        }
+      }
+
       if (found.length === 0) {
         toast.warning("Aucun numéro WhatsApp trouvé", {
           description:
             errors[0] ||
-            "Vérifie que le System User a la WABA assignée comme asset (owned ou client) avec 'Full control', et que le token a les scopes whatsapp_business_messaging + whatsapp_business_management.",
+            "Meta ne permet pas toujours de lister les assets depuis un token System User. Colle le Phone Number ID + WABA ID manuellement à l’étape suivante.",
           duration: 8000,
         });
       }
