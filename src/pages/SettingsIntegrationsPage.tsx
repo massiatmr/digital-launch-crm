@@ -583,7 +583,18 @@ export default function SettingsIntegrationsPage() {
               <MessageCircle className="h-5 w-5 text-[#25D366]" />
             </div>
             <div className="flex-1">
-              <CardTitle>Numéros WhatsApp Business</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                Numéros WhatsApp Business
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-6 w-6"
+                  onClick={() => setWaHelpOpen(true)}
+                  title="Guide & dépannage WhatsApp"
+                >
+                  <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </CardTitle>
               <CardDescription>
                 Détectés via ta connexion Meta. Choisis le numéro à utiliser pour les envois.
               </CardDescription>
