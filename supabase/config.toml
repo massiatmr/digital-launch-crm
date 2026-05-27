@@ -43,6 +43,8 @@ project_id = "rvangzupebrajhhhvewu"
     verify_jwt = false
   [functions.whatsapp-config-manage]
     verify_jwt = false
+  [functions.whatsapp-app-usage]
+    verify_jwt = false
   [functions.get-vapid-public-key]
     verify_jwt = false
   [functions.send-onesignal-notification]
