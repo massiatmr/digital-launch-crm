@@ -603,6 +603,15 @@ export default function SettingsIntegrationsPage() {
             <Button
               size="sm"
               variant="outline"
+              onClick={() => setWaWizardOpen(true)}
+              title="Connecter via un System User (Business Manager client)"
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              Ajouter (System User)
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
               onClick={async () => {
                 const res = await callWa("resync", {}, undefined);
                 if (res?.ok) {
