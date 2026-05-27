@@ -907,6 +907,17 @@ export default function SettingsIntegrationsPage() {
           loadWaNumbers();
         }}
       />
+
+      <WhatsAppHelpDialog
+        open={waHelpOpen}
+        onOpenChange={setWaHelpOpen}
+        onOpenWizard={() => setWaWizardOpen(true)}
+      />
+      <WhatsAppSystemUserWizard
+        open={waWizardOpen}
+        onOpenChange={setWaWizardOpen}
+        onSuccess={() => loadWaNumbers()}
+      />
     </div>
   );
 }
