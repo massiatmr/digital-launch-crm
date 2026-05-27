@@ -298,28 +298,64 @@ export function WhatsAppSystemUserWizard({ open, onOpenChange, onSuccess, existi
             done={false}
             title="Sélectionner le numéro à activer"
           >
-            {numbers.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Aucun numéro détecté. Vérifie que la WABA est bien assignée au System User à l'étape 3.
-              </p>
-            ) : (
-              <>
+            <div className="space-y-4">
+              {numbers.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Aucun numéro listé par Meta avec ce token. Ce n'est pas bloquant : colle le Phone Number ID + WABA ID ci-dessous pour enregistrer le token permanent.
+                </p>
+              ) : (
+                <div className="space-y-3">
                 <Select value={selectedPhoneId} onValueChange={setSelectedPhoneId}>
                   <SelectTrigger><SelectValue placeholder="Choisir un numéro" /></SelectTrigger>
                   <SelectContent>
                     {numbers.map((n) => (
                       <SelectItem key={n.phone_number_id} value={n.phone_number_id}>
-                        {n.verified_name || "WhatsApp"} · {n.display_phone_number}
+                        {n.verified_name || "WhatsApp"} · {n.display_phone_number || n.phone_number_id}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {numbers.some((n) => n.source === "known") && (
+                  <p className="text-xs text-muted-foreground">
+                    Numéro repris depuis la connexion Meta existante : l'enregistrement remplacera son ancien token par le token System User.
+                  </p>
+                )}
                 <Button onClick={save} disabled={!selectedPhoneId || saving}>
                   {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
                   Enregistrer ce numéro
                 </Button>
-              </>
-            )}
+                </div>
+              )}
+
+              <div className="rounded-lg border border-border bg-card/50 p-3 space-y-3">
+                <p className="text-xs font-medium">Fallback manuel</p>
+                <p className="text-xs text-muted-foreground">
+                  Utilise cette option si le numéro est visible dans Meta mais pas listé par le token System User.
+                </p>
+                <div className="space-y-2">
+                  <Label className="text-xs">Phone Number ID</Label>
+                  <Input value={manualPhoneId} onChange={(e) => setManualPhoneId(e.target.value)} placeholder="ex: 123456789012345" className="font-mono text-sm" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">WhatsApp Business Account ID (WABA)</Label>
+                  <Input value={manualWabaId} onChange={(e) => setManualWabaId(e.target.value)} placeholder="ex: 987654321098765" className="font-mono text-sm" />
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => saveNumber({
+                    phone_number_id: manualPhoneId.trim(),
+                    business_account_id: manualWabaId.trim(),
+                    display_phone_number: manualPhoneId.trim(),
+                    verified_name: "WhatsApp",
+                    source: "manual",
+                  })}
+                  disabled={!manualPhoneId.trim() || !manualWabaId.trim() || saving}
+                >
+                  {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                  Enregistrer manuellement
+                </Button>
+              </div>
+            </div>
           </StepBlock>
         </div>
       </SheetContent>
