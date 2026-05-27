@@ -1,74 +1,85 @@
-# Activation auto WhatsApp Cloud API par workspace (agence multi-clients, mode Dev)
+# Connexion manuelle WhatsApp via System User (workspaces clients agence)
 
-## Contexte
-L'agence est admin sur les Business Managers de ses clients. L'OAuth Facebook existant détecte déjà les WABA des clients mais elles ne sont pas utilisables car : (1) pas abonnées à l'app Meta de l'agence, (2) pas de `phone_number_id` stocké. On résout les deux d'un clic avec le token agency (qui contient déjà `whatsapp_business_management`), avec un fallback System User pour les cas où l'abonnement échoue.
+## Objectif
+Permettre de connecter le numéro WhatsApp HKSN (et tout futur client) au CRM en collant un **token System User** généré dans le Business Manager du client, sans passer par l'OAuth Facebook (qui mélange les permissions du profil agence).
 
-## 1. UI — `MetaOAuthPicker` : activation 1-clic des WABA
+## UX — Settings → Intégrations
 
-Dans le picker post-OAuth, pour chaque WABA détectée :
-- Liste les **numéros de téléphone** de la WABA (un appel `GET /{waba_id}/phone_numbers` au moment d'ouvrir le picker)
-- Pour chaque numéro : badge statut (`Non connecté` / `Connecté ici` / `Connecté ailleurs`) + bouton **"Activer dans ce workspace"**
-- Au clic → invoke edge function `whatsapp-activate-waba` qui :
-  1. `POST /{waba_id}/subscribed_apps` avec le token agency → abonne la WABA à l'app
-  2. Récupère `phone_number_id` + nom d'affichage
-  3. Upsert dans `whatsapp_config` du workspace courant (token agency + phone_number_id + waba_id + display_name + app_secret depuis env)
-  4. Retourne `{ ok, error? }`
-- En cas d'échec (permission refusée par le BM client, WABA déjà claim par une autre app, etc.) → toast d'erreur + bouton **"Configurer manuellement (System User)"** qui ouvre le mini-wizard fallback
+À côté du bouton "Connecter Facebook" actuel, ajouter un bouton secondaire **"Connecter manuellement (System User)"** (visible toujours, mais surtout utile sur les workspaces clients).
 
-## 2. Mini-wizard fallback (`WhatsAppSystemUserWizard.tsx`)
-Sheet 4 étapes, chacune avec capture/lien direct vers le BM du client :
-1. Aller dans **Business Manager > Users > System Users** du client → "Add" → nom suggéré "DigitalLaunch CRM" → rôle Admin
-2. Cliquer **"Add Assets"** → sélectionner la WABA + l'app `Digital Launch CRM`
-3. **"Generate Token"** → cocher `whatsapp_business_messaging` + `whatsapp_business_management` → expiration "Never" → copier
-4. Coller le token + sélectionner le numéro dans un dropdown (rempli par appel API avec le token saisi)
-→ Submit invoke `whatsapp-activate-waba` avec `manual_token: true`, qui fait le `subscribed_apps` + stocke en DB.
+Au clic → ouvre un **Sheet wizard 4 étapes** (`WhatsAppSystemUserWizard.tsx`, fichier déjà présent à étoffer) :
 
-## 3. Bouton "?" Help — Guide WhatsApp complet (`WhatsAppHelpDialog.tsx`)
-Dialog accordéon avec sections :
-- **Activation auto** : explique le flux 1-clic et ce que ça fait techniquement
-- **Activation manuelle (System User)** : repris du wizard, version détaillée
-- **Limites mode Dev** : quotas (1000 conv/24h, ~5 WABA), quand passer en Live, lien App Review
-- **Compteur consommation** : appel `GET /{app_id}/conversations_analytics` → affiche `X / 1000 conversations utilisées (24h glissantes)` avec barre de progression + warning si > 80%
-- **Webhook** : confirme que l'URL est gérée côté plateforme (rien à faire côté client)
-- **Dépannage** : "WABA Connecté ailleurs" → contacter Digital Launch ; "Permission refusée" → re-vérifier rôle Admin BM ; "Numéro déjà utilisé par WhatsApp Business app mobile" → migrer vers Cloud API
+### Étape 1 — Créer le System User
+Instructions + capture annotée :
+- Aller sur `business.facebook.com` → BM du client → Business Settings → Users → **System Users** → Add
+- Nom suggéré : `DigitalLaunch CRM`, rôle **Admin**
+- Lien direct vers la page
 
-## 4. Backend
+### Étape 2 — Attacher les assets
+- Add Assets → sélectionner la **WABA** (Full control)
+- Add Assets → l'app **Digital Launch CRM** (Full control)
+- Note explicative : "Si l'app n'apparaît pas, demande-nous de partager l'app avec votre BM"
 
-### `whatsapp-activate-waba` (nouvelle edge function)
-- Input : `{ workspace_id, waba_id, phone_number_id, manual_token? }`
-- Vérifie que l'user est membre du workspace
-- Récupère le token : soit `manual_token`, soit le token agency stocké dans `meta_oauth_tokens` (ou équivalent) de l'user
-- Appelle `POST https://graph.facebook.com/v21.0/{waba_id}/subscribed_apps` avec le token
-- Si OK → fetch `GET /{phone_number_id}?fields=display_phone_number,verified_name`
-- Upsert `whatsapp_config` (workspace_id, phone_number_id, waba_id, access_token, app_secret, display_name, business_name, connected_at)
-- Retourne erreur précise pour driver le fallback côté UI
+### Étape 3 — Générer le token
+- Generate Token → app `Digital Launch CRM`
+- Scopes : `whatsapp_business_messaging` + `whatsapp_business_management`
+- Expiration : **Never**
+- Copier le token
 
-### `whatsapp-app-usage` (nouvelle edge function, lecture seule)
-- Appelle Graph API pour compter les conversations actives sur les dernières 24h de l'app
-- Cache 5 min (sinon spam)
-- Utilisé par le compteur du Help
+### Étape 4 — Coller et sélectionner
+- Input texte : coller le token
+- Bouton **"Vérifier le token"** → appelle l'edge function `whatsapp-activate-waba` en mode `discover`
+- Affiche la liste des **WABA + numéros** trouvés via Graph API
+- L'utilisateur sélectionne le bon numéro (HKSN dans ce cas)
+- Bouton **"Connecter"** → la même edge function en mode `activate` :
+  1. `POST /{waba_id}/subscribed_apps` pour abonner l'app aux webhooks
+  2. `GET /{phone_number_id}?fields=display_phone_number,verified_name`
+  3. Upsert dans `whatsapp_config` du `workspace_id` courant
+  4. Retour succès → toast + ferme le sheet + refresh de la section WhatsApp
 
-### `whatsapp-webhook` (existant)
-- Vérifier qu'il route bien par `phone_number_id` → workspace via `whatsapp_config`
-- Valider signature avec `app_secret` (env partagé, c'est la même app Meta agence)
+## Backend
 
-## 5. Migration DB
-Ajouter à `whatsapp_config` si manquant :
-- `display_name`, `business_name`, `verified_name`, `connected_at`, `last_health_check_at`, `health_status` (text: 'ok' | 'subscription_failed' | 'token_expired')
+### `supabase/functions/whatsapp-activate-waba/index.ts` (nouveau)
+Inputs :
+- `{ workspace_id, mode: 'discover', token }` → retourne `[{ waba_id, waba_name, numbers: [{ id, display_phone_number, verified_name }] }]`
+- `{ workspace_id, mode: 'activate', token, waba_id, phone_number_id }` → fait subscribe + upsert config
 
-Pas de nouvelle table. RLS owner/workspace existante conservée.
+Sécurité :
+- Vérifier que l'utilisateur appelant est **membre admin du workspace** ciblé (via `workspace_members`)
+- Stocker le token dans `whatsapp_config.access_token` (colonne déjà existante)
+- Stocker également `system_user: true` (nouvelle colonne booléenne) pour distinguer des tokens OAuth user (qui expirent à 60j)
 
-## 6. Fichiers touchés
+Gestion d'erreurs Meta typiques :
+- `(#10) Application does not have permission` → message "Le System User n'a pas accès à l'app, retournez à l'étape 2"
+- `(#100) phone_number_id invalid` → message "Numéro introuvable, le token a peut-être perdu l'accès à la WABA"
+- Token invalide → message clair "Token rejeté par Meta"
+
+### Migration DB
+Sur `whatsapp_config`, ajouter si absent :
+- `system_user boolean default false`
+- `connected_at timestamptz default now()`
+- `display_name text`, `verified_name text` (si pas déjà là)
+
+Pas de modif RLS — la table reste scopée par `workspace_id`.
+
+### Webhook existant
+`whatsapp-webhook` route déjà par `phone_number_id` → `workspace_id` via `whatsapp_config`. Aucune modif nécessaire : un nouveau numéro avec son `phone_number_id` distinct est automatiquement routé vers le bon workspace.
+
+## Coexistence avec l'OAuth Facebook existant
+
+- Le bouton OAuth Facebook reste pour Digital Launch (tes propres numéros)
+- Pour les workspaces clients, on recommande le wizard System User (ajout d'un petit texte explicatif dans la section)
+- Les deux flux écrivent dans la **même table** `whatsapp_config`, donc l'inbox, l'envoi, et tout le reste fonctionnent à l'identique
+
+## Fichiers touchés
+
 - `supabase/migrations/...` — colonnes additives sur `whatsapp_config`
-- `supabase/functions/whatsapp-activate-waba/index.ts` — nouveau
-- `supabase/functions/whatsapp-app-usage/index.ts` — nouveau
-- `supabase/functions/whatsapp-webhook/index.ts` — vérif routing multi-workspace
-- `src/components/settings/MetaOAuthPicker.tsx` — ajout liste numéros + bouton activation
-- `src/components/settings/WhatsAppSystemUserWizard.tsx` — nouveau (fallback)
-- `src/components/settings/WhatsAppHelpDialog.tsx` — nouveau (bouton "?")
-- `src/pages/SettingsIntegrationsPage.tsx` — intégration du bouton "?" + compteur usage
+- `supabase/functions/whatsapp-activate-waba/index.ts` — nouvelle edge function
+- `src/components/settings/WhatsAppSystemUserWizard.tsx` — wizard 4 étapes (étoffer le composant existant)
+- `src/pages/SettingsIntegrationsPage.tsx` — ajout du bouton "Connecter manuellement" + appel du wizard
+- `src/components/settings/WhatsAppHelpDialog.tsx` — référencer la méthode System User dans le help (si déjà ouvert)
 
-## Notes techniques
-- L'`app_secret` Meta reste un secret global de l'app agency (pas par workspace)
-- Le token utilisé pour envoyer/recevoir = le token user agency tant que sa session OAuth est valide ; si expiration → fallback System User devient nécessaire (à terme, prévoir refresh). Pour démarrer : on stocke le long-lived token (60j) du user agency par workspace
-- Le mode Dev limite à ~5 WABA actives simultanément sur l'app ; au-delà l'App Review devient inévitable (le compteur Help le rendra visible)
+## Hors scope
+- App Review Meta (mode Dev suffit pour < 5 WABA actives)
+- Refresh automatique de token (le System User token = never expire, donc pas besoin)
+- Migration des connexions OAuth existantes vers System User (à la demande plus tard)
