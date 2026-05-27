@@ -154,6 +154,47 @@ export type Database = {
           },
         ]
       }
+      booking_wa_reminders: {
+        Row: {
+          booking_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          scheduled_at: string
+          sent_at: string | null
+          status: string
+          type: Database["public"]["Enums"]["booking_email_type"]
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          scheduled_at: string
+          sent_at?: string | null
+          status?: string
+          type: Database["public"]["Enums"]["booking_email_type"]
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          scheduled_at?: string
+          sent_at?: string | null
+          status?: string
+          type?: Database["public"]["Enums"]["booking_email_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_wa_reminders_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bookings: {
         Row: {
           booking_date: string
@@ -2828,6 +2869,60 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "workspace_booking_email_templates_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_booking_wa_templates: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          language: string
+          owner_id: string
+          template_id: string | null
+          type: Database["public"]["Enums"]["booking_email_type"]
+          updated_at: string
+          variables_map: Json
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          language?: string
+          owner_id?: string
+          template_id?: string | null
+          type: Database["public"]["Enums"]["booking_email_type"]
+          updated_at?: string
+          variables_map?: Json
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          language?: string
+          owner_id?: string
+          template_id?: string | null
+          type?: Database["public"]["Enums"]["booking_email_type"]
+          updated_at?: string
+          variables_map?: Json
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_booking_wa_templates_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workspace_booking_wa_templates_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
