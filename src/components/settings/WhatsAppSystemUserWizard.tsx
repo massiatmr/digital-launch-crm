@@ -49,33 +49,83 @@ export function WhatsAppSystemUserWizard({ open, onOpenChange, onSuccess }: Prop
   const discoverNumbers = async () => {
     if (!token.trim()) return;
     setDiscovering(true);
-    try {
-      // List WABAs the token has access to
-      const wabaRes = await fetch(
-        `https://graph.facebook.com/v21.0/me/businesses?fields=owned_whatsapp_business_accounts{id,phone_numbers{id,display_phone_number,verified_name}}&access_token=${encodeURIComponent(token.trim())}`,
+    const t = token.trim();
+    const GRAPH = "https://graph.facebook.com/v21.0";
+    const found: DiscoveredNumber[] = [];
+    const errors: string[] = [];
+
+    const pushPhones = (waba: any) => {
+      for (const phone of waba?.phone_numbers?.data || []) {
+        if (found.some((f) => f.phone_number_id === phone.id)) continue;
+        found.push({
+          phone_number_id: phone.id,
+          display_phone_number: phone.display_phone_number,
+          verified_name: phone.verified_name || "",
+          business_account_id: waba.id,
+        });
+      }
+    };
+
+    const fetchWabaPhones = async (wabaId: string) => {
+      const r = await fetch(
+        `${GRAPH}/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name&access_token=${encodeURIComponent(t)}`,
       );
-      const wabaData = await wabaRes.json();
-      if (!wabaRes.ok) {
-        toast.error("Token invalide", { description: wabaData?.error?.message || "Vérifie le token" });
+      const d = await r.json();
+      if (r.ok) pushPhones({ id: wabaId, phone_numbers: { data: d.data || [] } });
+    };
+
+    try {
+      // 1) List businesses the token belongs to (owned + client side)
+      const bizRes = await fetch(
+        `${GRAPH}/me/businesses?fields=id,name&access_token=${encodeURIComponent(t)}`,
+      );
+      const bizData = await bizRes.json();
+      if (!bizRes.ok) {
+        toast.error("Token invalide", { description: bizData?.error?.message || "Vérifie le token" });
         setDiscovering(false);
         return;
       }
-      const found: DiscoveredNumber[] = [];
-      for (const biz of wabaData.data || []) {
-        for (const waba of biz.owned_whatsapp_business_accounts?.data || []) {
-          for (const phone of waba.phone_numbers?.data || []) {
-            found.push({
-              phone_number_id: phone.id,
-              display_phone_number: phone.display_phone_number,
-              verified_name: phone.verified_name || "",
-              business_account_id: waba.id,
-            });
+
+      // 2) For each business, fetch owned + client WABAs
+      for (const biz of bizData.data || []) {
+        for (const kind of ["owned_whatsapp_business_accounts", "client_whatsapp_business_accounts"]) {
+          const r = await fetch(
+            `${GRAPH}/${biz.id}/${kind}?fields=id,name,phone_numbers{id,display_phone_number,verified_name}&access_token=${encodeURIComponent(t)}`,
+          );
+          const d = await r.json();
+          if (!r.ok) {
+            if (d?.error?.message) errors.push(`${biz.name} · ${kind}: ${d.error.message}`);
+            continue;
+          }
+          for (const waba of d.data || []) {
+            if (waba.phone_numbers?.data?.length) pushPhones(waba);
+            else await fetchWabaPhones(waba.id); // fallback when nested expansion is blocked
           }
         }
       }
+
+      // 3) Fallback: /me/assigned_whatsapp_business_accounts (System User direct assets)
+      if (found.length === 0) {
+        const r = await fetch(
+          `${GRAPH}/me?fields=assigned_whatsapp_business_accounts{id,name,phone_numbers{id,display_phone_number,verified_name}}&access_token=${encodeURIComponent(t)}`,
+        );
+        const d = await r.json();
+        if (r.ok) {
+          for (const waba of d?.assigned_whatsapp_business_accounts?.data || []) {
+            if (waba.phone_numbers?.data?.length) pushPhones(waba);
+            else await fetchWabaPhones(waba.id);
+          }
+        } else if (d?.error?.message) {
+          errors.push(`assigned: ${d.error.message}`);
+        }
+      }
+
       if (found.length === 0) {
         toast.warning("Aucun numéro WhatsApp trouvé", {
-          description: "Le System User a-t-il bien la WABA assignée comme asset ?",
+          description:
+            errors[0] ||
+            "Vérifie que le System User a la WABA assignée comme asset (owned ou client) avec 'Full control', et que le token a les scopes whatsapp_business_messaging + whatsapp_business_management.",
+          duration: 8000,
         });
       }
       setNumbers(found);
