@@ -926,6 +926,7 @@ export default function SettingsIntegrationsPage() {
         open={waWizardOpen}
         onOpenChange={setWaWizardOpen}
         onSuccess={() => loadWaNumbers()}
+        existingNumbers={waNumbers}
       />
     </div>
   );
