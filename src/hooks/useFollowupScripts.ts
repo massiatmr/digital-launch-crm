@@ -45,29 +45,38 @@ export const PHASE_ORDER: FollowupScriptPhase[] = [
 export function useFollowupScripts() {
   const workspaceId = useCurrentWorkspaceId();
   return useQuery({
-    queryKey: ['followup-scripts', workspaceId],
+    queryKey: ['followup-scripts', workspaceId ?? 'legacy'],
     queryFn: async () => {
-      // Seed defaults if none exist for this user
-      const { data: existing } = await supabase
-        .from('followup_scripts')
-        .select('id')
-        .limit(1);
+      const { data: userRes } = await supabase.auth.getUser();
+      const userId = userRes.user?.id;
 
-      if (!existing || existing.length === 0) {
-        const { data: userRes } = await supabase.auth.getUser();
-        if (userRes.user) {
-          await supabase.rpc('seed_default_followup_scripts' as any, {
-            p_owner: userRes.user.id,
-            p_workspace: workspaceId,
-          });
-        }
+      // Seed defaults only if none exist FOR THIS WORKSPACE (or legacy owner-only)
+      let existingQ = supabase.from('followup_scripts').select('id').limit(1);
+      if (workspaceId) {
+        existingQ = existingQ.eq('workspace_id', workspaceId);
+      } else if (userId) {
+        existingQ = existingQ.eq('owner_id', userId).is('workspace_id', null);
+      }
+      const { data: existing } = await existingQ;
+
+      if ((!existing || existing.length === 0) && userId) {
+        await supabase.rpc('seed_default_followup_scripts' as any, {
+          p_owner: userId,
+          p_workspace: workspaceId,
+        });
       }
 
-      const { data, error } = await supabase
+      let q = supabase
         .from('followup_scripts')
         .select('*')
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true });
+      if (workspaceId) {
+        q = q.eq('workspace_id', workspaceId);
+      } else if (userId) {
+        q = q.eq('owner_id', userId).is('workspace_id', null);
+      }
+      const { data, error } = await q;
       if (error) throw error;
       return (data || []) as FollowupScript[];
     },
