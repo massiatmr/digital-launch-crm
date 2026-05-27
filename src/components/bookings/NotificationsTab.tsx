@@ -13,6 +13,8 @@ import { Mail, BellRing, Layers, Send, MessageCircle } from "lucide-react";
 
 export function NotificationsTab({ workspaceId }: { workspaceId: string | null }) {
   const { data, update } = useWorkspaceAdminReminders(workspaceId);
+  const { data: waCfgs, upsert: waUpsert } = useWorkspaceBookingWaTemplates(workspaceId);
+  const { data: waTemplates = [] } = useWorkspaceWhatsAppTemplates(workspaceId);
   const [email, setEmail] = useState("");
   const [manualSendOpen, setManualSendOpen] = useState(false);
 
