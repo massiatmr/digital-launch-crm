@@ -23,12 +23,15 @@ import {
   Phone,
   Plus,
   AlertTriangle,
+  HelpCircle,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MetaCapiSection } from "@/components/settings/MetaCapiSection";
 import { LandingApiKeysSection } from "@/components/settings/LandingApiKeysSection";
 import { IntegrationStatusOverview } from "@/components/settings/IntegrationStatusOverview";
 import { MetaOAuthPicker } from "@/components/settings/MetaOAuthPicker";
+import { WhatsAppHelpDialog } from "@/components/settings/WhatsAppHelpDialog";
+import { WhatsAppSystemUserWizard } from "@/components/settings/WhatsAppSystemUserWizard";
 import { useCurrentWorkspaceId, useWorkspaces } from "@/hooks/useWorkspaces";
 import { useQueryClient } from "@tanstack/react-query";
 
