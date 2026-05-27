@@ -380,13 +380,13 @@ Deno.serve(async (req) => {
       const uniqueTokens = Array.from(new Set(rows.map((r) => r.access_token).filter(Boolean)));
       for (const token of uniqueTokens) {
         try {
-          for (const bizType of ["", "?type=client_business"]) {
+          for (const bizType of ["", "&type=client_business"]) {
             const bizRes = await fetch(
-              `${GRAPH}/me/businesses${bizType}&fields=id,name&access_token=${token}`.replace("?&", "?"),
+              `${GRAPH}/me/businesses?fields=id,name${bizType}&access_token=${token}`,
             );
             const bizJson = await bizRes.json();
             if (!bizRes.ok) {
-              errors.push({ step: "list_businesses", token_tail: token.slice(-6), error: bizJson });
+              errors.push({ step: "list_businesses", token_tail: token.slice(-6), bizType: bizType || "owned", error: bizJson });
               continue;
             }
             for (const biz of (bizJson.data || [])) {
