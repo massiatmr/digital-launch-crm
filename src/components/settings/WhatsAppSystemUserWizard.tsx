@@ -14,6 +14,7 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSuccess?: () => void;
+  existingNumbers?: ExistingWhatsappNumber[];
 }
 
 interface DiscoveredNumber {
@@ -21,9 +22,17 @@ interface DiscoveredNumber {
   display_phone_number: string;
   verified_name: string;
   business_account_id: string;
+  source?: "meta" | "known" | "manual";
 }
 
-export function WhatsAppSystemUserWizard({ open, onOpenChange, onSuccess }: Props) {
+interface ExistingWhatsappNumber {
+  phone_number_id: string;
+  display_phone_number: string;
+  verified_name: string;
+  business_account_id: string;
+}
+
+export function WhatsAppSystemUserWizard({ open, onOpenChange, onSuccess, existingNumbers = [] }: Props) {
   const workspaceId = useCurrentWorkspaceId();
   const [step, setStep] = useState(1);
   const [token, setToken] = useState("");
@@ -31,6 +40,8 @@ export function WhatsAppSystemUserWizard({ open, onOpenChange, onSuccess }: Prop
   const [numbers, setNumbers] = useState<DiscoveredNumber[]>([]);
   const [selectedPhoneId, setSelectedPhoneId] = useState("");
   const [saving, setSaving] = useState(false);
+  const [manualPhoneId, setManualPhoneId] = useState("");
+  const [manualWabaId, setManualWabaId] = useState("");
 
   useEffect(() => {
     if (!open) {
@@ -38,6 +49,8 @@ export function WhatsAppSystemUserWizard({ open, onOpenChange, onSuccess }: Prop
       setToken("");
       setNumbers([]);
       setSelectedPhoneId("");
+      setManualPhoneId("");
+      setManualWabaId("");
     }
   }, [open]);
 
