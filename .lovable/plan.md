@@ -1,85 +1,86 @@
-# Connexion manuelle WhatsApp via System User (workspaces clients agence)
+# Rappels WhatsApp automatiques pour les RDV
 
 ## Objectif
-Permettre de connecter le numéro WhatsApp HKSN (et tout futur client) au CRM en collant un **token System User** généré dans le Business Manager du client, sans passer par l'OAuth Facebook (qui mélange les permissions du profil agence).
+Dans **Bookings → Notifications & rappels**, ajouter la possibilité d'envoyer des **messages WhatsApp via template HSM** au lead pour : confirmation, J-24h, J-12h, J-1h (mêmes moments que les emails actuels). Les templates HSM sont obligatoires hors fenêtre 24h, donc on s'appuie sur ceux déjà synchronisés dans `whatsapp_templates`.
 
-## UX — Settings → Intégrations
+## 1. Base de données
 
-À côté du bouton "Connecter Facebook" actuel, ajouter un bouton secondaire **"Connecter manuellement (System User)"** (visible toujours, mais surtout utile sur les workspaces clients).
+### Nouvelle table `workspace_booking_wa_templates` (config par workspace)
+Une ligne par type de rappel (`confirmation`, `24h_before`, `12h_before`, `1h_before`).
+- `workspace_id` (FK workspaces, cascade)
+- `type` (enum `booking_email_type` réutilisé)
+- `enabled` (bool, default false)
+- `template_id` (FK `whatsapp_templates`, nullable — la ligne peut exister activée mais non configurée)
+- `language` (text, default 'fr')
+- `variables_map` (jsonb) — mapping `{ "1": "{{name}}", "2": "{{date}}", "3": "{{time}}" }` (clés = numéro de variable Meta, valeurs = placeholders)
+- Unique `(workspace_id, type)`
+- Grants `authenticated` (SELECT/INSERT/UPDATE/DELETE) + `service_role`, RLS scoped via `is_workspace_member`
 
-Au clic → ouvre un **Sheet wizard 4 étapes** (`WhatsAppSystemUserWizard.tsx`, fichier déjà présent à étoffer) :
+### Nouvelle table `booking_wa_reminders` (file d'envois planifiés)
+Calquée sur `booking_emails`.
+- `booking_id` (FK bookings, cascade), `type`, `scheduled_at`, `status` ('pending'|'sent'|'failed'|'cancelled'|'skipped'), `sent_at`, `error_message`
+- Index sur `(status, scheduled_at)`
+- RLS : owner du booking voit, service_role gère tout
 
-### Étape 1 — Créer le System User
-Instructions + capture annotée :
-- Aller sur `business.facebook.com` → BM du client → Business Settings → Users → **System Users** → Add
-- Nom suggéré : `DigitalLaunch CRM`, rôle **Admin**
-- Lien direct vers la page
+## 2. Backend
 
-### Étape 2 — Attacher les assets
-- Add Assets → sélectionner la **WABA** (Full control)
-- Add Assets → l'app **Digital Launch CRM** (Full control)
-- Note explicative : "Si l'app n'apparaît pas, demande-nous de partager l'app avec votre BM"
+### Modification `handle-booking/index.ts`
+Après l'insert dans `booking_emails`, faire le même insert dans `booking_wa_reminders` avec les 4 mêmes `scheduled_at`. Pas de filtrage côté `handle-booking` : on plannifie systématiquement, le cron filtrera selon `enabled` + présence d'un `phone` sur le lead.
 
-### Étape 3 — Générer le token
-- Generate Token → app `Digital Launch CRM`
-- Scopes : `whatsapp_business_messaging` + `whatsapp_business_management`
-- Expiration : **Never**
-- Copier le token
+### Nouvelle edge function `process-booking-wa-reminders`
+Cron toutes les minutes (pg_cron + `net.http_post`, secret partagé service-role).
+Pour chaque `booking_wa_reminders` due :
+1. Charge `booking` + `lead` (need `phone`, `workspace_id`)
+2. Charge `workspace_booking_wa_templates` pour ce `(workspace_id, type)` : si désactivé ou pas de `template_id`, marque `skipped`
+3. Charge `whatsapp_templates` pour récupérer `name` + `business_account_id`
+4. Calcule les variables en remplaçant `{{name}}`, `{{date}}`, `{{time}}`, `{{offer_name}}`, `{{meet_url}}` depuis le booking
+5. Invoke `send-whatsapp-message` (déjà existante) avec `{ to: lead.phone, template: { name, language, variables: [...] }, lead_id, workspace_id }`
+6. Update status `sent` ou `failed` avec `error_message`
 
-### Étape 4 — Coller et sélectionner
-- Input texte : coller le token
-- Bouton **"Vérifier le token"** → appelle l'edge function `whatsapp-activate-waba` en mode `discover`
-- Affiche la liste des **WABA + numéros** trouvés via Graph API
-- L'utilisateur sélectionne le bon numéro (HKSN dans ce cas)
-- Bouton **"Connecter"** → la même edge function en mode `activate` :
-  1. `POST /{waba_id}/subscribed_apps` pour abonner l'app aux webhooks
-  2. `GET /{phone_number_id}?fields=display_phone_number,verified_name`
-  3. Upsert dans `whatsapp_config` du `workspace_id` courant
-  4. Retour succès → toast + ferme le sheet + refresh de la section WhatsApp
+### Cron
+Job pg_cron `process-booking-wa-reminders-every-minute` via `supabase--insert` (pas migration, contient l'URL projet + service-role).
 
-## Backend
+## 3. UI — `NotificationsTab.tsx`
 
-### `supabase/functions/whatsapp-activate-waba/index.ts` (nouveau)
-Inputs :
-- `{ workspace_id, mode: 'discover', token }` → retourne `[{ waba_id, waba_name, numbers: [{ id, display_phone_number, verified_name }] }]`
-- `{ workspace_id, mode: 'activate', token, waba_id, phone_number_id }` → fait subscribe + upsert config
+Nouvelle Card **"Rappels WhatsApp (templates)"** sous "Notifications admin" :
 
-Sécurité :
-- Vérifier que l'utilisateur appelant est **membre admin du workspace** ciblé (via `workspace_members`)
-- Stocker le token dans `whatsapp_config.access_token` (colonne déjà existante)
-- Stocker également `system_user: true` (nouvelle colonne booléenne) pour distinguer des tokens OAuth user (qui expirent à 60j)
+```text
+┌─────────────────────────────────────────────────────┐
+│ 💬 Rappels WhatsApp                                 │
+│ Templates HSM envoyés automatiquement au lead       │
+├─────────────────────────────────────────────────────┤
+│ ✅ Confirmation       [select template ▾] [⚙ vars] │
+│ ⬜ 24h avant          [select template ▾] [⚙ vars] │
+│ ⬜ 12h avant          [select template ▾] [⚙ vars] │
+│ ✅ 1h avant           [select template ▾] [⚙ vars] │
+└─────────────────────────────────────────────────────┘
+```
 
-Gestion d'erreurs Meta typiques :
-- `(#10) Application does not have permission` → message "Le System User n'a pas accès à l'app, retournez à l'étape 2"
-- `(#100) phone_number_id invalid` → message "Numéro introuvable, le token a peut-être perdu l'accès à la WABA"
-- Token invalide → message clair "Token rejeté par Meta"
+Chaque ligne :
+- Switch `enabled`
+- Select des templates `APPROVED` pour ce workspace (filtré sur `whatsapp_templates` du `workspace_id` courant)
+- Bouton "Variables" → petit popover qui montre les variables du template (`variables_count`) et permet de mapper chacune sur un placeholder : `{{name}}`, `{{date}}`, `{{time}}`, `{{offer_name}}`, `{{meet_url}}`, ou texte fixe
 
-### Migration DB
-Sur `whatsapp_config`, ajouter si absent :
-- `system_user boolean default false`
-- `connected_at timestamptz default now()`
-- `display_name text`, `verified_name text` (si pas déjà là)
+Note d'aide : "Les templates doivent être approuvés par Meta (catégorie UTILITY recommandée). Synchronise-les depuis Settings → Intégrations."
 
-Pas de modif RLS — la table reste scopée par `workspace_id`.
+État vide : si aucun WhatsApp connecté → bandeau "Configure d'abord un numéro WhatsApp dans Intégrations" + lien.
 
-### Webhook existant
-`whatsapp-webhook` route déjà par `phone_number_id` → `workspace_id` via `whatsapp_config`. Aucune modif nécessaire : un nouveau numéro avec son `phone_number_id` distinct est automatiquement routé vers le bon workspace.
+### Hook : `useBookingWaTemplates(workspaceId)`
+- `query` : select des 4 lignes (auto-init si absentes côté upsert)
+- `mutation` : update partiel
+- Réutilise React Query.
 
-## Coexistence avec l'OAuth Facebook existant
+## 4. Fichiers
 
-- Le bouton OAuth Facebook reste pour Digital Launch (tes propres numéros)
-- Pour les workspaces clients, on recommande le wizard System User (ajout d'un petit texte explicatif dans la section)
-- Les deux flux écrivent dans la **même table** `whatsapp_config`, donc l'inbox, l'envoi, et tout le reste fonctionnent à l'identique
-
-## Fichiers touchés
-
-- `supabase/migrations/...` — colonnes additives sur `whatsapp_config`
-- `supabase/functions/whatsapp-activate-waba/index.ts` — nouvelle edge function
-- `src/components/settings/WhatsAppSystemUserWizard.tsx` — wizard 4 étapes (étoffer le composant existant)
-- `src/pages/SettingsIntegrationsPage.tsx` — ajout du bouton "Connecter manuellement" + appel du wizard
-- `src/components/settings/WhatsAppHelpDialog.tsx` — référencer la méthode System User dans le help (si déjà ouvert)
+- `supabase/migrations/...` — création des 2 tables + grants + RLS + auto-seed des 4 lignes par workspace (trigger ou seed côté hook)
+- `supabase/functions/handle-booking/index.ts` — ajout de l'insert WA rappels
+- `supabase/functions/process-booking-wa-reminders/index.ts` — nouveau
+- `supabase/insert` — cron pg_cron pour appeler la fonction toutes les minutes
+- `src/hooks/useBookingWaTemplates.ts` — nouveau
+- `src/components/bookings/NotificationsTab.tsx` — ajout de la Card
+- `src/components/bookings/WaReminderRow.tsx` — nouveau (row config par type)
 
 ## Hors scope
-- App Review Meta (mode Dev suffit pour < 5 WABA actives)
-- Refresh automatique de token (le System User token = never expire, donc pas besoin)
-- Migration des connexions OAuth existantes vers System User (à la demande plus tard)
+- Préconfiguration / création automatique de templates Meta (l'utilisateur les crée + sync via le flow existant)
+- Rappels WhatsApp admin (seulement client pour l'instant — facile à étendre plus tard)
+- Logs détaillés UI (le statut sera lisible plus tard via une page Audit dédiée si besoin)
