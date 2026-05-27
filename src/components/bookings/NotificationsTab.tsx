@@ -69,6 +69,45 @@ export function NotificationsTab({ workspaceId }: { workspaceId: string | null }
 
       <Card className="border-white/5 bg-card/50 backdrop-blur">
         <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <MessageCircle className="h-4 w-4 text-primary" /> Rappels WhatsApp (templates)
+          </CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            Templates HSM envoyés automatiquement au lead à la confirmation, 24h, 12h et 1h avant le RDV.
+            Les templates doivent être approuvés par Meta (catégorie UTILITY recommandée) et synchronisés depuis Settings → Intégrations.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          {!workspaceId && (
+            <p className="text-xs text-muted-foreground">Sélectionne un workspace pour configurer.</p>
+          )}
+          {workspaceId && waTemplates.length === 0 && (
+            <p className="text-xs text-amber-400/80">
+              Aucun template WhatsApp approuvé pour ce workspace. Configure un numéro WhatsApp et synchronise tes templates dans Settings → Intégrations.
+            </p>
+          )}
+          {workspaceId && BOOKING_WA_TYPES.map((row) => {
+            const cfg = waCfgs?.find((c) => c.type === row.type);
+            return (
+              <WaReminderRow
+                key={row.type}
+                type={row.type}
+                label={row.label}
+                description={row.description}
+                config={cfg}
+                templates={waTemplates as any}
+                onChange={(patch) => waUpsert.mutate(patch)}
+                disabled={waTemplates.length === 0}
+              />
+            );
+          })}
+        </CardContent>
+      </Card>
+
+
+
+      <Card className="border-white/5 bg-card/50 backdrop-blur">
+        <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
               <CardTitle className="text-base flex items-center gap-2">
