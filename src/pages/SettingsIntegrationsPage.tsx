@@ -23,12 +23,15 @@ import {
   Phone,
   Plus,
   AlertTriangle,
+  HelpCircle,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MetaCapiSection } from "@/components/settings/MetaCapiSection";
 import { LandingApiKeysSection } from "@/components/settings/LandingApiKeysSection";
 import { IntegrationStatusOverview } from "@/components/settings/IntegrationStatusOverview";
 import { MetaOAuthPicker } from "@/components/settings/MetaOAuthPicker";
+import { WhatsAppHelpDialog } from "@/components/settings/WhatsAppHelpDialog";
+import { WhatsAppSystemUserWizard } from "@/components/settings/WhatsAppSystemUserWizard";
 import { useCurrentWorkspaceId, useWorkspaces } from "@/hooks/useWorkspaces";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -103,6 +106,8 @@ export default function SettingsIntegrationsPage() {
   const [manualWabaId, setManualWabaId] = useState("");
   const [manualToken, setManualToken] = useState("");
   const [pickerSession, setPickerSession] = useState<string | null>(null);
+  const [waHelpOpen, setWaHelpOpen] = useState(false);
+  const [waWizardOpen, setWaWizardOpen] = useState(false);
 
   const activeWa = waNumbers.find((n) => n.is_active) || null;
 
@@ -578,7 +583,18 @@ export default function SettingsIntegrationsPage() {
               <MessageCircle className="h-5 w-5 text-[#25D366]" />
             </div>
             <div className="flex-1">
-              <CardTitle>Numéros WhatsApp Business</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                Numéros WhatsApp Business
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-6 w-6"
+                  onClick={() => setWaHelpOpen(true)}
+                  title="Guide & dépannage WhatsApp"
+                >
+                  <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </CardTitle>
               <CardDescription>
                 Détectés via ta connexion Meta. Choisis le numéro à utiliser pour les envois.
               </CardDescription>
@@ -890,6 +906,17 @@ export default function SettingsIntegrationsPage() {
           loadPages();
           loadWaNumbers();
         }}
+      />
+
+      <WhatsAppHelpDialog
+        open={waHelpOpen}
+        onOpenChange={setWaHelpOpen}
+        onOpenWizard={() => setWaWizardOpen(true)}
+      />
+      <WhatsAppSystemUserWizard
+        open={waWizardOpen}
+        onOpenChange={setWaWizardOpen}
+        onSuccess={() => loadWaNumbers()}
       />
     </div>
   );

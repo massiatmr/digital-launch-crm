@@ -88,26 +88,38 @@ Deno.serve(async (req) => {
         .eq("id", target.id);
       if (error) return json({ error: error.message }, 500);
 
-      // Auto-subscribe webhook
+      // Auto-subscribe the WABA to our Meta app — surface errors so the UI can guide the user
       const { data: cfg } = await admin
         .from("whatsapp_config")
         .select("*")
         .eq("id", target.id)
         .maybeSingle();
+      let subscription_error: string | undefined;
+      let subscription_error_code: number | undefined;
       if (cfg) {
         try {
           const r = await fetch(
             `${GRAPH}/${cfg.business_account_id}/subscribed_apps?access_token=${cfg.access_token}`,
             { method: "POST" },
           );
-          if (r.ok) {
+          const subData = await r.json().catch(() => ({}));
+          if (r.ok && subData?.success !== false) {
             await admin
               .from("whatsapp_config")
               .update({ webhook_subscribed: true })
               .eq("id", target.id);
+          } else {
+            subscription_error = subData?.error?.message
+              || subData?.error?.error_user_msg
+              || `HTTP ${r.status}`;
+            subscription_error_code = subData?.error?.code;
+            await admin
+              .from("whatsapp_config")
+              .update({ webhook_subscribed: false })
+              .eq("id", target.id);
           }
-        } catch (_e) {
-          // Non-blocking
+        } catch (e) {
+          subscription_error = e instanceof Error ? e.message : String(e);
         }
       }
 
@@ -157,7 +169,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      return json({ ok: true, templates_synced, templates_error });
+      return json({ ok: true, templates_synced, templates_error, subscription_error, subscription_error_code });
     }
 
     if (action === "get") {
