@@ -14,6 +14,7 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSuccess?: () => void;
+  existingNumbers?: ExistingWhatsappNumber[];
 }
 
 interface DiscoveredNumber {
@@ -21,9 +22,17 @@ interface DiscoveredNumber {
   display_phone_number: string;
   verified_name: string;
   business_account_id: string;
+  source?: "meta" | "known" | "manual";
 }
 
-export function WhatsAppSystemUserWizard({ open, onOpenChange, onSuccess }: Props) {
+interface ExistingWhatsappNumber {
+  phone_number_id: string;
+  display_phone_number: string;
+  verified_name: string;
+  business_account_id: string;
+}
+
+export function WhatsAppSystemUserWizard({ open, onOpenChange, onSuccess, existingNumbers = [] }: Props) {
   const workspaceId = useCurrentWorkspaceId();
   const [step, setStep] = useState(1);
   const [token, setToken] = useState("");
@@ -31,6 +40,8 @@ export function WhatsAppSystemUserWizard({ open, onOpenChange, onSuccess }: Prop
   const [numbers, setNumbers] = useState<DiscoveredNumber[]>([]);
   const [selectedPhoneId, setSelectedPhoneId] = useState("");
   const [saving, setSaving] = useState(false);
+  const [manualPhoneId, setManualPhoneId] = useState("");
+  const [manualWabaId, setManualWabaId] = useState("");
 
   useEffect(() => {
     if (!open) {
@@ -38,6 +49,8 @@ export function WhatsAppSystemUserWizard({ open, onOpenChange, onSuccess }: Prop
       setToken("");
       setNumbers([]);
       setSelectedPhoneId("");
+      setManualPhoneId("");
+      setManualWabaId("");
     }
   }, [open]);
 
@@ -62,6 +75,7 @@ export function WhatsAppSystemUserWizard({ open, onOpenChange, onSuccess }: Prop
           display_phone_number: phone.display_phone_number,
           verified_name: phone.verified_name || "",
           business_account_id: waba.id,
+          source: "meta",
         });
       }
     };
@@ -120,11 +134,25 @@ export function WhatsAppSystemUserWizard({ open, onOpenChange, onSuccess }: Prop
         }
       }
 
+      if (found.length === 0 && existingNumbers.length > 0) {
+        for (const n of existingNumbers) {
+          if (!n.phone_number_id || !n.business_account_id) continue;
+          if (found.some((f) => f.phone_number_id === n.phone_number_id)) continue;
+          found.push({ ...n, source: "known" });
+        }
+        if (found.length > 0) {
+          toast.info("Autodétection limitée par Meta", {
+            description: "Le token System User ne liste pas les Business assets, donc j’utilise les numéros déjà visibles dans le CRM pour y attacher le token permanent.",
+            duration: 8000,
+          });
+        }
+      }
+
       if (found.length === 0) {
         toast.warning("Aucun numéro WhatsApp trouvé", {
           description:
             errors[0] ||
-            "Vérifie que le System User a la WABA assignée comme asset (owned ou client) avec 'Full control', et que le token a les scopes whatsapp_business_messaging + whatsapp_business_management.",
+            "Meta ne permet pas toujours de lister les assets depuis un token System User. Colle le Phone Number ID + WABA ID manuellement à l’étape suivante.",
           duration: 8000,
         });
       }
@@ -138,8 +166,7 @@ export function WhatsAppSystemUserWizard({ open, onOpenChange, onSuccess }: Prop
     }
   };
 
-  const save = async () => {
-    const picked = numbers.find((n) => n.phone_number_id === selectedPhoneId);
+  const saveNumber = async (picked?: DiscoveredNumber) => {
     if (!picked) return;
     setSaving(true);
     const { data, error } = await supabase.functions.invoke("whatsapp-config-manage", {
@@ -159,6 +186,11 @@ export function WhatsAppSystemUserWizard({ open, onOpenChange, onSuccess }: Prop
     toast.success("Numéro enregistré", { description: "Active-le maintenant depuis la liste." });
     onOpenChange(false);
     onSuccess?.();
+  };
+
+  const save = async () => {
+    const picked = numbers.find((n) => n.phone_number_id === selectedPhoneId);
+    await saveNumber(picked);
   };
 
   return (
@@ -266,28 +298,64 @@ export function WhatsAppSystemUserWizard({ open, onOpenChange, onSuccess }: Prop
             done={false}
             title="Sélectionner le numéro à activer"
           >
-            {numbers.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Aucun numéro détecté. Vérifie que la WABA est bien assignée au System User à l'étape 3.
-              </p>
-            ) : (
-              <>
+            <div className="space-y-4">
+              {numbers.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Aucun numéro listé par Meta avec ce token. Ce n'est pas bloquant : colle le Phone Number ID + WABA ID ci-dessous pour enregistrer le token permanent.
+                </p>
+              ) : (
+                <div className="space-y-3">
                 <Select value={selectedPhoneId} onValueChange={setSelectedPhoneId}>
                   <SelectTrigger><SelectValue placeholder="Choisir un numéro" /></SelectTrigger>
                   <SelectContent>
                     {numbers.map((n) => (
                       <SelectItem key={n.phone_number_id} value={n.phone_number_id}>
-                        {n.verified_name || "WhatsApp"} · {n.display_phone_number}
+                        {n.verified_name || "WhatsApp"} · {n.display_phone_number || n.phone_number_id}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {numbers.some((n) => n.source === "known") && (
+                  <p className="text-xs text-muted-foreground">
+                    Numéro repris depuis la connexion Meta existante : l'enregistrement remplacera son ancien token par le token System User.
+                  </p>
+                )}
                 <Button onClick={save} disabled={!selectedPhoneId || saving}>
                   {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
                   Enregistrer ce numéro
                 </Button>
-              </>
-            )}
+                </div>
+              )}
+
+              <div className="rounded-lg border border-border bg-card/50 p-3 space-y-3">
+                <p className="text-xs font-medium">Fallback manuel</p>
+                <p className="text-xs text-muted-foreground">
+                  Utilise cette option si le numéro est visible dans Meta mais pas listé par le token System User.
+                </p>
+                <div className="space-y-2">
+                  <Label className="text-xs">Phone Number ID</Label>
+                  <Input value={manualPhoneId} onChange={(e) => setManualPhoneId(e.target.value)} placeholder="ex: 123456789012345" className="font-mono text-sm" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">WhatsApp Business Account ID (WABA)</Label>
+                  <Input value={manualWabaId} onChange={(e) => setManualWabaId(e.target.value)} placeholder="ex: 987654321098765" className="font-mono text-sm" />
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => saveNumber({
+                    phone_number_id: manualPhoneId.trim(),
+                    business_account_id: manualWabaId.trim(),
+                    display_phone_number: manualPhoneId.trim(),
+                    verified_name: "WhatsApp",
+                    source: "manual",
+                  })}
+                  disabled={!manualPhoneId.trim() || !manualWabaId.trim() || saving}
+                >
+                  {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                  Enregistrer manuellement
+                </Button>
+              </div>
+            </div>
           </StepBlock>
         </div>
       </SheetContent>
