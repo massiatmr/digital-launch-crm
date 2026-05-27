@@ -103,22 +103,34 @@ Deno.serve(async (req) => {
             const bodyComp = (t.components || []).find((c: any) => c.type === "BODY");
             const bodyText = bodyComp?.text || "";
             const varsCount = countVariables(bodyText);
-            const { error: upErr } = await admin
+            const row = {
+              owner_id: user.id,
+              workspace_id: workspaceId,
+              business_account_id: config.business_account_id,
+              name: t.name,
+              language: t.language,
+              category: t.category,
+              body_text: bodyText,
+              variables_count: varsCount,
+              status: t.status,
+              is_synced: true,
+              meta_template_id: t.id,
+              updated_at: new Date().toISOString(),
+            };
+            // Manual upsert (partial unique indexes don't support ON CONFLICT column list)
+            let existQ = admin
               .from("whatsapp_templates")
-              .upsert({
-                owner_id: user.id,
-                workspace_id: workspaceId,
-                business_account_id: config.business_account_id,
-                name: t.name,
-                language: t.language,
-                category: t.category,
-                body_text: bodyText,
-                variables_count: varsCount,
-                status: t.status,
-                is_synced: true,
-                meta_template_id: t.id,
-                updated_at: new Date().toISOString(),
-              }, { onConflict: "owner_id,business_account_id,name,language" });
+              .select("id")
+              .eq("business_account_id", config.business_account_id)
+              .eq("name", t.name)
+              .eq("language", t.language);
+            existQ = workspaceId
+              ? existQ.eq("workspace_id", workspaceId)
+              : existQ.is("workspace_id", null).eq("owner_id", user.id);
+            const { data: existing } = await existQ.maybeSingle();
+            const { error: upErr } = existing
+              ? await admin.from("whatsapp_templates").update(row).eq("id", existing.id)
+              : await admin.from("whatsapp_templates").insert(row);
             if (upErr) {
               console.error(`[wa-templates-sync] upsert error ${t.name}:`, upErr.message);
               errors.push({ template: t.name, error: upErr.message });
