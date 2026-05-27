@@ -106,6 +106,8 @@ export default function SettingsIntegrationsPage() {
   const [manualWabaId, setManualWabaId] = useState("");
   const [manualToken, setManualToken] = useState("");
   const [pickerSession, setPickerSession] = useState<string | null>(null);
+  const [waHelpOpen, setWaHelpOpen] = useState(false);
+  const [waWizardOpen, setWaWizardOpen] = useState(false);
 
   const activeWa = waNumbers.find((n) => n.is_active) || null;
 
