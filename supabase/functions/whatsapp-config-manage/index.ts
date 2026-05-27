@@ -169,7 +169,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      return json({ ok: true, templates_synced, templates_error });
+      return json({ ok: true, templates_synced, templates_error, subscription_error, subscription_error_code });
     }
 
     if (action === "get") {
