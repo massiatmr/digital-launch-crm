@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Sparkles, Send, RotateCcw, Plus, User, MessageSquare, Bot, Trash2, Zap, Loader2, ArrowDown, ArrowUp } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useWorkspaces } from '@/hooks/useWorkspaces';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -25,6 +26,7 @@ const TASK_TYPES = [
 
 export default function SettingsSandboxPage() {
   const { user } = useAuth();
+  const { currentWorkspace, currentWorkspaceId } = useWorkspaces();
   const [leads, setLeads] = useState<SandboxLead[]>([]);
   const [leadId, setLeadId] = useState<string>('');
   const [messages, setMessages] = useState<WaMessage[]>([]);
@@ -38,17 +40,24 @@ export default function SettingsSandboxPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const loadLeads = async () => {
+    if (!currentWorkspaceId) { setLeads([]); setLeadId(''); return; }
     const { data } = await supabase
       .from('leads')
       .select('id, name, status, created_at, notes')
+      .eq('workspace_id', currentWorkspaceId)
       .ilike('notes', `%${SANDBOX_TAG}%`)
       .order('created_at', { ascending: false })
       .limit(20);
     setLeads((data ?? []) as any);
-    if (data && data.length > 0 && !leadId) setLeadId(data[0].id);
+    if (data && data.length > 0 && !data.find((l: any) => l.id === leadId)) {
+      setLeadId(data[0].id);
+    } else if (!data || data.length === 0) {
+      setLeadId('');
+    }
   };
 
-  useEffect(() => { loadLeads(); }, []);
+  // Reload when workspace changes
+  useEffect(() => { loadLeads(); /* eslint-disable-next-line */ }, [currentWorkspaceId]);
 
   const loadConversation = async () => {
     if (!leadId) { setMessages([]); setTasks([]); return; }
@@ -81,6 +90,7 @@ export default function SettingsSandboxPage() {
 
   const createSandboxLead = async () => {
     if (!user) return;
+    if (!currentWorkspaceId) { toast.error('Aucun workspace actif'); return; }
     setBusy(true);
     try {
       const stamp = new Date().toLocaleString('fr-FR');
@@ -90,9 +100,10 @@ export default function SettingsSandboxPage() {
           name: `Sandbox ${stamp}`,
           source: 'manual',
           status: 'new',
-          notes: `${SANDBOX_TAG} Lead de test — créé le ${stamp}`,
+          notes: `${SANDBOX_TAG} Lead de test — créé le ${stamp} (workspace: ${currentWorkspace?.company_name ?? ''})`,
           message: 'Bonjour, je suis intéressé(e), pouvez-vous me donner plus d\'infos ?',
           owner_id: user.id,
+          workspace_id: currentWorkspaceId,
         } as any)
         .select('id, name, status, created_at')
         .single();
@@ -135,6 +146,7 @@ export default function SettingsSandboxPage() {
         content: input.trim(),
         status: 'sandbox',
         owner_id: user.id,
+        workspace_id: currentWorkspaceId,
         message_type: 'text',
         channel: 'whatsapp',
       } as any);
@@ -154,7 +166,7 @@ export default function SettingsSandboxPage() {
     setAiPreview(null);
     try {
       const { data, error } = await supabase.functions.invoke('generate-followup-message', {
-        body: { lead_id: leadId, task_type: taskType },
+        body: { lead_id: leadId, task_type: taskType, workspace_id: currentWorkspaceId },
       });
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
@@ -173,7 +185,7 @@ export default function SettingsSandboxPage() {
     try {
       await supabase.from('whatsapp_messages').insert({
         lead_id: leadId, direction: 'outbound', content: aiPreview, status: 'sandbox',
-        owner_id: user.id, message_type: 'text', channel: 'whatsapp', intent: `ai_${taskType}`,
+        owner_id: user.id, workspace_id: currentWorkspaceId, message_type: 'text', channel: 'whatsapp', intent: `ai_${taskType}`,
       } as any);
       setAiPreview(null);
       toast.success('Réponse IA envoyée dans la conversation');
@@ -188,7 +200,7 @@ export default function SettingsSandboxPage() {
     if (!leadId) return;
     setBusy(true);
     try {
-      const { data, error } = await supabase.functions.invoke('test-followup-sequence', { body: { lead_id: leadId } });
+      const { data, error } = await supabase.functions.invoke('test-followup-sequence', { body: { lead_id: leadId, workspace_id: currentWorkspaceId } });
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
       toast.success(`Séquence lancée — ${data.steps_created} étapes (${data.total_duration_seconds}s total)`);
@@ -202,7 +214,7 @@ export default function SettingsSandboxPage() {
   const runCronNow = async () => {
     setBusy(true);
     try {
-      const { data, error } = await supabase.functions.invoke('process-followup-tasks', { body: {} });
+      const { data, error } = await supabase.functions.invoke('process-followup-tasks', { body: { workspace_id: currentWorkspaceId } });
       if (error) throw new Error(error.message);
       toast.success(`Cron exécuté — ${data?.processed ?? 0} tâches traitées`);
     } catch (e: any) {
@@ -236,7 +248,8 @@ export default function SettingsSandboxPage() {
           </CardTitle>
           <CardDescription>
             Simule un lead WhatsApp sans envoyer de vrais messages. Les messages inbound déclenchent les triggers SQL
-            (annulation relances, qualification). Les réponses IA utilisent ta config et tes templates.
+            (annulation relances, qualification). L'IA et l'automatisation utilisent la config du workspace actif :{' '}
+            <span className="font-medium text-foreground">{currentWorkspace?.company_name ?? '—'}</span>.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
