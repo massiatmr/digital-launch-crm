@@ -146,6 +146,7 @@ export default function SettingsSandboxPage() {
         content: input.trim(),
         status: 'sandbox',
         owner_id: user.id,
+        workspace_id: currentWorkspaceId,
         message_type: 'text',
         channel: 'whatsapp',
       } as any);
