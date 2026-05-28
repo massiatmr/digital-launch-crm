@@ -166,7 +166,7 @@ export default function SettingsSandboxPage() {
     setAiPreview(null);
     try {
       const { data, error } = await supabase.functions.invoke('generate-followup-message', {
-        body: { lead_id: leadId, task_type: taskType },
+        body: { lead_id: leadId, task_type: taskType, workspace_id: currentWorkspaceId },
       });
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
