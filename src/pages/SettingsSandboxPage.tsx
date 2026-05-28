@@ -90,6 +90,7 @@ export default function SettingsSandboxPage() {
 
   const createSandboxLead = async () => {
     if (!user) return;
+    if (!currentWorkspaceId) { toast.error('Aucun workspace actif'); return; }
     setBusy(true);
     try {
       const stamp = new Date().toLocaleString('fr-FR');
@@ -99,9 +100,10 @@ export default function SettingsSandboxPage() {
           name: `Sandbox ${stamp}`,
           source: 'manual',
           status: 'new',
-          notes: `${SANDBOX_TAG} Lead de test — créé le ${stamp}`,
+          notes: `${SANDBOX_TAG} Lead de test — créé le ${stamp} (workspace: ${currentWorkspace?.company_name ?? ''})`,
           message: 'Bonjour, je suis intéressé(e), pouvez-vous me donner plus d\'infos ?',
           owner_id: user.id,
+          workspace_id: currentWorkspaceId,
         } as any)
         .select('id, name, status, created_at')
         .single();
