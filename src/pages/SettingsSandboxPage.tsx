@@ -248,7 +248,8 @@ export default function SettingsSandboxPage() {
           </CardTitle>
           <CardDescription>
             Simule un lead WhatsApp sans envoyer de vrais messages. Les messages inbound déclenchent les triggers SQL
-            (annulation relances, qualification). Les réponses IA utilisent ta config et tes templates.
+            (annulation relances, qualification). L'IA et l'automatisation utilisent la config du workspace actif :{' '}
+            <span className="font-medium text-foreground">{currentWorkspace?.company_name ?? '—'}</span>.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
