@@ -214,7 +214,7 @@ export default function SettingsSandboxPage() {
   const runCronNow = async () => {
     setBusy(true);
     try {
-      const { data, error } = await supabase.functions.invoke('process-followup-tasks', { body: {} });
+      const { data, error } = await supabase.functions.invoke('process-followup-tasks', { body: { workspace_id: currentWorkspaceId } });
       if (error) throw new Error(error.message);
       toast.success(`Cron exécuté — ${data?.processed ?? 0} tâches traitées`);
     } catch (e: any) {
