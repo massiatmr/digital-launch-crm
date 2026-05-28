@@ -26,6 +26,7 @@ const TASK_TYPES = [
 
 export default function SettingsSandboxPage() {
   const { user } = useAuth();
+  const { currentWorkspace, currentWorkspaceId } = useWorkspaces();
   const [leads, setLeads] = useState<SandboxLead[]>([]);
   const [leadId, setLeadId] = useState<string>('');
   const [messages, setMessages] = useState<WaMessage[]>([]);
@@ -39,17 +40,24 @@ export default function SettingsSandboxPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const loadLeads = async () => {
+    if (!currentWorkspaceId) { setLeads([]); setLeadId(''); return; }
     const { data } = await supabase
       .from('leads')
       .select('id, name, status, created_at, notes')
+      .eq('workspace_id', currentWorkspaceId)
       .ilike('notes', `%${SANDBOX_TAG}%`)
       .order('created_at', { ascending: false })
       .limit(20);
     setLeads((data ?? []) as any);
-    if (data && data.length > 0 && !leadId) setLeadId(data[0].id);
+    if (data && data.length > 0 && !data.find((l: any) => l.id === leadId)) {
+      setLeadId(data[0].id);
+    } else if (!data || data.length === 0) {
+      setLeadId('');
+    }
   };
 
-  useEffect(() => { loadLeads(); }, []);
+  // Reload when workspace changes
+  useEffect(() => { loadLeads(); /* eslint-disable-next-line */ }, [currentWorkspaceId]);
 
   const loadConversation = async () => {
     if (!leadId) { setMessages([]); setTasks([]); return; }
