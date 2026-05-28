@@ -200,7 +200,7 @@ export default function SettingsSandboxPage() {
     if (!leadId) return;
     setBusy(true);
     try {
-      const { data, error } = await supabase.functions.invoke('test-followup-sequence', { body: { lead_id: leadId } });
+      const { data, error } = await supabase.functions.invoke('test-followup-sequence', { body: { lead_id: leadId, workspace_id: currentWorkspaceId } });
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
       toast.success(`Séquence lancée — ${data.steps_created} étapes (${data.total_duration_seconds}s total)`);
