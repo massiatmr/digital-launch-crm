@@ -41,6 +41,7 @@ const SECTIONS: Section[] = [
   { key: 'trash', label: 'Corbeille', icon: Trash2, description: 'Restaurer les éléments supprimés (30 jours)', group: 'Workspace', Component: SettingsTrashPage },
   { key: 'audit', label: 'Journal d\'audit', icon: History, description: 'Historique complet des suppressions', group: 'Système', adminOnly: true, Component: SettingsAuditPage },
   { key: 'email-logs', label: 'Logs emails', icon: Mail, description: 'Suivi des envois (rappels RDV, confirmations…)', group: 'Système', adminOnly: true, Component: SettingsEmailLogsPage },
+  { key: 'sandbox', label: 'Sandbox chat', icon: MessageSquare, description: 'Chat de test pour IA & automatisations', group: 'Système', adminOnly: true, Component: SettingsSandboxPage },
   { key: 'tests', label: 'Tests système', icon: FlaskConical, description: 'Diagnostic des envois', group: 'Système', adminOnly: true, Component: SettingsTestsPage },
   { key: 'invitations', label: 'Invitations', icon: UserPlus, description: 'Gestion globale des invitations', group: 'Système', adminOnly: true, Component: SettingsInvitationsPage },
 ];
