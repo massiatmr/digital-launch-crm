@@ -185,7 +185,7 @@ export default function SettingsSandboxPage() {
     try {
       await supabase.from('whatsapp_messages').insert({
         lead_id: leadId, direction: 'outbound', content: aiPreview, status: 'sandbox',
-        owner_id: user.id, message_type: 'text', channel: 'whatsapp', intent: `ai_${taskType}`,
+        owner_id: user.id, workspace_id: currentWorkspaceId, message_type: 'text', channel: 'whatsapp', intent: `ai_${taskType}`,
       } as any);
       setAiPreview(null);
       toast.success('Réponse IA envoyée dans la conversation');
