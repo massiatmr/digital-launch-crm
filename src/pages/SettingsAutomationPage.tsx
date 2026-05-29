@@ -39,6 +39,7 @@ export default function SettingsAutomationPage() {
   const { data: settings, isLoading } = useFollowupSettings();
   const update = useUpdateFollowupSettings();
   const { data: templates = [] } = useWhatsAppTemplates();
+  const { data: activeTemplates = [] } = useActiveWorkspaceTemplates();
   const { data: cronStatus } = useCronStatus();
   const { data: dueCount = 0 } = useDueTasksCount();
   const runNow = useRunFollowupNow();
