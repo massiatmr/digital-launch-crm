@@ -295,7 +295,7 @@ export default function SettingsAutomationPage() {
                     <SelectTrigger className="w-full mt-1"><SelectValue placeholder="Choisir un template…" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">— Aucun</SelectItem>
-                      {templates.map((t) => (
+                      {activeTemplates.map((t) => (
                         <SelectItem key={t.id} value={t.id}>{t.name} ({t.language})</SelectItem>
                       ))}
                     </SelectContent>
