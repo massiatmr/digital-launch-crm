@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useFollowupSettings, useUpdateFollowupSettings } from '@/hooks/useFollowupTasks';
-import { useWhatsAppTemplates } from '@/hooks/useWhatsAppTemplates';
+import { useWhatsAppTemplates, useActiveWorkspaceTemplates } from '@/hooks/useWhatsAppTemplates';
 import { useCronStatus, useDueTasksCount, useRunFollowupNow } from '@/hooks/useFollowupCron';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
