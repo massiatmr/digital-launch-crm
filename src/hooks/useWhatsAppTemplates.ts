@@ -80,6 +80,23 @@ export function useWhatsAppTemplates() {
   });
 }
 
+/**
+ * Templates limités aux WABA des numéros ACTIFS du workspace courant.
+ * Utilisé dans l'éditeur d'automatisations pour éviter de proposer des templates
+ * d'un autre numéro.
+ */
+export function useActiveWorkspaceTemplates() {
+  const { data: templates = [], ...rest } = useWhatsAppTemplates();
+  const { data: configs = [] } = useWhatsAppConfigs();
+  const activeWabaIds = new Set(
+    configs.filter((c) => c.is_active && c.business_account_id).map((c) => c.business_account_id),
+  );
+  const filtered = activeWabaIds.size === 0
+    ? templates
+    : templates.filter((t) => !t.business_account_id || activeWabaIds.has(t.business_account_id));
+  return { ...rest, data: filtered };
+}
+
 export function useSyncTemplates() {
   const qc = useQueryClient();
   const workspaceId = useCurrentWorkspaceId();
