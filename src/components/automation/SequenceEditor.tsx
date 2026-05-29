@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useSequenceSteps, useUpsertSequenceStep, useDeleteSequenceStep, useReorderSequenceSteps, type SequenceStep } from '@/hooks/useSequenceSteps';
-import { useWhatsAppTemplates } from '@/hooks/useWhatsAppTemplates';
+import { useActiveWorkspaceTemplates } from '@/hooks/useWhatsAppTemplates';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,7 +22,7 @@ const TASK_TYPES: { value: string; label: string; icon: any; needsTemplate: bool
 
 export function SequenceEditor({ offerId = null }: { offerId?: string | null }) {
   const { data: steps = [], isLoading } = useSequenceSteps(offerId);
-  const { data: templates = [] } = useWhatsAppTemplates();
+  const { data: templates = [] } = useActiveWorkspaceTemplates();
   const upsert = useUpsertSequenceStep();
   const del = useDeleteSequenceStep();
   const reorder = useReorderSequenceSteps();

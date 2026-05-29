@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useFollowupSettings, useUpdateFollowupSettings } from '@/hooks/useFollowupTasks';
-import { useWhatsAppTemplates } from '@/hooks/useWhatsAppTemplates';
+import { useWhatsAppTemplates, useActiveWorkspaceTemplates } from '@/hooks/useWhatsAppTemplates';
 import { useCronStatus, useDueTasksCount, useRunFollowupNow } from '@/hooks/useFollowupCron';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,6 +39,7 @@ export default function SettingsAutomationPage() {
   const { data: settings, isLoading } = useFollowupSettings();
   const update = useUpdateFollowupSettings();
   const { data: templates = [] } = useWhatsAppTemplates();
+  const { data: activeTemplates = [] } = useActiveWorkspaceTemplates();
   const { data: cronStatus } = useCronStatus();
   const { data: dueCount = 0 } = useDueTasksCount();
   const runNow = useRunFollowupNow();
@@ -294,7 +295,7 @@ export default function SettingsAutomationPage() {
                     <SelectTrigger className="w-full mt-1"><SelectValue placeholder="Choisir un template…" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">— Aucun</SelectItem>
-                      {templates.map((t) => (
+                      {activeTemplates.map((t) => (
                         <SelectItem key={t.id} value={t.id}>{t.name} ({t.language})</SelectItem>
                       ))}
                     </SelectContent>
