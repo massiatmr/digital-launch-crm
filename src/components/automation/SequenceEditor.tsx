@@ -22,7 +22,7 @@ const TASK_TYPES: { value: string; label: string; icon: any; needsTemplate: bool
 
 export function SequenceEditor({ offerId = null }: { offerId?: string | null }) {
   const { data: steps = [], isLoading } = useSequenceSteps(offerId);
-  const { data: templates = [] } = useWhatsAppTemplates();
+  const { data: templates = [] } = useActiveWorkspaceTemplates();
   const upsert = useUpsertSequenceStep();
   const del = useDeleteSequenceStep();
   const reorder = useReorderSequenceSteps();
