@@ -478,7 +478,164 @@ Deno.serve(async (req) => {
       return json({ ok: true, added, updated, removed, discovered_wabas: wabaMap.size, errors });
     }
 
+    // ============ DEDICATED META APP (per-workspace) ============
+    // Allows a workspace to register its own Meta App for WhatsApp Cloud API,
+    // independent from the global Digital Launch CRM Facebook app.
+
+    if (action === "get_dedicated") {
+      // Return the workspace's dedicated config (or null). Webhook URL is always the same global endpoint.
+      const { data } = await applyScope(
+        admin.from("whatsapp_config").select("*").eq("connection_mode", "dedicated"),
+      ).maybeSingle();
+      const webhook_url = `${SUPABASE_URL}/functions/v1/whatsapp-webhook`;
+      return json({ config: data, webhook_url });
+    }
+
+    if (action === "save_dedicated") {
+      const { app_id, app_secret, access_token, business_account_id, phone_number_id } = body;
+      if (!app_id || !app_secret || !access_token || !business_account_id || !phone_number_id) {
+        return json({
+          error: "Champs requis : app_id, app_secret, access_token, business_account_id (WABA ID), phone_number_id",
+        }, 400);
+      }
+
+      // Conflict check : ce numéro ne doit pas déjà appartenir à un autre workspace
+      const { data: conflicts } = await admin
+        .from("whatsapp_config")
+        .select("id, workspace_id, owner_id")
+        .eq("phone_number_id", phone_number_id);
+      const hasConflict = (conflicts || []).some((row: any) => {
+        if (workspace_id) return row.workspace_id && row.workspace_id !== workspace_id;
+        return row.workspace_id !== null || row.owner_id !== user.id;
+      });
+      if (hasConflict) {
+        return json({ error: "Ce numéro WhatsApp est déjà rattaché à un autre espace de travail." }, 409);
+      }
+
+      // Test du token
+      let displayPhone = "";
+      let verifiedName = "";
+      let status = "connected";
+      try {
+        const phoneRes = await fetch(
+          `${GRAPH}/${phone_number_id}?fields=display_phone_number,verified_name&access_token=${access_token}`,
+        );
+        const phoneData = await phoneRes.json();
+        if (!phoneRes.ok) {
+          status = "error";
+          return json({ error: "Token ou phone_number_id invalide", details: phoneData }, 400);
+        }
+        displayPhone = phoneData.display_phone_number || "";
+        verifiedName = phoneData.verified_name || "";
+      } catch (e) {
+        return json({ error: e instanceof Error ? e.message : String(e) }, 500);
+      }
+
+      const { data: existing } = await applyScope(
+        admin.from("whatsapp_config").select("id").eq("phone_number_id", phone_number_id),
+      ).maybeSingle();
+
+      const payload: any = {
+        owner_id: user.id,
+        workspace_id,
+        connection_mode: "dedicated",
+        app_id,
+        app_secret,
+        access_token,
+        business_account_id,
+        phone_number_id,
+        display_phone_number: displayPhone,
+        verified_name: verifiedName,
+        is_active: true,
+        status,
+        last_tested_at: new Date().toISOString(),
+        last_test_status: "ok",
+      };
+
+      let savedId: string;
+      if (existing) {
+        const { error } = await admin.from("whatsapp_config").update(payload).eq("id", (existing as any).id);
+        if (error) return json({ error: error.message }, 500);
+        savedId = (existing as any).id;
+      } else {
+        const { data: inserted, error } = await admin.from("whatsapp_config").insert(payload).select("id").single();
+        if (error) return json({ error: error.message }, 500);
+        savedId = (inserted as any).id;
+      }
+
+      // Tentative d'abonnement du WABA à l'app dédiée
+      let subscription_error: string | undefined;
+      try {
+        const r = await fetch(
+          `${GRAPH}/${business_account_id}/subscribed_apps?access_token=${access_token}`,
+          { method: "POST" },
+        );
+        const subData = await r.json().catch(() => ({}));
+        if (r.ok && subData?.success !== false) {
+          await admin.from("whatsapp_config").update({ webhook_subscribed: true } as any).eq("id", savedId);
+        } else {
+          subscription_error = subData?.error?.message || `HTTP ${r.status}`;
+          await admin.from("whatsapp_config").update({ status: "webhook_unverified" } as any).eq("id", savedId);
+        }
+      } catch (e) {
+        subscription_error = e instanceof Error ? e.message : String(e);
+      }
+
+      const { data: fresh } = await admin.from("whatsapp_config").select("*").eq("id", savedId).maybeSingle();
+      return json({ ok: true, config: fresh, subscription_error });
+    }
+
+    if (action === "test_dedicated") {
+      const { data: cfg } = await applyScope(
+        admin.from("whatsapp_config").select("*").eq("connection_mode", "dedicated"),
+      ).maybeSingle();
+      if (!cfg) return json({ error: "Aucune app Meta dédiée configurée" }, 404);
+      const c = cfg as any;
+      const r = await fetch(
+        `${GRAPH}/${c.phone_number_id}?fields=display_phone_number,verified_name,quality_rating&access_token=${c.access_token}`,
+      );
+      const data = await r.json();
+      if (!r.ok) {
+        await admin.from("whatsapp_config").update({ status: "error", last_test_status: "failed" } as any).eq("id", c.id);
+        return json({ error: "Test échoué", details: data }, 400);
+      }
+      await admin.from("whatsapp_config").update({
+        status: c.webhook_subscribed ? "connected" : "webhook_unverified",
+        display_phone_number: data.display_phone_number || c.display_phone_number,
+        verified_name: data.verified_name || c.verified_name,
+        last_tested_at: new Date().toISOString(),
+        last_test_status: "ok",
+      } as any).eq("id", c.id);
+      return json({ ok: true, details: data });
+    }
+
+    if (action === "regenerate_verify_token") {
+      const { data: cfg } = await applyScope(
+        admin.from("whatsapp_config").select("id").eq("connection_mode", "dedicated"),
+      ).maybeSingle();
+      if (!cfg) return json({ error: "Aucune app Meta dédiée configurée" }, 404);
+      // Génère un nouveau token côté Postgres
+      const newToken = crypto.getRandomValues(new Uint8Array(24));
+      const hex = Array.from(newToken).map((b) => b.toString(16).padStart(2, "0")).join("");
+      const { error } = await admin
+        .from("whatsapp_config")
+        .update({ verify_token: hex, webhook_subscribed: false, status: "webhook_unverified" } as any)
+        .eq("id", (cfg as any).id);
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true, verify_token: hex });
+    }
+
+    if (action === "switch_to_global") {
+      // Permet de revenir au mode global (supprime la config dédiée du workspace)
+      const { error } = await applyScope(
+        admin.from("whatsapp_config").delete().eq("connection_mode", "dedicated"),
+      );
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
+    }
+
     return json({ error: "Unknown action" }, 400);
+
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }
