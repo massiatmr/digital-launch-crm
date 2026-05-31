@@ -32,6 +32,7 @@ import { IntegrationStatusOverview } from "@/components/settings/IntegrationStat
 import { MetaOAuthPicker } from "@/components/settings/MetaOAuthPicker";
 import { WhatsAppHelpDialog } from "@/components/settings/WhatsAppHelpDialog";
 import { WhatsAppSystemUserWizard } from "@/components/settings/WhatsAppSystemUserWizard";
+import { WhatsAppDedicatedAppCard } from "@/components/settings/WhatsAppDedicatedAppCard";
 import { useCurrentWorkspaceId, useWorkspaces } from "@/hooks/useWorkspaces";
 import { useQueryClient } from "@tanstack/react-query";
 
