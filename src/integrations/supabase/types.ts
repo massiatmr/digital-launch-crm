@@ -2543,7 +2543,10 @@ export type Database = {
       whatsapp_config: {
         Row: {
           access_token: string
+          app_id: string | null
+          app_secret: string | null
           business_account_id: string
+          connection_mode: string
           created_at: string
           display_phone_number: string | null
           id: string
@@ -2552,6 +2555,7 @@ export type Database = {
           last_tested_at: string | null
           owner_id: string
           phone_number_id: string
+          status: string
           updated_at: string
           verified_name: string | null
           verify_token: string
@@ -2560,7 +2564,10 @@ export type Database = {
         }
         Insert: {
           access_token: string
+          app_id?: string | null
+          app_secret?: string | null
           business_account_id: string
+          connection_mode?: string
           created_at?: string
           display_phone_number?: string | null
           id?: string
@@ -2569,6 +2576,7 @@ export type Database = {
           last_tested_at?: string | null
           owner_id?: string
           phone_number_id: string
+          status?: string
           updated_at?: string
           verified_name?: string | null
           verify_token?: string
@@ -2577,7 +2585,10 @@ export type Database = {
         }
         Update: {
           access_token?: string
+          app_id?: string | null
+          app_secret?: string | null
           business_account_id?: string
+          connection_mode?: string
           created_at?: string
           display_phone_number?: string | null
           id?: string
@@ -2586,6 +2597,7 @@ export type Database = {
           last_tested_at?: string | null
           owner_id?: string
           phone_number_id?: string
+          status?: string
           updated_at?: string
           verified_name?: string | null
           verify_token?: string

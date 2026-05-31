@@ -65,22 +65,51 @@ Deno.serve(async (req) => {
 
   if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
 
-  // Verify Meta HMAC signature
-  const appSecret = Deno.env.get("FB_APP_SECRET");
-  if (!appSecret) {
-    console.error("FB_APP_SECRET not configured — rejecting webhook");
-    return new Response("Forbidden", { status: 403 });
-  }
+  // Read raw body (we need it for HMAC), then peek phone_number_id to pick the right app_secret
   const rawBody = await req.text();
   const sigHeader = req.headers.get("x-hub-signature-256") || "";
-  const sigOk = await verifyMetaSignature(appSecret, rawBody, sigHeader);
+
+  let parsedBody: any;
+  try { parsedBody = JSON.parse(rawBody); } catch { return new Response("Bad Request", { status: 400 }); }
+
+  // Find the first phone_number_id mentioned in the payload (Meta groups changes per WABA entry, all sharing same number_id)
+  let firstPhoneNumberId: string | null = null;
+  outer: for (const entry of parsedBody.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      const pid = change?.value?.metadata?.phone_number_id;
+      if (pid) { firstPhoneNumberId = pid; break outer; }
+    }
+  }
+
+  // Look up config to determine which app_secret to use for HMAC
+  let dedicatedAppSecret: string | null = null;
+  if (firstPhoneNumberId) {
+    const { data: cfgRow } = await admin
+      .from("whatsapp_config")
+      .select("connection_mode, app_secret")
+      .eq("phone_number_id", firstPhoneNumberId)
+      .order("is_active", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (cfgRow && (cfgRow as any).connection_mode === "dedicated" && (cfgRow as any).app_secret) {
+      dedicatedAppSecret = (cfgRow as any).app_secret;
+    }
+  }
+
+  const globalAppSecret = Deno.env.get("FB_APP_SECRET") || "";
+  const secretToUse = dedicatedAppSecret || globalAppSecret;
+  if (!secretToUse) {
+    console.error("No app secret available (neither dedicated nor FB_APP_SECRET) — rejecting");
+    return new Response("Forbidden", { status: 403 });
+  }
+  const sigOk = await verifyMetaSignature(secretToUse, rawBody, sigHeader);
   if (!sigOk) {
     console.error("Invalid X-Hub-Signature-256 — rejecting webhook");
     return new Response("Forbidden", { status: 403 });
   }
 
   try {
-    const body = JSON.parse(rawBody);
+    const body = parsedBody;
     for (const entry of body.entry ?? []) {
       for (const change of entry.changes ?? []) {
         const value = change.value;
@@ -100,6 +129,7 @@ Deno.serve(async (req) => {
         if (!cfg) { console.warn(`No whatsapp_config for ${phone_number_id}`); continue; }
         if (!cfg.is_active) continue;
         const accessToken = cfg.access_token;
+
 
         // ====== STATUSES (sent/delivered/read/failed) ======
         if (value.statuses) {
