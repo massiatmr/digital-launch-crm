@@ -1,86 +1,92 @@
-# Rappels WhatsApp automatiques pour les RDV
-
 ## Objectif
-Dans **Bookings → Notifications & rappels**, ajouter la possibilité d'envoyer des **messages WhatsApp via template HSM** au lead pour : confirmation, J-24h, J-12h, J-1h (mêmes moments que les emails actuels). Les templates HSM sont obligatoires hors fenêtre 24h, donc on s'appuie sur ceux déjà synchronisés dans `whatsapp_templates`.
 
-## 1. Base de données
+Permettre à chaque workspace de connecter **sa propre app Meta dédiée WhatsApp Cloud API** (App ID + App Secret + token permanent + WABA + numéro), totalement indépendante de la Facebook App globale (qui reste pour Login / Pages / Lead Forms / import leads).
 
-### Nouvelle table `workspace_booking_wa_templates` (config par workspace)
-Une ligne par type de rappel (`confirmation`, `24h_before`, `12h_before`, `1h_before`).
-- `workspace_id` (FK workspaces, cascade)
-- `type` (enum `booking_email_type` réutilisé)
-- `enabled` (bool, default false)
-- `template_id` (FK `whatsapp_templates`, nullable — la ligne peut exister activée mais non configurée)
-- `language` (text, default 'fr')
-- `variables_map` (jsonb) — mapping `{ "1": "{{name}}", "2": "{{date}}", "3": "{{time}}" }` (clés = numéro de variable Meta, valeurs = placeholders)
-- Unique `(workspace_id, type)`
-- Grants `authenticated` (SELECT/INSERT/UPDATE/DELETE) + `service_role`, RLS scoped via `is_workspace_member`
+## État actuel (à savoir)
 
-### Nouvelle table `booking_wa_reminders` (file d'envois planifiés)
-Calquée sur `booking_emails`.
-- `booking_id` (FK bookings, cascade), `type`, `scheduled_at`, `status` ('pending'|'sent'|'failed'|'cancelled'|'skipped'), `sent_at`, `error_message`
-- Index sur `(status, scheduled_at)`
-- RLS : owner du booking voit, service_role gère tout
+- La table `whatsapp_config` est déjà scopée par `workspace_id` (champs : `phone_number_id`, `business_account_id`, `access_token`, `verify_token`, `webhook_subscribed`, `is_active`…). Bon point de départ.
+- **Blocage architectural #1** — le webhook `whatsapp-webhook` vérifie la signature HMAC avec **un seul secret global** `FB_APP_SECRET`. Impossible aujourd'hui de recevoir des webhooks d'une autre app Meta.
+- **Blocage #2** — pas de champ `app_id` / `app_secret` par workspace.
+- **Blocage #3** — l'UI actuelle (`MetaOAuthPicker`, `WhatsAppSystemUserWizard`) suppose que l'app Meta = l'app globale Digital Launch CRM. Pas de saisie manuelle d'une app cliente.
+- L'envoi (`send-whatsapp-message`, médias, audio, réactions, templates, calls) charge déjà la config par `workspace_id` → **aucun changement de logique d'envoi nécessaire**, juste utiliser les nouveaux champs si présents.
 
-## 2. Backend
+## Plan
 
-### Modification `handle-booking/index.ts`
-Après l'insert dans `booking_emails`, faire le même insert dans `booking_wa_reminders` avec les 4 mêmes `scheduled_at`. Pas de filtrage côté `handle-booking` : on plannifie systématiquement, le cron filtrera selon `enabled` + présence d'un `phone` sur le lead.
+### 1. Base de données — migration
 
-### Nouvelle edge function `process-booking-wa-reminders`
-Cron toutes les minutes (pg_cron + `net.http_post`, secret partagé service-role).
-Pour chaque `booking_wa_reminders` due :
-1. Charge `booking` + `lead` (need `phone`, `workspace_id`)
-2. Charge `workspace_booking_wa_templates` pour ce `(workspace_id, type)` : si désactivé ou pas de `template_id`, marque `skipped`
-3. Charge `whatsapp_templates` pour récupérer `name` + `business_account_id`
-4. Calcule les variables en remplaçant `{{name}}`, `{{date}}`, `{{time}}`, `{{offer_name}}`, `{{meet_url}}` depuis le booking
-5. Invoke `send-whatsapp-message` (déjà existante) avec `{ to: lead.phone, template: { name, language, variables: [...] }, lead_id, workspace_id }`
-6. Update status `sent` ou `failed` avec `error_message`
+Étendre `whatsapp_config` (plutôt que créer une nouvelle table : évite migration de données et double source de vérité) :
 
-### Cron
-Job pg_cron `process-booking-wa-reminders-every-minute` via `supabase--insert` (pas migration, contient l'URL projet + service-role).
-
-## 3. UI — `NotificationsTab.tsx`
-
-Nouvelle Card **"Rappels WhatsApp (templates)"** sous "Notifications admin" :
-
-```text
-┌─────────────────────────────────────────────────────┐
-│ 💬 Rappels WhatsApp                                 │
-│ Templates HSM envoyés automatiquement au lead       │
-├─────────────────────────────────────────────────────┤
-│ ✅ Confirmation       [select template ▾] [⚙ vars] │
-│ ⬜ 24h avant          [select template ▾] [⚙ vars] │
-│ ⬜ 12h avant          [select template ▾] [⚙ vars] │
-│ ✅ 1h avant           [select template ▾] [⚙ vars] │
-└─────────────────────────────────────────────────────┘
+```
+ALTER TABLE public.whatsapp_config
+  ADD COLUMN app_id text,
+  ADD COLUMN app_secret text,
+  ADD COLUMN status text DEFAULT 'not_configured',
+  ADD COLUMN connection_mode text DEFAULT 'global'; -- 'global' | 'dedicated'
 ```
 
-Chaque ligne :
-- Switch `enabled`
-- Select des templates `APPROVED` pour ce workspace (filtré sur `whatsapp_templates` du `workspace_id` courant)
-- Bouton "Variables" → petit popover qui montre les variables du template (`variables_count`) et permet de mapper chacune sur un placeholder : `{{name}}`, `{{date}}`, `{{time}}`, `{{offer_name}}`, `{{meet_url}}`, ou texte fixe
+- `connection_mode = 'dedicated'` → webhook utilise `app_secret` du row pour vérifier HMAC.
+- `connection_mode = 'global'` → conserve le comportement actuel (FB_APP_SECRET global) pour ne rien casser sur les workspaces existants.
+- `status` ∈ `not_configured | incomplete | connected | error | webhook_unverified` (calculé côté edge mais persisté pour affichage rapide).
+- Pas de table séparée `workspace_whatsapp_connections` : les colonnes existantes (`phone_number_id`, `business_account_id`, `access_token`, `verify_token`) couvrent exactement le besoin. Création d'une table parallèle ferait diverger envoi et réception.
 
-Note d'aide : "Les templates doivent être approuvés par Meta (catégorie UTILITY recommandée). Synchronise-les depuis Settings → Intégrations."
+### 2. Webhook multi-app (`whatsapp-webhook`)
 
-État vide : si aucun WhatsApp connecté → bandeau "Configure d'abord un numéro WhatsApp dans Intégrations" + lien.
+Le routage se fait déjà via `verify_token` (handshake) et via `phone_number_id` du payload (POST). Modifs :
 
-### Hook : `useBookingWaTemplates(workspaceId)`
-- `query` : select des 4 lignes (auto-init si absentes côté upsert)
-- `mutation` : update partiel
-- Réutilise React Query.
+- **GET handshake** : déjà OK (lookup verify_token → row).
+- **POST** : lookup du row par `metadata.phone_number_id` **avant** la vérif HMAC. Si `connection_mode = 'dedicated'` → utiliser `row.app_secret` pour HMAC ; sinon fallback `FB_APP_SECRET` global.
+- Webhook URL reste unique (`/functions/v1/whatsapp-webhook`) — pas besoin de path `/{workspace_id}`. Le routage par `phone_number_id` + `verify_token` est suffisant et c'est le pattern recommandé par Meta. Évite de devoir reconfigurer Meta si le workspace change de slug.
+- Champ "Webhook URL" affiché en lecture seule dans l'UI = cette URL unique + le `verify_token` propre au workspace.
 
-## 4. Fichiers
+### 3. UI — section "WhatsApp Cloud API" dans Réglages Workspace
 
-- `supabase/migrations/...` — création des 2 tables + grants + RLS + auto-seed des 4 lignes par workspace (trigger ou seed côté hook)
-- `supabase/functions/handle-booking/index.ts` — ajout de l'insert WA rappels
-- `supabase/functions/process-booking-wa-reminders/index.ts` — nouveau
-- `supabase/insert` — cron pg_cron pour appeler la fonction toutes les minutes
-- `src/hooks/useBookingWaTemplates.ts` — nouveau
-- `src/components/bookings/NotificationsTab.tsx` — ajout de la Card
-- `src/components/bookings/WaReminderRow.tsx` — nouveau (row config par type)
+Nouvelle section dans `SettingsIntegrationsPage` (ou page dédiée `SettingsWhatsAppPage`), **indépendante** du bloc Facebook OAuth existant.
 
-## Hors scope
-- Préconfiguration / création automatique de templates Meta (l'utilisateur les crée + sync via le flow existant)
-- Rappels WhatsApp admin (seulement client pour l'instant — facile à étendre plus tard)
-- Logs détaillés UI (le statut sera lisible plus tard via une page Audit dédiée si besoin)
+Composant `WhatsAppDedicatedAppCard` avec :
+- Toggle "Utiliser une app Meta dédiée à ce workspace" → bascule `connection_mode`.
+- Formulaire (saisie manuelle) : App ID, App Secret, Permanent Access Token, WABA ID, Phone Number ID.
+- Verify Token : auto-généré (déjà le cas), bouton "régénérer".
+- Webhook URL : lecture seule, bouton copier.
+- Badge statut : `Non configuré / Incomplet / Connecté / Erreur / Webhook non vérifié`.
+- Bouton "Tester la connexion" → appel Graph API pour valider token + récupérer `display_phone_number` + `verified_name`, met à jour `status` et `webhook_subscribed`.
+
+### 4. Help guide intégré
+
+Composant `WhatsAppDedicatedAppGuide` (Dialog ou Accordion) avec les 9 étapes listées, copy-to-clipboard pour Webhook URL + Verify Token, liens directs vers `developers.facebook.com/apps`, `business.facebook.com/wa/manage`.
+
+### 5. Edge function `whatsapp-config-manage`
+
+Ajouter actions :
+- `save_dedicated` : upsert (`app_id`, `app_secret`, `access_token`, `waba_id`, `phone_number_id`, `connection_mode='dedicated'`).
+- `test_dedicated` : appelle `GET /{phone_number_id}?fields=display_phone_number,verified_name` avec le token → calcule `status`.
+- `subscribe_waba` : appelle `POST /{waba_id}/subscribed_apps` pour abonner l'app dédiée au WABA (sinon les messages entrants n'arrivent pas).
+
+### 6. Envoi des messages — vérification
+
+Audit rapide de `send-whatsapp-message`, `send-whatsapp-media`, `send-whatsapp-audio`, `send-whatsapp-reaction`, `whatsapp-templates-manage`, `whatsapp-call-*` : tous chargent déjà `whatsapp_config` par `workspace_id`. **Aucun changement** — ils utiliseront automatiquement le `access_token` + `phone_number_id` du workspace (dédié ou global).
+
+### 7. Isolation stricte réception
+
+Le trigger `handle_inbound_whatsapp` et l'insert dans `whatsapp_messages` utilisent déjà `workspace_id`. La RLS sur `whatsapp_messages` filtre par membre de workspace. **Aucun message ne peut fuir** d'un workspace à l'autre tant que le webhook insère avec le bon `workspace_id` (déduit du `phone_number_id`).
+
+### 8. Non-régression
+
+- Facebook Login, Pages, Lead Forms, import leads Meta : **zéro modification**. Le bloc OAuth Meta actuel reste en place pour ces usages.
+- Workspaces existants : `connection_mode` par défaut = `'global'` → comportement actuel préservé. Migration progressive workspace par workspace.
+
+## Détails techniques
+
+**Fichiers modifiés**
+- Migration SQL : `ALTER TABLE whatsapp_config` (colonnes + index sur `phone_number_id` déjà présent).
+- `supabase/functions/whatsapp-webhook/index.ts` : sélection du secret HMAC selon `connection_mode`.
+- `supabase/functions/whatsapp-config-manage/index.ts` : actions `save_dedicated`, `test_dedicated`, `subscribe_waba`.
+- `src/pages/SettingsIntegrationsPage.tsx` : intégration de la nouvelle section.
+- Nouveaux composants : `src/components/settings/WhatsAppDedicatedAppCard.tsx`, `WhatsAppDedicatedAppGuide.tsx`.
+
+**Sécurité**
+- `app_secret` et `access_token` stockés en clair dans Postgres comme aujourd'hui (RLS = owner du workspace uniquement). Acceptable au vu de l'architecture existante.
+- HMAC obligatoire : si `connection_mode='dedicated'` et `app_secret` manquant → reject 403.
+
+**Hors scope**
+- Embedded Signup multi-tenant (flow OAuth WhatsApp). Reste possible plus tard via une 2ᵉ action `save_via_embedded_signup` qui pousse dans les mêmes colonnes.
+- Rotation automatique du token (les tokens permanents System User n'expirent pas).
