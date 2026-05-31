@@ -576,6 +576,9 @@ export default function SettingsIntegrationsPage() {
         </CardContent>
       </Card>
 
+      {/* ============== WHATSAPP DEDICATED META APP (per workspace) ============== */}
+      <WhatsAppDedicatedAppCard workspaceId={workspaceId} />
+
       {/* ============== WHATSAPP NUMBERS ============== */}
       <Card>
         <CardHeader>
