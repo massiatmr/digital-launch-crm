@@ -313,18 +313,40 @@ Deno.serve(async (req) => {
         };
       }
 
-      const r = await fetch(
-        `${GRAPH}/${cfg.phone_number_id}/messages`,
-        {
+      const sendOnce = async (p: Record<string, unknown>) => {
+        const r = await fetch(`${GRAPH}/${cfg.phone_number_id}/messages`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${cfg.access_token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(payload),
-        },
-      );
-      const data = await r.json();
+          body: JSON.stringify(p),
+        });
+        return { r, data: await r.json() };
+      };
+
+      let { r, data } = await sendOnce(payload);
+
+      // Retry: Meta tells us the exact expected param count when ours is wrong
+      if (!r.ok && data?.error?.code === 132000 && payload.type === "template") {
+        const detail = String(data?.error?.error_data?.details || data?.error?.message || "");
+        const m = detail.match(/expected number of params \((\d+)\)/i);
+        const expected = m ? parseInt(m[1], 10) : 0;
+        if (expected > 0) {
+          const tpl = payload.template as Record<string, unknown>;
+          tpl.components = [
+            {
+              type: "body",
+              parameters: Array.from({ length: expected }, (_, i) => ({
+                type: "text",
+                text: `test${i + 1}`,
+              })),
+            },
+          ];
+          ({ r, data } = await sendOnce(payload));
+        }
+      }
+
       if (!r.ok) {
         if (data?.error?.code === 131058) {
           return json(
