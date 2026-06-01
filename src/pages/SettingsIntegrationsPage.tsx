@@ -113,7 +113,10 @@ export default function SettingsIntegrationsPage() {
 
   const activeWa = waNumbers.find((n) => n.is_active) || null;
   const { data: waTemplates = [] } = useActiveWorkspaceTemplates();
-  const approvedTemplates = waTemplates.filter((t) => (t.status || "").toUpperCase() === "APPROVED");
+  // Meta refuse l'envoi de `hello_world` depuis un numéro WABA réel (#131058) — on l'exclut du sélecteur
+  const approvedTemplates = waTemplates.filter(
+    (t) => (t.status || "").toUpperCase() === "APPROVED" && t.name !== "hello_world",
+  );
 
   const loadPages = async () => {
     setLoading(true);
