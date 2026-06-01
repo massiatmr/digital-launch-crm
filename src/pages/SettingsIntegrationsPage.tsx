@@ -34,6 +34,7 @@ import { WhatsAppHelpDialog } from "@/components/settings/WhatsAppHelpDialog";
 import { WhatsAppSystemUserWizard } from "@/components/settings/WhatsAppSystemUserWizard";
 import { WhatsAppDedicatedAppCard } from "@/components/settings/WhatsAppDedicatedAppCard";
 import { useCurrentWorkspaceId, useWorkspaces } from "@/hooks/useWorkspaces";
+import { useActiveWorkspaceTemplates } from "@/hooks/useWhatsAppTemplates";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface WhatsappNumber {
@@ -100,8 +101,8 @@ export default function SettingsIntegrationsPage() {
   const [waBusy, setWaBusy] = useState<string | null>(null);
   const [waTestTo, setWaTestTo] = useState("");
   const [waTestText, setWaTestText] = useState("");
-  const [waTestTemplate, setWaTestTemplate] = useState("hello_world");
-  const [waTestLang, setWaTestLang] = useState("en_US");
+  const [waTestTemplate, setWaTestTemplate] = useState("");
+  const [waTestLang, setWaTestLang] = useState("fr");
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [manualPhoneId, setManualPhoneId] = useState("");
   const [manualWabaId, setManualWabaId] = useState("");
@@ -111,6 +112,8 @@ export default function SettingsIntegrationsPage() {
   const [waWizardOpen, setWaWizardOpen] = useState(false);
 
   const activeWa = waNumbers.find((n) => n.is_active) || null;
+  const { data: waTemplates = [] } = useActiveWorkspaceTemplates();
+  const approvedTemplates = waTemplates.filter((t) => (t.status || "").toUpperCase() === "APPROVED");
 
   const loadPages = async () => {
     setLoading(true);
@@ -798,12 +801,25 @@ export default function SettingsIntegrationsPage() {
                 className="font-mono text-sm"
               />
               <div className="grid grid-cols-2 gap-2">
-                <Input
-                  placeholder="Nom du template"
+                <Select
                   value={waTestTemplate}
-                  onChange={(e) => setWaTestTemplate(e.target.value)}
-                  className="font-mono text-sm"
-                />
+                  onValueChange={(name) => {
+                    setWaTestTemplate(name);
+                    const tpl = approvedTemplates.find((t) => t.name === name);
+                    if (tpl?.language) setWaTestLang(tpl.language);
+                  }}
+                >
+                  <SelectTrigger className="text-sm">
+                    <SelectValue placeholder={approvedTemplates.length ? "Choisir un template approuvé" : "Aucun template approuvé — synchronise depuis WhatsApp Manager"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {approvedTemplates.map((t) => (
+                      <SelectItem key={`${t.name}-${t.language}`} value={t.name}>
+                        {t.name} <span className="text-muted-foreground">({t.language})</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Input
                   placeholder="Langue (en_US, fr, fr_FR…)"
                   value={waTestLang}
@@ -811,6 +827,9 @@ export default function SettingsIntegrationsPage() {
                   className="font-mono text-sm"
                 />
               </div>
+              <p className="text-[11px] text-muted-foreground">
+                ℹ️ Le template <code>hello_world</code> de Meta n'est utilisable que depuis un numéro de test public. Sur ton numéro WABA, utilise un template approuvé dans WhatsApp Manager.
+              </p>
               <Input
                 placeholder="Ou texte libre (fenêtre 24h uniquement)"
                 value={waTestText}
