@@ -112,6 +112,8 @@ export default function SettingsIntegrationsPage() {
   const [waWizardOpen, setWaWizardOpen] = useState(false);
 
   const activeWa = waNumbers.find((n) => n.is_active) || null;
+  const { data: waTemplates = [] } = useActiveWorkspaceTemplates();
+  const approvedTemplates = waTemplates.filter((t) => (t.status || "").toUpperCase() === "APPROVED");
 
   const loadPages = async () => {
     setLoading(true);
