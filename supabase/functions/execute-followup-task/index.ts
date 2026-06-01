@@ -684,6 +684,18 @@ Deno.serve(async (req) => {
       await admin.from("leads").update({ status: "contacted" } as any).eq("id", task.lead_id);
     }
 
+    // Détection auto de RDV confirmé après outbound IA (fire-and-forget).
+    // Couvre le cas où l'IA elle-même valide un créneau ("c'est noté pour mardi 12h").
+    if (logStatus === "sent" || logStatus === "dry_run") {
+      const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+      const SRK = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      fetch(`${SUPABASE_URL}/functions/v1/detect-booking-from-conversation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${SRK}` },
+        body: JSON.stringify({ lead_id: task.lead_id }),
+      }).catch((e) => console.error("detect-booking invoke failed:", e));
+    }
+
     // Prise de notes IA : à chaque échange en qualification, mettre à jour les notes du lead
     // pour préparer l'appel commercial (besoin, budget, urgence, signaux, objections)
     if (
