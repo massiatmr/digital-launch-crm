@@ -34,6 +34,7 @@ import { WhatsAppHelpDialog } from "@/components/settings/WhatsAppHelpDialog";
 import { WhatsAppSystemUserWizard } from "@/components/settings/WhatsAppSystemUserWizard";
 import { WhatsAppDedicatedAppCard } from "@/components/settings/WhatsAppDedicatedAppCard";
 import { useCurrentWorkspaceId, useWorkspaces } from "@/hooks/useWorkspaces";
+import { useActiveWorkspaceTemplates } from "@/hooks/useWhatsAppTemplates";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface WhatsappNumber {
