@@ -101,8 +101,8 @@ export default function SettingsIntegrationsPage() {
   const [waBusy, setWaBusy] = useState<string | null>(null);
   const [waTestTo, setWaTestTo] = useState("");
   const [waTestText, setWaTestText] = useState("");
-  const [waTestTemplate, setWaTestTemplate] = useState("hello_world");
-  const [waTestLang, setWaTestLang] = useState("en_US");
+  const [waTestTemplate, setWaTestTemplate] = useState("");
+  const [waTestLang, setWaTestLang] = useState("fr");
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [manualPhoneId, setManualPhoneId] = useState("");
   const [manualWabaId, setManualWabaId] = useState("");
