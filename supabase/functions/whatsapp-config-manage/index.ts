@@ -276,14 +276,40 @@ Deno.serve(async (req) => {
           text: { body: String(text).slice(0, 1000) },
         };
       } else {
+        const tplName = template_name || "hello_world";
+        const tplLang = language_code || "en_US";
+        // Meta requires components matching the template's variable count
+        let varsCount = 0;
+        try {
+          const { data: tplRow } = await admin
+            .from("whatsapp_templates")
+            .select("variables_count")
+            .eq("name", tplName)
+            .eq("language", tplLang)
+            .maybeSingle();
+          varsCount = Number((tplRow as any)?.variables_count ?? 0);
+        } catch (_) { /* ignore */ }
+
+        const template: Record<string, unknown> = {
+          name: tplName,
+          language: { code: tplLang },
+        };
+        if (varsCount > 0) {
+          template.components = [
+            {
+              type: "body",
+              parameters: Array.from({ length: varsCount }, (_, i) => ({
+                type: "text",
+                text: `test${i + 1}`,
+              })),
+            },
+          ];
+        }
         payload = {
           messaging_product: "whatsapp",
           to,
           type: "template",
-          template: {
-            name: template_name || "hello_world",
-            language: { code: language_code || "en_US" },
-          },
+          template,
         };
       }
 
