@@ -58,14 +58,25 @@ export default function BookingsPage() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setCheckingGoogle(false); return; }
-      const { data } = await supabase.from('google_tokens').select('id').eq('user_id', user.id).maybeSingle();
-      setGoogleConnected(!!data);
+      // Prefer workspace-scoped lookup, fall back to legacy user-only row
+      let row: any = null;
+      if (workspaceId) {
+        const { data } = await supabase.from('google_tokens').select('id').eq('workspace_id', workspaceId).maybeSingle();
+        row = data;
+      }
+      if (!row) {
+        const { data } = await supabase.from('google_tokens').select('id').eq('user_id', user.id).is('workspace_id', null).maybeSingle();
+        row = data;
+      }
+      setGoogleConnected(!!row);
       setCheckingGoogle(false);
     })();
-  }, [searchParams]);
+  }, [searchParams, workspaceId]);
 
   const handleConnectGoogle = async () => {
-    const { data, error } = await supabase.functions.invoke('google-auth');
+    const { data, error } = await supabase.functions.invoke('google-auth', {
+      body: { workspace_id: workspaceId ?? null },
+    });
     if (error) { toast.error('Erreur Google'); return; }
     window.location.href = data.url;
   };
