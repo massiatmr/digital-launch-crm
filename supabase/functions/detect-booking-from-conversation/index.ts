@@ -2,6 +2,7 @@
 // Si oui : crée un booking + event Google Calendar + active une activity.
 // Appelée en fire-and-forget depuis whatsapp-webhook après chaque message inbound.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createEventOnPrimary } from "../_shared/calendar/index.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,84 +10,6 @@ const corsHeaders = {
 };
 
 const LOVABLE_AI = "https://ai.gateway.lovable.dev/v1/chat/completions";
-
-async function refreshGoogleToken(refreshToken: string): Promise<string | null> {
-  const clientId = Deno.env.get("Google_Client_id")!;
-  const clientSecret = Deno.env.get("Client_secret")!;
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: "refresh_token",
-    }),
-  });
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.access_token || null;
-}
-
-async function getGoogleAccessToken(admin: any, ownerId: string): Promise<string | null> {
-  const { data: tokens } = await admin.from("google_tokens").select("*").eq("user_id", ownerId).maybeSingle();
-  if (!tokens) return null;
-  const expiresAt = new Date(tokens.expires_at);
-  if (expiresAt.getTime() - Date.now() > 5 * 60 * 1000) return tokens.access_token;
-  const newToken = await refreshGoogleToken(tokens.refresh_token);
-  if (newToken) {
-    await admin.from("google_tokens").update({
-      access_token: newToken,
-      expires_at: new Date(Date.now() + 3500 * 1000).toISOString(),
-    } as any).eq("user_id", ownerId);
-  }
-  return newToken;
-}
-
-async function createGoogleCalendarEvent(
-  accessToken: string,
-  name: string,
-  email: string | null,
-  bookingDate: string,
-  timeSlot: string,
-  offerName: string,
-): Promise<{ eventId: string; meetLink: string | null } | null> {
-  // Build a Paris-local datetime string (no Z) so Google Calendar honours the timeZone field.
-  const startLocal = `${bookingDate}T${timeSlot}:00`;
-  // Compute end = start + 1h in local terms (handles cross-midnight via Date math then reformats)
-  const [hh, mm] = timeSlot.split(":").map(Number);
-  const endHour = (hh + 1) % 24;
-  const endLocal = `${bookingDate}T${String(endHour).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00`;
-  const event: any = {
-    summary: `RDV - ${name} (${offerName})`,
-    description: `Rendez-vous avec ${name}${email ? ` (${email})` : ""} pour "${offerName}" — détecté automatiquement depuis WhatsApp.`,
-    start: { dateTime: startLocal, timeZone: "Europe/Paris" },
-    end: { dateTime: endLocal, timeZone: "Europe/Paris" },
-    conferenceData: {
-      createRequest: { requestId: crypto.randomUUID(), conferenceSolutionKey: { type: "hangoutsMeet" } },
-    },
-    reminders: { useDefault: true },
-  };
-  if (email) event.attendees = [{ email }];
-
-  const res = await fetch(
-    "https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all",
-    {
-      method: "POST",
-      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify(event),
-    },
-  );
-  if (!res.ok) {
-    console.error("GCal event creation failed:", await res.text());
-    return null;
-  }
-  const data = await res.json();
-  return {
-    eventId: data.id,
-    meetLink: data.conferenceData?.entryPoints?.[0]?.uri || null,
-  };
-}
 
 function formatBookingDateFr(dateStr: string): string {
   try {
