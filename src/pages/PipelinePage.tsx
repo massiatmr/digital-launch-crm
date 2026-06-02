@@ -63,6 +63,7 @@ function PipelineCard({
 }) {
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const isMobileDevice = useIsMobile();
+  const cc = useDefaultCountryCode();
 
   const handlePointerDown = (e: React.PointerEvent) => {
     pointerStart.current = { x: e.clientX, y: e.clientY };
@@ -140,13 +141,13 @@ function PipelineCard({
             <User className="h-3 w-3 shrink-0" />
             {lead.phone ? (
               <a
-                href={toWhatsAppUrl(lead.phone)}
+                href={toWhatsAppUrl(lead.phone, cc)}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
                 className="truncate text-primary hover:underline"
               >
-                {formatPhoneDisplay(lead.phone)}
+                {formatPhoneDisplay(lead.phone, cc)}
               </a>
             ) : (
               <span className="truncate">{lead.email}</span>
