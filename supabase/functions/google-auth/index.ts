@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
       response_type: "code",
       scope: scopes.join(" "),
       access_type: "offline",
-      prompt: "consent",
+      prompt: "consent select_account",
       state: statePayload,
     });
 
