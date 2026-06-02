@@ -1,92 +1,90 @@
-## Objectif
+# Calendrier par workspace + multi-providers
 
-Permettre à chaque workspace de connecter **sa propre app Meta dédiée WhatsApp Cloud API** (App ID + App Secret + token permanent + WABA + numéro), totalement indépendante de la Facebook App globale (qui reste pour Login / Pages / Lead Forms / import leads).
+Chantier en 3 phases. Chaque phase est livrable indépendamment.
 
-## État actuel (à savoir)
+## Phase 1 — Migration vers workspace (base)
 
-- La table `whatsapp_config` est déjà scopée par `workspace_id` (champs : `phone_number_id`, `business_account_id`, `access_token`, `verify_token`, `webhook_subscribed`, `is_active`…). Bon point de départ.
-- **Blocage architectural #1** — le webhook `whatsapp-webhook` vérifie la signature HMAC avec **un seul secret global** `FB_APP_SECRET`. Impossible aujourd'hui de recevoir des webhooks d'une autre app Meta.
-- **Blocage #2** — pas de champ `app_id` / `app_secret` par workspace.
-- **Blocage #3** — l'UI actuelle (`MetaOAuthPicker`, `WhatsAppSystemUserWizard`) suppose que l'app Meta = l'app globale Digital Launch CRM. Pas de saisie manuelle d'une app cliente.
-- L'envoi (`send-whatsapp-message`, médias, audio, réactions, templates, calls) charge déjà la config par `workspace_id` → **aucun changement de logique d'envoi nécessaire**, juste utiliser les nouveaux champs si présents.
+**Tables migrées (ajout `workspace_id` + RLS workspace) :**
+- `availability_settings` : devient unique par workspace (au lieu de par owner). Migration : on copie les settings du owner du workspace vers une ligne workspace_id.
+- `availability_blackouts` : ajout `workspace_id`, RLS = membres du workspace.
+- `google_tokens` → renommé en `calendar_accounts` (cf phase 2). Pour phase 1 : ajout `workspace_id` + RLS.
 
-## Plan
+**RPC mises à jour :**
+- `get_availability_for_offer` / FreeBusy : résolvent les settings via `offer.workspace_id` au lieu du `owner_id`.
 
-### 1. Base de données — migration
+**Edge functions touchées :**
+- `bookings-availability`, `create-booking-from-public-page`, `google-calendar-*` : passent par `workspace_id` (résolu via l'offer ou le lead).
 
-Étendre `whatsapp_config` (plutôt que créer une nouvelle table : évite migration de données et double source de vérité) :
+**UI :**
+- `/settings/calendar` : tous les réglages (horaires, slots, blackouts, lien public) deviennent workspace-scoped. Lecture seule si l'utilisateur n'est pas owner du workspace.
 
-```
-ALTER TABLE public.whatsapp_config
-  ADD COLUMN app_id text,
-  ADD COLUMN app_secret text,
-  ADD COLUMN status text DEFAULT 'not_configured',
-  ADD COLUMN connection_mode text DEFAULT 'global'; -- 'global' | 'dedicated'
-```
+## Phase 2 — Abstraction multi-providers
 
-- `connection_mode = 'dedicated'` → webhook utilise `app_secret` du row pour vérifier HMAC.
-- `connection_mode = 'global'` → conserve le comportement actuel (FB_APP_SECRET global) pour ne rien casser sur les workspaces existants.
-- `status` ∈ `not_configured | incomplete | connected | error | webhook_unverified` (calculé côté edge mais persisté pour affichage rapide).
-- Pas de table séparée `workspace_whatsapp_connections` : les colonnes existantes (`phone_number_id`, `business_account_id`, `access_token`, `verify_token`) couvrent exactement le besoin. Création d'une table parallèle ferait diverger envoi et réception.
+**Nouvelle table `calendar_accounts` (remplace `google_tokens`) :**
 
-### 2. Webhook multi-app (`whatsapp-webhook`)
+| col | type |
+|---|---|
+| id | uuid PK |
+| workspace_id | uuid (non null) |
+| provider | enum `google` \| `microsoft` \| `caldav` \| `ical` |
+| display_name | text |
+| is_primary | bool (1 seul primary par workspace = celui qui crée les events) |
+| credentials | jsonb chiffré côté edge (refresh_token / app_password / ics_url) |
+| calendar_id | text (ex: 'primary', email Outlook, URL CalDAV) |
+| sync_freebusy | bool default true |
+| created_by | uuid |
+| created_at / updated_at |
 
-Le routage se fait déjà via `verify_token` (handshake) et via `phone_number_id` du payload (POST). Modifs :
+Migration des `google_tokens` existants → `calendar_accounts` avec `provider='google'`, `workspace_id` = workspace solo de l'utilisateur.
 
-- **GET handshake** : déjà OK (lookup verify_token → row).
-- **POST** : lookup du row par `metadata.phone_number_id` **avant** la vérif HMAC. Si `connection_mode = 'dedicated'` → utiliser `row.app_secret` pour HMAC ; sinon fallback `FB_APP_SECRET` global.
-- Webhook URL reste unique (`/functions/v1/whatsapp-webhook`) — pas besoin de path `/{workspace_id}`. Le routage par `phone_number_id` + `verify_token` est suffisant et c'est le pattern recommandé par Meta. Évite de devoir reconfigurer Meta si le workspace change de slug.
-- Champ "Webhook URL" affiché en lecture seule dans l'UI = cette URL unique + le `verify_token` propre au workspace.
+**Abstraction code :**
+- `supabase/functions/_shared/calendar/` : un fichier par provider (`google.ts`, `microsoft.ts`, `caldav.ts`, `ical.ts`) exposant `{ getFreeBusy, createEvent, updateEvent, deleteEvent }`.
+- `getFreeBusy(workspace_id, range)` agrège tous les comptes du workspace (lecture seule pour ical).
+- `createEvent` n'écrit que sur le compte `is_primary = true`.
 
-### 3. UI — section "WhatsApp Cloud API" dans Réglages Workspace
+## Phase 3 — Connexion des providers
 
-Nouvelle section dans `SettingsIntegrationsPage` (ou page dédiée `SettingsWhatsAppPage`), **indépendante** du bloc Facebook OAuth existant.
+**Google :** déjà OK, juste rebranché sur workspace.
 
-Composant `WhatsAppDedicatedAppCard` avec :
-- Toggle "Utiliser une app Meta dédiée à ce workspace" → bascule `connection_mode`.
-- Formulaire (saisie manuelle) : App ID, App Secret, Permanent Access Token, WABA ID, Phone Number ID.
-- Verify Token : auto-généré (déjà le cas), bouton "régénérer".
-- Webhook URL : lecture seule, bouton copier.
-- Badge statut : `Non configuré / Incomplet / Connecté / Erreur / Webhook non vérifié`.
-- Bouton "Tester la connexion" → appel Graph API pour valider token + récupérer `display_phone_number` + `verified_name`, met à jour `status` et `webhook_subscribed`.
+**Microsoft Outlook :**
+- OAuth 2.0 Microsoft Identity (per-user, via app Azure AD à créer par toi).
+- Edge functions `microsoft-oauth-start` / `microsoft-oauth-callback`.
+- Secrets : `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, redirect URI à configurer.
 
-### 4. Help guide intégré
+**CalDAV / iCloud :**
+- Form UI : URL serveur + email + mot de passe d'application.
+- Edge function `caldav-test-connection` (PROPFIND).
+- Pour iCloud : URL fixe `https://caldav.icloud.com/`.
 
-Composant `WhatsAppDedicatedAppGuide` (Dialog ou Accordion) avec les 9 étapes listées, copy-to-clipboard pour Webhook URL + Verify Token, liens directs vers `developers.facebook.com/apps`, `business.facebook.com/wa/manage`.
+**Flux iCal (.ics) :**
+- Simple input URL, on parse côté edge avec un parseur ICS (npm `node-ical` via esm.sh).
+- Synchro 1×/h via pg_cron (cache busy slots dans `calendar_external_busy`).
 
-### 5. Edge function `whatsapp-config-manage`
-
-Ajouter actions :
-- `save_dedicated` : upsert (`app_id`, `app_secret`, `access_token`, `waba_id`, `phone_number_id`, `connection_mode='dedicated'`).
-- `test_dedicated` : appelle `GET /{phone_number_id}?fields=display_phone_number,verified_name` avec le token → calcule `status`.
-- `subscribe_waba` : appelle `POST /{waba_id}/subscribed_apps` pour abonner l'app dédiée au WABA (sinon les messages entrants n'arrivent pas).
-
-### 6. Envoi des messages — vérification
-
-Audit rapide de `send-whatsapp-message`, `send-whatsapp-media`, `send-whatsapp-audio`, `send-whatsapp-reaction`, `whatsapp-templates-manage`, `whatsapp-call-*` : tous chargent déjà `whatsapp_config` par `workspace_id`. **Aucun changement** — ils utiliseront automatiquement le `access_token` + `phone_number_id` du workspace (dédié ou global).
-
-### 7. Isolation stricte réception
-
-Le trigger `handle_inbound_whatsapp` et l'insert dans `whatsapp_messages` utilisent déjà `workspace_id`. La RLS sur `whatsapp_messages` filtre par membre de workspace. **Aucun message ne peut fuir** d'un workspace à l'autre tant que le webhook insère avec le bon `workspace_id` (déduit du `phone_number_id`).
-
-### 8. Non-régression
-
-- Facebook Login, Pages, Lead Forms, import leads Meta : **zéro modification**. Le bloc OAuth Meta actuel reste en place pour ces usages.
-- Workspaces existants : `connection_mode` par défaut = `'global'` → comportement actuel préservé. Migration progressive workspace par workspace.
+**UI `/settings/calendar/accounts` :**
+- Liste des comptes connectés du workspace + bouton "Ajouter un agenda" (4 cards : Google, Microsoft, iCloud/CalDAV, Lien iCal).
+- Toggle `is_primary` (radio, 1 seul).
+- Toggle `sync_freebusy` par compte.
 
 ## Détails techniques
 
-**Fichiers modifiés**
-- Migration SQL : `ALTER TABLE whatsapp_config` (colonnes + index sur `phone_number_id` déjà présent).
-- `supabase/functions/whatsapp-webhook/index.ts` : sélection du secret HMAC selon `connection_mode`.
-- `supabase/functions/whatsapp-config-manage/index.ts` : actions `save_dedicated`, `test_dedicated`, `subscribe_waba`.
-- `src/pages/SettingsIntegrationsPage.tsx` : intégration de la nouvelle section.
-- Nouveaux composants : `src/components/settings/WhatsAppDedicatedAppCard.tsx`, `WhatsAppDedicatedAppGuide.tsx`.
+**Sécurité :**
+- RLS toutes tables : `is_workspace_member(workspace_id, auth.uid())` pour SELECT, `is_workspace_owner(...)` pour UPDATE/DELETE des credentials.
+- Credentials stockés chiffrés via une clé `CALENDAR_ENCRYPTION_KEY` (AES-GCM côté edge) — pour iCloud app password notamment.
 
-**Sécurité**
-- `app_secret` et `access_token` stockés en clair dans Postgres comme aujourd'hui (RLS = owner du workspace uniquement). Acceptable au vu de l'architecture existante.
-- HMAC obligatoire : si `connection_mode='dedicated'` et `app_secret` manquant → reject 403.
+**Bookings :**
+- `bookings.workspace_id` est déjà là → ne change pas.
+- L'event externe est créé sur le compte `is_primary` du workspace au moment du booking.
 
-**Hors scope**
-- Embedded Signup multi-tenant (flow OAuth WhatsApp). Reste possible plus tard via une 2ᵉ action `save_via_embedded_signup` qui pousse dans les mêmes colonnes.
-- Rotation automatique du token (les tokens permanents System User n'expirent pas).
+**Compat ascendante :**
+- Les comptes Google existants restent fonctionnels (migration auto vers `calendar_accounts`).
+- Si un workspace n'a aucun `calendar_account`, le booking est créé sans event externe (comme aujourd'hui sans Google connecté).
+
+## Étapes d'exécution
+
+1. **Migration SQL phase 1** (workspace_id + RLS) — je créerai la migration et attendrai validation.
+2. Edge functions + UI `/settings/calendar` adaptées.
+3. **Migration SQL phase 2** (table `calendar_accounts` + backfill depuis `google_tokens`).
+4. Refacto edge functions vers l'abstraction `_shared/calendar`.
+5. Phase 3 : Microsoft (OAuth + secrets) puis CalDAV puis iCal, livrés un par un.
+
+Je commence par la phase 1 si tu valides. Tu veux que je découpe en 3 livraisons séparées ou que j'enchaîne ?
