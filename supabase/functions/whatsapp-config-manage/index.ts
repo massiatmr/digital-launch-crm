@@ -358,9 +358,59 @@ Deno.serve(async (req) => {
             400,
           );
         }
+        if (data?.error?.code === 131030) {
+          return json(
+            {
+              error:
+                "Numéro destinataire non autorisé. Ton app Meta est en mode développement : ajoute ce numéro comme destinataire de test dans Meta App Dashboard → WhatsApp → API Setup → 'To'.",
+              details: data,
+            },
+            400,
+          );
+        }
         return json({ error: "Échec envoi test", details: data }, 400);
       }
-      return json({ ok: true, details: data });
+
+      // Meta a accepté → vérifie l'état du business (cause #1 des messages "accepted" jamais délivrés)
+      let business_verification_status: string | undefined;
+      let delivery_warning: string | undefined;
+      try {
+        const bvRes = await fetch(
+          `${GRAPH}/${cfg.business_account_id}?fields=business_verification_status&access_token=${cfg.access_token}`,
+        );
+        const bvJson = await bvRes.json().catch(() => ({}));
+        if (bvRes.ok) {
+          business_verification_status = bvJson?.business_verification_status;
+          if (
+            business_verification_status &&
+            business_verification_status.toLowerCase() !== "verified"
+          ) {
+            delivery_warning =
+              `Meta a accepté le message mais ton WhatsApp Business Account n'est pas vérifié (statut : ${business_verification_status}). ` +
+              `En mode développement, Meta ne livre qu'aux numéros ajoutés comme destinataires de test dans Meta App Dashboard → WhatsApp → API Setup → 'To'. ` +
+              `Ajoute le numéro destinataire à cette liste, ou termine la Business Verification.`;
+          }
+        }
+      } catch (_) { /* ignore */ }
+
+      // Trace dans whatsapp_messages pour que les status updates du webhook puissent s'y rattacher
+      try {
+        const waMid = (data as any)?.messages?.[0]?.id;
+        if (waMid) {
+          await admin.from("whatsapp_messages").insert({
+            owner_id: user.id,
+            workspace_id,
+            direction: "outbound",
+            channel: "whatsapp",
+            content: text ? String(text) : `[template:${template_name || "hello_world"}]`,
+            status: "sent",
+            wa_message_id: waMid,
+            external_thread_id: to,
+          } as any);
+        }
+      } catch (_) { /* trace best-effort */ }
+
+      return json({ ok: true, details: data, business_verification_status, delivery_warning });
     }
 
     if (action === "delete") {
