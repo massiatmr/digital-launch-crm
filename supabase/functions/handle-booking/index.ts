@@ -34,6 +34,12 @@ async function markLeadBookedAndStopAutomations(supabase: any, leadId: string, o
     .neq("task_type", "manual_call");
 }
 
+function addMinutesToTimeSlot(timeSlot: string, minutesToAdd: number): string {
+  const [h, m] = timeSlot.split(":").map(Number);
+  const total = h * 60 + m + minutesToAdd;
+  return `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -72,22 +78,31 @@ Deno.serve(async (req) => {
     const offer_workspace_id = (offer as any).workspace_id || null;
     const offerName = offer.name || "Consultation";
 
-    // Try to create Google Calendar event
+    // Try to create calendar event on the workspace primary calendar account
     let googleEventId: string | null = null;
     let meetLink: string | null = null;
 
-    const accessToken = await getValidAccessToken(supabase, owner_id, offer_workspace_id);
-    if (accessToken) {
-      const calendarResult = await createGoogleCalendarEvent(
-        accessToken, name, email, booking_date, time_slot, offerName
-      );
+    if (offer_workspace_id) {
+      const endTimeSlot = addMinutesToTimeSlot(time_slot, 60);
+      const calendarResult = await createEventOnPrimary(offer_workspace_id, {
+        summary: `RDV - ${name} (${offerName})`,
+        description: `Rendez-vous avec ${name} (${email}) pour l'offre "${offerName}"`,
+        startISO: `${booking_date}T${time_slot}:00`,
+        endISO: `${booking_date}T${endTimeSlot}:00`,
+        timeZone: "Europe/Paris",
+        attendees: [{ email, displayName: name }],
+        createMeetLink: true,
+      }).catch((err) => {
+        console.error("Workspace calendar event creation failed:", err);
+        return null;
+      });
       if (calendarResult) {
-        googleEventId = calendarResult.eventId;
-        meetLink = calendarResult.meetLink;
-        console.log("Google Calendar event created:", googleEventId, "Meet:", meetLink);
+        googleEventId = calendarResult.externalEventId;
+        meetLink = calendarResult.meetLink || null;
+        console.log("Calendar event created:", googleEventId, "Meet:", meetLink);
       }
     } else {
-      console.log("No Google tokens found for owner, skipping calendar sync");
+      console.log("No workspace on offer, skipping calendar sync");
     }
 
     // 1. Create the booking
