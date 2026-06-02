@@ -1,0 +1,1 @@
+ALTER TABLE public.workspaces ADD COLUMN IF NOT EXISTS default_country_code text NOT NULL DEFAULT '33';

@@ -3035,6 +3035,7 @@ export type Database = {
           company_name: string
           created_at: string
           created_by: string | null
+          default_country_code: string
           deleted_at: string | null
           email: string | null
           email_sender_name: string | null
@@ -3060,6 +3061,7 @@ export type Database = {
           company_name?: string
           created_at?: string
           created_by?: string | null
+          default_country_code?: string
           deleted_at?: string | null
           email?: string | null
           email_sender_name?: string | null
@@ -3085,6 +3087,7 @@ export type Database = {
           company_name?: string
           created_at?: string
           created_by?: string | null
+          default_country_code?: string
           deleted_at?: string | null
           email?: string | null
           email_sender_name?: string | null
