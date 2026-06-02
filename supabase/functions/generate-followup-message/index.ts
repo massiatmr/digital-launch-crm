@@ -305,25 +305,15 @@ async function getAvailableSlotsForDate(
     busySet.add(`${formatDateInTimeZone(ownerBookingStart, ownerTimeZone)}|${formatTimeInTimeZone(ownerBookingStart, ownerTimeZone)}`);
   });
 
-  const accessToken = await getGoogleAccessToken(admin, ownerId);
   let gBusy: Array<{ start: Date; end: Date }> = [];
-  if (accessToken) {
+  if (workspaceId) {
     try {
-      const res = await fetch("https://www.googleapis.com/calendar/v3/freeBusy", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          timeMin: zonedDateTimeToUtc(requestedDate, "00:00", ownerTimeZone).toISOString(),
-          timeMax: new Date(zonedDateTimeToUtc(requestedDate, "23:59", ownerTimeZone).getTime() + 59 * 1000).toISOString(),
-          timeZone: ownerTimeZone,
-          items: [{ id: "primary" }],
-        }),
+      const busy = await getWorkspaceFreeBusy(workspaceId, {
+        timeMin: zonedDateTimeToUtc(requestedDate, "00:00", ownerTimeZone).toISOString(),
+        timeMax: new Date(zonedDateTimeToUtc(requestedDate, "23:59", ownerTimeZone).getTime() + 59 * 1000).toISOString(),
       });
-      if (res.ok) {
-        const data = await res.json();
-        gBusy = (data.calendars?.primary?.busy ?? []).map((b: any) => ({ start: new Date(b.start), end: new Date(b.end) }));
-      }
-    } catch (_) { /* ignore */ }
+      gBusy = busy.map((b) => ({ start: new Date(b.start), end: new Date(b.end) }));
+    } catch (err) { console.error("Workspace calendar freebusy failed:", err); }
   }
 
   const freeSlots = baseSlots.flatMap((slot) => {
