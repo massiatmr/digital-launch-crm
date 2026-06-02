@@ -286,6 +286,63 @@ export type Database = {
           },
         ]
       }
+      calendar_accounts: {
+        Row: {
+          access_token: string | null
+          calendar_id: string | null
+          created_at: string
+          created_by: string | null
+          credentials: Json
+          display_name: string | null
+          expires_at: string | null
+          external_busy_cache: Json | null
+          id: string
+          is_primary: boolean
+          last_synced_at: string | null
+          provider: Database["public"]["Enums"]["calendar_provider"]
+          refresh_token: string | null
+          sync_freebusy: boolean
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          calendar_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          credentials?: Json
+          display_name?: string | null
+          expires_at?: string | null
+          external_busy_cache?: Json | null
+          id?: string
+          is_primary?: boolean
+          last_synced_at?: string | null
+          provider: Database["public"]["Enums"]["calendar_provider"]
+          refresh_token?: string | null
+          sync_freebusy?: boolean
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          access_token?: string | null
+          calendar_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          credentials?: Json
+          display_name?: string | null
+          expires_at?: string | null
+          external_busy_cache?: Json | null
+          id?: string
+          is_primary?: boolean
+          last_synced_at?: string | null
+          provider?: Database["public"]["Enums"]["calendar_provider"]
+          refresh_token?: string | null
+          sync_freebusy?: boolean
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       client_activities: {
         Row: {
           action: string
@@ -3249,6 +3306,7 @@ export type Database = {
         | "12h_before"
         | "1h_before"
       booking_status: "pending" | "confirmed" | "cancelled" | "completed"
+      calendar_provider: "google" | "microsoft" | "caldav" | "ical"
       client_status:
         | "nouveau"
         | "signe"
@@ -3461,6 +3519,7 @@ export const Constants = {
         "1h_before",
       ],
       booking_status: ["pending", "confirmed", "cancelled", "completed"],
+      calendar_provider: ["google", "microsoft", "caldav", "ical"],
       client_status: [
         "nouveau",
         "signe",
