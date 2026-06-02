@@ -2,6 +2,7 @@
 // Utilise la qualification structurée (lead_qualification) et sélectionne un prompt contextuel
 // selon l'intent / interest_level / objections.
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { getWorkspaceFreeBusy } from "../_shared/calendar/index.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -99,31 +100,6 @@ function formatTimeInTimeZone(date: Date, timeZone: string): string {
   return `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
 }
 
-
-async function refreshGoogleToken(refreshToken: string): Promise<string | null> {
-  const clientId = Deno.env.get("Google_Client_id")!;
-  const clientSecret = Deno.env.get("Client_secret")!;
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, refresh_token: refreshToken, grant_type: "refresh_token" }),
-  });
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.access_token || null;
-}
-
-async function getGoogleAccessToken(admin: any, ownerId: string): Promise<string | null> {
-  const { data: tokens } = await admin.from("google_tokens").select("*").eq("user_id", ownerId).maybeSingle();
-  if (!tokens) return null;
-  const expiresAt = new Date(tokens.expires_at);
-  if (expiresAt.getTime() - Date.now() > 5 * 60 * 1000) return tokens.access_token;
-  const newToken = await refreshGoogleToken(tokens.refresh_token);
-  if (newToken) {
-    await admin.from("google_tokens").update({ access_token: newToken, expires_at: new Date(Date.now() + 3500 * 1000).toISOString() } as any).eq("user_id", ownerId);
-  }
-  return newToken;
-}
 
 /**
  * Retourne les créneaux libres du PROCHAIN jour disponible
