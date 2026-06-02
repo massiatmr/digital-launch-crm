@@ -100,6 +100,21 @@ function formatTimeInTimeZone(date: Date, timeZone: string): string {
   return `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
 }
 
+/**
+ * Libellé naturel : "aujourd'hui", "demain", "après-demain", sinon fallback.
+ */
+function naturalDayLabel(dateStr: string, todayStr: string, fallback: string): string {
+  const a = new Date(`${todayStr}T12:00:00Z`).getTime();
+  const b = new Date(`${dateStr}T12:00:00Z`).getTime();
+  const diff = Math.round((b - a) / (24 * 60 * 60 * 1000));
+  if (diff === 0) return "aujourd'hui";
+  if (diff === 1) return "demain";
+  if (diff === 2) return "après-demain";
+  return fallback;
+}
+
+
+
 
 /**
  * Retourne les créneaux libres du PROCHAIN jour disponible
@@ -213,7 +228,7 @@ async function getNextAvailableSlots(
     return {
       date: dateStr,
       slots: freeSlots,
-      label: `${dayLabel} ${dateLabel}`,
+      label: naturalDayLabel(dateStr, ownerToday, `${dayLabel} ${dateLabel}`),
       duration: slotDurationMin,
     };
   }
@@ -233,7 +248,7 @@ function resolveRequestedDateFromText(text: string, timeZone: string): { date: s
     const date = addDays(today, delta);
     const d = new Date(`${date}T12:00:00Z`);
     const dateLabel = d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: DISPLAY_TIME_ZONE });
-    return { date, label: `${weekdays[targetDow]} ${dateLabel}` };
+    return { date, label: naturalDayLabel(date, today, `${weekdays[targetDow]} ${dateLabel}`) };
   }
   return null;
 }
@@ -276,7 +291,7 @@ async function getAvailableSlotsForDate(
   const labels = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
   const probe = new Date(`${requestedDate}T12:00:00Z`);
   const dow = probe.getUTCDay();
-  const label = `${labels[dow]} ${probe.toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: DISPLAY_TIME_ZONE })}`;
+  const label = naturalDayLabel(requestedDate, ownerToday, `${labels[dow]} ${probe.toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: DISPLAY_TIME_ZONE })}`);
 
   const daysAhead = Math.round((zonedDateTimeToUtc(requestedDate, "12:00", ownerTimeZone).getTime() - zonedDateTimeToUtc(ownerToday, "12:00", ownerTimeZone).getTime()) / (24 * 60 * 60 * 1000));
   if (daysAhead < 0 || daysAhead > maxDays) return { date: requestedDate, slots: [], label, duration: slotDurationMin, reason: "hors fenêtre autorisée" };
