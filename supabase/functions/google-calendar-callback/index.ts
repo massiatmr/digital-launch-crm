@@ -82,6 +82,8 @@ Deno.serve(async (req) => {
       .select("id, refresh_token")
       .eq("workspace_id", workspaceId)
       .eq("provider", "google")
+      .order("updated_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     await supabase
