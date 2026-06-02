@@ -77,19 +77,30 @@ Deno.serve(async (req) => {
     const owner_id = offer.owner_id;
     const offer_workspace_id = (offer as any).workspace_id || null;
     const offerName = offer.name || "Consultation";
+    let calendarTimeZone = "Europe/Paris";
+    let calendarDurationMinutes = 60;
+    if (offer_workspace_id) {
+      const { data: availability } = await supabase
+        .from("availability_settings")
+        .select("timezone, slot_duration_minutes")
+        .eq("workspace_id", offer_workspace_id)
+        .maybeSingle();
+      calendarTimeZone = availability?.timezone || calendarTimeZone;
+      calendarDurationMinutes = availability?.slot_duration_minutes || calendarDurationMinutes;
+    }
 
     // Try to create calendar event on the workspace primary calendar account
     let googleEventId: string | null = null;
     let meetLink: string | null = null;
 
     if (offer_workspace_id) {
-      const endTimeSlot = addMinutesToTimeSlot(time_slot, 60);
+      const endTimeSlot = addMinutesToTimeSlot(time_slot, calendarDurationMinutes);
       const calendarResult = await createEventOnPrimary(offer_workspace_id, {
         summary: `RDV - ${name} (${offerName})`,
         description: `Rendez-vous avec ${name} (${email}) pour l'offre "${offerName}"`,
         startISO: `${booking_date}T${time_slot}:00`,
         endISO: `${booking_date}T${endTimeSlot}:00`,
-        timeZone: "Europe/Paris",
+        timeZone: calendarTimeZone,
         attendees: [{ email, displayName: name }],
         createMeetLink: true,
       }).catch((err) => {
