@@ -54,6 +54,7 @@ export type Database = {
           id: string
           owner_id: string
           reason: string
+          workspace_id: string | null
         }
         Insert: {
           blackout_date: string
@@ -61,6 +62,7 @@ export type Database = {
           id?: string
           owner_id?: string
           reason?: string
+          workspace_id?: string | null
         }
         Update: {
           blackout_date?: string
@@ -68,6 +70,7 @@ export type Database = {
           id?: string
           owner_id?: string
           reason?: string
+          workspace_id?: string | null
         }
         Relationships: []
       }
@@ -85,6 +88,7 @@ export type Database = {
           timezone: string
           updated_at: string
           working_days: number[]
+          workspace_id: string | null
         }
         Insert: {
           afternoon_slot?: string
@@ -99,6 +103,7 @@ export type Database = {
           timezone?: string
           updated_at?: string
           working_days?: number[]
+          workspace_id?: string | null
         }
         Update: {
           afternoon_slot?: string
@@ -113,6 +118,7 @@ export type Database = {
           timezone?: string
           updated_at?: string
           working_days?: number[]
+          workspace_id?: string | null
         }
         Relationships: []
       }
@@ -1084,29 +1090,41 @@ export type Database = {
         Row: {
           access_token: string
           created_at: string
+          display_name: string | null
           expires_at: string
           id: string
+          is_primary: boolean
           refresh_token: string
+          sync_freebusy: boolean
           updated_at: string
           user_id: string
+          workspace_id: string | null
         }
         Insert: {
           access_token: string
           created_at?: string
+          display_name?: string | null
           expires_at: string
           id?: string
+          is_primary?: boolean
           refresh_token: string
+          sync_freebusy?: boolean
           updated_at?: string
           user_id: string
+          workspace_id?: string | null
         }
         Update: {
           access_token?: string
           created_at?: string
+          display_name?: string | null
           expires_at?: string
           id?: string
+          is_primary?: boolean
           refresh_token?: string
+          sync_freebusy?: boolean
           updated_at?: string
           user_id?: string
+          workspace_id?: string | null
         }
         Relationships: []
       }
