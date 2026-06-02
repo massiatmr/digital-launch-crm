@@ -291,7 +291,7 @@ async function getAvailableSlotsForDate(
   const labels = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
   const probe = new Date(`${requestedDate}T12:00:00Z`);
   const dow = probe.getUTCDay();
-  const label = `${labels[dow]} ${probe.toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: DISPLAY_TIME_ZONE })}`;
+  const label = naturalDayLabel(requestedDate, ownerToday, `${labels[dow]} ${probe.toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: DISPLAY_TIME_ZONE })}`);
 
   const daysAhead = Math.round((zonedDateTimeToUtc(requestedDate, "12:00", ownerTimeZone).getTime() - zonedDateTimeToUtc(ownerToday, "12:00", ownerTimeZone).getTime()) / (24 * 60 * 60 * 1000));
   if (daysAhead < 0 || daysAhead > maxDays) return { date: requestedDate, slots: [], label, duration: slotDurationMin, reason: "hors fenêtre autorisée" };
