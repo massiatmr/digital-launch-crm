@@ -29,22 +29,37 @@ async function refreshGoogleToken(refreshToken: string): Promise<{ access_token:
   return await res.json();
 }
 
-async function getValidAccessToken(supabase: any, ownerId: string): Promise<string | null> {
-  const { data: tokens } = await supabase
-    .from("google_tokens")
-    .select("*")
-    .eq("user_id", ownerId)
-    .maybeSingle();
+async function getValidAccessToken(
+  supabase: any,
+  ownerId: string,
+  workspaceId?: string | null,
+): Promise<string | null> {
+  let tokens: any = null;
+  if (workspaceId) {
+    const { data } = await supabase
+      .from("google_tokens")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("is_primary", true)
+      .maybeSingle();
+    tokens = data;
+  }
+  if (!tokens) {
+    const { data } = await supabase
+      .from("google_tokens")
+      .select("*")
+      .eq("user_id", ownerId)
+      .maybeSingle();
+    tokens = data;
+  }
 
   if (!tokens) return null;
 
-  // Check if token is expired (with 5min buffer)
   const expiresAt = new Date(tokens.expires_at);
   if (expiresAt.getTime() - Date.now() > 5 * 60 * 1000) {
     return tokens.access_token;
   }
 
-  // Refresh the token
   const refreshed = await refreshGoogleToken(tokens.refresh_token);
   if (!refreshed) return null;
 
@@ -56,7 +71,7 @@ async function getValidAccessToken(supabase: any, ownerId: string): Promise<stri
       expires_at: newExpiresAt,
       updated_at: new Date().toISOString(),
     })
-    .eq("user_id", ownerId);
+    .eq("id", tokens.id);
 
   return refreshed.access_token;
 }
@@ -206,7 +221,7 @@ Deno.serve(async (req) => {
     let googleEventId: string | null = null;
     let meetLink: string | null = null;
 
-    const accessToken = await getValidAccessToken(supabase, owner_id);
+    const accessToken = await getValidAccessToken(supabase, owner_id, offer_workspace_id);
     if (accessToken) {
       const calendarResult = await createGoogleCalendarEvent(
         accessToken, name, email, booking_date, time_slot, offerName
