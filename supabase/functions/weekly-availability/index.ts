@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { date_from } = await req.json();
+    const { date_from, workspace_id } = await req.json();
     if (!date_from || !/^\d{4}-\d{2}-\d{2}$/.test(date_from)) {
       return new Response(JSON.stringify({ error: "date_from required (YYYY-MM-DD)" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -112,10 +112,30 @@ Deno.serve(async (req) => {
 
     const admin = createClient(supabaseUrl, serviceRoleKey);
     const ownerId = user.id;
+    let workspaceId: string | null = typeof workspace_id === "string" ? workspace_id : null;
+    if (workspaceId) {
+      const { data: member } = await admin
+        .from("workspace_members")
+        .select("workspace_id")
+        .eq("workspace_id", workspaceId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!member) workspaceId = null;
+    }
 
-    const { data: avail } = await admin.from("availability_settings")
-      .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
-      .eq("owner_id", ownerId).maybeSingle();
+    let avail: any = null;
+    if (workspaceId) {
+      const { data } = await admin.from("availability_settings")
+        .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
+        .eq("workspace_id", workspaceId).maybeSingle();
+      avail = data;
+    }
+    if (!avail) {
+      const { data } = await admin.from("availability_settings")
+        .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
+        .eq("owner_id", ownerId).maybeSingle();
+      avail = data;
+    }
     const ownerTimeZone: string = avail?.timezone ?? "Europe/Paris";
     const workingDays: number[] = avail?.working_days ?? [1, 2, 3, 4, 5];
     const dayStart: string = avail?.day_start_time ?? "11:00";
@@ -131,16 +151,19 @@ Deno.serve(async (req) => {
     const today = formatDateInTimeZone(new Date(), ownerTimeZone);
     const maxDate = addDays(today, maxFutureDays);
 
-    const { data: blackoutsRows } = await admin.from("availability_blackouts")
-      .select("blackout_date").eq("owner_id", ownerId)
+    let blackoutsQuery = admin.from("availability_blackouts")
+      .select("blackout_date")
       .gte("blackout_date", date_from).lte("blackout_date", dateTo);
+    blackoutsQuery = workspaceId ? blackoutsQuery.eq("workspace_id", workspaceId) : blackoutsQuery.eq("owner_id", ownerId);
+    const { data: blackoutsRows } = await blackoutsQuery;
     const blackouts = new Set((blackoutsRows ?? []).map((r: any) => r.blackout_date));
 
-    const { data: bookingsRows } = await admin.from("bookings")
+    let bookingsQuery = admin.from("bookings")
       .select("booking_date, time_slot, status")
-      .eq("owner_id", ownerId)
       .gte("booking_date", date_from).lte("booking_date", dateTo)
       .neq("status", "cancelled");
+    bookingsQuery = workspaceId ? bookingsQuery.eq("workspace_id", workspaceId) : bookingsQuery.eq("owner_id", ownerId);
+    const { data: bookingsRows } = await bookingsQuery;
     const bookedKey = new Set(
       (bookingsRows ?? []).map((r: any) => {
         const ownerBookingStart = zonedDateTimeToUtc(r.booking_date, r.time_slot, "Europe/Paris");
