@@ -35,6 +35,13 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Optional workspace_id passed by the front-end to scope the connection to a workspace
+    let workspaceId: string | null = null;
+    try {
+      const body = await req.json().catch(() => ({}));
+      if (body && typeof body.workspace_id === "string") workspaceId = body.workspace_id;
+    } catch (_) { /* no body */ }
+
     const clientId = Deno.env.get("Google_Client_id")!;
     const redirectUri = `${supabaseUrl}/functions/v1/google-calendar-callback`;
 
@@ -43,6 +50,9 @@ Deno.serve(async (req) => {
       "https://www.googleapis.com/auth/calendar.events",
     ];
 
+    // Encode user + workspace in state (base64 JSON) so the callback knows where to store the tokens
+    const statePayload = btoa(JSON.stringify({ u: user.id, w: workspaceId }));
+
     const params = new URLSearchParams({
       client_id: clientId,
       redirect_uri: redirectUri,
@@ -50,7 +60,7 @@ Deno.serve(async (req) => {
       scope: scopes.join(" "),
       access_type: "offline",
       prompt: "consent",
-      state: user.id,
+      state: statePayload,
     });
 
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
