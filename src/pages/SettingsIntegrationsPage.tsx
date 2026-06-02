@@ -228,7 +228,16 @@ export default function SettingsIntegrationsPage() {
       });
       return null;
     }
-    if (successMsg) toast.success(successMsg);
+    if (successMsg) {
+      if (data?.delivery_warning) {
+        toast.warning("Meta a accepté — livraison incertaine", {
+          description: data.delivery_warning,
+          duration: 20000,
+        });
+      } else {
+        toast.success(successMsg);
+      }
+    }
     await loadWaNumbers();
     return data;
   };
