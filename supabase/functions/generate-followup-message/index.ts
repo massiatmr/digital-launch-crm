@@ -248,7 +248,7 @@ function resolveRequestedDateFromText(text: string, timeZone: string): { date: s
     const date = addDays(today, delta);
     const d = new Date(`${date}T12:00:00Z`);
     const dateLabel = d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: DISPLAY_TIME_ZONE });
-    return { date, label: `${weekdays[targetDow]} ${dateLabel}` };
+    return { date, label: naturalDayLabel(date, today, `${weekdays[targetDow]} ${dateLabel}`) };
   }
   return null;
 }
