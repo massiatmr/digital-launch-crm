@@ -22,6 +22,7 @@ type ScoreFilter = 'hot' | 'warm' | 'cold' | 'all';
 
 export default function LeadsPage() {
   const { data: leads = [], isLoading } = useLeads();
+  const cc = useDefaultCountryCode();
   const { data: offers = [] } = useOffers();
   const [filter, setFilter] = useState<ScoreFilter>('all');
   const [offerFilter, setOfferFilter] = useState<string>('all');
@@ -116,13 +117,13 @@ export default function LeadsPage() {
                     <span>{lead.email}</span>
                     {lead.phone && (
                       <a
-                        href={toWhatsAppUrl(lead.phone)}
+                        href={toWhatsAppUrl(lead.phone, cc)}
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
                         className="text-primary hover:underline"
                       >
-                        {formatPhoneDisplay(lead.phone)}
+                        {formatPhoneDisplay(lead.phone, cc)}
                       </a>
                     )}
                     <span className="capitalize">{lead.source.replace('_', ' ')}</span>
