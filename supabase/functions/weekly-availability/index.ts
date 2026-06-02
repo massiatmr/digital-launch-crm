@@ -171,20 +171,13 @@ Deno.serve(async (req) => {
       })
     );
 
-    const accessToken = await getValidAccessToken(admin, ownerId);
     let busyByDay: Record<string, Array<{ start: Date; end: Date }>> = {};
     let synced = false;
-    if (accessToken) {
+    if (workspaceId) {
       const timeMin = zonedDateTimeToUtc(date_from, "00:00", ownerTimeZone).toISOString();
       const timeMax = new Date(zonedDateTimeToUtc(dateTo, "23:59", ownerTimeZone).getTime() + 59 * 1000).toISOString();
-      const fbRes = await fetch("https://www.googleapis.com/calendar/v3/freeBusy", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ timeMin, timeMax, timeZone: ownerTimeZone, items: [{ id: "primary" }] }),
-      });
-      if (fbRes.ok) {
-        const data = await fbRes.json();
-        const busy: Array<{ start: string; end: string }> = data.calendars?.primary?.busy ?? [];
+      try {
+        const busy = await getWorkspaceFreeBusy(workspaceId, { timeMin, timeMax });
         for (const b of busy) {
           const s = new Date(b.start); const e = new Date(b.end);
           const dayKey = formatDateInTimeZone(s, ownerTimeZone);
@@ -192,6 +185,8 @@ Deno.serve(async (req) => {
           busyByDay[dayKey].push({ start: s, end: e });
         }
         synced = true;
+      } catch (err) {
+        console.error("Workspace calendar freebusy failed:", err);
       }
     }
 
