@@ -64,6 +64,7 @@ export default function BookingsPage() {
         .select('id')
         .eq('workspace_id', workspaceId)
         .eq('provider', 'google')
+        .limit(1)
         .maybeSingle();
       setGoogleConnected(!!row);
       setCheckingGoogle(false);
