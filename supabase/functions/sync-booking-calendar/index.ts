@@ -7,9 +7,9 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-function addHoursToTimeSlot(timeSlot: string, hours: number): string {
+function addMinutesToTimeSlot(timeSlot: string, minutesToAdd: number): string {
   const [h, m] = timeSlot.split(":").map(Number);
-  const total = h * 60 + m + hours * 60;
+  const total = h * 60 + m + minutesToAdd;
   const nh = Math.floor(total / 60) % 24;
   const nm = total % 60;
   return `${String(nh).padStart(2, "0")}:${String(nm).padStart(2, "0")}`;
@@ -101,7 +101,7 @@ Deno.serve(async (req) => {
       .eq("workspace_id", booking.workspace_id)
       .maybeSingle();
     const calendarTimeZone = availability?.timezone || "Europe/Paris";
-    const durationHours = (availability?.slot_duration_minutes || 60) / 60;
+    const durationMinutes = availability?.slot_duration_minutes || 60;
 
     if (action === "cancel") {
       await adapter.deleteEvent(primary, booking.google_event_id);
@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
     }
 
     // action === "update" → patch start/end with current booking values
-    const endTimeSlot = addHoursToTimeSlot(booking.time_slot, durationHours);
+    const endTimeSlot = addMinutesToTimeSlot(booking.time_slot, durationMinutes);
     const startLocal = `${booking.booking_date}T${booking.time_slot}:00`;
     const endLocal = `${booking.booking_date}T${endTimeSlot}:00`;
 
