@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, MessageCircle, Phone, Search, User, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { useCurrentWorkspaceId } from '@/hooks/useWorkspaces';
+import { useCurrentWorkspaceId, useDefaultCountryCode } from '@/hooks/useWorkspaces';
 import { useWhatsAppInbox } from '@/hooks/useWhatsAppInbox';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
 import { toast } from 'sonner';
@@ -30,6 +30,7 @@ export function NewConversationSheet({
   onPicked: (leadId: string) => void;
 }) {
   const wsId = useCurrentWorkspaceId();
+  const cc = useDefaultCountryCode();
   const { items } = useWhatsAppInbox();
   const existingLeadIds = useMemo(() => new Set(items.map((i) => i.lead_id)), [items]);
 
@@ -158,7 +159,7 @@ export function NewConversationSheet({
       return;
     }
     // Normalise via wa.me helper (FR 0 → +33)
-    const url = toWhatsAppUrl(cleaned);
+    const url = toWhatsAppUrl(cleaned, cc);
     const normalized = '+' + url.replace('https://wa.me/', '');
     setCreating(true);
     try {
@@ -178,7 +179,7 @@ export function NewConversationSheet({
       const { data: created, error } = await supabase
         .from('leads')
         .insert({
-          name: name.trim() || formatPhoneDisplay(normalized),
+          name: name.trim() || formatPhoneDisplay(normalized, cc),
           phone: normalized,
           source: 'manual',
           status: 'new',
@@ -252,7 +253,7 @@ export function NewConversationSheet({
                           <Badge variant="outline" className="text-[10px] h-4 px-1">{c.kind === 'lead' ? 'Lead' : 'Client'}</Badge>
                           {hasConv && <span className="text-[10px] text-primary">💬</span>}
                         </div>
-                        <p className="text-xs text-muted-foreground truncate">{formatPhoneDisplay(c.phone)}</p>
+                        <p className="text-xs text-muted-foreground truncate">{formatPhoneDisplay(c.phone, cc)}</p>
                       </div>
                     </button>
                   );
