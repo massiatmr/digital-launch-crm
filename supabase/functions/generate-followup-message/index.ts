@@ -245,11 +245,23 @@ async function getAvailableSlotsForDate(
   requestedDate: string,
 ): Promise<{ date: string; slots: string[]; label: string; duration: number; reason?: string }> {
   const now = new Date();
-  const { data: settings } = await admin
-    .from("availability_settings")
-    .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
-    .eq("owner_id", ownerId)
-    .maybeSingle();
+  let settings: any = null;
+  if (workspaceId) {
+    const { data } = await admin
+      .from("availability_settings")
+      .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    settings = data;
+  }
+  if (!settings) {
+    const { data } = await admin
+      .from("availability_settings")
+      .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
+      .eq("owner_id", ownerId)
+      .maybeSingle();
+    settings = data;
+  }
   const ownerTimeZone: string = settings?.timezone ?? DISPLAY_TIME_ZONE;
   const workingDays: number[] = settings?.working_days ?? DEFAULT_WORKING_DAYS;
   const dayStart: string = settings?.day_start_time ?? DEFAULT_DAY_START;
@@ -270,12 +282,12 @@ async function getAvailableSlotsForDate(
   if (daysAhead < 0 || daysAhead > maxDays) return { date: requestedDate, slots: [], label, duration: slotDurationMin, reason: "hors fenêtre autorisée" };
   if (!workingDays.includes(dow)) return { date: requestedDate, slots: [], label, duration: slotDurationMin, reason: "jour fermé" };
 
-  const { data: blackout } = await admin
+  let blackoutQuery = admin
     .from("availability_blackouts")
     .select("id")
-    .eq("owner_id", ownerId)
-    .eq("blackout_date", requestedDate)
-    .maybeSingle();
+    .eq("blackout_date", requestedDate);
+  blackoutQuery = workspaceId ? blackoutQuery.eq("workspace_id", workspaceId) : blackoutQuery.eq("owner_id", ownerId);
+  const { data: blackout } = await blackoutQuery.maybeSingle();
   if (blackout) return { date: requestedDate, slots: [], label, duration: slotDurationMin, reason: "jour bloqué" };
 
   let bQuery = admin
