@@ -1,156 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createEventOnPrimary } from "../_shared/calendar/index.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-async function refreshGoogleToken(refreshToken: string): Promise<{ access_token: string; expires_in: number } | null> {
-  const clientId = Deno.env.get("Google_Client_id")!;
-  const clientSecret = Deno.env.get("Client_secret")!;
-
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: "refresh_token",
-    }),
-  });
-
-  if (!res.ok) {
-    console.error("Token refresh failed:", await res.text());
-    return null;
-  }
-
-  return await res.json();
-}
-
-async function getValidAccessToken(
-  supabase: any,
-  ownerId: string,
-  workspaceId?: string | null,
-): Promise<string | null> {
-  let tokens: any = null;
-  if (workspaceId) {
-    const { data } = await supabase
-      .from("google_tokens")
-      .select("*")
-      .eq("workspace_id", workspaceId)
-      .eq("is_primary", true)
-      .maybeSingle();
-    tokens = data;
-  }
-  if (!tokens) {
-    const { data } = await supabase
-      .from("google_tokens")
-      .select("*")
-      .eq("user_id", ownerId)
-      .maybeSingle();
-    tokens = data;
-  }
-
-  if (!tokens) return null;
-
-  const expiresAt = new Date(tokens.expires_at);
-  if (expiresAt.getTime() - Date.now() > 5 * 60 * 1000) {
-    return tokens.access_token;
-  }
-
-  const refreshed = await refreshGoogleToken(tokens.refresh_token);
-  if (!refreshed) return null;
-
-  const newExpiresAt = new Date(Date.now() + refreshed.expires_in * 1000).toISOString();
-  await supabase
-    .from("google_tokens")
-    .update({
-      access_token: refreshed.access_token,
-      expires_at: newExpiresAt,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", tokens.id);
-
-  return refreshed.access_token;
-}
-
-// Add `hours` to a "HH:MM" time string, returning "HH:MM" (24h, wraps within same day expected for our 11-15h window).
-function addHoursToTimeSlot(timeSlot: string, hours: number): string {
-  const [h, m] = timeSlot.split(":").map(Number);
-  const total = h * 60 + m + hours * 60;
-  const nh = Math.floor(total / 60) % 24;
-  const nm = total % 60;
-  return `${String(nh).padStart(2, "0")}:${String(nm).padStart(2, "0")}`;
-}
-
-async function createGoogleCalendarEvent(
-  accessToken: string,
-  name: string,
-  email: string,
-  bookingDate: string,
-  timeSlot: string,
-  offerName: string
-): Promise<{ eventId: string; meetLink: string | null } | null> {
-  // IMPORTANT: Send the local Paris wall-clock time WITHOUT a Z suffix.
-  // When `timeZone: "Europe/Paris"` is provided, Google interprets the
-  // dateTime as local time in that zone (handling DST automatically).
-  // Using `.toISOString()` would force UTC and shift the event by 1-2h.
-  const endTimeSlot = addHoursToTimeSlot(timeSlot, 1);
-  const startLocal = `${bookingDate}T${timeSlot}:00`;
-  const endLocal = `${bookingDate}T${endTimeSlot}:00`;
-
-  const event = {
-    summary: `RDV - ${name} (${offerName})`,
-    description: `Rendez-vous avec ${name} (${email}) pour l'offre "${offerName}"`,
-    start: {
-      dateTime: startLocal,
-      timeZone: "Europe/Paris",
-    },
-    end: {
-      dateTime: endLocal,
-      timeZone: "Europe/Paris",
-    },
-    attendees: [{ email }],
-    conferenceData: {
-      createRequest: {
-        requestId: crypto.randomUUID(),
-        conferenceSolutionKey: { type: "hangoutsMeet" },
-      },
-    },
-    reminders: {
-      useDefault: false,
-      overrides: [
-        { method: "popup", minutes: 60 },
-        { method: "popup", minutes: 240 },
-      ],
-    },
-  };
-
-  const res = await fetch(
-    "https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(event),
-    }
-  );
-
-  if (!res.ok) {
-    console.error("Calendar event creation failed:", await res.text());
-    return null;
-  }
-
-  const data = await res.json();
-  return {
-    eventId: data.id,
-    meetLink: data.conferenceData?.entryPoints?.[0]?.uri || null,
-  };
-}
 
 async function markLeadBookedAndStopAutomations(supabase: any, leadId: string, ownerId: string) {
   const { data: lead } = await supabase
@@ -177,6 +32,12 @@ async function markLeadBookedAndStopAutomations(supabase: any, leadId: string, o
     .eq("lead_id", leadId)
     .in("status", ["scheduled", "pending", "processing"])
     .neq("task_type", "manual_call");
+}
+
+function addMinutesToTimeSlot(timeSlot: string, minutesToAdd: number): string {
+  const [h, m] = timeSlot.split(":").map(Number);
+  const total = h * 60 + m + minutesToAdd;
+  return `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
 Deno.serve(async (req) => {
@@ -216,23 +77,43 @@ Deno.serve(async (req) => {
     const owner_id = offer.owner_id;
     const offer_workspace_id = (offer as any).workspace_id || null;
     const offerName = offer.name || "Consultation";
+    let calendarTimeZone = "Europe/Paris";
+    let calendarDurationMinutes = 60;
+    if (offer_workspace_id) {
+      const { data: availability } = await supabase
+        .from("availability_settings")
+        .select("timezone, slot_duration_minutes")
+        .eq("workspace_id", offer_workspace_id)
+        .maybeSingle();
+      calendarTimeZone = availability?.timezone || calendarTimeZone;
+      calendarDurationMinutes = availability?.slot_duration_minutes || calendarDurationMinutes;
+    }
 
-    // Try to create Google Calendar event
+    // Try to create calendar event on the workspace primary calendar account
     let googleEventId: string | null = null;
     let meetLink: string | null = null;
 
-    const accessToken = await getValidAccessToken(supabase, owner_id, offer_workspace_id);
-    if (accessToken) {
-      const calendarResult = await createGoogleCalendarEvent(
-        accessToken, name, email, booking_date, time_slot, offerName
-      );
+    if (offer_workspace_id) {
+      const endTimeSlot = addMinutesToTimeSlot(time_slot, calendarDurationMinutes);
+      const calendarResult = await createEventOnPrimary(offer_workspace_id, {
+        summary: `RDV - ${name} (${offerName})`,
+        description: `Rendez-vous avec ${name} (${email}) pour l'offre "${offerName}"`,
+        startISO: `${booking_date}T${time_slot}:00`,
+        endISO: `${booking_date}T${endTimeSlot}:00`,
+        timeZone: calendarTimeZone,
+        attendees: [{ email, displayName: name }],
+        createMeetLink: true,
+      }).catch((err) => {
+        console.error("Workspace calendar event creation failed:", err);
+        return null;
+      });
       if (calendarResult) {
-        googleEventId = calendarResult.eventId;
-        meetLink = calendarResult.meetLink;
-        console.log("Google Calendar event created:", googleEventId, "Meet:", meetLink);
+        googleEventId = calendarResult.externalEventId;
+        meetLink = calendarResult.meetLink || null;
+        console.log("Calendar event created:", googleEventId, "Meet:", meetLink);
       }
     } else {
-      console.log("No Google tokens found for owner, skipping calendar sync");
+      console.log("No workspace on offer, skipping calendar sync");
     }
 
     // 1. Create the booking

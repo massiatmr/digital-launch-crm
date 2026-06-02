@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAvailabilitySettings } from '@/hooks/useAvailabilitySettings';
+import { useCurrentWorkspaceId } from '@/hooks/useWorkspaces';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,7 +20,7 @@ interface DayData {
 
 const STATUS_STYLES: Record<SlotStatus, { label: string; className: string; dot: string }> = {
   free:         { label: 'Libre',     className: 'bg-green-500/10 text-green-300 border-green-500/30 hover:bg-green-500/20', dot: 'bg-green-500' },
-  busy:         { label: 'Google',    className: 'bg-orange-500/10 text-orange-300 border-orange-500/30 line-through opacity-70', dot: 'bg-orange-500' },
+  busy:         { label: 'Agenda',    className: 'bg-orange-500/10 text-orange-300 border-orange-500/30 line-through opacity-70', dot: 'bg-orange-500' },
   booked:       { label: 'RDV',       className: 'bg-primary/15 text-primary border-primary/30', dot: 'bg-primary' },
   past:         { label: 'Passé',     className: 'bg-muted/20 text-muted-foreground/40 border-white/5 line-through opacity-50', dot: 'bg-muted' },
   non_working:  { label: 'Off',       className: 'bg-muted/20 text-muted-foreground/40 border-white/5 opacity-40', dot: 'bg-muted' },
@@ -35,6 +36,7 @@ interface Props {
 export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const { data: availability } = useAvailabilitySettings();
+  const workspaceId = useCurrentWorkspaceId();
   const ownerTz = availability?.timezone || OWNER_DEFAULT_TZ;
   const ownerTzLabel = tzShortLabel(ownerTz);
   const clientTz = CLIENT_DEFAULT_TZ;
@@ -44,10 +46,10 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
   const weekEnd = addDays(weekStart, 6);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['weekly-availability', dateFrom],
+    queryKey: ['weekly-availability', workspaceId, dateFrom],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('weekly-availability', {
-        body: { date_from: dateFrom },
+        body: { date_from: dateFrom, workspace_id: workspaceId ?? null },
       });
       if (error) throw error;
       return data as {
@@ -100,7 +102,7 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2 flex-wrap">
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500" /> {summary.free} libres</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500" /> {summary.busy} Google</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500" /> {summary.busy} agenda</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary" /> {summary.booked} RDV</span>
           {data && (
             <span className="text-muted-foreground/70">
@@ -113,11 +115,11 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
           </span>
           {data?.synced ? (
             <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/20 gap-1 ml-auto">
-              <CheckCircle2 className="h-3 w-3" /> Google sync
+              <CheckCircle2 className="h-3 w-3" /> Agenda sync
             </Badge>
           ) : (
             <Badge variant="outline" className="bg-muted/20 text-muted-foreground gap-1 ml-auto">
-              <X className="h-3 w-3" /> Google off
+              <X className="h-3 w-3" /> Agenda off
             </Badge>
           )}
         </div>

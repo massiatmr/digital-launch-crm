@@ -66,42 +66,52 @@ Deno.serve(async (req) => {
       workspaceId = (ws as any)?.workspace_id ?? null;
     }
 
-    // Look for an existing row scoped to (workspace_id) if provided, else (user_id)
-    let existing: any = null;
-    if (workspaceId) {
-      const { data } = await supabase
-        .from("google_tokens")
-        .select("id")
-        .eq("workspace_id", workspaceId)
-        .maybeSingle();
-      existing = data;
-    }
-    if (!existing) {
-      const { data } = await supabase
-        .from("google_tokens")
-        .select("id")
-        .eq("user_id", userId)
-        .is("workspace_id", null)
-        .maybeSingle();
-      existing = data;
-    }
+    if (!workspaceId) return new Response("No workspace available", { status: 400 });
+
+    const { data: membership } = await supabase
+      .from("workspace_members")
+      .select("workspace_id")
+      .eq("workspace_id", workspaceId)
+      .eq("user_id", userId)
+      .eq("role", "owner")
+      .maybeSingle();
+    if (!membership) return new Response("Workspace owner required", { status: 403 });
+
+    const { data: existing } = await supabase
+      .from("calendar_accounts")
+      .select("id, refresh_token")
+      .eq("workspace_id", workspaceId)
+      .eq("provider", "google")
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    await supabase
+      .from("calendar_accounts")
+      .update({ is_primary: false, updated_at: new Date().toISOString() })
+      .eq("workspace_id", workspaceId);
 
     const payload: any = {
-      user_id: userId,
       workspace_id: workspaceId,
+      provider: "google",
+      display_name: "Google Calendar",
+      calendar_id: "primary",
       access_token,
-      refresh_token,
+      refresh_token: refresh_token || existing?.refresh_token,
       expires_at: expiresAt,
+      credentials: { source: "google_oauth", user_id: userId, scope: tokenData.scope || null },
+      created_by: userId,
       updated_at: new Date().toISOString(),
       is_primary: true,
+      sync_freebusy: true,
     };
 
     let upsertError: any = null;
     if (existing?.id) {
-      const { error } = await supabase.from("google_tokens").update(payload).eq("id", existing.id);
+      const { error } = await supabase.from("calendar_accounts").update(payload).eq("id", existing.id);
       upsertError = error;
     } else {
-      const { error } = await supabase.from("google_tokens").insert(payload);
+      const { error } = await supabase.from("calendar_accounts").insert(payload);
       upsertError = error;
     }
 

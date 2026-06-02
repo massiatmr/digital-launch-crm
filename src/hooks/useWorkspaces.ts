@@ -99,7 +99,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       'leads', 'reminders', 'scripts', 'messages', 'activities',
       'followup-tasks', 'wa-messages', 'conv-state', 'wa-inbox',
       'due-tasks-count', 'followup-settings', 'sequence-steps',
-      'clients', 'offers', 'bookings', 'meta-pages',
+      'clients', 'offers', 'bookings', 'weekly-availability', 'meta-pages',
     ];
     scopedKeys.forEach((k) => qc.removeQueries({ queryKey: [k] }));
     // Invalidate all queries so data refetches with new workspace context

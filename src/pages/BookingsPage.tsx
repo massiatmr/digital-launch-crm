@@ -56,18 +56,16 @@ export default function BookingsPage() {
 
   useEffect(() => {
     (async () => {
+      if (!workspaceId) { setGoogleConnected(false); setCheckingGoogle(false); return; }
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setCheckingGoogle(false); return; }
-      // Prefer workspace-scoped lookup, fall back to legacy user-only row
-      let row: any = null;
-      if (workspaceId) {
-        const { data } = await supabase.from('google_tokens').select('id').eq('workspace_id', workspaceId).maybeSingle();
-        row = data;
-      }
-      if (!row) {
-        const { data } = await supabase.from('google_tokens').select('id').eq('user_id', user.id).is('workspace_id', null).maybeSingle();
-        row = data;
-      }
+      const { data: row } = await supabase
+        .from('calendar_accounts')
+        .select('id')
+        .eq('workspace_id', workspaceId)
+        .eq('provider', 'google')
+        .limit(1)
+        .maybeSingle();
       setGoogleConnected(!!row);
       setCheckingGoogle(false);
     })();

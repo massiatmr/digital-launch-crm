@@ -2,6 +2,7 @@
 // Utilise la qualification structurée (lead_qualification) et sélectionne un prompt contextuel
 // selon l'intent / interest_level / objections.
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { getWorkspaceFreeBusy } from "../_shared/calendar/index.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -100,31 +101,6 @@ function formatTimeInTimeZone(date: Date, timeZone: string): string {
 }
 
 
-async function refreshGoogleToken(refreshToken: string): Promise<string | null> {
-  const clientId = Deno.env.get("Google_Client_id")!;
-  const clientSecret = Deno.env.get("Client_secret")!;
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, refresh_token: refreshToken, grant_type: "refresh_token" }),
-  });
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.access_token || null;
-}
-
-async function getGoogleAccessToken(admin: any, ownerId: string): Promise<string | null> {
-  const { data: tokens } = await admin.from("google_tokens").select("*").eq("user_id", ownerId).maybeSingle();
-  if (!tokens) return null;
-  const expiresAt = new Date(tokens.expires_at);
-  if (expiresAt.getTime() - Date.now() > 5 * 60 * 1000) return tokens.access_token;
-  const newToken = await refreshGoogleToken(tokens.refresh_token);
-  if (newToken) {
-    await admin.from("google_tokens").update({ access_token: newToken, expires_at: new Date(Date.now() + 3500 * 1000).toISOString() } as any).eq("user_id", ownerId);
-  }
-  return newToken;
-}
-
 /**
  * Retourne les créneaux libres du PROCHAIN jour disponible
  * (durée = paramétrée, plage = day_start_time → day_end_time, incrément = 1h).
@@ -138,11 +114,23 @@ async function getNextAvailableSlots(
 ): Promise<{ date: string; slots: string[]; label: string; duration: number } | null> {
   const now = new Date();
 
-  const { data: settings } = await admin
-    .from("availability_settings")
-    .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
-    .eq("owner_id", ownerId)
-    .maybeSingle();
+  let settings: any = null;
+  if (workspaceId) {
+    const { data } = await admin
+      .from("availability_settings")
+      .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    settings = data;
+  }
+  if (!settings) {
+    const { data } = await admin
+      .from("availability_settings")
+      .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
+      .eq("owner_id", ownerId)
+      .maybeSingle();
+    settings = data;
+  }
   const ownerTimeZone: string = settings?.timezone ?? DISPLAY_TIME_ZONE;
   const workingDays: number[] = settings?.working_days ?? DEFAULT_WORKING_DAYS;
   const dayStart: string = settings?.day_start_time ?? DEFAULT_DAY_START;
@@ -159,12 +147,13 @@ async function getNextAvailableSlots(
   const ownerToday = formatDateInTimeZone(now, ownerTimeZone);
   const searchEndDate = formatDateInTimeZone(searchEnd, ownerTimeZone);
 
-  const { data: blackoutsData } = await admin
+  let blackoutsQuery = admin
     .from("availability_blackouts")
     .select("blackout_date")
-    .eq("owner_id", ownerId)
     .gte("blackout_date", ownerToday)
     .lte("blackout_date", searchEndDate);
+  blackoutsQuery = workspaceId ? blackoutsQuery.eq("workspace_id", workspaceId) : blackoutsQuery.eq("owner_id", ownerId);
+  const { data: blackoutsData } = await blackoutsQuery;
   const blackoutSet = new Set<string>((blackoutsData ?? []).map((b: any) => b.blackout_date));
 
   let bQuery = admin
@@ -183,25 +172,15 @@ async function getNextAvailableSlots(
     busySet.add(`${formatDateInTimeZone(ownerBookingStart, ownerTimeZone)}|${formatTimeInTimeZone(ownerBookingStart, ownerTimeZone)}`);
   });
 
-  const accessToken = await getGoogleAccessToken(admin, ownerId);
   let gBusy: Array<{ start: Date; end: Date }> = [];
-  if (accessToken) {
+  if (workspaceId) {
     try {
-      const res = await fetch("https://www.googleapis.com/calendar/v3/freeBusy", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          timeMin: zonedDateTimeToUtc(ownerToday, "00:00", ownerTimeZone).toISOString(),
-          timeMax: new Date(zonedDateTimeToUtc(searchEndDate, "23:59", ownerTimeZone).getTime() + 59 * 1000).toISOString(),
-          timeZone: ownerTimeZone,
-          items: [{ id: "primary" }],
-        }),
+      const busy = await getWorkspaceFreeBusy(workspaceId, {
+        timeMin: zonedDateTimeToUtc(ownerToday, "00:00", ownerTimeZone).toISOString(),
+        timeMax: new Date(zonedDateTimeToUtc(searchEndDate, "23:59", ownerTimeZone).getTime() + 59 * 1000).toISOString(),
       });
-      if (res.ok) {
-        const data = await res.json();
-        gBusy = (data.calendars?.primary?.busy ?? []).map((b: any) => ({ start: new Date(b.start), end: new Date(b.end) }));
-      }
-    } catch (_) { /* ignore */ }
+      gBusy = busy.map((b) => ({ start: new Date(b.start), end: new Date(b.end) }));
+    } catch (err) { console.error("Workspace calendar freebusy failed:", err); }
   }
 
   const labels = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
@@ -266,11 +245,23 @@ async function getAvailableSlotsForDate(
   requestedDate: string,
 ): Promise<{ date: string; slots: string[]; label: string; duration: number; reason?: string }> {
   const now = new Date();
-  const { data: settings } = await admin
-    .from("availability_settings")
-    .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
-    .eq("owner_id", ownerId)
-    .maybeSingle();
+  let settings: any = null;
+  if (workspaceId) {
+    const { data } = await admin
+      .from("availability_settings")
+      .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    settings = data;
+  }
+  if (!settings) {
+    const { data } = await admin
+      .from("availability_settings")
+      .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
+      .eq("owner_id", ownerId)
+      .maybeSingle();
+    settings = data;
+  }
   const ownerTimeZone: string = settings?.timezone ?? DISPLAY_TIME_ZONE;
   const workingDays: number[] = settings?.working_days ?? DEFAULT_WORKING_DAYS;
   const dayStart: string = settings?.day_start_time ?? DEFAULT_DAY_START;
@@ -291,12 +282,12 @@ async function getAvailableSlotsForDate(
   if (daysAhead < 0 || daysAhead > maxDays) return { date: requestedDate, slots: [], label, duration: slotDurationMin, reason: "hors fenêtre autorisée" };
   if (!workingDays.includes(dow)) return { date: requestedDate, slots: [], label, duration: slotDurationMin, reason: "jour fermé" };
 
-  const { data: blackout } = await admin
+  let blackoutQuery = admin
     .from("availability_blackouts")
     .select("id")
-    .eq("owner_id", ownerId)
-    .eq("blackout_date", requestedDate)
-    .maybeSingle();
+    .eq("blackout_date", requestedDate);
+  blackoutQuery = workspaceId ? blackoutQuery.eq("workspace_id", workspaceId) : blackoutQuery.eq("owner_id", ownerId);
+  const { data: blackout } = await blackoutQuery.maybeSingle();
   if (blackout) return { date: requestedDate, slots: [], label, duration: slotDurationMin, reason: "jour bloqué" };
 
   let bQuery = admin
@@ -314,25 +305,15 @@ async function getAvailableSlotsForDate(
     busySet.add(`${formatDateInTimeZone(ownerBookingStart, ownerTimeZone)}|${formatTimeInTimeZone(ownerBookingStart, ownerTimeZone)}`);
   });
 
-  const accessToken = await getGoogleAccessToken(admin, ownerId);
   let gBusy: Array<{ start: Date; end: Date }> = [];
-  if (accessToken) {
+  if (workspaceId) {
     try {
-      const res = await fetch("https://www.googleapis.com/calendar/v3/freeBusy", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          timeMin: zonedDateTimeToUtc(requestedDate, "00:00", ownerTimeZone).toISOString(),
-          timeMax: new Date(zonedDateTimeToUtc(requestedDate, "23:59", ownerTimeZone).getTime() + 59 * 1000).toISOString(),
-          timeZone: ownerTimeZone,
-          items: [{ id: "primary" }],
-        }),
+      const busy = await getWorkspaceFreeBusy(workspaceId, {
+        timeMin: zonedDateTimeToUtc(requestedDate, "00:00", ownerTimeZone).toISOString(),
+        timeMax: new Date(zonedDateTimeToUtc(requestedDate, "23:59", ownerTimeZone).getTime() + 59 * 1000).toISOString(),
       });
-      if (res.ok) {
-        const data = await res.json();
-        gBusy = (data.calendars?.primary?.busy ?? []).map((b: any) => ({ start: new Date(b.start), end: new Date(b.end) }));
-      }
-    } catch (_) { /* ignore */ }
+      gBusy = busy.map((b) => ({ start: new Date(b.start), end: new Date(b.end) }));
+    } catch (err) { console.error("Workspace calendar freebusy failed:", err); }
   }
 
   const freeSlots = baseSlots.flatMap((slot) => {

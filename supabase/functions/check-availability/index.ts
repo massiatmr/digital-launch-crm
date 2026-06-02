@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { getWorkspaceFreeBusy } from "../_shared/calendar/index.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -75,77 +76,6 @@ function formatDateInTimeZone(date: Date, timeZone: string): string {
 function formatTimeInTimeZone(date: Date, timeZone: string): string {
   const parts = getTimeZoneParts(date, timeZone);
   return `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
-}
-
-async function refreshGoogleToken(refreshToken: string): Promise<{ access_token: string; expires_in: number } | null> {
-  const clientId = Deno.env.get("Google_Client_id")!;
-  const clientSecret = Deno.env.get("Client_secret")!;
-
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: "refresh_token",
-    }),
-  });
-
-  if (!res.ok) {
-    console.error("Token refresh failed:", await res.text());
-    return null;
-  }
-
-  return await res.json();
-}
-
-async function getValidAccessToken(
-  supabase: any,
-  ownerId: string,
-  workspaceId?: string | null,
-): Promise<string | null> {
-  // Prefer the workspace-scoped primary calendar account; fall back to owner-based lookup
-  let tokens: any = null;
-  if (workspaceId) {
-    const { data } = await supabase
-      .from("google_tokens")
-      .select("*")
-      .eq("workspace_id", workspaceId)
-      .eq("is_primary", true)
-      .maybeSingle();
-    tokens = data;
-  }
-  if (!tokens) {
-    const { data } = await supabase
-      .from("google_tokens")
-      .select("*")
-      .eq("user_id", ownerId)
-      .maybeSingle();
-    tokens = data;
-  }
-
-  if (!tokens) return null;
-
-  const expiresAt = new Date(tokens.expires_at);
-  if (expiresAt.getTime() - Date.now() > 5 * 60 * 1000) {
-    return tokens.access_token;
-  }
-
-  const refreshed = await refreshGoogleToken(tokens.refresh_token);
-  if (!refreshed) return null;
-
-  const newExpiresAt = new Date(Date.now() + refreshed.expires_in * 1000).toISOString();
-  await supabase
-    .from("google_tokens")
-    .update({
-      access_token: refreshed.access_token,
-      expires_at: newExpiresAt,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", tokens.id);
-
-  return refreshed.access_token;
 }
 
 Deno.serve(async (req) => {
@@ -254,39 +184,21 @@ Deno.serve(async (req) => {
     const ownerSlots = generateHourlySlots(dayStart, dayEnd, slotDurationMin).filter((slot) => {
       return zonedDateTimeToUtc(date, slot, ownerTimeZone).getTime() >= minStartMs;
     });
-    const accessToken = await getValidAccessToken(supabase, owner_id, workspace_id);
-
-    if (!accessToken) {
-      const displaySlots = ownerSlots
-        .map((slot) => formatTimeInTimeZone(zonedDateTimeToUtc(date, slot, ownerTimeZone), ownerTimeZone))
-        .filter((slotDate, index, arr) => arr.indexOf(slotDate) === index)
-        .sort();
-
-      return new Response(
-        JSON.stringify({ slots: displaySlots, synced: false, owner_timezone: ownerTimeZone }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     const timeMin = zonedDateTimeToUtc(date, "00:00", ownerTimeZone).toISOString();
     const timeMax = new Date(zonedDateTimeToUtc(date, "23:59", ownerTimeZone).getTime() + 59 * 1000).toISOString();
+    let busyPeriods: Array<{ start: string; end: string }> = [];
+    let synced = false;
 
-    const freeBusyRes = await fetch("https://www.googleapis.com/calendar/v3/freeBusy", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        timeMin,
-        timeMax,
-        timeZone: ownerTimeZone,
-        items: [{ id: "primary" }],
-      }),
-    });
+    if (workspace_id) {
+      try {
+        busyPeriods = await getWorkspaceFreeBusy(workspace_id, { timeMin, timeMax });
+        synced = true;
+      } catch (err) {
+        console.error("Workspace calendar freebusy failed:", err);
+      }
+    }
 
-    if (!freeBusyRes.ok) {
-      console.error("FreeBusy API error:", await freeBusyRes.text());
+    if (!workspace_id || !synced) {
       const displaySlots = ownerSlots
         .map((slot) => formatTimeInTimeZone(zonedDateTimeToUtc(date, slot, ownerTimeZone), ownerTimeZone))
         .filter((slotDate, index, arr) => arr.indexOf(slotDate) === index)
@@ -297,9 +209,6 @@ Deno.serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    const freeBusyData = await freeBusyRes.json();
-    const busyPeriods: Array<{ start: string; end: string }> = freeBusyData.calendars?.primary?.busy || [];
 
     const availableSlots = ownerSlots.flatMap((slot) => {
       const slotStart = zonedDateTimeToUtc(date, slot, ownerTimeZone);

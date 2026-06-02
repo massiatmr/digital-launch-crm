@@ -1,43 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { getWorkspaceFreeBusy } from "../_shared/calendar/index.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-async function refreshGoogleToken(refreshToken: string) {
-  const clientId = Deno.env.get("Google_Client_id")!;
-  const clientSecret = Deno.env.get("Client_secret")!;
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: "refresh_token",
-    }),
-  });
-  if (!res.ok) return null;
-  return await res.json();
-}
-
-async function getValidAccessToken(supabase: any, ownerId: string): Promise<string | null> {
-  const { data: tokens } = await supabase
-    .from("google_tokens").select("*").eq("user_id", ownerId).maybeSingle();
-  if (!tokens) return null;
-  const expiresAt = new Date(tokens.expires_at);
-  if (expiresAt.getTime() - Date.now() > 5 * 60 * 1000) return tokens.access_token;
-  const refreshed = await refreshGoogleToken(tokens.refresh_token);
-  if (!refreshed) return null;
-  await supabase.from("google_tokens").update({
-    access_token: refreshed.access_token,
-    expires_at: new Date(Date.now() + refreshed.expires_in * 1000).toISOString(),
-    updated_at: new Date().toISOString(),
-  }).eq("user_id", ownerId);
-  return refreshed.access_token;
-}
 
 function addDays(d: string, n: number): string {
   const dt = new Date(`${d}T12:00:00Z`);
@@ -121,7 +89,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { date_from } = await req.json();
+    const { date_from, workspace_id } = await req.json();
     if (!date_from || !/^\d{4}-\d{2}-\d{2}$/.test(date_from)) {
       return new Response(JSON.stringify({ error: "date_from required (YYYY-MM-DD)" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -144,10 +112,30 @@ Deno.serve(async (req) => {
 
     const admin = createClient(supabaseUrl, serviceRoleKey);
     const ownerId = user.id;
+    let workspaceId: string | null = typeof workspace_id === "string" ? workspace_id : null;
+    if (workspaceId) {
+      const { data: member } = await admin
+        .from("workspace_members")
+        .select("workspace_id")
+        .eq("workspace_id", workspaceId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!member) workspaceId = null;
+    }
 
-    const { data: avail } = await admin.from("availability_settings")
-      .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
-      .eq("owner_id", ownerId).maybeSingle();
+    let avail: any = null;
+    if (workspaceId) {
+      const { data } = await admin.from("availability_settings")
+        .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
+        .eq("workspace_id", workspaceId).maybeSingle();
+      avail = data;
+    }
+    if (!avail) {
+      const { data } = await admin.from("availability_settings")
+        .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
+        .eq("owner_id", ownerId).maybeSingle();
+      avail = data;
+    }
     const ownerTimeZone: string = avail?.timezone ?? "Europe/Paris";
     const workingDays: number[] = avail?.working_days ?? [1, 2, 3, 4, 5];
     const dayStart: string = avail?.day_start_time ?? "11:00";
@@ -163,16 +151,19 @@ Deno.serve(async (req) => {
     const today = formatDateInTimeZone(new Date(), ownerTimeZone);
     const maxDate = addDays(today, maxFutureDays);
 
-    const { data: blackoutsRows } = await admin.from("availability_blackouts")
-      .select("blackout_date").eq("owner_id", ownerId)
+    let blackoutsQuery = admin.from("availability_blackouts")
+      .select("blackout_date")
       .gte("blackout_date", date_from).lte("blackout_date", dateTo);
+    blackoutsQuery = workspaceId ? blackoutsQuery.eq("workspace_id", workspaceId) : blackoutsQuery.eq("owner_id", ownerId);
+    const { data: blackoutsRows } = await blackoutsQuery;
     const blackouts = new Set((blackoutsRows ?? []).map((r: any) => r.blackout_date));
 
-    const { data: bookingsRows } = await admin.from("bookings")
+    let bookingsQuery = admin.from("bookings")
       .select("booking_date, time_slot, status")
-      .eq("owner_id", ownerId)
       .gte("booking_date", date_from).lte("booking_date", dateTo)
       .neq("status", "cancelled");
+    bookingsQuery = workspaceId ? bookingsQuery.eq("workspace_id", workspaceId) : bookingsQuery.eq("owner_id", ownerId);
+    const { data: bookingsRows } = await bookingsQuery;
     const bookedKey = new Set(
       (bookingsRows ?? []).map((r: any) => {
         const ownerBookingStart = zonedDateTimeToUtc(r.booking_date, r.time_slot, "Europe/Paris");
@@ -180,20 +171,13 @@ Deno.serve(async (req) => {
       })
     );
 
-    const accessToken = await getValidAccessToken(admin, ownerId);
     let busyByDay: Record<string, Array<{ start: Date; end: Date }>> = {};
     let synced = false;
-    if (accessToken) {
+    if (workspaceId) {
       const timeMin = zonedDateTimeToUtc(date_from, "00:00", ownerTimeZone).toISOString();
       const timeMax = new Date(zonedDateTimeToUtc(dateTo, "23:59", ownerTimeZone).getTime() + 59 * 1000).toISOString();
-      const fbRes = await fetch("https://www.googleapis.com/calendar/v3/freeBusy", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ timeMin, timeMax, timeZone: ownerTimeZone, items: [{ id: "primary" }] }),
-      });
-      if (fbRes.ok) {
-        const data = await fbRes.json();
-        const busy: Array<{ start: string; end: string }> = data.calendars?.primary?.busy ?? [];
+      try {
+        const busy = await getWorkspaceFreeBusy(workspaceId, { timeMin, timeMax });
         for (const b of busy) {
           const s = new Date(b.start); const e = new Date(b.end);
           const dayKey = formatDateInTimeZone(s, ownerTimeZone);
@@ -201,6 +185,8 @@ Deno.serve(async (req) => {
           busyByDay[dayKey].push({ start: s, end: e });
         }
         synced = true;
+      } catch (err) {
+        console.error("Workspace calendar freebusy failed:", err);
       }
     }
 

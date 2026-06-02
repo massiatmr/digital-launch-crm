@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { adapterFor, getPrimaryAccount } from "../_shared/calendar/index.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -6,47 +7,9 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-async function refreshGoogleToken(refreshToken: string) {
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: Deno.env.get("Google_Client_id")!,
-      client_secret: Deno.env.get("Client_secret")!,
-      refresh_token: refreshToken,
-      grant_type: "refresh_token",
-    }),
-  });
-  if (!res.ok) {
-    console.error("Token refresh failed:", await res.text());
-    return null;
-  }
-  return await res.json();
-}
-
-async function getValidAccessToken(supabase: any, ownerId: string): Promise<string | null> {
-  const { data: tokens } = await supabase
-    .from("google_tokens")
-    .select("*")
-    .eq("user_id", ownerId)
-    .maybeSingle();
-  if (!tokens) return null;
-  const expiresAt = new Date(tokens.expires_at);
-  if (expiresAt.getTime() - Date.now() > 5 * 60 * 1000) return tokens.access_token;
-  const refreshed = await refreshGoogleToken(tokens.refresh_token);
-  if (!refreshed) return null;
-  const newExpiresAt = new Date(Date.now() + refreshed.expires_in * 1000).toISOString();
-  await supabase.from("google_tokens").update({
-    access_token: refreshed.access_token,
-    expires_at: newExpiresAt,
-    updated_at: new Date().toISOString(),
-  }).eq("user_id", ownerId);
-  return refreshed.access_token;
-}
-
-function addHoursToTimeSlot(timeSlot: string, hours: number): string {
+function addMinutesToTimeSlot(timeSlot: string, minutesToAdd: number): string {
   const [h, m] = timeSlot.split(":").map(Number);
-  const total = h * 60 + m + hours * 60;
+  const total = h * 60 + m + minutesToAdd;
   const nh = Math.floor(total / 60) % 24;
   const nm = total % 60;
   return `${String(nh).padStart(2, "0")}:${String(nm).padStart(2, "0")}`;
@@ -88,7 +51,7 @@ Deno.serve(async (req) => {
 
     const { data: booking, error: bErr } = await supabase
       .from("bookings")
-      .select("id, owner_id, name, email, booking_date, time_slot, google_event_id, offer_id, offers(name)")
+      .select("id, owner_id, workspace_id, name, email, booking_date, time_slot, google_event_id, offer_id, offers(name)")
       .eq("id", booking_id)
       .maybeSingle();
 
@@ -98,7 +61,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (booking.owner_id !== user.id) {
+    let isAllowed = booking.owner_id === user.id;
+    if (!isAllowed && booking.workspace_id) {
+      const { data: member } = await supabase
+        .from("workspace_members")
+        .select("workspace_id")
+        .eq("workspace_id", booking.workspace_id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      isAllowed = !!member;
+    }
+    if (!isAllowed) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -110,27 +83,28 @@ Deno.serve(async (req) => {
       });
     }
 
-    const accessToken = await getValidAccessToken(supabase, booking.owner_id);
-    if (!accessToken) {
-      return new Response(JSON.stringify({ ok: false, error: "No Google token" }), {
+    if (!booking.workspace_id) {
+      return new Response(JSON.stringify({ ok: false, error: "No workspace calendar" }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const eventUrl = `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(booking.google_event_id)}?sendUpdates=all`;
+    const primary = await getPrimaryAccount(booking.workspace_id);
+    if (!primary) {
+      return new Response(JSON.stringify({ ok: false, error: "No primary calendar account" }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const adapter = adapterFor(primary.provider);
+    const { data: availability } = await supabase
+      .from("availability_settings")
+      .select("timezone, slot_duration_minutes")
+      .eq("workspace_id", booking.workspace_id)
+      .maybeSingle();
+    const calendarTimeZone = availability?.timezone || "Europe/Paris";
+    const durationMinutes = availability?.slot_duration_minutes || 60;
 
     if (action === "cancel") {
-      const res = await fetch(eventUrl, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      if (!res.ok && res.status !== 404 && res.status !== 410) {
-        const txt = await res.text();
-        console.error("Calendar delete failed:", res.status, txt);
-        return new Response(JSON.stringify({ ok: false, error: txt }), {
-          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      await adapter.deleteEvent(primary, booking.google_event_id);
       await supabase.from("bookings").update({ google_event_id: null } as any).eq("id", booking.id);
       return new Response(JSON.stringify({ ok: true, action: "cancelled" }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -138,31 +112,15 @@ Deno.serve(async (req) => {
     }
 
     // action === "update" → patch start/end with current booking values
-    const endTimeSlot = addHoursToTimeSlot(booking.time_slot, 1);
+    const endTimeSlot = addMinutesToTimeSlot(booking.time_slot, durationMinutes);
     const startLocal = `${booking.booking_date}T${booking.time_slot}:00`;
     const endLocal = `${booking.booking_date}T${endTimeSlot}:00`;
 
-    const patch = {
-      start: { dateTime: startLocal, timeZone: "Europe/Paris" },
-      end: { dateTime: endLocal, timeZone: "Europe/Paris" },
-    };
-
-    const res = await fetch(eventUrl, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(patch),
+    await adapter.updateEvent(primary, booking.google_event_id, {
+      startISO: startLocal,
+      endISO: endLocal,
+      timeZone: calendarTimeZone,
     });
-
-    if (!res.ok) {
-      const txt = await res.text();
-      console.error("Calendar patch failed:", res.status, txt);
-      return new Response(JSON.stringify({ ok: false, error: txt }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     return new Response(JSON.stringify({ ok: true, action: "updated" }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
