@@ -202,6 +202,7 @@ function WorkspaceEditor({ workspace, canManage }: { workspace: any; canManage: 
     logo_url_dark: workspace.logo_url_dark || '',
     notification_email: workspace.notification_email || '',
     brand_color: workspace.brand_color || '#7C3AED',
+    default_country_code: (workspace.default_country_code || '33').replace(/\D/g, '') || '33',
   });
   const [confirmName, setConfirmName] = useState('');
   const [impact, setImpact] = useState<{ leads: number; clients: number; offers: number; invoices: number } | null>(null);
@@ -329,6 +330,33 @@ function WorkspaceEditor({ workspace, canManage }: { workspace: any; canManage: 
             />
           </div>
           <p className="text-[10px] text-muted-foreground mt-1">Utilisée comme couleur d'accent sur les landing pages publiques.</p>
+        </div>
+        <div>
+          <Label className="text-xs">Indicatif pays par défaut</Label>
+          <Select
+            value={form.default_country_code}
+            onValueChange={(v) => setForm({ ...form, default_country_code: v })}
+          >
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="33">🇫🇷 France (+33)</SelectItem>
+              <SelectItem value="213">🇩🇿 Algérie (+213)</SelectItem>
+              <SelectItem value="212">🇲🇦 Maroc (+212)</SelectItem>
+              <SelectItem value="216">🇹🇳 Tunisie (+216)</SelectItem>
+              <SelectItem value="32">🇧🇪 Belgique (+32)</SelectItem>
+              <SelectItem value="41">🇨🇭 Suisse (+41)</SelectItem>
+              <SelectItem value="1">🇺🇸 USA / Canada (+1)</SelectItem>
+              <SelectItem value="44">🇬🇧 UK (+44)</SelectItem>
+              <SelectItem value="49">🇩🇪 Allemagne (+49)</SelectItem>
+              <SelectItem value="34">🇪🇸 Espagne (+34)</SelectItem>
+              <SelectItem value="39">🇮🇹 Italie (+39)</SelectItem>
+              <SelectItem value="971">🇦🇪 Émirats (+971)</SelectItem>
+              <SelectItem value="966">🇸🇦 Arabie Saoudite (+966)</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-[10px] text-muted-foreground mt-1">Appliqué aux numéros saisis sans préfixe international (ex. "0555…" devient "+{form.default_country_code}…").</p>
         </div>
       </div>
       <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending} className="w-full">

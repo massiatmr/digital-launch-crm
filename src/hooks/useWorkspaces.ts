@@ -19,6 +19,7 @@ export interface Workspace {
   brand_color: string | null;
   email_sender_name: string | null;
   email_signature: string | null;
+  default_country_code: string | null;
   onboarding_completed: boolean;
   created_by: string | null;
   role?: 'owner' | 'member';
@@ -133,4 +134,11 @@ export function useWorkspaces() {
 
 export function useCurrentWorkspaceId(): string | null {
   return useContext(WorkspaceContext).currentWorkspaceId;
+}
+
+/** Default country code (digits only, no '+') for the current workspace. Falls back to "33". */
+export function useDefaultCountryCode(): string {
+  const ws = useContext(WorkspaceContext).currentWorkspace;
+  const cc = (ws?.default_country_code || '33').replace(/\D/g, '');
+  return cc || '33';
 }

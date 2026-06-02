@@ -10,6 +10,7 @@ import {
 import { DbLead, useUpdateLead } from '@/hooks/useLeadData';
 import { toast } from 'sonner';
 import { toWhatsAppUrl } from '@/lib/phone';
+import { useDefaultCountryCode } from '@/hooks/useWorkspaces';
 import { LeadScore } from '@/types/lead';
 
 interface QuickActionsMenuProps {
@@ -20,6 +21,7 @@ interface QuickActionsMenuProps {
 
 export function QuickActionsMenu({ lead, onPrepareCall, onWarmUp }: QuickActionsMenuProps) {
   const updateLead = useUpdateLead();
+  const cc = useDefaultCountryCode();
 
   const handleScoreChange = (score: LeadScore) => {
     updateLead.mutate(
@@ -41,7 +43,7 @@ export function QuickActionsMenu({ lead, onPrepareCall, onWarmUp }: QuickActions
       <DropdownMenuContent align="end" className="w-48" onClick={(e) => e.stopPropagation()}>
         {lead.phone && (
           <DropdownMenuItem asChild>
-            <a href={toWhatsAppUrl(lead.phone)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
+            <a href={toWhatsAppUrl(lead.phone, cc)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
               <MessageSquare className="h-3.5 w-3.5 text-emerald-400" />
               WhatsApp
             </a>

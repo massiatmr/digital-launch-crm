@@ -24,6 +24,7 @@ import {
 import { MergeLeadDialog } from '@/components/MergeLeadDialog';
 import { ShowStatusToggle } from '@/components/ShowStatusToggle';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
+import { useDefaultCountryCode } from '@/hooks/useWorkspaces';
 import ReactMarkdown from 'react-markdown';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -63,6 +64,7 @@ export function LeadDetailContent({
   const updateLead = useUpdateLead();
   const { isEnabled } = useWorkspaceFeatures();
   const whatsappEnabled = isEnabled('whatsapp');
+  const cc = useDefaultCountryCode();
 
   const AI_BLOCK_REGEX = /<!-- AI_NOTES_START -->([\s\S]*?)<!-- AI_NOTES_END -->/;
   const fullNotes = lead?.notes ?? '';
@@ -180,7 +182,7 @@ export function LeadDetailContent({
                 <div className="flex flex-wrap gap-2">
                   {lead.phone && whatsappEnabled && (
                     <Button asChild variant="outline" size="sm" className="gap-1.5">
-                      <a href={toWhatsAppUrl(lead.phone)} target="_blank" rel="noopener noreferrer">
+                      <a href={toWhatsAppUrl(lead.phone, cc)} target="_blank" rel="noopener noreferrer">
                         <Smartphone className="h-3.5 w-3.5" />
                         WhatsApp
                       </a>
@@ -191,7 +193,7 @@ export function LeadDetailContent({
                     <Button asChild variant="outline" size="sm" className="gap-1.5">
                       <a href={`tel:${lead.phone}`}>
                         <Phone className="h-3.5 w-3.5" />
-                        {formatPhoneDisplay(lead.phone)}
+                        {formatPhoneDisplay(lead.phone, cc)}
                       </a>
                     </Button>
                   )}
