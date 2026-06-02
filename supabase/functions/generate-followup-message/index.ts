@@ -100,6 +100,21 @@ function formatTimeInTimeZone(date: Date, timeZone: string): string {
   return `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
 }
 
+/**
+ * Libellé naturel : "aujourd'hui", "demain", "après-demain", sinon fallback.
+ */
+function naturalDayLabel(dateStr: string, todayStr: string, fallback: string): string {
+  const a = new Date(`${todayStr}T12:00:00Z`).getTime();
+  const b = new Date(`${dateStr}T12:00:00Z`).getTime();
+  const diff = Math.round((b - a) / (24 * 60 * 60 * 1000));
+  if (diff === 0) return "aujourd'hui";
+  if (diff === 1) return "demain";
+  if (diff === 2) return "après-demain";
+  return fallback;
+}
+
+
+
 
 /**
  * Retourne les créneaux libres du PROCHAIN jour disponible
