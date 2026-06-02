@@ -309,14 +309,22 @@ ${transcript}`;
     let googleEventId: string | null = null;
     let meetLink: string | null = null;
     if (lead.workspace_id) {
+      const { data: availability } = await admin
+        .from("availability_settings")
+        .select("timezone, slot_duration_minutes")
+        .eq("workspace_id", lead.workspace_id)
+        .maybeSingle();
+      const calendarTimeZone = availability?.timezone || "Europe/Paris";
+      const durationMinutes = availability?.slot_duration_minutes || 60;
       const [hh, mm] = parsed.time_slot.split(":").map(Number);
-      const endLocal = `${parsed.booking_date}T${String((hh + 1) % 24).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00`;
+      const endTotal = hh * 60 + mm + durationMinutes;
+      const endLocal = `${parsed.booking_date}T${String(Math.floor(endTotal / 60) % 24).padStart(2, "0")}:${String(endTotal % 60).padStart(2, "0")}:00`;
       const result = await createEventOnPrimary(lead.workspace_id, {
         summary: `RDV - ${lead.name} (${offerName})`,
         description: `Rendez-vous avec ${lead.name}${lead.email ? ` (${lead.email})` : ""} pour "${offerName}" — détecté automatiquement depuis WhatsApp.`,
         startISO: `${parsed.booking_date}T${parsed.time_slot}:00`,
         endISO: endLocal,
-        timeZone: "Europe/Paris",
+        timeZone: calendarTimeZone,
         attendees: lead.email ? [{ email: lead.email, displayName: lead.name }] : [],
         createMeetLink: true,
       }).catch((err) => {
