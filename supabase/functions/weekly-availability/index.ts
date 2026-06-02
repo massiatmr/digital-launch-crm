@@ -1,43 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { getWorkspaceFreeBusy } from "../_shared/calendar/index.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-async function refreshGoogleToken(refreshToken: string) {
-  const clientId = Deno.env.get("Google_Client_id")!;
-  const clientSecret = Deno.env.get("Client_secret")!;
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: "refresh_token",
-    }),
-  });
-  if (!res.ok) return null;
-  return await res.json();
-}
-
-async function getValidAccessToken(supabase: any, ownerId: string): Promise<string | null> {
-  const { data: tokens } = await supabase
-    .from("google_tokens").select("*").eq("user_id", ownerId).maybeSingle();
-  if (!tokens) return null;
-  const expiresAt = new Date(tokens.expires_at);
-  if (expiresAt.getTime() - Date.now() > 5 * 60 * 1000) return tokens.access_token;
-  const refreshed = await refreshGoogleToken(tokens.refresh_token);
-  if (!refreshed) return null;
-  await supabase.from("google_tokens").update({
-    access_token: refreshed.access_token,
-    expires_at: new Date(Date.now() + refreshed.expires_in * 1000).toISOString(),
-    updated_at: new Date().toISOString(),
-  }).eq("user_id", ownerId);
-  return refreshed.access_token;
-}
 
 function addDays(d: string, n: number): string {
   const dt = new Date(`${d}T12:00:00Z`);
