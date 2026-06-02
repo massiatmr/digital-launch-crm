@@ -20,7 +20,7 @@ interface DayData {
 
 const STATUS_STYLES: Record<SlotStatus, { label: string; className: string; dot: string }> = {
   free:         { label: 'Libre',     className: 'bg-green-500/10 text-green-300 border-green-500/30 hover:bg-green-500/20', dot: 'bg-green-500' },
-  busy:         { label: 'Google',    className: 'bg-orange-500/10 text-orange-300 border-orange-500/30 line-through opacity-70', dot: 'bg-orange-500' },
+  busy:         { label: 'Agenda',    className: 'bg-orange-500/10 text-orange-300 border-orange-500/30 line-through opacity-70', dot: 'bg-orange-500' },
   booked:       { label: 'RDV',       className: 'bg-primary/15 text-primary border-primary/30', dot: 'bg-primary' },
   past:         { label: 'Passé',     className: 'bg-muted/20 text-muted-foreground/40 border-white/5 line-through opacity-50', dot: 'bg-muted' },
   non_working:  { label: 'Off',       className: 'bg-muted/20 text-muted-foreground/40 border-white/5 opacity-40', dot: 'bg-muted' },
@@ -102,7 +102,7 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2 flex-wrap">
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500" /> {summary.free} libres</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500" /> {summary.busy} Google</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500" /> {summary.busy} agenda</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary" /> {summary.booked} RDV</span>
           {data && (
             <span className="text-muted-foreground/70">
@@ -115,11 +115,11 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
           </span>
           {data?.synced ? (
             <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/20 gap-1 ml-auto">
-              <CheckCircle2 className="h-3 w-3" /> Google sync
+              <CheckCircle2 className="h-3 w-3" /> Agenda sync
             </Badge>
           ) : (
             <Badge variant="outline" className="bg-muted/20 text-muted-foreground gap-1 ml-auto">
-              <X className="h-3 w-3" /> Google off
+              <X className="h-3 w-3" /> Agenda off
             </Badge>
           )}
         </div>
