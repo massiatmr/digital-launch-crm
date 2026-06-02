@@ -19,6 +19,7 @@ export interface Workspace {
   brand_color: string | null;
   email_sender_name: string | null;
   email_signature: string | null;
+  default_country_code: string | null;
   onboarding_completed: boolean;
   created_by: string | null;
   role?: 'owner' | 'member';
