@@ -1,17 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { useCurrentWorkspaceId } from './useWorkspaces';
 
 export interface AvailabilitySettings {
   owner_id: string;
+  workspace_id?: string | null;
   working_days: number[]; // 0=Sun .. 6=Sat
-  day_start_time: string;       // "HH:MM"
-  day_end_time: string;         // "HH:MM"
+  day_start_time: string;
+  day_end_time: string;
   slot_duration_minutes: number;
   max_future_days: number;
   min_lead_time_hours: number;
   timezone: string;
-  // legacy (ignorés par l'UI mais lus depuis la table)
   morning_slot?: string;
   afternoon_slot?: string;
 }
@@ -19,7 +20,8 @@ export interface AvailabilitySettings {
 export interface Blackout {
   id: string;
   owner_id: string;
-  blackout_date: string; // YYYY-MM-DD
+  workspace_id?: string | null;
+  blackout_date: string;
   reason: string;
 }
 
@@ -35,39 +37,55 @@ const DEFAULT: Omit<AvailabilitySettings, 'owner_id'> = {
 
 export function useAvailabilitySettings() {
   const { user } = useAuth();
+  const workspaceId = useCurrentWorkspaceId();
   return useQuery({
-    queryKey: ['availability_settings', user?.id],
+    queryKey: ['availability_settings', workspaceId ?? user?.id],
     enabled: !!user?.id,
     queryFn: async (): Promise<AvailabilitySettings> => {
-      const { data } = await (supabase as any)
-        .from('availability_settings')
-        .select('*')
-        .eq('owner_id', user!.id)
-        .maybeSingle();
-      return { owner_id: user!.id, ...DEFAULT, ...(data ?? {}) } as AvailabilitySettings;
+      let query = (supabase as any).from('availability_settings').select('*');
+      if (workspaceId) query = query.eq('workspace_id', workspaceId);
+      else query = query.eq('owner_id', user!.id).is('workspace_id', null);
+      const { data } = await query.maybeSingle();
+      return { owner_id: user!.id, workspace_id: workspaceId, ...DEFAULT, ...(data ?? {}) } as AvailabilitySettings;
     },
   });
 }
 
 export function useUpsertAvailabilitySettings() {
   const { user } = useAuth();
+  const workspaceId = useCurrentWorkspaceId();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (patch: Partial<Omit<AvailabilitySettings, 'owner_id'>>) => {
       if (!user?.id) throw new Error('not_authed');
-      const { data: existing } = await (supabase as any)
-        .from('availability_settings')
-        .select('*')
-        .eq('owner_id', user.id)
-        .maybeSingle();
-      const merged = { owner_id: user.id, ...DEFAULT, ...(existing ?? {}), ...patch };
-      const { error } = await (supabase as any)
-        .from('availability_settings')
-        .upsert(merged, { onConflict: 'owner_id' });
-      if (error) throw error;
+      let q = (supabase as any).from('availability_settings').select('*');
+      if (workspaceId) q = q.eq('workspace_id', workspaceId);
+      else q = q.eq('owner_id', user.id).is('workspace_id', null);
+      const { data: existing } = await q.maybeSingle();
+
+      const merged: any = {
+        ...DEFAULT,
+        ...(existing ?? {}),
+        ...patch,
+        owner_id: existing?.owner_id || user.id,
+        workspace_id: workspaceId ?? null,
+      };
+
+      if (existing?.owner_id) {
+        const { error } = await (supabase as any)
+          .from('availability_settings')
+          .update(merged)
+          .eq('owner_id', existing.owner_id);
+        if (error) throw error;
+      } else {
+        const { error } = await (supabase as any)
+          .from('availability_settings')
+          .insert(merged);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['availability_settings', user?.id] });
+      qc.invalidateQueries({ queryKey: ['availability_settings'] });
       qc.invalidateQueries({ queryKey: ['weekly-availability'] });
     },
   });
@@ -75,15 +93,15 @@ export function useUpsertAvailabilitySettings() {
 
 export function useBlackouts() {
   const { user } = useAuth();
+  const workspaceId = useCurrentWorkspaceId();
   return useQuery({
-    queryKey: ['availability_blackouts', user?.id],
+    queryKey: ['availability_blackouts', workspaceId ?? user?.id],
     enabled: !!user?.id,
     queryFn: async (): Promise<Blackout[]> => {
-      const { data } = await (supabase as any)
-        .from('availability_blackouts')
-        .select('*')
-        .eq('owner_id', user!.id)
-        .order('blackout_date', { ascending: true });
+      let q = (supabase as any).from('availability_blackouts').select('*');
+      if (workspaceId) q = q.eq('workspace_id', workspaceId);
+      else q = q.eq('owner_id', user!.id).is('workspace_id', null);
+      const { data } = await q.order('blackout_date', { ascending: true });
       return (data as Blackout[]) ?? [];
     },
   });
@@ -91,6 +109,7 @@ export function useBlackouts() {
 
 export function useToggleBlackout() {
   const { user } = useAuth();
+  const workspaceId = useCurrentWorkspaceId();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ date, existingId }: { date: string; existingId?: string }) => {
@@ -104,12 +123,12 @@ export function useToggleBlackout() {
       } else {
         const { error } = await (supabase as any)
           .from('availability_blackouts')
-          .insert({ owner_id: user.id, blackout_date: date });
+          .insert({ owner_id: user.id, workspace_id: workspaceId ?? null, blackout_date: date });
         if (error) throw error;
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['availability_blackouts', user?.id] });
+      qc.invalidateQueries({ queryKey: ['availability_blackouts'] });
       qc.invalidateQueries({ queryKey: ['weekly-availability'] });
     },
   });
