@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAvailabilitySettings } from '@/hooks/useAvailabilitySettings';
+import { useCurrentWorkspaceId } from '@/hooks/useWorkspaces';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -35,6 +36,7 @@ interface Props {
 export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const { data: availability } = useAvailabilitySettings();
+  const workspaceId = useCurrentWorkspaceId();
   const ownerTz = availability?.timezone || OWNER_DEFAULT_TZ;
   const ownerTzLabel = tzShortLabel(ownerTz);
   const clientTz = CLIENT_DEFAULT_TZ;
@@ -44,10 +46,10 @@ export function WeekAvailabilityView({ selectedDate, onSelectDate }: Props) {
   const weekEnd = addDays(weekStart, 6);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['weekly-availability', dateFrom],
+    queryKey: ['weekly-availability', workspaceId, dateFrom],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('weekly-availability', {
-        body: { date_from: dateFrom },
+        body: { date_from: dateFrom, workspace_id: workspaceId ?? null },
       });
       if (error) throw error;
       return data as {
