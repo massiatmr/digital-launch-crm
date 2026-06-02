@@ -184,39 +184,21 @@ Deno.serve(async (req) => {
     const ownerSlots = generateHourlySlots(dayStart, dayEnd, slotDurationMin).filter((slot) => {
       return zonedDateTimeToUtc(date, slot, ownerTimeZone).getTime() >= minStartMs;
     });
-    const accessToken = await getValidAccessToken(supabase, owner_id, workspace_id);
-
-    if (!accessToken) {
-      const displaySlots = ownerSlots
-        .map((slot) => formatTimeInTimeZone(zonedDateTimeToUtc(date, slot, ownerTimeZone), ownerTimeZone))
-        .filter((slotDate, index, arr) => arr.indexOf(slotDate) === index)
-        .sort();
-
-      return new Response(
-        JSON.stringify({ slots: displaySlots, synced: false, owner_timezone: ownerTimeZone }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     const timeMin = zonedDateTimeToUtc(date, "00:00", ownerTimeZone).toISOString();
     const timeMax = new Date(zonedDateTimeToUtc(date, "23:59", ownerTimeZone).getTime() + 59 * 1000).toISOString();
+    let busyPeriods: Array<{ start: string; end: string }> = [];
+    let synced = false;
 
-    const freeBusyRes = await fetch("https://www.googleapis.com/calendar/v3/freeBusy", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        timeMin,
-        timeMax,
-        timeZone: ownerTimeZone,
-        items: [{ id: "primary" }],
-      }),
-    });
+    if (workspace_id) {
+      try {
+        busyPeriods = await getWorkspaceFreeBusy(workspace_id, { timeMin, timeMax });
+        synced = true;
+      } catch (err) {
+        console.error("Workspace calendar freebusy failed:", err);
+      }
+    }
 
-    if (!freeBusyRes.ok) {
-      console.error("FreeBusy API error:", await freeBusyRes.text());
+    if (!workspace_id || !synced) {
       const displaySlots = ownerSlots
         .map((slot) => formatTimeInTimeZone(zonedDateTimeToUtc(date, slot, ownerTimeZone), ownerTimeZone))
         .filter((slotDate, index, arr) => arr.indexOf(slotDate) === index)
@@ -227,9 +209,6 @@ Deno.serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    const freeBusyData = await freeBusyRes.json();
-    const busyPeriods: Array<{ start: string; end: string }> = freeBusyData.calendars?.primary?.busy || [];
 
     const availableSlots = ownerSlots.flatMap((slot) => {
       const slotStart = zonedDateTimeToUtc(date, slot, ownerTimeZone);
