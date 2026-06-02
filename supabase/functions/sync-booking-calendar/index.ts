@@ -1,48 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { adapterFor, getPrimaryAccount } from "../_shared/calendar/index.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
-
-async function refreshGoogleToken(refreshToken: string) {
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: Deno.env.get("Google_Client_id")!,
-      client_secret: Deno.env.get("Client_secret")!,
-      refresh_token: refreshToken,
-      grant_type: "refresh_token",
-    }),
-  });
-  if (!res.ok) {
-    console.error("Token refresh failed:", await res.text());
-    return null;
-  }
-  return await res.json();
-}
-
-async function getValidAccessToken(supabase: any, ownerId: string): Promise<string | null> {
-  const { data: tokens } = await supabase
-    .from("google_tokens")
-    .select("*")
-    .eq("user_id", ownerId)
-    .maybeSingle();
-  if (!tokens) return null;
-  const expiresAt = new Date(tokens.expires_at);
-  if (expiresAt.getTime() - Date.now() > 5 * 60 * 1000) return tokens.access_token;
-  const refreshed = await refreshGoogleToken(tokens.refresh_token);
-  if (!refreshed) return null;
-  const newExpiresAt = new Date(Date.now() + refreshed.expires_in * 1000).toISOString();
-  await supabase.from("google_tokens").update({
-    access_token: refreshed.access_token,
-    expires_at: newExpiresAt,
-    updated_at: new Date().toISOString(),
-  }).eq("user_id", ownerId);
-  return refreshed.access_token;
-}
 
 function addHoursToTimeSlot(timeSlot: string, hours: number): string {
   const [h, m] = timeSlot.split(":").map(Number);
