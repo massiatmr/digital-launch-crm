@@ -228,7 +228,7 @@ async function getNextAvailableSlots(
     return {
       date: dateStr,
       slots: freeSlots,
-      label: `${dayLabel} ${dateLabel}`,
+      label: naturalDayLabel(dateStr, ownerToday, `${dayLabel} ${dateLabel}`),
       duration: slotDurationMin,
     };
   }
