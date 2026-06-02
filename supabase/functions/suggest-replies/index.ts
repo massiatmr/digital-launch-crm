@@ -70,7 +70,8 @@ async function buildAvailabilityHint(
       if (!workingDays.includes(dow)) continue;
       if (blackoutSet.has(ds)) continue;
       const d = new Date(`${ds}T12:00:00Z`);
-      const label = d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: DISPLAY_TIME_ZONE });
+      const full = d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: DISPLAY_TIME_ZONE });
+      const label = i === 0 ? "aujourd'hui" : i === 1 ? "demain" : i === 2 ? "après-demain" : full;
       openDays.push(label);
     }
 
