@@ -305,22 +305,27 @@ ${transcript}`;
       );
     }
 
-    // Créer event Google Calendar si token disponible
+    // Créer event calendrier sur le compte principal du workspace si disponible
     let googleEventId: string | null = null;
     let meetLink: string | null = null;
-    const accessToken = await getGoogleAccessToken(admin, lead.owner_id);
-    if (accessToken) {
-      const result = await createGoogleCalendarEvent(
-        accessToken,
-        lead.name,
-        lead.email || null,
-        parsed.booking_date,
-        parsed.time_slot,
-        offerName,
-      );
+    if (lead.workspace_id) {
+      const [hh, mm] = parsed.time_slot.split(":").map(Number);
+      const endLocal = `${parsed.booking_date}T${String((hh + 1) % 24).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00`;
+      const result = await createEventOnPrimary(lead.workspace_id, {
+        summary: `RDV - ${lead.name} (${offerName})`,
+        description: `Rendez-vous avec ${lead.name}${lead.email ? ` (${lead.email})` : ""} pour "${offerName}" — détecté automatiquement depuis WhatsApp.`,
+        startISO: `${parsed.booking_date}T${parsed.time_slot}:00`,
+        endISO: endLocal,
+        timeZone: "Europe/Paris",
+        attendees: lead.email ? [{ email: lead.email, displayName: lead.name }] : [],
+        createMeetLink: true,
+      }).catch((err) => {
+        console.error("Workspace calendar event creation failed:", err);
+        return null;
+      });
       if (result) {
-        googleEventId = result.eventId;
-        meetLink = result.meetLink;
+        googleEventId = result.externalEventId;
+        meetLink = result.meetLink || null;
       }
     }
 
