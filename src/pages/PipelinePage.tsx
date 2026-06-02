@@ -10,6 +10,7 @@ import { useState, useRef, useMemo } from 'react';
 import { Loader2, GripVertical, User, ArrowRight, Search, Package, CalendarDays } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
+import { useDefaultCountryCode } from '@/hooks/useWorkspaces';
 import { format, subDays, subMonths, startOfYear, isAfter, isBefore } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
