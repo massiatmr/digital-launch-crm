@@ -135,3 +135,10 @@ export function useWorkspaces() {
 export function useCurrentWorkspaceId(): string | null {
   return useContext(WorkspaceContext).currentWorkspaceId;
 }
+
+/** Default country code (digits only, no '+') for the current workspace. Falls back to "33". */
+export function useDefaultCountryCode(): string {
+  const ws = useContext(WorkspaceContext).currentWorkspace;
+  const cc = (ws?.default_country_code || '33').replace(/\D/g, '');
+  return cc || '33';
+}
