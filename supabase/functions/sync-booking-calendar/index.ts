@@ -95,6 +95,13 @@ Deno.serve(async (req) => {
       });
     }
     const adapter = adapterFor(primary.provider);
+    const { data: availability } = await supabase
+      .from("availability_settings")
+      .select("timezone, slot_duration_minutes")
+      .eq("workspace_id", booking.workspace_id)
+      .maybeSingle();
+    const calendarTimeZone = availability?.timezone || "Europe/Paris";
+    const durationHours = (availability?.slot_duration_minutes || 60) / 60;
 
     if (action === "cancel") {
       await adapter.deleteEvent(primary, booking.google_event_id);
@@ -105,14 +112,14 @@ Deno.serve(async (req) => {
     }
 
     // action === "update" → patch start/end with current booking values
-    const endTimeSlot = addHoursToTimeSlot(booking.time_slot, 1);
+    const endTimeSlot = addHoursToTimeSlot(booking.time_slot, durationHours);
     const startLocal = `${booking.booking_date}T${booking.time_slot}:00`;
     const endLocal = `${booking.booking_date}T${endTimeSlot}:00`;
 
     await adapter.updateEvent(primary, booking.google_event_id, {
       startISO: startLocal,
       endISO: endLocal,
-      timeZone: "Europe/Paris",
+      timeZone: calendarTimeZone,
     });
 
     return new Response(JSON.stringify({ ok: true, action: "updated" }), {
