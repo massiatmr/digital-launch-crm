@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
 
     const { data: booking, error: bErr } = await supabase
       .from("bookings")
-      .select("id, owner_id, name, email, booking_date, time_slot, google_event_id, offer_id, offers(name)")
+      .select("id, owner_id, workspace_id, name, email, booking_date, time_slot, google_event_id, offer_id, offers(name)")
       .eq("id", booking_id)
       .maybeSingle();
 
@@ -61,7 +61,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (booking.owner_id !== user.id) {
+    let isAllowed = booking.owner_id === user.id;
+    if (!isAllowed && booking.workspace_id) {
+      const { data: member } = await supabase
+        .from("workspace_members")
+        .select("workspace_id")
+        .eq("workspace_id", booking.workspace_id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      isAllowed = !!member;
+    }
+    if (!isAllowed) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -73,27 +83,21 @@ Deno.serve(async (req) => {
       });
     }
 
-    const accessToken = await getValidAccessToken(supabase, booking.owner_id);
-    if (!accessToken) {
-      return new Response(JSON.stringify({ ok: false, error: "No Google token" }), {
+    if (!booking.workspace_id) {
+      return new Response(JSON.stringify({ ok: false, error: "No workspace calendar" }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const eventUrl = `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(booking.google_event_id)}?sendUpdates=all`;
+    const primary = await getPrimaryAccount(booking.workspace_id);
+    if (!primary) {
+      return new Response(JSON.stringify({ ok: false, error: "No primary calendar account" }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const adapter = adapterFor(primary.provider);
 
     if (action === "cancel") {
-      const res = await fetch(eventUrl, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      if (!res.ok && res.status !== 404 && res.status !== 410) {
-        const txt = await res.text();
-        console.error("Calendar delete failed:", res.status, txt);
-        return new Response(JSON.stringify({ ok: false, error: txt }), {
-          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      await adapter.deleteEvent(primary, booking.google_event_id);
       await supabase.from("bookings").update({ google_event_id: null } as any).eq("id", booking.id);
       return new Response(JSON.stringify({ ok: true, action: "cancelled" }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -105,27 +109,11 @@ Deno.serve(async (req) => {
     const startLocal = `${booking.booking_date}T${booking.time_slot}:00`;
     const endLocal = `${booking.booking_date}T${endTimeSlot}:00`;
 
-    const patch = {
-      start: { dateTime: startLocal, timeZone: "Europe/Paris" },
-      end: { dateTime: endLocal, timeZone: "Europe/Paris" },
-    };
-
-    const res = await fetch(eventUrl, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(patch),
+    await adapter.updateEvent(primary, booking.google_event_id, {
+      startISO: startLocal,
+      endISO: endLocal,
+      timeZone: "Europe/Paris",
     });
-
-    if (!res.ok) {
-      const txt = await res.text();
-      console.error("Calendar patch failed:", res.status, txt);
-      return new Response(JSON.stringify({ ok: false, error: txt }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     return new Response(JSON.stringify({ ok: true, action: "updated" }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
