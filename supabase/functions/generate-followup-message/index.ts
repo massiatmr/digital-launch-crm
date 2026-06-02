@@ -114,11 +114,23 @@ async function getNextAvailableSlots(
 ): Promise<{ date: string; slots: string[]; label: string; duration: number } | null> {
   const now = new Date();
 
-  const { data: settings } = await admin
-    .from("availability_settings")
-    .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
-    .eq("owner_id", ownerId)
-    .maybeSingle();
+  let settings: any = null;
+  if (workspaceId) {
+    const { data } = await admin
+      .from("availability_settings")
+      .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    settings = data;
+  }
+  if (!settings) {
+    const { data } = await admin
+      .from("availability_settings")
+      .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
+      .eq("owner_id", ownerId)
+      .maybeSingle();
+    settings = data;
+  }
   const ownerTimeZone: string = settings?.timezone ?? DISPLAY_TIME_ZONE;
   const workingDays: number[] = settings?.working_days ?? DEFAULT_WORKING_DAYS;
   const dayStart: string = settings?.day_start_time ?? DEFAULT_DAY_START;
@@ -135,12 +147,13 @@ async function getNextAvailableSlots(
   const ownerToday = formatDateInTimeZone(now, ownerTimeZone);
   const searchEndDate = formatDateInTimeZone(searchEnd, ownerTimeZone);
 
-  const { data: blackoutsData } = await admin
+  let blackoutsQuery = admin
     .from("availability_blackouts")
     .select("blackout_date")
-    .eq("owner_id", ownerId)
     .gte("blackout_date", ownerToday)
     .lte("blackout_date", searchEndDate);
+  blackoutsQuery = workspaceId ? blackoutsQuery.eq("workspace_id", workspaceId) : blackoutsQuery.eq("owner_id", ownerId);
+  const { data: blackoutsData } = await blackoutsQuery;
   const blackoutSet = new Set<string>((blackoutsData ?? []).map((b: any) => b.blackout_date));
 
   let bQuery = admin
