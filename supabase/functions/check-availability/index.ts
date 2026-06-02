@@ -238,12 +238,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { data: blackout } = await supabase
-      .from("availability_blackouts")
-      .select("id")
-      .eq("owner_id", owner_id)
-      .eq("blackout_date", date)
-      .maybeSingle();
+    let blackoutQuery = supabase.from("availability_blackouts").select("id").eq("blackout_date", date);
+    blackoutQuery = workspace_id
+      ? blackoutQuery.eq("workspace_id", workspace_id)
+      : blackoutQuery.eq("owner_id", owner_id);
+    const { data: blackout } = await blackoutQuery.maybeSingle();
     if (blackout) {
       return new Response(
         JSON.stringify({ slots: [], synced: true, reason: "blackout" }),
@@ -255,7 +254,7 @@ Deno.serve(async (req) => {
     const ownerSlots = generateHourlySlots(dayStart, dayEnd, slotDurationMin).filter((slot) => {
       return zonedDateTimeToUtc(date, slot, ownerTimeZone).getTime() >= minStartMs;
     });
-    const accessToken = await getValidAccessToken(supabase, owner_id);
+    const accessToken = await getValidAccessToken(supabase, owner_id, workspace_id);
 
     if (!accessToken) {
       const displaySlots = ownerSlots
