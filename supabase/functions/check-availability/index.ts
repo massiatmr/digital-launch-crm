@@ -100,12 +100,30 @@ async function refreshGoogleToken(refreshToken: string): Promise<{ access_token:
   return await res.json();
 }
 
-async function getValidAccessToken(supabase: any, ownerId: string): Promise<string | null> {
-  const { data: tokens } = await supabase
-    .from("google_tokens")
-    .select("*")
-    .eq("user_id", ownerId)
-    .maybeSingle();
+async function getValidAccessToken(
+  supabase: any,
+  ownerId: string,
+  workspaceId?: string | null,
+): Promise<string | null> {
+  // Prefer the workspace-scoped primary calendar account; fall back to owner-based lookup
+  let tokens: any = null;
+  if (workspaceId) {
+    const { data } = await supabase
+      .from("google_tokens")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("is_primary", true)
+      .maybeSingle();
+    tokens = data;
+  }
+  if (!tokens) {
+    const { data } = await supabase
+      .from("google_tokens")
+      .select("*")
+      .eq("user_id", ownerId)
+      .maybeSingle();
+    tokens = data;
+  }
 
   if (!tokens) return null;
 
@@ -125,7 +143,7 @@ async function getValidAccessToken(supabase: any, ownerId: string): Promise<stri
       expires_at: newExpiresAt,
       updated_at: new Date().toISOString(),
     })
-    .eq("user_id", ownerId);
+    .eq("id", tokens.id);
 
   return refreshed.access_token;
 }
@@ -158,7 +176,7 @@ Deno.serve(async (req) => {
 
     const { data: offer } = await supabase
       .from("offers")
-      .select("owner_id")
+      .select("owner_id, workspace_id")
       .eq("id", offer_id)
       .eq("is_active", true)
       .is("deleted_at", null)
@@ -171,12 +189,26 @@ Deno.serve(async (req) => {
       );
     }
     const owner_id = offer.owner_id;
+    const workspace_id = offer.workspace_id as string | null;
 
-    const { data: avail } = await supabase
-      .from("availability_settings")
-      .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
-      .eq("owner_id", owner_id)
-      .maybeSingle();
+    // Prefer workspace-scoped settings; fall back to owner-based
+    let avail: any = null;
+    if (workspace_id) {
+      const { data } = await supabase
+        .from("availability_settings")
+        .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
+        .eq("workspace_id", workspace_id)
+        .maybeSingle();
+      avail = data;
+    }
+    if (!avail) {
+      const { data } = await supabase
+        .from("availability_settings")
+        .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
+        .eq("owner_id", owner_id)
+        .maybeSingle();
+      avail = data;
+    }
 
     const ownerTimeZone: string = avail?.timezone ?? "Europe/Paris";
     const workingDays: number[] = avail?.working_days ?? [1, 2, 3, 4, 5];
