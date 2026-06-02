@@ -1,4 +1,9 @@
 import type { CalendarAccount, CalendarProviderAdapter, BusyInterval } from "./types.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+
+function admin() {
+  return createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+}
 
 async function refreshAccessToken(account: CalendarAccount): Promise<string> {
   if (account.access_token && account.expires_at && new Date(account.expires_at).getTime() > Date.now() + 60_000) {
@@ -21,6 +26,12 @@ async function refreshAccessToken(account: CalendarAccount): Promise<string> {
   });
   const j = await res.json();
   if (!res.ok) throw new Error(`microsoft_refresh_failed: ${JSON.stringify(j)}`);
+  await admin().from("calendar_accounts").update({
+    access_token: j.access_token,
+    refresh_token: j.refresh_token || account.refresh_token,
+    expires_at: new Date(Date.now() + Number(j.expires_in || 3500) * 1000).toISOString(),
+    updated_at: new Date().toISOString(),
+  } as any).eq("id", account.id);
   return j.access_token as string;
 }
 
