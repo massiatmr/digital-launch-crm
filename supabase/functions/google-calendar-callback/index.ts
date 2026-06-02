@@ -106,10 +106,10 @@ Deno.serve(async (req) => {
 
     let upsertError: any = null;
     if (existing?.id) {
-      const { error } = await supabase.from("google_tokens").update(payload).eq("id", existing.id);
+      const { error } = await supabase.from("calendar_accounts").update(payload).eq("id", existing.id);
       upsertError = error;
     } else {
-      const { error } = await supabase.from("google_tokens").insert(payload);
+      const { error } = await supabase.from("calendar_accounts").insert(payload);
       upsertError = error;
     }
 
