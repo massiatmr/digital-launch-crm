@@ -225,21 +225,45 @@ Deno.serve(async (req) => {
     let lead: { id: string } | null = null;
 
     if (existingLeadId) {
-      // Enrichir le lead existant sans écraser les valeurs déjà présentes
+      // Enrichir le lead existant sans écraser ni dupliquer
       const enrich: Record<string, any> = { updated_at: new Date().toISOString() };
-      if (email) enrich.email = email;
-      if (phone) enrich.phone = phone;
-      if (companyName) enrich.company_name = companyName;
-      if (offerId) enrich.offer_id = offerId;
-      // append du message dans les notes pour ne rien perdre
-      const appendNote = `\n\n— Nouveau signal (${new Date().toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}, ${source}) —\n${finalMessage}`.slice(0, 8000);
 
       const { data: cur } = await supabase
         .from('leads')
-        .select('notes')
+        .select('email, phone, company_name, offer_id, message, notes')
         .eq('id', existingLeadId)
         .maybeSingle();
-      enrich.notes = ((cur?.notes || '') + appendNote).slice(0, 16000);
+
+      if (email && !cur?.email) enrich.email = email;
+      if (phone && !cur?.phone) enrich.phone = phone;
+      if (companyName && !cur?.company_name) enrich.company_name = companyName;
+      if (offerId && !cur?.offer_id) enrich.offer_id = offerId;
+
+      // Ne garder dans le bonus que les lignes qui ne sont PAS déjà présentes
+      // dans le message d'origine OU les notes existantes.
+      const haystack = `${cur?.message || ''}\n${cur?.notes || ''}`;
+      const normalize = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
+      const haystackNorm = normalize(haystack);
+
+      const newLines: string[] = [];
+      for (const rawLine of finalMessage.split('\n')) {
+        const line = rawLine.trim();
+        if (!line) continue;
+        // skip headers répétés
+        if (/^(📋|🔗)/.test(line)) continue;
+        const norm = normalize(line);
+        if (norm.length < 3) continue;
+        if (haystackNorm.includes(norm)) continue;
+        // anti-doublon intra-batch
+        if (newLines.some(l => normalize(l) === norm)) continue;
+        newLines.push(rawLine);
+      }
+
+      if (newLines.length) {
+        const stamp = new Date().toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+        const block = `\n\n— Nouveau signal (${stamp}, ${source}) —\n${newLines.join('\n')}`;
+        enrich.notes = ((cur?.notes || '') + block).slice(0, 16000);
+      }
 
       const { data: updated, error: updErr } = await supabase
         .from('leads')
@@ -251,8 +275,9 @@ Deno.serve(async (req) => {
         console.error('update existing lead failed', updErr);
       }
       lead = updated ?? { id: existingLeadId };
-      console.log('ingest-lead: deduped to existing lead', { existingLeadId, via: email ? 'email' : phone ? 'phone' : 'name' });
+      console.log('ingest-lead: deduped to existing lead', { existingLeadId, newLines: newLines.length });
     } else {
+
       const { data: created, error: insertErr } = await supabase
         .from('leads')
         .insert(leadPayload)
