@@ -572,14 +572,17 @@ RÈGLES STRICTES :
 - ${isSlotConfirmation ? "4 phrases max" : `MAX ${maxSentences} phrase(s)`}
 - ${isSlotConfirmation
   ? "Aucune nouvelle question (sauf si email inconnu OU créneau non disponible)"
-  : `RÈGLE ABSOLUE — UNE SEULE QUESTION PAR MESSAGE :
-  • Tu n'as le droit de poser qu'UNE SEULE question, point. JAMAIS deux.
-  • Compte les "?" : il doit y en avoir 0 ou 1, jamais 2.
-  • Compte aussi les questions implicites sans "?" ("Tu travailles seul ou en équipe.", "Tu préfères mardi ou jeudi.") : elles comptent aussi comme une question.
-  • Une question alternative ("A ou B ?") = 1 question, autorisé.
-  • Deux questions sur 2 sujets différents = INTERDIT, même si l'une finit par un point au lieu d'un "?".
-  • Exemple INTERDIT : "Tu es satisfait des résultats actuels ou tu veux passer un cap. Tu bosses en équipe ou en solo ?" (2 sujets → 2 questions)
-  • Si tu hésites entre 2 questions à poser, choisis la plus utile maintenant et garde l'autre pour le prochain message.`}
+  : maxQuestions === 0
+    ? `RÈGLE ABSOLUE — AUCUNE QUESTION DANS CE MESSAGE :
+  • 0 "?" autorisé. 0 question implicite (pas de "A ou B.", pas de "Tu préfères X ou Y.").
+  • Va DIRECT À L'ESSENTIEL : affirme, propose, conclus. Pas de relance interrogative.
+  • Si tu as un doute, formule une proposition concrète (créneau, lien, info clé) plutôt qu'une question.`
+    : `RÈGLE ABSOLUE — MAX ${maxQuestions} QUESTION${maxQuestions > 1 ? "S" : ""} PAR MESSAGE :
+  • Tu n'as le droit de poser que ${maxQuestions} question${maxQuestions > 1 ? "s" : ""} max, point. Compte les "?" : il doit y en avoir entre 0 et ${maxQuestions}.
+  • Compte aussi les questions implicites sans "?" ("Tu travailles seul ou en équipe.", "Tu préfères mardi ou jeudi.") : elles comptent aussi.
+  • Une question alternative ("A ou B ?") = 1 question.
+  • Va DIRECT À L'ESSENTIEL. Préfère affirmer/proposer plutôt qu'interroger. Garde les questions superflues pour plus tard.
+  • Si tu hésites entre plusieurs questions, choisis la plus utile maintenant et garde les autres pour le prochain message.`}
 ${greetingRule ? greetingRule + "\n" : ""}${signatureRule ? signatureRule + "\n" : ""}- ${isSlotConfirmation ? "Vérifie que l'heure acceptée est dans la liste de créneaux libres ci-dessous. Sinon, refuse poliment et propose 2 créneaux RÉELS de la liste." : `Pour proposer un RDV : réponds à la contrainte du lead en priorité, propose 1 ou 2 créneaux EXACTS de la liste ci-dessous, ou partage le lien ${bookingLink ?? '(aucun lien)'}`}
 ${nicheRule}
 ${forbiddenRule}
