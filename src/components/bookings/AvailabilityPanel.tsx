@@ -60,7 +60,7 @@ export function AvailabilityPanel() {
       setMaxDays(settings.max_future_days);
       setMinLeadHours(settings.min_lead_time_hours ?? 2);
     }
-  }, [settings?.owner_id]);
+  }, [settings?.workspace_id, settings?.owner_id, settings?.day_start_time, settings?.day_end_time, settings?.slot_duration_minutes, settings?.max_future_days, settings?.min_lead_time_hours]);
 
   if (isLoading || !settings) {
     return <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>;

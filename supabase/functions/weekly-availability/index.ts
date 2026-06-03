@@ -129,11 +129,10 @@ Deno.serve(async (req) => {
         .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
         .eq("workspace_id", workspaceId).maybeSingle();
       avail = data;
-    }
-    if (!avail) {
+    } else {
       const { data } = await admin.from("availability_settings")
         .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
-        .eq("owner_id", ownerId).maybeSingle();
+        .eq("owner_id", ownerId).is("workspace_id", null).maybeSingle();
       avail = data;
     }
     const ownerTimeZone: string = avail?.timezone ?? "Europe/Paris";

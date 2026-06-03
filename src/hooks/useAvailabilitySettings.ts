@@ -72,10 +72,14 @@ export function useUpsertAvailabilitySettings() {
       };
 
       if (existing?.owner_id) {
-        const { error } = await (supabase as any)
+        let upd = (supabase as any)
           .from('availability_settings')
           .update(merged)
           .eq('owner_id', existing.owner_id);
+        upd = workspaceId
+          ? upd.eq('workspace_id', workspaceId)
+          : upd.is('workspace_id', null);
+        const { error } = await upd;
         if (error) throw error;
       } else {
         const { error } = await (supabase as any)
