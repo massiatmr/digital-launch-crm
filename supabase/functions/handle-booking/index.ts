@@ -300,23 +300,98 @@ Deno.serve(async (req) => {
       description: `RDV réservé le ${booking_date} à ${time_slot}${meetInfo}`,
     });
 
-    // 6. Send booking confirmation email to the prospect
+    // 6. Send booking confirmation email to the prospect via SMTP
+    //    (Lovable's transactional email gateway is blocked until the sender
+    //    domain finishes DNS verification, so we route the confirmation
+    //    through the same SMTP path used by reminders and manual sends.)
     try {
-      await supabase.functions.invoke("send-transactional-email", {
-        body: {
-          templateName: "booking-confirmation",
-          recipientEmail: email,
-          idempotencyKey: `booking-confirm-${bookingId}`,
-          templateData: {
-            name,
-            bookingDate: booking_date,
-            timeSlot: time_slot,
-            offerName,
-            meetLink: meetLink || undefined,
-          },
-        },
-      });
-      console.log("Booking confirmation email sent to:", email);
+      const DEFAULTS = {
+        subject: "✅ Votre rendez-vous est confirmé — {{date}} à {{time}}",
+        body_html: `<p>Bonjour {{name}},</p><p>Votre rendez-vous est bien confirmé pour le <strong>{{date}} à {{time}}</strong>{{offer_suffix}}.</p><p>{{meet_block}}</p><p>À très vite !</p>`,
+      };
+
+      // Resolve template: offer override > workspace default > built-in
+      let tplEnabled = true;
+      let tplSubject = DEFAULTS.subject;
+      let tplBody = DEFAULTS.body_html;
+      let resolved = false;
+      if (offer_id) {
+        const { data: tpl } = await supabase
+          .from("offer_booking_email_templates")
+          .select("enabled, subject, body_html")
+          .eq("offer_id", offer_id)
+          .eq("type", "confirmation")
+          .maybeSingle();
+        if (tpl) {
+          resolved = true;
+          tplEnabled = (tpl as any).enabled !== false;
+          if ((tpl as any).subject) tplSubject = (tpl as any).subject;
+          if ((tpl as any).body_html) tplBody = (tpl as any).body_html;
+        }
+      }
+      if (!resolved && offer_workspace_id) {
+        const { data: wsTpl } = await supabase
+          .from("workspace_booking_email_templates")
+          .select("enabled, subject, body_html")
+          .eq("workspace_id", offer_workspace_id)
+          .eq("type", "confirmation")
+          .maybeSingle();
+        if (wsTpl) {
+          tplEnabled = (wsTpl as any).enabled !== false;
+          if ((wsTpl as any).subject) tplSubject = (wsTpl as any).subject;
+          if ((wsTpl as any).body_html) tplBody = (wsTpl as any).body_html;
+        }
+      }
+
+      if (tplEnabled && email) {
+        const dateStr = new Date(booking_date + "T12:00:00Z").toLocaleDateString("fr-FR", {
+          day: "2-digit", month: "long", year: "numeric",
+        });
+        const meetBlock = meetLink
+          ? `<a href="${meetLink}" style="color:#7c3aed;font-weight:600">🔗 Rejoindre Google Meet</a>`
+          : "";
+        const vars: Record<string, string> = {
+          name: name || "",
+          date: dateStr,
+          time: time_slot || "",
+          offer_name: offerName || "",
+          offer_suffix: offerName ? ` (${offerName})` : "",
+          meet_link: meetLink || "",
+          meet_block: meetBlock,
+        };
+        const render = (s: string) => s.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? "");
+        const subject = render(tplSubject);
+        const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${subject}</title></head>
+<body style="background:#fff;font-family:'Plus Jakarta Sans',Arial,sans-serif;margin:0;padding:0;color:#111827">
+  <div style="max-width:560px;margin:0 auto;padding:28px 24px;font-size:14px;line-height:1.6">${render(tplBody)}</div>
+</body></html>`;
+
+        const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const msgId = `booking-confirmation-${bookingId}`;
+        const { error: sendErr } = await supabase.functions.invoke("send-smtp-email", {
+          body: { to: [email], subject, html },
+          headers: { Authorization: `Bearer ${SERVICE_KEY}` },
+        });
+        if (sendErr) throw sendErr;
+
+        await supabase.from("email_send_log").insert({
+          template_name: "booking-confirmation",
+          recipient_email: email,
+          status: "sent",
+          message_id: msgId,
+          metadata: { booking_id: bookingId, type: "confirmation", automated: true },
+        });
+
+        // Mark the scheduled confirmation row as sent so it isn't re-processed
+        await supabase
+          .from("booking_emails")
+          .update({ status: "sent", sent_at: new Date().toISOString() } as any)
+          .eq("booking_id", bookingId)
+          .eq("type", "confirmation")
+          .eq("status", "pending");
+
+        console.log("Booking confirmation email sent to:", email);
+      }
     } catch (emailErr) {
       console.error("Failed to send booking confirmation email:", emailErr);
     }
