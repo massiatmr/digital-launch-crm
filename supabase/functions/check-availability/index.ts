@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
     const owner_id = offer.owner_id;
     const workspace_id = offer.workspace_id as string | null;
 
-    // Prefer workspace-scoped settings; fall back to owner-based
+    // Prefer workspace-scoped settings; only fall back to owner-based when no workspace is set
     let avail: any = null;
     if (workspace_id) {
       const { data } = await supabase
@@ -130,12 +130,12 @@ Deno.serve(async (req) => {
         .eq("workspace_id", workspace_id)
         .maybeSingle();
       avail = data;
-    }
-    if (!avail) {
+    } else {
       const { data } = await supabase
         .from("availability_settings")
         .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
         .eq("owner_id", owner_id)
+        .is("workspace_id", null)
         .maybeSingle();
       avail = data;
     }
