@@ -158,7 +158,6 @@ Deno.serve(async (req) => {
     if (trackingLines.length) sections.push(`🔗 Provenance\n${trackingLines.join('\n')}`);
 
     const finalMessage = sections.join('\n\n').slice(0, 8000);
-    const notes = finalMessage;
 
     const leadPayload: Record<string, any> = {
       name: name || email || phone,
@@ -170,10 +169,11 @@ Deno.serve(async (req) => {
       score: 'warm',
       owner_id: ownerRow.user_id,
       workspace_id: keyRow.workspace_id,
-      notes,
+      notes: '',
       company_name: companyName,
     };
     if (offerId) leadPayload.offer_id = offerId;
+
 
     // ---- Dédup : email exact, puis téléphone (9 derniers chiffres), puis nom récent (24h) ----
     let existingLeadId: string | null = null;
