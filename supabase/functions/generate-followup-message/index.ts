@@ -648,23 +648,22 @@ Génère UNIQUEMENT le texte du message WhatsApp (français, max ${isSlotConfirm
       message = message.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F000}-\u{1F2FF}]/gu, "").replace(/ {2,}/g, " ").trim();
     }
 
-    // Garde-fou final : au max UNE question par message.
-    // On découpe en phrases, on garde toutes les phrases jusqu'à la 1re question incluse,
-    // puis on stoppe (les questions suivantes sont coupées). Détecte aussi les questions
-    // implicites de type "A ou B." (sans "?") en fin de phrase.
+    // Garde-fou final : on respecte le réglage maxQuestions (0 = aucune, N = au plus N).
+    // On découpe en phrases, on garde toutes les phrases jusqu'à la N-ième question incluse,
+    // puis on stoppe. Détecte aussi les questions implicites de type "A ou B." (sans "?").
     if (!isSlotConfirmation) {
       const sentences = message.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [message];
       const looksLikeImplicitQuestion = (s: string) =>
         /\b(ou|vs)\b/i.test(s) && /\b(tu|vous|t'?es|vous êtes|préfères|préférez|veux|voulez|travailles|bosses|aimerais|aimeriez)\b/i.test(s);
       const kept: string[] = [];
-      let questionFound = false;
+      let questionCount = 0;
       for (const raw of sentences) {
         const s = raw.trim();
         if (!s) continue;
         const isQuestion = s.includes("?") || looksLikeImplicitQuestion(s);
         if (isQuestion) {
-          if (questionFound) break; // 2e question → on coupe
-          questionFound = true;
+          if (questionCount >= maxQuestions) break; // au-delà du quota → on coupe
+          questionCount++;
         }
         kept.push(s);
       }
