@@ -80,6 +80,7 @@ export type Database = {
           created_at: string
           day_end_time: string
           day_start_time: string
+          id: string
           max_future_days: number
           min_lead_time_hours: number
           morning_slot: string
@@ -95,6 +96,7 @@ export type Database = {
           created_at?: string
           day_end_time?: string
           day_start_time?: string
+          id?: string
           max_future_days?: number
           min_lead_time_hours?: number
           morning_slot?: string
@@ -110,6 +112,7 @@ export type Database = {
           created_at?: string
           day_end_time?: string
           day_start_time?: string
+          id?: string
           max_future_days?: number
           min_lead_time_hours?: number
           morning_slot?: string

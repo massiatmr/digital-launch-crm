@@ -392,26 +392,107 @@ ${transcript}`;
         { type: "1h_before", scheduled_at: new Date(bookingDateTime.getTime() - 1 * 3600 * 1000).toISOString() },
       ];
 
-      // Send confirmation email immediately (only if we have a real email — skip @whatsapp.tmp)
+      // Send confirmation email to the prospect via SMTP (transactional gateway blocked by DNS)
       if (lead.email && !lead.email.endsWith("@whatsapp.tmp")) {
         try {
-          await admin.functions.invoke("send-transactional-email", {
-            body: {
-              templateName: "booking-confirmation",
-              recipientEmail: lead.email,
-              idempotencyKey: `booking-confirm-${bookingId}`,
-              templateData: {
-                name: lead.name,
-                bookingDate: parsed.booking_date,
-                timeSlot: parsed.time_slot,
-                offerName,
-                meetLink: meetLink || undefined,
-              },
-            },
+          const dateStr = new Date(parsed.booking_date + "T12:00:00Z").toLocaleDateString("fr-FR", {
+            day: "2-digit", month: "long", year: "numeric",
           });
+          const meetBlock = meetLink
+            ? `<p><a href="${meetLink}" style="color:#7c3aed;font-weight:600">🔗 Rejoindre Google Meet</a></p>`
+            : "";
+          const subject = `✅ Votre rendez-vous est confirmé — ${dateStr} à ${parsed.time_slot}`;
+          const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"></head>
+<body style="background:#fff;font-family:'Plus Jakarta Sans',Arial,sans-serif;margin:0;padding:0;color:#111827">
+  <div style="max-width:560px;margin:0 auto;padding:28px 24px;font-size:14px;line-height:1.6">
+    <p>Bonjour ${lead.name || ""},</p>
+    <p>Votre rendez-vous est bien confirmé pour le <strong>${dateStr} à ${parsed.time_slot}</strong>${offerName ? ` (${offerName})` : ""}.</p>
+    ${meetBlock}
+    <p>À très vite !</p>
+  </div>
+</body></html>`;
+          await admin.functions.invoke("send-smtp-email", {
+            body: { to: [lead.email], subject, html },
+          });
+          await admin.from("email_send_log").insert({
+            template_name: "booking-confirmation",
+            recipient_email: lead.email,
+            status: "sent",
+            message_id: `booking-confirmation-${bookingId}`,
+            metadata: { booking_id: bookingId, type: "confirmation", automated: true, source: "wa_ai" },
+          } as any);
         } catch (e) {
           console.error("[detect-booking] booking-confirmation email failed:", e);
         }
+      }
+
+      // Notify the workspace owner + members by email (same gap as handle-booking covers for forms)
+      try {
+        const APP_BASE_URL = "https://digital-launch-crm.lovable.app";
+        const ADMIN_NOTIFY_EMAIL = "contact@digitallaunch-llc.com";
+        const bookingUrl = `${APP_BASE_URL}/leads/${lead.id}`;
+        const memberEmails: string[] = [];
+        let workspaceName: string | null = null;
+        let workspaceEmail: string | null = null;
+        if (lead.workspace_id) {
+          const { data: ws } = await admin
+            .from("workspaces")
+            .select("company_name, notification_email, email")
+            .eq("id", lead.workspace_id)
+            .maybeSingle();
+          workspaceName = ws?.company_name || null;
+          workspaceEmail = (ws?.notification_email || ws?.email || "").trim() || null;
+          const { data: members } = await admin
+            .from("workspace_members").select("user_id").eq("workspace_id", lead.workspace_id);
+          for (const m of members || []) {
+            try {
+              const { data: u } = await admin.auth.admin.getUserById(m.user_id);
+              if (u?.user?.email) memberEmails.push(u.user.email);
+            } catch (_) { /* noop */ }
+          }
+        } else {
+          try {
+            const { data: u } = await admin.auth.admin.getUserById(lead.owner_id);
+            if (u?.user?.email) memberEmails.push(u.user.email);
+          } catch (_) { /* noop */ }
+        }
+        const recipients = Array.from(new Set(
+          [ADMIN_NOTIFY_EMAIL, workspaceEmail, ...memberEmails].filter((e): e is string => !!e)
+        ));
+        if (recipients.length > 0) {
+          const wsPrefix = workspaceName ? `[${workspaceName}] ` : "";
+          const subject = `📅 ${wsPrefix}Nouveau RDV (WhatsApp) — ${lead.name} (${parsed.booking_date} ${parsed.time_slot})`;
+          const meetRow = meetLink
+            ? `<p style="margin:6px 0"><a href="${meetLink}" style="color:#7c3aed;font-weight:600">🔗 Google Meet</a></p>` : "";
+          const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"></head>
+<body style="background:#fff;font-family:'Plus Jakarta Sans',Arial,sans-serif;margin:0;padding:0;color:#111827">
+  <div style="max-width:560px;margin:0 auto;padding:28px 24px;font-size:14px;line-height:1.6">
+    <h1 style="font-size:20px;margin:0 0 12px">📅 Nouveau RDV (auto-détecté via WhatsApp)</h1>
+    ${workspaceName ? `<div style="font-size:13px;color:#6b7280;margin:0 0 12px">Espace : ${workspaceName}</div>` : ""}
+    <div style="background:#f9fafb;border-radius:8px;padding:16px 18px;margin:12px 0;border-left:3px solid #7c3aed">
+      <p style="margin:4px 0"><strong>Lead :</strong> ${lead.name || ""}</p>
+      ${lead.email ? `<p style="margin:4px 0"><strong>Email :</strong> ${lead.email}</p>` : ""}
+      ${lead.phone ? `<p style="margin:4px 0"><strong>Téléphone :</strong> ${lead.phone}</p>` : ""}
+      <p style="margin:4px 0"><strong>Créneau :</strong> ${parsed.booking_date} à ${parsed.time_slot}</p>
+      <p style="margin:4px 0"><strong>Offre :</strong> ${offerName}</p>
+      ${meetRow}
+    </div>
+    <p><a href="${bookingUrl}" style="background:#7c3aed;color:#fff;padding:10px 18px;border-radius:6px;font-weight:600;text-decoration:none;display:inline-block">Ouvrir la fiche lead</a></p>
+  </div>
+</body></html>`;
+          await admin.functions.invoke("send-smtp-email", {
+            body: { to: recipients, subject, html, replyTo: lead.email || undefined },
+          });
+          await admin.from("email_send_log").insert({
+            template_name: "booking-admin-notify",
+            recipient_email: recipients.join(","),
+            status: "sent",
+            message_id: `booking-admin-notify-${bookingId}`,
+            metadata: { booking_id: bookingId, lead_id: lead.id, recipients, automated: true, source: "wa_ai" },
+          } as any);
+        }
+      } catch (e) {
+        console.error("[detect-booking] owner notification email failed:", e);
       }
 
       // Respect enabled/disabled toggles (offer override > workspace default)
