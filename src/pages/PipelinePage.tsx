@@ -1,4 +1,4 @@
-import { useLeads, useUpdateLead, type DbLead } from '@/hooks/useLeadData';
+import { useLeads, useUpdateLead, useDeleteLead, type DbLead } from '@/hooks/useLeadData';
 import { useOffers } from '@/hooks/useOfferData';
 import { useCreateClient } from '@/hooks/useClientData';
 import { LeadScoreBadge } from '@/components/LeadScoreBadge';
@@ -6,8 +6,8 @@ import { LeadDetailContent } from '@/components/LeadDetailContent';
 import { QuickActionsMenu } from '@/components/QuickActionsMenu';
 import { LostReasonDialog } from '@/components/LostReasonDialog';
 
-import { useState, useRef, useMemo } from 'react';
-import { Loader2, GripVertical, User, ArrowRight, Search, Package, CalendarDays } from 'lucide-react';
+import { useState, useRef, useMemo, useEffect } from 'react';
+import { Loader2, GripVertical, User, ArrowRight, Search, Package, CalendarDays, CheckSquare, X, Trash2, MoveRight } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
 import { useDefaultCountryCode } from '@/hooks/useWorkspaces';
@@ -20,6 +20,7 @@ import { useNavigate } from 'react-router-dom';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Sheet,
   SheetContent,
@@ -33,6 +34,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 type PipelineStage = DbLead['status'];
 
@@ -52,14 +71,39 @@ const scoreBarColors: Record<string, string> = {
   cold: 'bg-lead-cold',
 };
 
+// Persisted filter state
+const FILTERS_STORAGE_KEY = 'pipeline_filters_v1';
+type PeriodKey = '7d' | '30d' | '90d' | 'year' | 'since_anchor' | 'all' | 'custom';
+
+type PersistedFilters = {
+  period: PeriodKey;
+  offerFilter: string;
+  customFrom?: string;
+  customTo?: string;
+};
+
+const loadFilters = (): PersistedFilters => {
+  try {
+    const raw = localStorage.getItem(FILTERS_STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return { period: 'all', offerFilter: 'all' };
+};
+
 function PipelineCard({
   lead,
   onDragStart,
   onClick,
+  selectionMode,
+  selected,
+  onToggleSelect,
 }: {
   lead: DbLead;
   onDragStart: (e: React.DragEvent, lead: DbLead) => void;
   onClick: (lead: DbLead) => void;
+  selectionMode: boolean;
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
 }) {
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const isMobileDevice = useIsMobile();
@@ -73,7 +117,10 @@ function PipelineCard({
     if (!pointerStart.current) return;
     const dx = Math.abs(e.clientX - pointerStart.current.x);
     const dy = Math.abs(e.clientY - pointerStart.current.y);
-    if (dx < 5 && dy < 5) onClick(lead);
+    if (dx < 5 && dy < 5) {
+      if (selectionMode) onToggleSelect(lead.id);
+      else onClick(lead);
+    }
     pointerStart.current = null;
   };
 
@@ -84,16 +131,17 @@ function PipelineCard({
       animate={{ opacity: lead.status === 'lost' ? 0.45 : lead.status === 'ghost' ? 0.82 : 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.2 }}
-      draggable={!isMobileDevice}
+      draggable={!isMobileDevice && !selectionMode}
       onDragStart={(e) => onDragStart(e as any, lead)}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
-      onClick={() => { if (isMobileDevice) onClick(lead); }}
+      onClick={() => { if (isMobileDevice && !selectionMode) onClick(lead); }}
       className={cn(
         "group relative glass-card-hover cursor-pointer overflow-hidden",
         lead.status === 'lost' && "grayscale",
         lead.status === 'ghost' && "saturate-[0.6]",
         lead.status === 'won' && "bg-emerald-500/10 border-emerald-500/40 ring-1 ring-emerald-500/30 shadow-[0_0_20px_-5px_hsl(152_70%_45%/0.4)]",
+        selected && "ring-2 ring-primary border-primary/60",
       )}
     >
       {/* Score color bar */}
@@ -101,6 +149,11 @@ function PipelineCard({
 
         <div className="p-3.5 pl-4">
         <div className="flex items-start justify-between gap-2">
+          {selectionMode && (
+            <div onClick={(e) => { e.stopPropagation(); onToggleSelect(lead.id); }} className="pt-0.5">
+              <Checkbox checked={selected} />
+            </div>
+          )}
           <div className="min-w-0 flex-1">
             <span className="text-sm font-medium text-foreground line-clamp-2 leading-snug">{lead.name}</span>
             {lead.company_name && (
@@ -110,10 +163,12 @@ function PipelineCard({
               <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{lead.message}</p>
             )}
           </div>
-          <div className="flex items-center gap-1">
-            <QuickActionsMenu lead={lead} />
-            <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/30 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block" />
-          </div>
+          {!selectionMode && (
+            <div className="flex items-center gap-1">
+              <QuickActionsMenu lead={lead} />
+              <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/30 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block" />
+            </div>
+          )}
         </div>
 
         <div className="mt-2.5 flex items-center justify-between gap-2">
@@ -175,6 +230,9 @@ function PipelineColumn({
   onDragOver,
   onDragLeave,
   onCardClick,
+  selectionMode,
+  selectedIds,
+  onToggleSelect,
 }: {
   stage: typeof STAGES[number];
   leads: DbLead[];
@@ -184,6 +242,9 @@ function PipelineColumn({
   onDragOver: (e: React.DragEvent, stage: PipelineStage) => void;
   onDragLeave: () => void;
   onCardClick: (lead: DbLead) => void;
+  selectionMode: boolean;
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
 }) {
   const isDragOver = dragOverStage === stage.key;
 
@@ -217,7 +278,15 @@ function PipelineColumn({
             </div>
           ) : (
             leads.map(lead => (
-              <PipelineCard key={lead.id} lead={lead} onDragStart={onDragStart} onClick={onCardClick} />
+              <PipelineCard
+                key={lead.id}
+                lead={lead}
+                onDragStart={onDragStart}
+                onClick={onCardClick}
+                selectionMode={selectionMode}
+                selected={selectedIds.has(lead.id)}
+                onToggleSelect={onToggleSelect}
+              />
             ))
           )}
         </AnimatePresence>
@@ -230,17 +299,34 @@ export default function PipelinePage() {
   const { data: allLeads = [], isLoading, isError: isLeadsError, error: leadsError } = useLeads();
   const { data: offers = [], isError: isOffersError, error: offersError } = useOffers();
   const updateLead = useUpdateLead();
+  const deleteLead = useDeleteLead();
   const createClient = useCreateClient();
   const navigate = useNavigate();
   const [dragOverStage, setDragOverStage] = useState<PipelineStage | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
-  const [offerFilter, setOfferFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [lostDialogLead, setLostDialogLead] = useState<DbLead | null>(null);
   const draggedLead = useRef<DbLead | null>(null);
   const isMobile = useIsMobile();
 
-  type PeriodKey = '7d' | '30d' | '90d' | 'year' | 'since_anchor' | 'all' | 'custom';
+  // Persisted filters
+  const initial = useMemo(() => loadFilters(), []);
+  const [period, setPeriod] = useState<PeriodKey>(initial.period);
+  const [offerFilter, setOfferFilter] = useState<string>(initial.offerFilter);
+  const [customFrom, setCustomFrom] = useState<Date | undefined>(initial.customFrom ? new Date(initial.customFrom) : undefined);
+  const [customTo, setCustomTo] = useState<Date | undefined>(initial.customTo ? new Date(initial.customTo) : undefined);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify({
+        period,
+        offerFilter,
+        customFrom: customFrom?.toISOString(),
+        customTo: customTo?.toISOString(),
+      }));
+    } catch {}
+  }, [period, offerFilter, customFrom, customTo]);
+
   const ANCHOR_STORAGE_KEY = 'dashboard_anchor_date';
   const DEFAULT_ANCHOR = new Date(2026, 3, 14);
   const loadAnchor = (): Date => {
@@ -254,9 +340,11 @@ export default function PipelinePage() {
     return DEFAULT_ANCHOR;
   };
   const [anchorDate, setAnchorDate] = useState<Date>(() => loadAnchor());
-  const [period, setPeriod] = useState<PeriodKey>('all');
-  const [customFrom, setCustomFrom] = useState<Date | undefined>();
-  const [customTo, setCustomTo] = useState<Date | undefined>();
+
+  // Bulk selection
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
   const handleSaveAnchor = (d: Date | undefined) => {
     if (!d) return;
@@ -291,6 +379,53 @@ export default function PipelinePage() {
     if (search && !l.name.toLowerCase().includes(search.toLowerCase()) && !(l.company_name || '').toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  };
+
+  const exitSelection = () => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const selectAllVisible = () => {
+    setSelectedIds(new Set(filteredLeads.map(l => l.id)));
+  };
+
+  const bulkChangeStage = async (newStatus: PipelineStage) => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    const stageLabel = STAGES.find(s => s.key === newStatus)?.label || newStatus;
+    let ok = 0, ko = 0;
+    await Promise.all(ids.map(id => new Promise<void>(resolve => {
+      updateLead.mutate({ id, status: newStatus } as any, {
+        onSuccess: () => { ok++; resolve(); },
+        onError: () => { ko++; resolve(); },
+      });
+    })));
+    toast.success(`${ok} lead(s) → "${stageLabel}"${ko ? ` · ${ko} échec(s)` : ''}`);
+    exitSelection();
+  };
+
+  const bulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    let ok = 0, ko = 0;
+    await Promise.all(ids.map(id => new Promise<void>(resolve => {
+      deleteLead.mutate(id, {
+        onSuccess: () => { ok++; resolve(); },
+        onError: () => { ko++; resolve(); },
+      });
+    })));
+    toast.success(`${ok} lead(s) supprimé(s)${ko ? ` · ${ko} échec(s)` : ''}`);
+    setBulkDeleteOpen(false);
+    exitSelection();
+  };
 
   const handleDragStart = (_e: React.DragEvent, lead: DbLead) => { draggedLead.current = lead; };
   const handleDragOver = (e: React.DragEvent, stage: PipelineStage) => { e.preventDefault(); setDragOverStage(stage); };
@@ -378,11 +513,21 @@ export default function PipelinePage() {
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Pipeline</h1>
-        <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
-          {filteredLeads.length} leads {!isMobile && '· Glissez-déposez pour changer l\'étape'}
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Pipeline</h1>
+          <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
+            {filteredLeads.length} leads {!isMobile && !selectionMode && '· Glissez-déposez pour changer l\'étape'}
+          </p>
+        </div>
+        <Button
+          variant={selectionMode ? 'default' : 'outline'}
+          size="sm"
+          className="h-9 text-xs gap-1.5"
+          onClick={() => { if (selectionMode) exitSelection(); else setSelectionMode(true); }}
+        >
+          {selectionMode ? <><X className="h-3.5 w-3.5" />Quitter</> : <><CheckSquare className="h-3.5 w-3.5" />Sélectionner</>}
+        </Button>
       </div>
 
       {/* Filters */}
@@ -463,6 +608,61 @@ export default function PipelinePage() {
         )}
       </div>
 
+      {/* Bulk actions bar */}
+      {selectionMode && (
+        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 backdrop-blur-sm px-3 py-2">
+          <span className="text-xs font-medium text-foreground">
+            {selectedIds.size} sélectionné{selectedIds.size > 1 ? 's' : ''}
+          </span>
+          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={selectAllVisible}>
+            Tout sélectionner ({filteredLeads.length})
+          </Button>
+          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setSelectedIds(new Set())}>
+            Effacer
+          </Button>
+          <div className="flex-1" />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" className="h-7 text-xs gap-1.5" disabled={selectedIds.size === 0}>
+                <MoveRight className="h-3.5 w-3.5" />
+                Changer d'étape
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel className="text-xs">Déplacer vers</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {STAGES.map(s => (
+                <DropdownMenuItem
+                  key={s.key}
+                  className="text-xs gap-2"
+                  onClick={() => {
+                    if (s.key === 'lost') {
+                      // Bulk lost without reason dialog for simplicity
+                      bulkChangeStage('lost');
+                    } else {
+                      bulkChangeStage(s.key);
+                    }
+                  }}
+                >
+                  <span className={cn('h-2 w-2 rounded-full', s.dotColor)} />
+                  {s.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="h-7 text-xs gap-1.5"
+            disabled={selectedIds.size === 0}
+            onClick={() => setBulkDeleteOpen(true)}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Supprimer
+          </Button>
+        </div>
+      )}
+
       <div className="flex flex-1 gap-2 sm:gap-3 overflow-x-auto custom-scrollbar pb-4 -mx-4 px-4 sm:mx-0 sm:px-0" style={{ touchAction: 'pan-x' }}>
         {STAGES.map(stage => (
           <PipelineColumn
@@ -475,6 +675,9 @@ export default function PipelinePage() {
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onCardClick={(lead) => setSelectedLeadId(lead.id)}
+            selectionMode={selectionMode}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
           />
         ))}
       </div>
@@ -496,6 +699,23 @@ export default function PipelinePage() {
         }}
         onCancel={() => setLostDialogLead(null)}
       />
+
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer {selectedIds.size} lead(s) ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action déplace les leads dans la corbeille. Vous pourrez les restaurer depuis Paramètres &gt; Corbeille.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={bulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
