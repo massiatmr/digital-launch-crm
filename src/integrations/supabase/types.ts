@@ -2549,6 +2549,33 @@ export type Database = {
         }
         Relationships: []
       }
+      user_workspace_notification_prefs: {
+        Row: {
+          created_at: string
+          email_enabled: boolean
+          push_enabled: boolean
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          email_enabled?: boolean
+          push_enabled?: boolean
+          updated_at?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          email_enabled?: boolean
+          push_enabled?: boolean
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       whatsapp_calls: {
         Row: {
           answered_at: string | null
