@@ -2,6 +2,7 @@
 // GET = handshake (verify_token lookup in DB)
 // POST = inbound message → insert into whatsapp_messages + push notif owner
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { getMutedUserIds } from "../_shared/notificationPrefs.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -181,17 +182,21 @@ Deno.serve(async (req) => {
               }
               // Push notif "appel entrant"
               try {
-                await fetch(`${SUPABASE_URL}/functions/v1/send-onesignal-notification`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
-                  body: JSON.stringify({
-                    user_id: cfg.owner_id,
-                    title: `📞 Appel WhatsApp — ${lead.name}`,
-                    body: "Appel entrant en cours…",
-                    url: `/conversations?lead=${lead.id}&call=${waCallId}`,
-                    tag: `wa-call-${waCallId}`.slice(0, 32),
-                  }),
-                });
+                const wsForMute = cfg.workspace_id ?? lead.workspace_id ?? null;
+                const mutedPush = await getMutedUserIds(admin, wsForMute, [cfg.owner_id], "push");
+                if (!mutedPush.has(cfg.owner_id)) {
+                  await fetch(`${SUPABASE_URL}/functions/v1/send-onesignal-notification`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+                    body: JSON.stringify({
+                      user_id: cfg.owner_id,
+                      title: `📞 Appel WhatsApp — ${lead.name}`,
+                      body: "Appel entrant en cours…",
+                      url: `/conversations?lead=${lead.id}&call=${waCallId}`,
+                      tag: `wa-call-${waCallId}`.slice(0, 32),
+                    }),
+                  });
+                }
               } catch (e) { console.error("call ringing push", e); }
             } else if (event === "accepted") {
               await (admin.from("whatsapp_calls") as any).update({ status: "answered", answered_at: new Date().toISOString() }).eq("wa_call_id", waCallId);
@@ -208,17 +213,21 @@ Deno.serve(async (req) => {
               // Si missed → push notif appel manqué
               if (finalStatus === "missed" && lead) {
                 try {
-                  await fetch(`${SUPABASE_URL}/functions/v1/send-onesignal-notification`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
-                    body: JSON.stringify({
-                      user_id: cfg.owner_id,
-                      title: `📵 Appel manqué — ${lead.name}`,
-                      body: "Tape pour rappeler",
-                      url: `/leads/${lead.id}`,
-                      tag: `wa-missed-${lead.id}`.slice(0, 32),
-                    }),
-                  });
+                  const wsForMute = cfg.workspace_id ?? lead.workspace_id ?? null;
+                  const mutedPush = await getMutedUserIds(admin, wsForMute, [cfg.owner_id], "push");
+                  if (!mutedPush.has(cfg.owner_id)) {
+                    await fetch(`${SUPABASE_URL}/functions/v1/send-onesignal-notification`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+                      body: JSON.stringify({
+                        user_id: cfg.owner_id,
+                        title: `📵 Appel manqué — ${lead.name}`,
+                        body: "Tape pour rappeler",
+                        url: `/leads/${lead.id}`,
+                        tag: `wa-missed-${lead.id}`.slice(0, 32),
+                      }),
+                    });
+                  }
                 } catch (e) { console.error("missed call push", e); }
               }
             }
@@ -472,33 +481,37 @@ Deno.serve(async (req) => {
             console.log("[whatsapp-webhook] conversations feature disabled, skipping IA", { workspace_id: wsIdForFeat, lead_id: lead.id });
           }
 
-          // Push notif via OneSignal
+          // Push notif via OneSignal (respecte la mute par workspace)
           try {
-            const pushRes = await fetch(`${SUPABASE_URL}/functions/v1/send-onesignal-notification`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-              },
-              body: JSON.stringify({
-                user_id: cfg.owner_id,
-                title: `💬 WhatsApp CRM — ${lead.name}`,
-                body: content.slice(0, 140),
-                url: `/conversations?lead=${lead.id}&highlight=1`,
-                tag: `wa-${lead.id}`.slice(0, 32),
-              }),
-            });
-            const txt = await pushRes.text();
-            let pushJson: any = null;
-            try {
-              pushJson = JSON.parse(txt);
-            } catch {
-              pushJson = null;
-            }
-            if (pushRes.ok && pushJson?.ok !== false) {
-              console.log(`OneSignal push for wa msg ${msg.id}: ${pushRes.status} ${txt}`);
-            } else {
-              console.error(`OneSignal push failed for wa msg ${msg.id}: ${pushRes.status} ${txt}`);
+            const wsForMute = cfg.workspace_id ?? lead.workspace_id ?? null;
+            const mutedPush = await getMutedUserIds(admin, wsForMute, [cfg.owner_id], "push");
+            if (!mutedPush.has(cfg.owner_id)) {
+              const pushRes = await fetch(`${SUPABASE_URL}/functions/v1/send-onesignal-notification`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                },
+                body: JSON.stringify({
+                  user_id: cfg.owner_id,
+                  title: `💬 WhatsApp CRM — ${lead.name}`,
+                  body: content.slice(0, 140),
+                  url: `/conversations?lead=${lead.id}&highlight=1`,
+                  tag: `wa-${lead.id}`.slice(0, 32),
+                }),
+              });
+              const txt = await pushRes.text();
+              let pushJson: any = null;
+              try {
+                pushJson = JSON.parse(txt);
+              } catch {
+                pushJson = null;
+              }
+              if (pushRes.ok && pushJson?.ok !== false) {
+                console.log(`OneSignal push for wa msg ${msg.id}: ${pushRes.status} ${txt}`);
+              } else {
+                console.error(`OneSignal push failed for wa msg ${msg.id}: ${pushRes.status} ${txt}`);
+              }
             }
           } catch (pushErr) {
             console.error("Push error:", pushErr);

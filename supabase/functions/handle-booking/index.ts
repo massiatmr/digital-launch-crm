@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createEventOnPrimary } from "../_shared/calendar/index.ts";
+import { getMutedUserIds } from "../_shared/notificationPrefs.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -429,7 +430,8 @@ Deno.serve(async (req) => {
     // Resolve workspace + members
     let workspaceName: string | null = null;
     let workspaceEmail: string | null = null;
-    const memberEmails: string[] = [];
+    const userEmailMap = new Map<string, string>();
+    const memberUserIds: string[] = [];
     if (leadFull?.workspace_id) {
       const { data: ws } = await supabase
         .from("workspaces")
@@ -445,22 +447,32 @@ Deno.serve(async (req) => {
         .eq("workspace_id", leadFull.workspace_id);
 
       for (const m of members || []) {
+        memberUserIds.push(m.user_id);
         try {
           const { data: u } = await supabase.auth.admin.getUserById(m.user_id);
-          if (u?.user?.email) memberEmails.push(u.user.email);
+          if (u?.user?.email) userEmailMap.set(m.user_id, u.user.email);
         } catch (e) {
           console.error("getUserById failed for", m.user_id, e);
         }
       }
     }
 
+    // Per-user, per-workspace mute (admin can mute a client workspace).
+    const mutedEmail = await getMutedUserIds(supabase, leadFull?.workspace_id, memberUserIds, "email");
+    const mutedPush = await getMutedUserIds(supabase, leadFull?.workspace_id, memberUserIds, "push");
+    const memberEmails = memberUserIds
+      .filter((uid) => !mutedEmail.has(uid))
+      .map((uid) => userEmailMap.get(uid))
+      .filter((e): e is string => !!e);
+
     const wsPrefix = workspaceName ? `[${workspaceName}] ` : "";
     const recipients = Array.from(new Set(
       [ADMIN_NOTIFY_EMAIL, workspaceEmail, ...memberEmails].filter((e): e is string => !!e)
     ));
 
-    // Push to all workspace members via OneSignal
-    const pushTargets = Array.from(new Set([owner_id, ...((leadFull?.workspace_id ? (await supabase.from("workspace_members").select("user_id").eq("workspace_id", leadFull.workspace_id)).data?.map(m => m.user_id) : []) || [])]));
+    // Push to all workspace members via OneSignal (respect mute)
+    const pushTargetsRaw = Array.from(new Set([owner_id, ...memberUserIds]));
+    const pushTargets = pushTargetsRaw.filter((uid) => !mutedPush.has(uid));
     for (const uid of pushTargets) {
       try {
         await supabase.functions.invoke("send-onesignal-notification", {

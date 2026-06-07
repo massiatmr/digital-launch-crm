@@ -1,6 +1,7 @@
 // Sends push + email notification to the CRM owner when a new lead arrives.
 // Email goes through SMTP (send-smtp-email) — no DNS / Lovable Email needed.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.99.1";
+import { getMutedUserIds } from "../_shared/notificationPrefs.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -206,7 +207,7 @@ Deno.serve(async (req) => {
 
     // Récupère le workspace (juste pour le nom dans l'email)
     let workspaceName: string | null = null;
-    const memberEmails: string[] = [];
+    const userEmailMap = new Map<string, string>();
     const memberUserIds: string[] = [];
     if (lead.workspace_id) {
       const { data: ws } = await supabase
@@ -232,7 +233,7 @@ Deno.serve(async (req) => {
           try {
             const { data: u } = await (supabase as any).auth.admin.getUserById(uid);
             const em = u?.user?.email;
-            if (em) memberEmails.push(em);
+            if (em) userEmailMap.set(uid, em.trim().toLowerCase());
           } catch (e) {
             console.error("notify-new-lead: getUserById failed", uid, e);
           }
@@ -240,18 +241,22 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Destinataires email : UNIQUEMENT les membres actuels du workspace.
-    // (Plus de NOTIFY_EMAIL hardcodé ni de workspace.email pour éviter les fuites
-    // vers d'anciens membres retirés.)
+    // Respect per-user, per-workspace notification preferences (admin can mute a client workspace).
+    const mutedEmail = await getMutedUserIds(supabase, lead.workspace_id, memberUserIds, "email");
+    const mutedPush = await getMutedUserIds(supabase, lead.workspace_id, memberUserIds, "push");
+
+    // Destinataires email : UNIQUEMENT les membres actuels du workspace, sans les mutés.
     const recipients = Array.from(new Set(
-      memberEmails
+      memberUserIds
+        .filter((uid) => !mutedEmail.has(uid))
+        .map((uid) => userEmailMap.get(uid))
         .filter((e): e is string => !!e && e.trim() !== "")
-        .map((e) => e.trim().toLowerCase())
     ));
 
-    // Destinataires push : tous les membres actuels (fallback sur owner si aucun)
+    // Destinataires push : membres actuels sans les mutés (fallback sur owner si aucun)
+    const pushFiltered = memberUserIds.filter((uid) => !mutedPush.has(uid));
     const pushUserIds = Array.from(new Set(
-      memberUserIds.length ? memberUserIds : [lead.owner_id].filter(Boolean)
+      pushFiltered.length ? pushFiltered : [lead.owner_id].filter(Boolean)
     ));
 
     if (recipients.length === 0) {
