@@ -563,17 +563,20 @@ ${transcript}`;
       description: `📅 RDV auto-détecté via WhatsApp : ${parsed.booking_date} à ${parsed.time_slot}${meetLink ? ` — ${meetLink}` : ""}`,
     } as any);
 
-    // Push notif owner
+    // Push notif owner (respecte la préférence par workspace)
     try {
-      await admin.functions.invoke("send-onesignal-notification", {
-        body: {
-          user_id: lead.owner_id,
-          title: `📅 RDV auto-créé — ${lead.name}`,
-          body: `${parsed.booking_date} à ${parsed.time_slot} • ${offerName}`,
-          url: `/bookings`,
-          tag: `ai-booking-${bookingId}`.slice(0, 32),
-        },
-      });
+      const mutedPush = await getMutedUserIds(admin, lead.workspace_id, [lead.owner_id], "push");
+      if (!mutedPush.has(lead.owner_id)) {
+        await admin.functions.invoke("send-onesignal-notification", {
+          body: {
+            user_id: lead.owner_id,
+            title: `📅 RDV auto-créé — ${lead.name}`,
+            body: `${parsed.booking_date} à ${parsed.time_slot} • ${offerName}`,
+            url: `/bookings`,
+            tag: `ai-booking-${bookingId}`.slice(0, 32),
+          },
+        });
+      }
     } catch (e) {
       console.error("Push notif failed:", e);
     }
