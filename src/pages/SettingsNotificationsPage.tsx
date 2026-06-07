@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Bell, Smartphone, Mail, Trash2 } from 'lucide-react';
 import { EnablePushButton } from '@/components/EnablePushButton';
 import { PwaInstallGuide } from '@/components/PwaInstallGuide';
+import { WorkspaceNotificationPrefs } from '@/components/settings/WorkspaceNotificationPrefs';
 import { useOwnerProfile, useUpdateOwnerProfile } from '@/hooks/useOwnerProfile';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
