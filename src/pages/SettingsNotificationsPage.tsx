@@ -118,6 +118,10 @@ export default function SettingsNotificationsPage() {
         </CardContent>
       </Card>
 
+      <WorkspaceNotificationPrefs />
+
+
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Smartphone className="h-4 w-4 text-primary" />Appareils connectés</CardTitle>
