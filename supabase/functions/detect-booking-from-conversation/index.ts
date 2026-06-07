@@ -3,6 +3,7 @@
 // Appelée en fire-and-forget depuis whatsapp-webhook après chaque message inbound.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createEventOnPrimary } from "../_shared/calendar/index.ts";
+import { getMutedUserIds } from "../_shared/notificationPrefs.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -431,7 +432,8 @@ ${transcript}`;
         const APP_BASE_URL = "https://digital-launch-crm.lovable.app";
         const ADMIN_NOTIFY_EMAIL = "contact@digitallaunch-llc.com";
         const bookingUrl = `${APP_BASE_URL}/leads/${lead.id}`;
-        const memberEmails: string[] = [];
+        const userEmailMap = new Map<string, string>();
+        const memberUserIds: string[] = [];
         let workspaceName: string | null = null;
         let workspaceEmail: string | null = null;
         if (lead.workspace_id) {
@@ -445,17 +447,24 @@ ${transcript}`;
           const { data: members } = await admin
             .from("workspace_members").select("user_id").eq("workspace_id", lead.workspace_id);
           for (const m of members || []) {
+            memberUserIds.push(m.user_id);
             try {
               const { data: u } = await admin.auth.admin.getUserById(m.user_id);
-              if (u?.user?.email) memberEmails.push(u.user.email);
+              if (u?.user?.email) userEmailMap.set(m.user_id, u.user.email);
             } catch (_) { /* noop */ }
           }
         } else {
+          memberUserIds.push(lead.owner_id);
           try {
             const { data: u } = await admin.auth.admin.getUserById(lead.owner_id);
-            if (u?.user?.email) memberEmails.push(u.user.email);
+            if (u?.user?.email) userEmailMap.set(lead.owner_id, u.user.email);
           } catch (_) { /* noop */ }
         }
+        const mutedEmail = await getMutedUserIds(admin, lead.workspace_id, memberUserIds, "email");
+        const memberEmails = memberUserIds
+          .filter((uid) => !mutedEmail.has(uid))
+          .map((uid) => userEmailMap.get(uid))
+          .filter((e): e is string => !!e);
         const recipients = Array.from(new Set(
           [ADMIN_NOTIFY_EMAIL, workspaceEmail, ...memberEmails].filter((e): e is string => !!e)
         ));
