@@ -20,16 +20,9 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get("authorization") ?? "";
   const bearer = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : "";
   let authorized = false;
-  function decodeJwtRole(token: string): string | null {
-    try {
-      const parts = token.split('.');
-      if (parts.length < 2) return null;
-      const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
-      return typeof payload?.role === 'string' ? payload.role : null;
-    } catch { return null; }
-  }
-  if (bearer && (bearer === SERVICE_KEY || decodeJwtRole(bearer) === 'service_role')) {
+  if (bearer && bearer === SERVICE_KEY) {
     authorized = true;
+
   } else if (bearer) {
     try {
       const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {

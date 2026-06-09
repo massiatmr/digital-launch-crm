@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import DOMPurify from "dompurify";
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -690,7 +692,7 @@ export function BookingDetailSheet({ bookingId, onOpenChange }: Props) {
                       <Label className="text-xs">Aperçu</Label>
                       <div
                         className="rounded-md border border-white/10 bg-white text-black p-3 text-sm max-h-60 overflow-y-auto"
-                        dangerouslySetInnerHTML={{ __html: renderVars(previewBody) }}
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderVars(previewBody)) }}
                       />
                     </div>
                   </div>

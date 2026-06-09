@@ -70,18 +70,10 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     const bearer = authHeader?.replace("Bearer ", "") ?? "";
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    function decodeJwtRole(token: string): string | null {
-      try {
-        const parts = token.split('.');
-        if (parts.length < 2) return null;
-        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
-        return typeof payload?.role === 'string' ? payload.role : null;
-      } catch { return null; }
-    }
-    const jwtRole = bearer ? decodeJwtRole(bearer) : null;
-    const isServiceRole = bearer.length > 0 && (bearer === SERVICE_KEY || jwtRole === 'service_role');
+    const isServiceRole = bearer.length > 0 && bearer === SERVICE_KEY;
     const isInternalCron = isServiceRole && req.headers.get("x-internal-cron") === "1";
     if (!isServiceRole && !bearer) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
 
     // Service-role client (used for cron + reading settings) and a per-user client (when invoked from UI)
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
