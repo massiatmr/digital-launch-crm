@@ -62,6 +62,8 @@ Deno.serve(async (req) => {
 
   try {
     const nowIso = new Date().toISOString();
+    // Garde-fou : on n'envoie pas un rappel programmé il y a plus de 6h (sinon on spamme d'anciens leads après un downtime).
+    const sixHoursAgoIso = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
     // All reminder types (confirmation is handled directly by handle-booking)
     const { data: due, error } = await supabase
       .from("booking_emails")
@@ -69,7 +71,9 @@ Deno.serve(async (req) => {
       .eq("status", "pending")
       .in("type", ["24h_before", "12h_before", "1h_before"])
       .lte("scheduled_at", nowIso)
+      .gte("scheduled_at", sixHoursAgoIso)
       .limit(50);
+
     if (error) throw error;
     if (!due || due.length === 0) {
       return new Response(JSON.stringify({ ok: true, processed: 0 }), {

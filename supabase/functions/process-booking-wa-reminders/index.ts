@@ -48,12 +48,16 @@ Deno.serve(async (req) => {
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, SERVICE_KEY);
 
   const nowIso = new Date().toISOString();
+  // Garde-fou : pas de rattrapage massif sur des rappels > 6h en retard
+  const sixHoursAgoIso = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
   const { data: due, error } = await supabase
     .from("booking_wa_reminders")
     .select("id, booking_id, type")
     .eq("status", "pending")
     .lte("scheduled_at", nowIso)
+    .gte("scheduled_at", sixHoursAgoIso)
     .limit(50);
+
 
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
