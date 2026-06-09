@@ -692,7 +692,7 @@ export function BookingDetailSheet({ bookingId, onOpenChange }: Props) {
                       <Label className="text-xs">Aperçu</Label>
                       <div
                         className="rounded-md border border-white/10 bg-white text-black p-3 text-sm max-h-60 overflow-y-auto"
-                        dangerouslySetInnerHTML={{ __html: renderVars(previewBody) }}
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderVars(previewBody)) }}
                       />
                     </div>
                   </div>
