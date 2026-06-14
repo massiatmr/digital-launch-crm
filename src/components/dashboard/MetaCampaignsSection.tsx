@@ -128,7 +128,13 @@ export function MetaCampaignsSection({ workspaceId, dateFrom, dateTo }: Props) {
                   {c.status}
                 </Badge>
               </div>
-              <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="grid grid-cols-3 gap-2 text-center items-end">
+                <div className="col-span-1 rounded-md bg-primary/10 border border-primary/30 py-2">
+                  <div className="text-[10px] text-primary/80 uppercase tracking-wide">CPL</div>
+                  <div className="text-base font-mono font-bold text-primary">
+                    {c.cpl_crm != null ? formatMoney(c.cpl_crm, c.currency) : "—"}
+                  </div>
+                </div>
                 <div>
                   <div className="text-[10px] text-muted-foreground">Leads</div>
                   <div className="text-sm font-mono text-foreground">{c.leads_crm}</div>
@@ -136,12 +142,6 @@ export function MetaCampaignsSection({ workspaceId, dateFrom, dateTo }: Props) {
                 <div>
                   <div className="text-[10px] text-muted-foreground">Dépense</div>
                   <div className="text-sm font-mono text-foreground">{formatMoney(c.spend, c.currency)}</div>
-                </div>
-                <div>
-                  <div className="text-[10px] text-muted-foreground">CPL</div>
-                  <div className="text-sm font-mono text-primary">
-                    {c.cpl_crm != null ? formatMoney(c.cpl_crm, c.currency) : "—"}
-                  </div>
                 </div>
               </div>
             </div>
@@ -155,9 +155,9 @@ export function MetaCampaignsSection({ workspaceId, dateFrom, dateTo }: Props) {
                 <TableHead className="text-xs">Page</TableHead>
                 <TableHead className="text-xs">Campagne</TableHead>
                 <TableHead className="text-xs">Statut</TableHead>
+                <TableHead className="text-xs text-right text-primary">CPL</TableHead>
                 <TableHead className="text-xs text-right">Leads</TableHead>
                 <TableHead className="text-xs text-right">Dépense</TableHead>
-                <TableHead className="text-xs text-right">CPL</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -176,12 +176,12 @@ export function MetaCampaignsSection({ workspaceId, dateFrom, dateTo }: Props) {
                       {c.status}
                     </Badge>
                   </TableCell>
+                  <TableCell className="text-right font-mono text-base font-bold text-primary">
+                    {c.cpl_crm != null ? formatMoney(c.cpl_crm, c.currency) : "—"}
+                  </TableCell>
                   <TableCell className="text-right font-mono text-sm text-foreground">{c.leads_crm}</TableCell>
                   <TableCell className="text-right font-mono text-sm text-foreground">
                     {formatMoney(c.spend, c.currency)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-sm text-primary">
-                    {c.cpl_crm != null ? formatMoney(c.cpl_crm, c.currency) : "—"}
                   </TableCell>
                 </TableRow>
               ))}

@@ -46,18 +46,26 @@ async function fetchAdAccountsForUser(userToken: string): Promise<Array<{ id: st
   return Array.isArray(data?.data) ? data.data : [];
 }
 
-async function fetchCampaignsForAccount(adAccountId: string, token: string, includePaused: boolean): Promise<any[]> {
+async function fetchCampaignsForAccount(adAccountId: string, token: string, includePaused: boolean, pageId: string): Promise<any[]> {
   const statuses = includePaused
     ? ["ACTIVE", "PAUSED"]
     : ["ACTIVE"];
   const filter = encodeURIComponent(JSON.stringify(statuses));
-  const url = `https://graph.facebook.com/v21.0/${adAccountId}/campaigns?fields=id,name,status,effective_status,objective,daily_budget,lifetime_budget&effective_status=${filter}&limit=200&access_token=${token}`;
+  // Filter by promoted_object.page_id so only campaigns promoting THIS page are returned.
+  // This is the key isolation between FB pages sharing the same user token.
+  const filtering = encodeURIComponent(JSON.stringify([
+    { field: "promoted_object.page_id", operator: "EQUAL", value: pageId },
+  ]));
+  const url = `https://graph.facebook.com/v21.0/${adAccountId}/campaigns?fields=id,name,status,effective_status,objective,daily_budget,lifetime_budget,promoted_object&effective_status=${filter}&filtering=${filtering}&limit=200&access_token=${token}`;
   const data = await fbGet(url);
   if (data?._error) {
     console.error("[meta-ads-insights] campaigns error", JSON.stringify(data.body));
     return [];
   }
-  return Array.isArray(data?.data) ? data.data : [];
+  let rows = Array.isArray(data?.data) ? data.data : [];
+  // Safety net: keep only campaigns whose promoted_object.page_id matches (filtering above can be ignored by Meta in rare cases)
+  rows = rows.filter((c: any) => !c?.promoted_object?.page_id || String(c.promoted_object.page_id) === String(pageId));
+  return rows;
 }
 
 async function fetchInsightsForAccount(
@@ -183,17 +191,26 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Dedupe pages by user_access_token (user token gives access to all their ad accounts)
-    const seenUserTokens = new Set<string>();
+    // Purge cache entries whose page_id is no longer in this workspace's valid pages
+    // (cleans up rows from older runs that incorrectly mixed pages across workspaces).
+    if (!useCache) {
+      const validPageIds = pages.map((p: any) => p.page_id);
+      const scopeCol = workspace_id ? "workspace_id" : "owner_id";
+      const scopeVal = workspace_id ?? user.id;
+      await admin.from("meta_campaigns_cache").delete().eq(scopeCol, scopeVal).not("page_id", "in", `(${validPageIds.map((id) => `"${id}"`).join(",")})`);
+    }
 
-    // Process each page
+    // Ad accounts are cached per user-token (a user-token returns the same list of ad accounts
+    // regardless of which page we ask for). But campaign listing IS scoped per page below.
+    const adAccountsByToken = new Map<string, Array<{ id: string; account_id: string; currency?: string }>>();
+
+    // Process each page individually so campaigns are scoped to that page's promoted_object.page_id
     for (const page of pages) {
       if (!page.token_valid) {
         needsReconnect.push(page.page_name || page.page_id);
         continue;
       }
 
-      // Ad accounts require a USER token, not a page token.
       const userTok: string | null = page.user_access_token || null;
       if (!userTok) {
         if (!needsReconnect.includes(page.page_name || page.page_id)) {
@@ -202,24 +219,20 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Avoid double-fetching same user-token's ad accounts across pages
-      if (seenUserTokens.has(userTok)) continue;
-      seenUserTokens.add(userTok);
-
-      let accounts: Array<{ id: string; account_id: string; currency?: string }> = [];
-
-      if (!useCache) {
+      let accounts = adAccountsByToken.get(userTok);
+      if (!accounts && !useCache) {
         accounts = await fetchAdAccountsForUser(userTok);
+        adAccountsByToken.set(userTok, accounts);
         if (accounts.length === 0) {
           console.warn("[meta-ads-insights] no ad accounts returned for page", page.page_id);
         }
       }
-
+      accounts = accounts ?? [];
 
       for (const account of accounts) {
-        const campaigns = await fetchCampaignsForAccount(account.id, userTok, include_paused);
+        const campaigns = await fetchCampaignsForAccount(account.id, userTok, include_paused, page.page_id);
+        if (campaigns.length === 0) continue;
         const insights = await fetchInsightsForAccount(account.id, userTok, date_from, date_to);
-
 
         for (const c of campaigns) {
           allCampaigns.push({
@@ -234,7 +247,6 @@ Deno.serve(async (req) => {
             ad_account_id: account.id,
           });
 
-          // Upsert cache
           await admin.from("meta_campaigns_cache").upsert({
             workspace_id: page.workspace_id,
             owner_id: page.owner_id,
