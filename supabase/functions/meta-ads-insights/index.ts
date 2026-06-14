@@ -152,8 +152,8 @@ Deno.serve(async (req) => {
 
     // Load Meta pages for this workspace (or owner-only legacy)
     const pagesQuery = workspace_id
-      ? admin.from("meta_pages").select("id, page_id, page_name, page_access_token, token_valid, owner_id, workspace_id").eq("workspace_id", workspace_id)
-      : admin.from("meta_pages").select("id, page_id, page_name, page_access_token, token_valid, owner_id, workspace_id").eq("owner_id", user.id).is("workspace_id", null);
+      ? admin.from("meta_pages").select("id, page_id, page_name, page_access_token, user_access_token, token_valid, owner_id, workspace_id").eq("workspace_id", workspace_id)
+      : admin.from("meta_pages").select("id, page_id, page_name, page_access_token, user_access_token, token_valid, owner_id, workspace_id").eq("owner_id", user.id).is("workspace_id", null);
 
     const { data: pages } = await pagesQuery;
     if (!pages || pages.length === 0) {
@@ -183,6 +183,9 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Dedupe pages by user_access_token (user token gives access to all their ad accounts)
+    const seenUserTokens = new Set<string>();
+
     // Process each page
     for (const page of pages) {
       if (!page.token_valid) {
@@ -190,11 +193,28 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // Ad accounts require a USER token, not a page token.
+      const userTok: string | null = page.user_access_token || null;
+      if (!userTok) {
+        if (!needsReconnect.includes(page.page_name || page.page_id)) {
+          needsReconnect.push(page.page_name || page.page_id);
+        }
+        continue;
+      }
+
+      // Avoid double-fetching same user-token's ad accounts across pages
+      if (seenUserTokens.has(userTok)) continue;
+      seenUserTokens.add(userTok);
+
       let accounts: Array<{ id: string; account_id: string; currency?: string }> = [];
 
       if (!useCache) {
-        accounts = await fetchAdAccountsForUser(page.page_access_token);
+        accounts = await fetchAdAccountsForUser(userTok);
+        if (accounts.length === 0) {
+          console.warn("[meta-ads-insights] no ad accounts returned for page", page.page_id);
+        }
       }
+
 
       for (const account of accounts) {
         const campaigns = await fetchCampaignsForAccount(account.id, page.page_access_token, include_paused);
