@@ -272,7 +272,6 @@ Deno.serve(async (req) => {
         }
       }
     }
-    }
 
     // If we used cache (no live fetch), rebuild from DB
     if (useCache && allCampaigns.length === 0) {
