@@ -155,9 +155,9 @@ export function MetaCampaignsSection({ workspaceId, dateFrom, dateTo }: Props) {
                 <TableHead className="text-xs">Page</TableHead>
                 <TableHead className="text-xs">Campagne</TableHead>
                 <TableHead className="text-xs">Statut</TableHead>
+                <TableHead className="text-xs text-right text-primary">CPL</TableHead>
                 <TableHead className="text-xs text-right">Leads</TableHead>
                 <TableHead className="text-xs text-right">Dépense</TableHead>
-                <TableHead className="text-xs text-right">CPL</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -176,12 +176,12 @@ export function MetaCampaignsSection({ workspaceId, dateFrom, dateTo }: Props) {
                       {c.status}
                     </Badge>
                   </TableCell>
+                  <TableCell className="text-right font-mono text-base font-bold text-primary">
+                    {c.cpl_crm != null ? formatMoney(c.cpl_crm, c.currency) : "—"}
+                  </TableCell>
                   <TableCell className="text-right font-mono text-sm text-foreground">{c.leads_crm}</TableCell>
                   <TableCell className="text-right font-mono text-sm text-foreground">
                     {formatMoney(c.spend, c.currency)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-sm text-primary">
-                    {c.cpl_crm != null ? formatMoney(c.cpl_crm, c.currency) : "—"}
                   </TableCell>
                 </TableRow>
               ))}
