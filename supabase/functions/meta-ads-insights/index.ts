@@ -191,17 +191,17 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Dedupe pages by user_access_token (user token gives access to all their ad accounts)
-    const seenUserTokens = new Set<string>();
+    // Ad accounts are cached per user-token (a user-token returns the same list of ad accounts
+    // regardless of which page we ask for). But campaign listing IS scoped per page below.
+    const adAccountsByToken = new Map<string, Array<{ id: string; account_id: string; currency?: string }>>();
 
-    // Process each page
+    // Process each page individually so campaigns are scoped to that page's promoted_object.page_id
     for (const page of pages) {
       if (!page.token_valid) {
         needsReconnect.push(page.page_name || page.page_id);
         continue;
       }
 
-      // Ad accounts require a USER token, not a page token.
       const userTok: string | null = page.user_access_token || null;
       if (!userTok) {
         if (!needsReconnect.includes(page.page_name || page.page_id)) {
@@ -210,24 +210,20 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Avoid double-fetching same user-token's ad accounts across pages
-      if (seenUserTokens.has(userTok)) continue;
-      seenUserTokens.add(userTok);
-
-      let accounts: Array<{ id: string; account_id: string; currency?: string }> = [];
-
-      if (!useCache) {
+      let accounts = adAccountsByToken.get(userTok);
+      if (!accounts && !useCache) {
         accounts = await fetchAdAccountsForUser(userTok);
+        adAccountsByToken.set(userTok, accounts);
         if (accounts.length === 0) {
           console.warn("[meta-ads-insights] no ad accounts returned for page", page.page_id);
         }
       }
-
+      accounts = accounts ?? [];
 
       for (const account of accounts) {
-        const campaigns = await fetchCampaignsForAccount(account.id, userTok, include_paused);
+        const campaigns = await fetchCampaignsForAccount(account.id, userTok, include_paused, page.page_id);
+        if (campaigns.length === 0) continue;
         const insights = await fetchInsightsForAccount(account.id, userTok, date_from, date_to);
-
 
         for (const c of campaigns) {
           allCampaigns.push({
@@ -242,7 +238,6 @@ Deno.serve(async (req) => {
             ad_account_id: account.id,
           });
 
-          // Upsert cache
           await admin.from("meta_campaigns_cache").upsert({
             workspace_id: page.workspace_id,
             owner_id: page.owner_id,
@@ -276,6 +271,7 @@ Deno.serve(async (req) => {
           }
         }
       }
+    }
     }
 
     // If we used cache (no live fetch), rebuild from DB
