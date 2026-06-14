@@ -155,6 +155,8 @@ Deno.serve(async (req) => {
           page_id: p.id,
           page_name: p.name || "",
           page_access_token: p.access_token,
+          user_access_token: userToken,
+          token_valid: true,
           is_active: true,
           subscribed,
         };
