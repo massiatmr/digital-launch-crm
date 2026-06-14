@@ -46,18 +46,26 @@ async function fetchAdAccountsForUser(userToken: string): Promise<Array<{ id: st
   return Array.isArray(data?.data) ? data.data : [];
 }
 
-async function fetchCampaignsForAccount(adAccountId: string, token: string, includePaused: boolean): Promise<any[]> {
+async function fetchCampaignsForAccount(adAccountId: string, token: string, includePaused: boolean, pageId: string): Promise<any[]> {
   const statuses = includePaused
     ? ["ACTIVE", "PAUSED"]
     : ["ACTIVE"];
   const filter = encodeURIComponent(JSON.stringify(statuses));
-  const url = `https://graph.facebook.com/v21.0/${adAccountId}/campaigns?fields=id,name,status,effective_status,objective,daily_budget,lifetime_budget&effective_status=${filter}&limit=200&access_token=${token}`;
+  // Filter by promoted_object.page_id so only campaigns promoting THIS page are returned.
+  // This is the key isolation between FB pages sharing the same user token.
+  const filtering = encodeURIComponent(JSON.stringify([
+    { field: "promoted_object.page_id", operator: "EQUAL", value: pageId },
+  ]));
+  const url = `https://graph.facebook.com/v21.0/${adAccountId}/campaigns?fields=id,name,status,effective_status,objective,daily_budget,lifetime_budget,promoted_object&effective_status=${filter}&filtering=${filtering}&limit=200&access_token=${token}`;
   const data = await fbGet(url);
   if (data?._error) {
     console.error("[meta-ads-insights] campaigns error", JSON.stringify(data.body));
     return [];
   }
-  return Array.isArray(data?.data) ? data.data : [];
+  let rows = Array.isArray(data?.data) ? data.data : [];
+  // Safety net: keep only campaigns whose promoted_object.page_id matches (filtering above can be ignored by Meta in rare cases)
+  rows = rows.filter((c: any) => !c?.promoted_object?.page_id || String(c.promoted_object.page_id) === String(pageId));
+  return rows;
 }
 
 async function fetchInsightsForAccount(
