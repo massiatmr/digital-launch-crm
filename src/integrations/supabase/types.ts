@@ -1986,6 +1986,7 @@ export type Database = {
           token_invalidated_at: string | null
           token_valid: boolean
           updated_at: string
+          user_access_token: string | null
           workspace_id: string | null
         }
         Insert: {
@@ -2002,6 +2003,7 @@ export type Database = {
           token_invalidated_at?: string | null
           token_valid?: boolean
           updated_at?: string
+          user_access_token?: string | null
           workspace_id?: string | null
         }
         Update: {
@@ -2018,6 +2020,7 @@ export type Database = {
           token_invalidated_at?: string | null
           token_valid?: boolean
           updated_at?: string
+          user_access_token?: string | null
           workspace_id?: string | null
         }
         Relationships: [
