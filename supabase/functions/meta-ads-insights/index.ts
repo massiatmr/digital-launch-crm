@@ -217,8 +217,9 @@ Deno.serve(async (req) => {
 
 
       for (const account of accounts) {
-        const campaigns = await fetchCampaignsForAccount(account.id, page.page_access_token, include_paused);
-        const insights = await fetchInsightsForAccount(account.id, page.page_access_token, date_from, date_to);
+        const campaigns = await fetchCampaignsForAccount(account.id, userTok, include_paused);
+        const insights = await fetchInsightsForAccount(account.id, userTok, date_from, date_to);
+
 
         for (const c of campaigns) {
           allCampaigns.push({
