@@ -191,6 +191,15 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Purge cache entries whose page_id is no longer in this workspace's valid pages
+    // (cleans up rows from older runs that incorrectly mixed pages across workspaces).
+    if (!useCache) {
+      const validPageIds = pages.map((p: any) => p.page_id);
+      const scopeCol = workspace_id ? "workspace_id" : "owner_id";
+      const scopeVal = workspace_id ?? user.id;
+      await admin.from("meta_campaigns_cache").delete().eq(scopeCol, scopeVal).not("page_id", "in", `(${validPageIds.map((id) => `"${id}"`).join(",")})`);
+    }
+
     // Ad accounts are cached per user-token (a user-token returns the same list of ad accounts
     // regardless of which page we ask for). But campaign listing IS scoped per page below.
     const adAccountsByToken = new Map<string, Array<{ id: string; account_id: string; currency?: string }>>();
