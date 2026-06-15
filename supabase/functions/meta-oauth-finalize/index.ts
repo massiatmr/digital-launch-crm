@@ -54,10 +54,14 @@ Deno.serve(async (req) => {
     if (action === "list") {
       // Annotate which pages/numbers are already taken (in any workspace)
       const pageIds = (pending.pages || []).map((p: any) => p.id);
+      const adAccountIds = (pending.ad_accounts || []).map((a: any) => a.id);
       const phoneIds = (pending.wa_numbers || []).map((p: any) => p.phone_number_id);
 
       const { data: takenPages } = pageIds.length
         ? await admin.from("meta_pages").select("page_id, workspace_id, owner_id").in("page_id", pageIds)
+        : { data: [] as any[] };
+      const { data: takenAds } = adAccountIds.length
+        ? await admin.from("meta_ad_accounts").select("ad_account_id, workspace_id, owner_id").in("ad_account_id", adAccountIds)
         : { data: [] as any[] };
       const { data: takenWa } = phoneIds.length
         ? await admin.from("whatsapp_config").select("phone_number_id, workspace_id, owner_id").in("phone_number_id", phoneIds)
@@ -65,6 +69,14 @@ Deno.serve(async (req) => {
 
       const pageStatus = (pid: string) => {
         const rows = (takenPages || []).filter((r: any) => r.page_id === pid);
+        if (rows.length === 0) return { taken: false, mine: false };
+        const mine = rows.some((r: any) =>
+          workspace_id ? r.workspace_id === workspace_id : (r.workspace_id === null && r.owner_id === user.id),
+        );
+        return { taken: !mine, mine };
+      };
+      const adStatus = (aid: string) => {
+        const rows = (takenAds || []).filter((r: any) => r.ad_account_id === aid);
         if (rows.length === 0) return { taken: false, mine: false };
         const mine = rows.some((r: any) =>
           workspace_id ? r.workspace_id === workspace_id : (r.workspace_id === null && r.owner_id === user.id),
@@ -88,6 +100,14 @@ Deno.serve(async (req) => {
           name: p.name,
           ...pageStatus(p.id),
         })),
+        ad_accounts: (pending.ad_accounts || []).map((a: any) => ({
+          ad_account_id: a.id,
+          account_id: a.account_id,
+          name: a.name,
+          currency: a.currency,
+          business_name: a.business_name,
+          ...adStatus(a.id),
+        })),
         wa_numbers: (pending.wa_numbers || []).map((p: any) => ({
           phone_number_id: p.phone_number_id,
           business_account_id: p.business_account_id,
@@ -102,9 +122,11 @@ Deno.serve(async (req) => {
     // ------- ATTACH -------
     if (action === "attach") {
       const selectedPageIds: string[] = Array.isArray(body.page_ids) ? body.page_ids : [];
+      const selectedAdAccountIds: string[] = Array.isArray(body.ad_account_ids) ? body.ad_account_ids : [];
       const selectedPhoneIds: string[] = Array.isArray(body.phone_number_ids) ? body.phone_number_ids : [];
 
       let attachedPages = 0, skippedPages = 0, subscribedPages = 0;
+      let attachedAds = 0, skippedAds = 0;
       let attachedWa = 0, skippedWa = 0;
 
       const pagesData = (pending.pages || []) as Array<{ id: string; name: string; access_token: string }>;
@@ -204,6 +226,46 @@ Deno.serve(async (req) => {
         }
       }
 
+      const adsData = (pending.ad_accounts || []) as Array<any>;
+      for (const ad of adsData) {
+        if (!selectedAdAccountIds.includes(ad.id)) continue;
+
+        const { data: taken } = await admin
+          .from("meta_ad_accounts")
+          .select("id, workspace_id, owner_id")
+          .eq("ad_account_id", ad.id);
+        const conflict = (taken || []).some((row: any) =>
+          workspace_id
+            ? row.workspace_id && row.workspace_id !== workspace_id
+            : row.workspace_id !== null || row.owner_id !== user.id,
+        );
+        if (conflict) { skippedAds++; continue; }
+
+        const scope = (q: any) =>
+          workspace_id ? q.eq("workspace_id", workspace_id) : q.eq("owner_id", user.id).is("workspace_id", null);
+        const { data: existingAd } = await scope(
+          admin.from("meta_ad_accounts").select("id").eq("ad_account_id", ad.id),
+        ).maybeSingle();
+
+        const adPayload = {
+          owner_id: user.id,
+          workspace_id,
+          ad_account_id: ad.id,
+          account_id: ad.account_id || null,
+          account_name: ad.name || ad.account_id || ad.id,
+          currency: ad.currency || null,
+          business_id: ad.business_id || null,
+          business_name: ad.business_name || null,
+          is_active: true,
+        };
+        if (existingAd) {
+          await admin.from("meta_ad_accounts").update(adPayload as any).eq("id", existingAd.id);
+        } else {
+          await admin.from("meta_ad_accounts").insert(adPayload as any);
+        }
+        attachedAds++;
+      }
+
       const waData = (pending.wa_numbers || []) as Array<any>;
       for (const ph of waData) {
         if (!selectedPhoneIds.includes(ph.phone_number_id)) continue;
@@ -249,8 +311,10 @@ Deno.serve(async (req) => {
       return json({
         ok: true,
         attached_pages: attachedPages,
+        attached_ad_accounts: attachedAds,
         subscribed_pages: subscribedPages,
         skipped_pages: skippedPages,
+        skipped_ad_accounts: skippedAds,
         attached_wa: attachedWa,
         skipped_wa: skippedWa,
       });

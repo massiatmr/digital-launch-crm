@@ -48,7 +48,22 @@ Deno.serve(async (req) => {
     const pagesJson = await pagesRes.json();
     const pages = (pagesJson.data || []) as Array<{ id: string; name: string; access_token: string }>;
 
-    // 3. Discover WhatsApp numbers (no DB upsert)
+    // 3. Discover ad accounts (no DB upsert). The picker will attach only the accounts
+    // that belong to the current workspace, otherwise agency-level access mixes clients.
+    const adAccountsRes = await fetch(
+      `${graphApi}/me/adaccounts?fields=id,account_id,name,currency,business{id,name}&limit=200&access_token=${userToken}`,
+    );
+    const adAccountsJson = await adAccountsRes.json();
+    const adAccounts = (adAccountsJson.data || []).map((a: any) => ({
+      id: a.id,
+      account_id: a.account_id || "",
+      name: a.name || a.account_id || a.id,
+      currency: a.currency || "",
+      business_id: a.business?.id || null,
+      business_name: a.business?.name || "",
+    }));
+
+    // 4. Discover WhatsApp numbers (no DB upsert)
     const waNumbers: Array<{
       phone_number_id: string;
       business_account_id: string;
@@ -100,7 +115,7 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // 4. Stash everything in pending table; UI will let user pick
+    // 5. Stash everything in pending table; UI will let user pick
     const { data: pendingRow, error: pendingErr } = await supabase
       .from("meta_oauth_pending")
       .insert({
@@ -108,6 +123,7 @@ Deno.serve(async (req) => {
         workspace_id,
         user_token: userToken,
         pages,
+        ad_accounts: adAccounts,
         wa_numbers: waNumbers,
       } as any)
       .select("id")
@@ -125,7 +141,7 @@ Deno.serve(async (req) => {
       .lt("expires_at", new Date().toISOString());
 
     return Response.redirect(
-      `${redirectBase}?fb=pick&session=${pendingRow.id}&pages=${pages.length}&wa=${waNumbers.length}`,
+      `${redirectBase}?fb=pick&session=${pendingRow.id}&pages=${pages.length}&ads=${adAccounts.length}&wa=${waNumbers.length}`,
       302,
     );
   } catch (err) {
