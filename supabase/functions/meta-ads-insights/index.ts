@@ -46,18 +46,33 @@ async function fetchAdAccountsForUser(userToken: string): Promise<Array<{ id: st
   return Array.isArray(data?.data) ? data.data : [];
 }
 
-async function fetchCampaignsForAccount(adAccountId: string, token: string, includePaused: boolean): Promise<any[]> {
-  const statuses = includePaused
-    ? ["ACTIVE", "PAUSED"]
-    : ["ACTIVE"];
-  const filter = encodeURIComponent(JSON.stringify(statuses));
-  const url = `https://graph.facebook.com/v21.0/${adAccountId}/campaigns?fields=id,name,status,effective_status,objective,daily_budget,lifetime_budget&effective_status=${filter}&limit=200&access_token=${token}`;
+async function fetchCampaignsForAccount(adAccountId: string, token: string): Promise<any[]> {
+  // Fetch ALL statuses — we filter for display later. This ensures campaigns
+  // that are paused/archived but still generated leads or spend in the period
+  // are visible.
+  const url = `https://graph.facebook.com/v21.0/${adAccountId}/campaigns?fields=id,name,status,effective_status,objective,daily_budget,lifetime_budget&limit=500&access_token=${token}`;
   const data = await fbGet(url);
   if (data?._error) {
     console.error("[meta-ads-insights] campaigns error", JSON.stringify(data.body));
     return [];
   }
   return Array.isArray(data?.data) ? data.data : [];
+}
+
+async function fetchCampaignsByIds(ids: string[], token: string): Promise<any[]> {
+  if (ids.length === 0) return [];
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += 50) chunks.push(ids.slice(i, i + 50));
+  const out: any[] = [];
+  for (const chunk of chunks) {
+    const url = `https://graph.facebook.com/v21.0/?ids=${encodeURIComponent(chunk.join(","))}&fields=id,name,status,effective_status,objective,account_id&access_token=${token}`;
+    const data = await fbGet(url);
+    if (data?._error) continue;
+    for (const k of Object.keys(data)) {
+      if (data[k] && typeof data[k] === "object" && data[k].id) out.push(data[k]);
+    }
+  }
+  return out;
 }
 
 function addPageId(target: Set<string>, value: unknown) {
@@ -291,7 +306,7 @@ Deno.serve(async (req) => {
       const skipPageFilter = scopedAdAccountIds.size > 0;
 
       for (const account of allowedAccounts) {
-        const campaigns = await fetchCampaignsForAccount(account.id, userTok, include_paused);
+        const campaigns = await fetchCampaignsForAccount(account.id, userTok);
         if (campaigns.length === 0) continue;
 
         let scopedCampaigns = campaigns;
@@ -359,8 +374,7 @@ Deno.serve(async (req) => {
       const cacheQuery = workspace_id
         ? admin.from("meta_campaigns_cache").select("*").eq("workspace_id", workspace_id)
         : admin.from("meta_campaigns_cache").select("*").eq("owner_id", user.id).is("workspace_id", null);
-      const statusFilter = include_paused ? ["ACTIVE", "PAUSED"] : ["ACTIVE"];
-      const { data: cachedCamps } = await cacheQuery.in("status", statusFilter);
+      const { data: cachedCamps } = await cacheQuery;
       const pageNameById = new Map(pages.map((p) => [p.page_id, p.page_name || p.page_id]));
       for (const c of cachedCamps ?? []) {
         allCampaigns.push({
@@ -406,6 +420,50 @@ Deno.serve(async (req) => {
       crmLeadsByCampaign.set(r.meta_campaign_id, (crmLeadsByCampaign.get(r.meta_campaign_id) ?? 0) + 1);
     }
 
+    // Surface CRM-tagged campaigns that weren't returned by the campaign listing
+    // (e.g. campaign was deleted, or belongs to an ad account not in scope).
+    const knownIds = new Set(allCampaigns.map((c) => c.campaign_id));
+    const orphanIds = Array.from(crmLeadsByCampaign.keys()).filter((id) => !knownIds.has(id));
+    if (orphanIds.length > 0) {
+      // Use any available user token to resolve metadata
+      const anyToken = Array.from(adAccountsByToken.keys())[0]
+        ?? (pages.find((p) => p.user_access_token)?.user_access_token ?? null);
+      if (anyToken) {
+        const metas = await fetchCampaignsByIds(orphanIds, anyToken);
+        const pageNameById = new Map(pages.map((p) => [p.page_id, p.page_name || p.page_id]));
+        const firstPageName = pages[0]?.page_name || pages[0]?.page_id || "";
+        for (const m of metas) {
+          allCampaigns.push({
+            campaign_id: String(m.id),
+            campaign_name: m.name ?? "(sans nom)",
+            status: m.status ?? "UNKNOWN",
+            effective_status: m.effective_status ?? null,
+            objective: m.objective ?? null,
+            daily_budget: null,
+            page_id: pages[0]?.page_id ?? "",
+            page_name: firstPageName,
+            ad_account_id: m.account_id ? `act_${m.account_id}` : null,
+          });
+        }
+        // Even if metadata fetch failed, still surface the orphan with minimal info
+        const resolvedIds = new Set(metas.map((m: any) => String(m.id)));
+        for (const id of orphanIds) {
+          if (resolvedIds.has(id)) continue;
+          allCampaigns.push({
+            campaign_id: id,
+            campaign_name: `Campagne ${id}`,
+            status: "UNKNOWN",
+            effective_status: null,
+            objective: null,
+            daily_budget: null,
+            page_id: pages[0]?.page_id ?? "",
+            page_name: firstPageName,
+            ad_account_id: null,
+          });
+        }
+      }
+    }
+
     const result = allCampaigns.map((c) => {
       const ins = insightsByCampaign.get(c.campaign_id);
       const spend = ins?.spend ?? 0;
@@ -431,16 +489,29 @@ Deno.serve(async (req) => {
       };
     });
 
-    // Dedupe (a campaign may appear multiple times if returned by several pages/accounts)
+    // Dedupe (same campaign may appear from multiple pages/accounts)
     const dedup = new Map<string, typeof result[number]>();
     for (const r of result) {
       const existing = dedup.get(r.campaign_id);
-      if (!existing || r.spend > existing.spend) dedup.set(r.campaign_id, r);
+      // Prefer the row with most signal: spend, then leads_crm
+      if (!existing
+        || r.spend > existing.spend
+        || (r.spend === existing.spend && r.leads_crm > existing.leads_crm)) {
+        dedup.set(r.campaign_id, r);
+      }
     }
+
+    // Display filter: keep ACTIVE; or anything with activity in the period;
+    // include paused/archived only when user opted-in OR they had activity.
+    const visible = Array.from(dedup.values()).filter((r) => {
+      if (r.leads_crm > 0 || r.spend > 0 || r.leads_meta > 0) return true;
+      if (include_paused) return true;
+      return r.status === "ACTIVE";
+    });
 
     return new Response(
       JSON.stringify({
-        campaigns: Array.from(dedup.values()).sort((a, b) => b.spend - a.spend),
+        campaigns: visible.sort((a, b) => (b.spend + b.leads_crm) - (a.spend + a.leads_crm)),
         needs_reconnect: needsReconnect,
         from_cache: useCache,
       }),
