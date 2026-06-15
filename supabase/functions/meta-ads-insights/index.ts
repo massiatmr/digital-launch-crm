@@ -239,10 +239,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    const validPageIds = pages.map((p: any) => p.page_id);
     const scopeCol = workspace_id ? "workspace_id" : "owner_id";
     const scopeVal = workspace_id ?? user.id;
-    await admin.from("meta_campaigns_cache").delete().eq(scopeCol, scopeVal).not("page_id", "in", `(${validPageIds.map((id) => `"${id}"`).join(",")})`);
+    if (!useCache) {
+      await admin.from("meta_campaigns_cache").delete().eq(scopeCol, scopeVal);
+      await admin.from("meta_campaign_insights_cache").delete().eq(scopeCol, scopeVal).eq("date_from", date_from).eq("date_to", date_to);
+    }
 
     // Ad accounts are cached per user-token (a user-token returns the same list of ad accounts
     // regardless of which page we ask for). But campaign listing IS scoped per page below.
