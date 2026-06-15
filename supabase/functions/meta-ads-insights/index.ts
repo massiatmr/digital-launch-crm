@@ -244,13 +244,15 @@ Deno.serve(async (req) => {
     const allCampaigns: CampaignRow[] = [];
     const insightsByCampaign = new Map<string, InsightRow>();
 
-    // Cache check (per workspace + period)
+    // Cache check (per workspace + EXACT period). We must key on the requested
+    // date range — otherwise switching periods reuses stale insights from a
+    // different range and shows 0 spend / 0 leads.
     let useCache = false;
     if (!force_refresh) {
-      const { data: cached } = await admin
-        .from("meta_campaigns_cache")
-        .select("fetched_at")
-        .eq(workspace_id ? "workspace_id" : "owner_id", workspace_id ?? user.id)
+      const insightsCacheQ = workspace_id
+        ? admin.from("meta_campaign_insights_cache").select("fetched_at").eq("workspace_id", workspace_id).eq("date_from", date_from).eq("date_to", date_to)
+        : admin.from("meta_campaign_insights_cache").select("fetched_at").eq("owner_id", user.id).is("workspace_id", null).eq("date_from", date_from).eq("date_to", date_to);
+      const { data: cached } = await insightsCacheQ
         .order("fetched_at", { ascending: false })
         .limit(1)
         .maybeSingle();
