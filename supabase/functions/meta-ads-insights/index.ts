@@ -324,6 +324,11 @@ Deno.serve(async (req) => {
         const insights = await fetchInsightsForAccount(account.id, userTok, date_from, date_to);
 
         for (const c of scopedCampaigns) {
+          const cid = String(c.id);
+          // Dedupe: same campaign may be reachable via multiple pages sharing the
+          // same ad account (especially when skipPageFilter=true). Counting it
+          // more than once would double/triple the leads & spend in the UI.
+          if (allCampaigns.some((existing) => existing.campaign_id === cid)) continue;
           allCampaigns.push({
             campaign_id: String(c.id),
             campaign_name: c.name ?? "(sans nom)",
