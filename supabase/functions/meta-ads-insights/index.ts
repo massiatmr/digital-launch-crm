@@ -306,7 +306,7 @@ Deno.serve(async (req) => {
       const skipPageFilter = scopedAdAccountIds.size > 0;
 
       for (const account of allowedAccounts) {
-        const campaigns = await fetchCampaignsForAccount(account.id, userTok, include_paused);
+        const campaigns = await fetchCampaignsForAccount(account.id, userTok);
         if (campaigns.length === 0) continue;
 
         let scopedCampaigns = campaigns;
