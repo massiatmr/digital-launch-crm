@@ -430,8 +430,42 @@ Deno.serve(async (req) => {
         ?? (pages.find((p) => p.user_access_token)?.user_access_token ?? null);
       if (anyToken) {
         const metas = await fetchCampaignsByIds(orphanIds, anyToken);
-        const pageNameById = new Map(pages.map((p) => [p.page_id, p.page_name || p.page_id]));
         const firstPageName = pages[0]?.page_name || pages[0]?.page_id || "";
+
+        // Fetch insights for the ad accounts referenced by the orphan campaigns
+        // so spend/leads_meta are populated even when those accounts weren't
+        // explicitly scoped via meta_ad_accounts.
+        const orphanAccountIds = new Set<string>();
+        for (const m of metas) {
+          if (m.account_id) orphanAccountIds.add(`act_${m.account_id}`);
+        }
+        for (const acctId of orphanAccountIds) {
+          try {
+            const insights = await fetchInsightsForAccount(acctId, anyToken, date_from, date_to);
+            for (const [cid, ins] of insights) {
+              if (!insightsByCampaign.has(cid)) {
+                insightsByCampaign.set(cid, { campaign_id: cid, ...ins });
+                const ownerPage = pages[0];
+                await admin.from("meta_campaign_insights_cache").upsert({
+                  workspace_id: ownerPage?.workspace_id,
+                  owner_id: ownerPage?.owner_id,
+                  campaign_id: cid,
+                  date_from,
+                  date_to,
+                  spend: ins.spend,
+                  currency: ins.currency,
+                  impressions: ins.impressions,
+                  clicks: ins.clicks,
+                  leads_meta: ins.leads_meta,
+                  fetched_at: new Date().toISOString(),
+                } as any, { onConflict: "workspace_id,campaign_id,date_from,date_to" });
+              }
+            }
+          } catch (e) {
+            console.warn("[meta-ads-insights] orphan insights error", acctId, e);
+          }
+        }
+
         for (const m of metas) {
           allCampaigns.push({
             campaign_id: String(m.id),
@@ -445,7 +479,6 @@ Deno.serve(async (req) => {
             ad_account_id: m.account_id ? `act_${m.account_id}` : null,
           });
         }
-        // Even if metadata fetch failed, still surface the orphan with minimal info
         const resolvedIds = new Set(metas.map((m: any) => String(m.id)));
         for (const id of orphanIds) {
           if (resolvedIds.has(id)) continue;
