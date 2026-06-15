@@ -46,18 +46,33 @@ async function fetchAdAccountsForUser(userToken: string): Promise<Array<{ id: st
   return Array.isArray(data?.data) ? data.data : [];
 }
 
-async function fetchCampaignsForAccount(adAccountId: string, token: string, includePaused: boolean): Promise<any[]> {
-  const statuses = includePaused
-    ? ["ACTIVE", "PAUSED"]
-    : ["ACTIVE"];
-  const filter = encodeURIComponent(JSON.stringify(statuses));
-  const url = `https://graph.facebook.com/v21.0/${adAccountId}/campaigns?fields=id,name,status,effective_status,objective,daily_budget,lifetime_budget&effective_status=${filter}&limit=200&access_token=${token}`;
+async function fetchCampaignsForAccount(adAccountId: string, token: string): Promise<any[]> {
+  // Fetch ALL statuses — we filter for display later. This ensures campaigns
+  // that are paused/archived but still generated leads or spend in the period
+  // are visible.
+  const url = `https://graph.facebook.com/v21.0/${adAccountId}/campaigns?fields=id,name,status,effective_status,objective,daily_budget,lifetime_budget&limit=500&access_token=${token}`;
   const data = await fbGet(url);
   if (data?._error) {
     console.error("[meta-ads-insights] campaigns error", JSON.stringify(data.body));
     return [];
   }
   return Array.isArray(data?.data) ? data.data : [];
+}
+
+async function fetchCampaignsByIds(ids: string[], token: string): Promise<any[]> {
+  if (ids.length === 0) return [];
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += 50) chunks.push(ids.slice(i, i + 50));
+  const out: any[] = [];
+  for (const chunk of chunks) {
+    const url = `https://graph.facebook.com/v21.0/?ids=${encodeURIComponent(chunk.join(","))}&fields=id,name,status,effective_status,objective,account_id&access_token=${token}`;
+    const data = await fbGet(url);
+    if (data?._error) continue;
+    for (const k of Object.keys(data)) {
+      if (data[k] && typeof data[k] === "object" && data[k].id) out.push(data[k]);
+    }
+  }
+  return out;
 }
 
 function addPageId(target: Set<string>, value: unknown) {
