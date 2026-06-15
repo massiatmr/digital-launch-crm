@@ -77,15 +77,6 @@ export function MetaCampaignsSection({ workspaceId, dateFrom, dateTo }: Props) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-            <Switch
-              checked={includePaused}
-              onCheckedChange={setIncludePaused}
-              aria-label="Inclure désactivées"
-            />
-            Inclure désactivées
-          </label>
         <div className="flex items-center gap-2 flex-wrap">
           <Select value={range} onValueChange={(v) => setRange(v as RangeKey)}>
             <SelectTrigger className="h-8 w-[140px] text-xs">
