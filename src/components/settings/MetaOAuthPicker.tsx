@@ -73,6 +73,13 @@ export function MetaOAuthPicker({ sessionId, workspaceName, onClose, onAttached 
       return n;
     });
   };
+  const toggleAdAccount = (id: string) => {
+    setPickedAdAccounts((s) => {
+      const n = new Set(s);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  };
   const toggleWa = (id: string) => {
     setPickedWa((s) => {
       const n = new Set(s);
@@ -89,6 +96,7 @@ export function MetaOAuthPicker({ sessionId, workspaceName, onClose, onAttached 
         action: "attach",
         session_id: sessionId,
         page_ids: Array.from(pickedPages),
+        ad_account_ids: Array.from(pickedAdAccounts),
         phone_number_ids: Array.from(pickedWa),
       },
     });
@@ -98,9 +106,9 @@ export function MetaOAuthPicker({ sessionId, workspaceName, onClose, onAttached 
       return;
     }
     toast.success("Connexion Meta finalisée", {
-      description: `${data.attached_pages} page(s) · ${data.subscribed_pages} abonnée(s) · ${data.attached_wa} WhatsApp${
-        data.skipped_pages || data.skipped_wa
-          ? ` · ${data.skipped_pages + data.skipped_wa} ignoré(s)`
+      description: `${data.attached_pages} page(s) · ${data.attached_ad_accounts || 0} compte(s) pub · ${data.attached_wa} WhatsApp${
+        data.skipped_pages || data.skipped_ad_accounts || data.skipped_wa
+          ? ` · ${(data.skipped_pages || 0) + (data.skipped_ad_accounts || 0) + (data.skipped_wa || 0)} ignoré(s)`
           : ""
       }`,
     });
