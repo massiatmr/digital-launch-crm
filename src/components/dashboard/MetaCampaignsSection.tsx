@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { RefreshCw, AlertTriangle, Megaphone, ExternalLink, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -6,9 +6,12 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useMetaCampaigns } from "@/hooks/useMetaCampaigns";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+
+type RangeKey = "inherit" | "7d" | "30d" | "90d" | "ytd";
 
 interface Props {
   workspaceId: string | null;
