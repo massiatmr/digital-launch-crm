@@ -219,6 +219,12 @@ Deno.serve(async (req) => {
       });
     }
 
+    const adAccountQuery = workspace_id
+      ? admin.from("meta_ad_accounts").select("ad_account_id").eq("workspace_id", workspace_id).eq("is_active", true)
+      : admin.from("meta_ad_accounts").select("ad_account_id").eq("owner_id", user.id).is("workspace_id", null).eq("is_active", true);
+    const { data: scopedAdAccounts } = await adAccountQuery;
+    const scopedAdAccountIds = new Set((scopedAdAccounts ?? []).map((a: any) => String(a.ad_account_id)));
+
     const needsReconnect: string[] = [];
     const allCampaigns: CampaignRow[] = [];
     const insightsByCampaign = new Map<string, InsightRow>();
@@ -275,8 +281,11 @@ Deno.serve(async (req) => {
         }
       }
       accounts = accounts ?? [];
+      const allowedAccounts = scopedAdAccountIds.size > 0
+        ? accounts.filter((account) => scopedAdAccountIds.has(String(account.id)))
+        : accounts;
 
-      for (const account of accounts) {
+      for (const account of allowedAccounts) {
         const campaigns = await fetchCampaignsForAccount(account.id, userTok, include_paused);
         if (campaigns.length === 0) continue;
 
