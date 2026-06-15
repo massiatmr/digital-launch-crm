@@ -183,25 +183,15 @@ function sanitizeOrigin(origin?: string) {
 }
 
 function oauthResult(params: Record<string, string>, redirectBase: string) {
-  const url = new URL(redirectBase);
-  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
-  const targetOrigin = new URL(redirectBase).origin;
-  const payload = JSON.stringify({ type: "meta-oauth-result", ...params });
-  const fallbackUrl = JSON.stringify(url.toString());
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Meta connecté</title></head><body><script>
-    (function(){
-      var payload = ${payload};
-      var fallbackUrl = ${fallbackUrl};
-      try {
-        if (window.opener && !window.opener.closed) {
-          window.opener.postMessage(payload, ${JSON.stringify(targetOrigin)});
-          window.close();
-          setTimeout(function(){ location.replace(fallbackUrl); }, 800);
-          return;
-        }
-      } catch (e) {}
-      location.replace(fallbackUrl);
-    })();
-  </script></body></html>`;
-  return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  // Redirect to a static HTML page hosted by the CRM. That page handles
+  // postMessage + window.close back to the opener. Going through a real
+  // static asset guarantees the browser renders the HTML (some edge runtimes
+  // strip / override Content-Type, which caused the popup to show raw HTML).
+  const origin = new URL(redirectBase).origin;
+  const popupUrl = new URL(`${origin}/meta-oauth-popup.html`);
+  for (const [key, value] of Object.entries(params)) popupUrl.searchParams.set(key, value);
+  return new Response(null, {
+    status: 302,
+    headers: { Location: popupUrl.toString() },
+  });
 }
