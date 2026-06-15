@@ -148,12 +148,7 @@ async function fetchInsightsForAccount(
   }
   for (const row of data?.data ?? []) {
     const actions = Array.isArray(row?.actions) ? row.actions : [];
-    let leads = 0;
-    for (const a of actions) {
-      if (a?.action_type === "lead" || a?.action_type === "leadgen.other" || a?.action_type === "onsite_conversion.lead_grouped") {
-        leads += Number(a?.value ?? 0);
-      }
-    }
+    const leads = extractMetaLeadCount(actions);
     map.set(String(row.campaign_id), {
       spend: Number(row.spend ?? 0),
       currency: String(row.account_currency ?? "EUR"),
@@ -284,7 +279,7 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (cached?.fetched_at) {
         const ageMin = (Date.now() - new Date(cached.fetched_at).getTime()) / 60000;
-        useCache = ageMin < CACHE_TTL_MIN;
+        useCache = ageMin < CACHE_TTL_MIN && new Date(cached.fetched_at).getTime() >= LEAD_COUNTING_FIX_AT;
       }
     }
 
