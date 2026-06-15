@@ -46,26 +46,74 @@ async function fetchAdAccountsForUser(userToken: string): Promise<Array<{ id: st
   return Array.isArray(data?.data) ? data.data : [];
 }
 
-async function fetchCampaignsForAccount(adAccountId: string, token: string, includePaused: boolean, pageId: string): Promise<any[]> {
+async function fetchCampaignsForAccount(adAccountId: string, token: string, includePaused: boolean): Promise<any[]> {
   const statuses = includePaused
     ? ["ACTIVE", "PAUSED"]
     : ["ACTIVE"];
   const filter = encodeURIComponent(JSON.stringify(statuses));
-  // Filter by promoted_object.page_id so only campaigns promoting THIS page are returned.
-  // This is the key isolation between FB pages sharing the same user token.
-  const filtering = encodeURIComponent(JSON.stringify([
-    { field: "promoted_object.page_id", operator: "EQUAL", value: pageId },
-  ]));
-  const url = `https://graph.facebook.com/v21.0/${adAccountId}/campaigns?fields=id,name,status,effective_status,objective,daily_budget,lifetime_budget,promoted_object&effective_status=${filter}&filtering=${filtering}&limit=200&access_token=${token}`;
+  const url = `https://graph.facebook.com/v21.0/${adAccountId}/campaigns?fields=id,name,status,effective_status,objective,daily_budget,lifetime_budget&effective_status=${filter}&limit=200&access_token=${token}`;
   const data = await fbGet(url);
   if (data?._error) {
     console.error("[meta-ads-insights] campaigns error", JSON.stringify(data.body));
     return [];
   }
-  let rows = Array.isArray(data?.data) ? data.data : [];
-  // Safety net: keep only campaigns whose promoted_object.page_id matches (filtering above can be ignored by Meta in rare cases)
-  rows = rows.filter((c: any) => !c?.promoted_object?.page_id || String(c.promoted_object.page_id) === String(pageId));
-  return rows;
+  return Array.isArray(data?.data) ? data.data : [];
+}
+
+function addPageId(target: Set<string>, value: unknown) {
+  if (value === null || value === undefined) return;
+  const str = String(value).trim();
+  if (/^\d+$/.test(str)) target.add(str);
+}
+
+function pageIdsFromCreative(creative: any): Set<string> {
+  const ids = new Set<string>();
+  const spec = creative?.object_story_spec ?? {};
+  addPageId(ids, spec?.page_id);
+  addPageId(ids, spec?.link_data?.page_id);
+  addPageId(ids, spec?.video_data?.page_id);
+  const storyId = creative?.effective_object_story_id;
+  if (typeof storyId === "string" && storyId.includes("_")) {
+    addPageId(ids, storyId.split("_")[0]);
+  }
+  return ids;
+}
+
+async function fetchCampaignPageMap(adAccountId: string, token: string): Promise<Map<string, Set<string>>> {
+  const byCampaign = new Map<string, Set<string>>();
+  const ensure = (campaignId: unknown) => {
+    const key = String(campaignId ?? "");
+    if (!key) return null;
+    if (!byCampaign.has(key)) byCampaign.set(key, new Set<string>());
+    return byCampaign.get(key)!;
+  };
+
+  const adsets = await fbGet(
+    `https://graph.facebook.com/v21.0/${adAccountId}/adsets?fields=id,campaign_id,promoted_object&limit=500&access_token=${token}`,
+  );
+  if (adsets?._error) {
+    console.warn("[meta-ads-insights] adsets page-map error", JSON.stringify(adsets.body));
+  } else {
+    for (const row of adsets?.data ?? []) {
+      const pages = ensure(row?.campaign_id);
+      if (pages) addPageId(pages, row?.promoted_object?.page_id);
+    }
+  }
+
+  const ads = await fbGet(
+    `https://graph.facebook.com/v21.0/${adAccountId}/ads?fields=id,campaign_id,creative{id,effective_object_story_id,object_story_spec}&limit=500&access_token=${token}`,
+  );
+  if (ads?._error) {
+    console.warn("[meta-ads-insights] ads page-map error", JSON.stringify(ads.body));
+  } else {
+    for (const row of ads?.data ?? []) {
+      const pages = ensure(row?.campaign_id);
+      if (!pages) continue;
+      for (const pageId of pageIdsFromCreative(row?.creative)) pages.add(pageId);
+    }
+  }
+
+  return byCampaign;
 }
 
 async function fetchInsightsForAccount(
