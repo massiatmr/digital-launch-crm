@@ -17,14 +17,19 @@ interface Props {
 }
 
 function formatMoney(value: number, currency: string) {
+  const abs = Math.abs(value);
+  // Show more decimals for small amounts (e.g. 0.27€ CPL) so users see exact value
+  const maxDigits = abs > 0 && abs < 10 ? 2 : abs < 100 ? 2 : 0;
+  const minDigits = abs > 0 && abs < 10 ? 2 : 0;
   try {
     return new Intl.NumberFormat("fr-FR", {
       style: "currency",
       currency: currency || "EUR",
-      maximumFractionDigits: 0,
+      minimumFractionDigits: minDigits,
+      maximumFractionDigits: maxDigits,
     }).format(value);
   } catch {
-    return `${Math.round(value)} ${currency}`;
+    return `${value.toFixed(maxDigits)} ${currency}`;
   }
 }
 
