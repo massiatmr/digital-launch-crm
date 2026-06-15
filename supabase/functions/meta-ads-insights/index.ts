@@ -511,7 +511,7 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        campaigns: Array.from(dedup.values()).sort((a, b) => b.spend - a.spend),
+        campaigns: visible.sort((a, b) => (b.spend + b.leads_crm) - (a.spend + a.leads_crm)),
         needs_reconnect: needsReconnect,
         from_cache: useCache,
       }),
