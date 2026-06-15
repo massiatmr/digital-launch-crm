@@ -54,10 +54,14 @@ Deno.serve(async (req) => {
     if (action === "list") {
       // Annotate which pages/numbers are already taken (in any workspace)
       const pageIds = (pending.pages || []).map((p: any) => p.id);
+      const adAccountIds = (pending.ad_accounts || []).map((a: any) => a.id);
       const phoneIds = (pending.wa_numbers || []).map((p: any) => p.phone_number_id);
 
       const { data: takenPages } = pageIds.length
         ? await admin.from("meta_pages").select("page_id, workspace_id, owner_id").in("page_id", pageIds)
+        : { data: [] as any[] };
+      const { data: takenAds } = adAccountIds.length
+        ? await admin.from("meta_ad_accounts").select("ad_account_id, workspace_id, owner_id").in("ad_account_id", adAccountIds)
         : { data: [] as any[] };
       const { data: takenWa } = phoneIds.length
         ? await admin.from("whatsapp_config").select("phone_number_id, workspace_id, owner_id").in("phone_number_id", phoneIds)
@@ -65,6 +69,14 @@ Deno.serve(async (req) => {
 
       const pageStatus = (pid: string) => {
         const rows = (takenPages || []).filter((r: any) => r.page_id === pid);
+        if (rows.length === 0) return { taken: false, mine: false };
+        const mine = rows.some((r: any) =>
+          workspace_id ? r.workspace_id === workspace_id : (r.workspace_id === null && r.owner_id === user.id),
+        );
+        return { taken: !mine, mine };
+      };
+      const adStatus = (aid: string) => {
+        const rows = (takenAds || []).filter((r: any) => r.ad_account_id === aid);
         if (rows.length === 0) return { taken: false, mine: false };
         const mine = rows.some((r: any) =>
           workspace_id ? r.workspace_id === workspace_id : (r.workspace_id === null && r.owner_id === user.id),
@@ -87,6 +99,14 @@ Deno.serve(async (req) => {
           page_id: p.id,
           name: p.name,
           ...pageStatus(p.id),
+        })),
+        ad_accounts: (pending.ad_accounts || []).map((a: any) => ({
+          ad_account_id: a.id,
+          account_id: a.account_id,
+          name: a.name,
+          currency: a.currency,
+          business_name: a.business_name,
+          ...adStatus(a.id),
         })),
         wa_numbers: (pending.wa_numbers || []).map((p: any) => ({
           phone_number_id: p.phone_number_id,
