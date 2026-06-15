@@ -374,8 +374,7 @@ Deno.serve(async (req) => {
       const cacheQuery = workspace_id
         ? admin.from("meta_campaigns_cache").select("*").eq("workspace_id", workspace_id)
         : admin.from("meta_campaigns_cache").select("*").eq("owner_id", user.id).is("workspace_id", null);
-      const statusFilter = include_paused ? ["ACTIVE", "PAUSED"] : ["ACTIVE"];
-      const { data: cachedCamps } = await cacheQuery.in("status", statusFilter);
+      const { data: cachedCamps } = await cacheQuery;
       const pageNameById = new Map(pages.map((p) => [p.page_id, p.page_name || p.page_id]));
       for (const c of cachedCamps ?? []) {
         allCampaigns.push({
