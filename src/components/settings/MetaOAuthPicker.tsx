@@ -3,11 +3,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Facebook, Phone, CheckCircle2 } from "lucide-react";
+import { Loader2, Facebook, Phone, CheckCircle2, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 interface PageOpt { page_id: string; name: string; taken: boolean; mine: boolean; }
+interface AdAccountOpt {
+  ad_account_id: string;
+  account_id: string;
+  name: string;
+  currency: string;
+  business_name: string;
+  taken: boolean;
+  mine: boolean;
+}
 interface WaOpt {
   phone_number_id: string;
   business_name: string;
@@ -28,8 +37,10 @@ export function MetaOAuthPicker({ sessionId, workspaceName, onClose, onAttached 
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [pages, setPages] = useState<PageOpt[]>([]);
+  const [adAccounts, setAdAccounts] = useState<AdAccountOpt[]>([]);
   const [waNumbers, setWaNumbers] = useState<WaOpt[]>([]);
   const [pickedPages, setPickedPages] = useState<Set<string>>(new Set());
+  const [pickedAdAccounts, setPickedAdAccounts] = useState<Set<string>>(new Set());
   const [pickedWa, setPickedWa] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -46,9 +57,11 @@ export function MetaOAuthPicker({ sessionId, workspaceName, onClose, onAttached 
         return;
       }
       setPages(data.pages || []);
+      setAdAccounts(data.ad_accounts || []);
       setWaNumbers(data.wa_numbers || []);
       // Pre-select items not taken elsewhere
       setPickedPages(new Set((data.pages || []).filter((p: PageOpt) => !p.taken).map((p: PageOpt) => p.page_id)));
+      setPickedAdAccounts(new Set((data.ad_accounts || []).filter((p: AdAccountOpt) => !p.taken).map((p: AdAccountOpt) => p.ad_account_id)));
       setPickedWa(new Set((data.wa_numbers || []).filter((p: WaOpt) => !p.taken).map((p: WaOpt) => p.phone_number_id)));
     })();
   }, [sessionId]);
