@@ -38,6 +38,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = body.action as string;
     const pageId = body.page_id as string | undefined;
+    const adAccountId = body.ad_account_id as string | undefined;
     const workspace_id = (body.workspace_id as string | undefined) || null;
 
     // Verify workspace membership when provided
@@ -158,6 +159,19 @@ Deno.serve(async (req) => {
         form_offer_mappings: mappings || [],
         ignored_forms: ignored || [],
       }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "list_ad_accounts") {
+      const { data, error } = await scope(
+        admin
+          .from("meta_ad_accounts")
+          .select("id, ad_account_id, account_id, account_name, currency, business_name, is_active, created_at")
+          .order("created_at", { ascending: false }),
+      );
+      if (error) throw error;
+      return new Response(JSON.stringify({ ad_accounts: data || [] }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -305,6 +319,25 @@ Deno.serve(async (req) => {
         );
         await admin.from("meta_pages").delete().eq("id", page.id);
       } catch (_) { /* ignore */ }
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if ((action === "toggle_ad_account" || action === "delete_ad_account") && adAccountId) {
+      const { data: ad, error } = await scope(
+        admin.from("meta_ad_accounts").select("id, is_active").eq("ad_account_id", adAccountId),
+      ).maybeSingle();
+      if (error || !ad) throw new Error("Ad account not found");
+
+      if (action === "toggle_ad_account") {
+        await admin.from("meta_ad_accounts").update({ is_active: !ad.is_active } as any).eq("id", ad.id);
+        return new Response(JSON.stringify({ ok: true, is_active: !ad.is_active }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      await admin.from("meta_ad_accounts").delete().eq("id", ad.id);
       return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

@@ -40,6 +40,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const workspace_id = (body.workspace_id as string | undefined) || "";
+    const return_origin = sanitizeOrigin(body.return_origin as string | undefined);
 
     const redirectUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/facebook-auth-callback`;
     const scopes = [
@@ -58,8 +59,12 @@ Deno.serve(async (req) => {
       "instagram_manage_messages",
     ].join(",");
 
-    // Encode user_id and workspace_id together in state
-    const state = `${user.id}|${workspace_id}`;
+    // Encode user, workspace and current CRM origin so the OAuth popup can close
+    // back to the exact preview/published domain without refreshing the app.
+    const state = btoa(JSON.stringify({ u: user.id, w: workspace_id, o: return_origin }))
+      .replaceAll("+", "-")
+      .replaceAll("/", "_")
+      .replaceAll("=", "");
 
     const url = new URL("https://www.facebook.com/v21.0/dialog/oauth");
     url.searchParams.set("client_id", appId);
@@ -79,3 +84,13 @@ Deno.serve(async (req) => {
     });
   }
 });
+
+function sanitizeOrigin(origin?: string) {
+  if (!origin) return "";
+  try {
+    const url = new URL(origin);
+    return url.protocol === "https:" || url.hostname === "localhost" ? url.origin : "";
+  } catch {
+    return "";
+  }
+}
