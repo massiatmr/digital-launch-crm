@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { RefreshCw, AlertTriangle, Megaphone, ExternalLink, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -6,9 +6,12 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useMetaCampaigns } from "@/hooks/useMetaCampaigns";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+
+type RangeKey = "inherit" | "7d" | "30d" | "90d" | "ytd";
 
 interface Props {
   workspaceId: string | null;
@@ -30,12 +33,24 @@ function formatMoney(value: number, currency: string) {
 
 export function MetaCampaignsSection({ workspaceId, dateFrom, dateTo }: Props) {
   const [includePaused, setIncludePaused] = useState(false);
+  const [range, setRange] = useState<RangeKey>("inherit");
   const isMobile = useIsMobile();
+
+  const { effectiveFrom, effectiveTo } = useMemo(() => {
+    if (range === "inherit") return { effectiveFrom: dateFrom, effectiveTo: dateTo };
+    const to = new Date();
+    const from = new Date();
+    if (range === "7d") from.setDate(to.getDate() - 7);
+    else if (range === "30d") from.setDate(to.getDate() - 30);
+    else if (range === "90d") from.setDate(to.getDate() - 90);
+    else if (range === "ytd") { from.setMonth(0); from.setDate(1); }
+    return { effectiveFrom: from, effectiveTo: to };
+  }, [range, dateFrom, dateTo]);
 
   const { data, isLoading, isFetching, refetch, error } = useMetaCampaigns({
     workspaceId,
-    dateFrom,
-    dateTo,
+    dateFrom: effectiveFrom,
+    dateTo: effectiveTo,
     includePaused,
   });
 
@@ -62,7 +77,19 @@ export function MetaCampaignsSection({ workspaceId, dateFrom, dateTo }: Props) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={range} onValueChange={(v) => setRange(v as RangeKey)}>
+            <SelectTrigger className="h-8 w-[140px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="inherit">Période dashboard</SelectItem>
+              <SelectItem value="7d">7 derniers jours</SelectItem>
+              <SelectItem value="30d">30 derniers jours</SelectItem>
+              <SelectItem value="90d">90 derniers jours</SelectItem>
+              <SelectItem value="ytd">Depuis le 1er janvier</SelectItem>
+            </SelectContent>
+          </Select>
           <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
             <Switch
               checked={includePaused}
