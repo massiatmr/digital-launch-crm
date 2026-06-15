@@ -161,38 +161,32 @@ export function MetaCampaignsSection({ workspaceId, dateFrom, dateTo }: Props) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {campaigns.map((c) => {
-                const displayLeads = c.leads_crm > 0 ? c.leads_crm : c.leads_meta;
-                const displayCpl = c.cpl_crm ?? c.cpl_meta;
-                const leadsFromMeta = c.leads_crm === 0 && c.leads_meta > 0;
-                return (
-                  <TableRow key={c.campaign_id} className="border-white/5 hover:bg-white/[0.02]">
-                    <TableCell className="text-xs text-muted-foreground max-w-[160px] truncate">{c.page_name}</TableCell>
-                    <TableCell className="text-sm text-foreground max-w-[260px] truncate">{c.campaign_name}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "text-[10px]",
-                          c.status === "ACTIVE" ? "border-green-500/40 text-green-400" : "border-muted text-muted-foreground"
-                        )}
-                      >
-                        {c.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-base font-bold text-primary">
-                      {displayCpl != null ? formatMoney(displayCpl, c.currency) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-sm text-foreground">
-                      {displayLeads}
-                      {leadsFromMeta && <span className="ml-1 text-[9px] text-muted-foreground">(Meta)</span>}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-sm text-foreground">
-                      {formatMoney(c.spend, c.currency)}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+              {campaigns.map((c) => (
+                <TableRow key={c.campaign_id} className="border-white/5 hover:bg-white/[0.02]">
+                  <TableCell className="text-xs text-muted-foreground max-w-[160px] truncate">{c.page_name}</TableCell>
+                  <TableCell className="text-sm text-foreground max-w-[260px] truncate">{c.campaign_name}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-[10px]",
+                        c.status === "ACTIVE" ? "border-green-500/40 text-green-400" : "border-muted text-muted-foreground"
+                      )}
+                    >
+                      {c.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-base font-bold text-primary">
+                    {c.cpl_meta != null ? formatMoney(c.cpl_meta, c.currency) : "—"}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-sm text-foreground">
+                    {c.leads_meta}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-sm text-foreground">
+                    {formatMoney(c.spend, c.currency)}
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </div>
