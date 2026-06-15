@@ -175,6 +175,43 @@ export function MetaOAuthPicker({ sessionId, workspaceName, onClose, onAttached 
 
             <section>
               <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                <CreditCard className="h-4 w-4 text-primary" />
+                Comptes publicitaires ({adAccounts.length})
+              </h3>
+              {adAccounts.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Aucun compte publicitaire détecté.</p>
+              ) : (
+                <ul className="space-y-1">
+                  {adAccounts.map((a) => (
+                    <li
+                      key={a.ad_account_id}
+                      className={`flex items-center gap-3 rounded-md border p-3 ${a.taken ? "opacity-50" : "hover:bg-muted/40"}`}
+                    >
+                      <Checkbox
+                        checked={pickedAdAccounts.has(a.ad_account_id)}
+                        disabled={a.taken}
+                        onCheckedChange={() => toggleAdAccount(a.ad_account_id)}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{a.name || a.account_id || a.ad_account_id}</div>
+                        <div className="text-xs text-muted-foreground font-mono truncate">
+                          {a.ad_account_id}{a.currency ? ` · ${a.currency}` : ""}{a.business_name ? ` · ${a.business_name}` : ""}
+                        </div>
+                      </div>
+                      {a.mine && (
+                        <Badge variant="secondary" className="gap-1">
+                          <CheckCircle2 className="h-3 w-3" /> Déjà ici
+                        </Badge>
+                      )}
+                      {a.taken && <Badge variant="outline">Autre espace</Badge>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section>
+              <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
                 <Phone className="h-4 w-4 text-emerald-500" />
                 Numéros WhatsApp ({waNumbers.length})
               </h3>
@@ -218,7 +255,7 @@ export function MetaOAuthPicker({ sessionId, workspaceName, onClose, onAttached 
           </Button>
           <Button
             onClick={handleAttach}
-            disabled={submitting || loading || (pickedPages.size === 0 && pickedWa.size === 0)}
+            disabled={submitting || loading || (pickedPages.size === 0 && pickedAdAccounts.size === 0 && pickedWa.size === 0)}
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
             Attacher la sélection
