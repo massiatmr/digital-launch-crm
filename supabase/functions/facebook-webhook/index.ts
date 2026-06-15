@@ -149,22 +149,15 @@ async function verifyMetaSignature(appSecret: string, rawBody: string, header: s
 }
 
 Deno.serve(async (req) => {
-  // ─── ABSOLUTE FIRST LOG — proof Meta hit the endpoint ───
-  console.log("WEBHOOK RECEIVED");
-  const rawHeaders: Record<string, string> = {};
-  req.headers.forEach((v, k) => { rawHeaders[k] = v; });
-  console.log("WEBHOOK HEADERS:", JSON.stringify(rawHeaders));
+  console.log("WEBHOOK RECEIVED", { method: req.method });
 
   let rawBody = "";
   if (req.method !== "GET" && req.method !== "OPTIONS") {
     try {
       rawBody = await req.clone().text();
-      console.log("WEBHOOK RAW BODY:", rawBody);
     } catch (e) {
       console.log("WEBHOOK RAW BODY READ ERROR:", String(e));
     }
-  } else {
-    console.log("WEBHOOK URL:", req.url);
   }
 
   const requestId = crypto.randomUUID().slice(0, 8);
