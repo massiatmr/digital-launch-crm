@@ -24,6 +24,7 @@ import {
   Plus,
   AlertTriangle,
   HelpCircle,
+  CreditCard,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MetaCapiSection } from "@/components/settings/MetaCapiSection";
@@ -59,6 +60,17 @@ interface MetaPage {
   token_valid?: boolean;
 }
 
+interface MetaAdAccount {
+  id: string;
+  ad_account_id: string;
+  account_id: string | null;
+  account_name: string;
+  currency: string | null;
+  business_name: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
 interface FormOfferMapping {
   form_id: string;
   offer_id: string;
@@ -86,13 +98,16 @@ export default function SettingsIntegrationsPage() {
   const queryClient = useQueryClient();
   const { currentWorkspace } = useWorkspaces();
   const [pages, setPages] = useState<MetaPage[]>([]);
+  const [adAccounts, setAdAccounts] = useState<MetaAdAccount[]>([]);
   const [formOfferMappings, setFormOfferMappings] = useState<FormOfferMapping[]>([]);
   const [ignoredForms, setIgnoredForms] = useState<IgnoredForm[]>([]);
   const [offers, setOffers] = useState<OfferLite[]>([]);
 
   const [loading, setLoading] = useState(true);
+  const [adLoading, setAdLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [adBusy, setAdBusy] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   // WhatsApp state (multi-number)
@@ -131,6 +146,19 @@ export default function SettingsIntegrationsPage() {
       setIgnoredForms(data?.ignored_forms || []);
     }
     setLoading(false);
+  };
+
+  const loadAdAccounts = async () => {
+    setAdLoading(true);
+    const { data, error } = await supabase.functions.invoke("facebook-pages-manage", {
+      body: { action: "list_ad_accounts", workspace_id: workspaceId },
+    });
+    if (error || data?.error) {
+      toast.error("Erreur comptes publicitaires", { description: data?.error || error?.message });
+    } else {
+      setAdAccounts(data?.ad_accounts || []);
+    }
+    setAdLoading(false);
   };
 
   const toggleIgnoreForm = async (form_id: string, form_name: string, page_id: string, ignored: boolean) => {
@@ -244,6 +272,7 @@ export default function SettingsIntegrationsPage() {
 
   useEffect(() => {
     loadPages();
+    loadAdAccounts();
     loadOffers();
     loadWaNumbers();
     const fb = params.get("fb");
@@ -252,7 +281,7 @@ export default function SettingsIntegrationsPage() {
       if (session) {
         setPickerSession(session);
         toast.info("Choisis quoi connecter", {
-          description: `${params.get("pages") || 0} page(s) · ${params.get("wa") || 0} numéro(s) WhatsApp détectés.`,
+          description: `${params.get("pages") || 0} page(s) · ${params.get("ads") || 0} compte(s) pub · ${params.get("wa") || 0} numéro(s) WhatsApp détectés.`,
         });
       }
       setParams({}, { replace: true });
@@ -267,10 +296,34 @@ export default function SettingsIntegrationsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId]);
 
+  useEffect(() => {
+    const allowedOrigin = new URL(SUPABASE_URL).origin;
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== allowedOrigin || event.data?.type !== "meta-oauth-result") return;
+      const payload = event.data as Record<string, string>;
+      if (payload.fb === "pick" && payload.session) {
+        setPickerSession(payload.session);
+        toast.info("Choisis quoi connecter", {
+          description: `${payload.pages || 0} page(s) · ${payload.ads || 0} compte(s) pub · ${payload.wa || 0} numéro(s) WhatsApp détectés.`,
+        });
+      } else if (payload.fb === "connected") {
+        toast.success("Meta connecté");
+        loadPages();
+        loadAdAccounts();
+        loadWaNumbers();
+      } else if (payload.fb === "error") {
+        toast.error("Connexion Meta échouée", { description: payload.reason || "Erreur inconnue" });
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const connectMeta = async () => {
     setConnecting(true);
     const { data, error } = await supabase.functions.invoke("facebook-auth-init", {
-      body: { workspace_id: workspaceId },
+      body: { workspace_id: workspaceId, return_origin: window.location.origin },
     });
     setConnecting(false);
     if (error || !data?.url) {
@@ -303,11 +356,25 @@ export default function SettingsIntegrationsPage() {
         const href = popup.location.href;
         if (href.includes(window.location.origin) && href.includes("fb=")) {
           const url = new URL(href);
-          const search = url.search;
           clearInterval(timer);
           popup.close();
-          // Re-route locale pour déclencher le useEffect (toast + reload)
-          window.location.href = `/settings/integrations${search}`;
+          const fb = url.searchParams.get("fb");
+          if (fb === "pick") {
+            const session = url.searchParams.get("session");
+            if (session) {
+              setPickerSession(session);
+              toast.info("Choisis quoi connecter", {
+                description: `${url.searchParams.get("pages") || 0} page(s) · ${url.searchParams.get("ads") || 0} compte(s) pub · ${url.searchParams.get("wa") || 0} numéro(s) WhatsApp détectés.`,
+              });
+            }
+          } else if (fb === "connected") {
+            toast.success("Meta connecté");
+            loadPages();
+            loadAdAccounts();
+            loadWaNumbers();
+          } else if (fb === "error") {
+            toast.error("Connexion Meta échouée", { description: url.searchParams.get("reason") || "Erreur inconnue" });
+          }
         }
       } catch {
         // cross-origin pendant l'auth Meta : on ignore
@@ -343,6 +410,21 @@ export default function SettingsIntegrationsPage() {
       toast.success(successMsg);
     }
     await loadPages();
+    return data;
+  };
+
+  const callAdAccount = async (action: string, ad_account_id: string, successMsg?: string) => {
+    setAdBusy(`${action}:${ad_account_id}`);
+    const { data, error } = await supabase.functions.invoke("facebook-pages-manage", {
+      body: { action, ad_account_id, workspace_id: workspaceId },
+    });
+    setAdBusy(null);
+    if (error || data?.error) {
+      toast.error("Échec compte publicitaire", { description: data?.error || error?.message });
+      return null;
+    }
+    if (successMsg) toast.success(successMsg);
+    await loadAdAccounts();
     return data;
   };
 
@@ -586,6 +668,65 @@ export default function SettingsIntegrationsPage() {
                   )}
                 </div>
               ))
+            )}
+          </div>
+
+          <div className="space-y-2 pt-2">
+            <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+              <CreditCard className="h-4 w-4" />
+              Comptes publicitaires Meta ({adAccounts.length})
+            </h3>
+            {adLoading ? (
+              <div className="flex items-center justify-center py-6 text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin" />
+              </div>
+            ) : adAccounts.length === 0 ? (
+              <div className="text-sm text-muted-foreground text-center py-6 border border-dashed rounded-lg">
+                Aucun compte publicitaire attaché à cet espace.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {adAccounts.map((a) => (
+                  <div key={a.id} className="border rounded-lg p-4 bg-card/50">
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold">{a.account_name || a.account_id || a.ad_account_id}</span>
+                          <Badge variant={a.is_active ? "default" : "outline"}>
+                            {a.is_active ? "Actif" : "Désactivé"}
+                          </Badge>
+                          {a.currency && <Badge variant="secondary">{a.currency}</Badge>}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 font-mono truncate">
+                          {a.ad_account_id}{a.business_name ? ` · ${a.business_name}` : ""}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={adBusy === `toggle_ad_account:${a.ad_account_id}`}
+                          onClick={() => callAdAccount("toggle_ad_account", a.ad_account_id)}
+                        >
+                          {a.is_active ? "Désactiver" : "Activer"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={adBusy === `delete_ad_account:${a.ad_account_id}`}
+                          onClick={() => {
+                            if (confirm(`Supprimer le compte publicitaire "${a.account_name}" de cet espace ?`)) {
+                              callAdAccount("delete_ad_account", a.ad_account_id, "Compte publicitaire supprimé");
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </CardContent>
@@ -948,6 +1089,7 @@ export default function SettingsIntegrationsPage() {
         onAttached={() => {
           setPickerSession(null);
           loadPages();
+          loadAdAccounts();
           loadWaNumbers();
         }}
       />

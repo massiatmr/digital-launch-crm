@@ -3,20 +3,23 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 Deno.serve(async (req) => {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
-  const state = url.searchParams.get("state"); // "<user_id>|<workspace_id?>"
+  const state = url.searchParams.get("state");
   const errorParam = url.searchParams.get("error");
 
   const siteUrl = Deno.env.get("SITE_URL") || "https://digital-launch-crm.lovable.app";
   const redirectBase = `${siteUrl}/settings/integrations`;
+  const parsedState = state ? parseState(state) : { userId: "", workspaceId: "", origin: "" };
+  const resultBase = parsedState.origin ? `${parsedState.origin}/settings/integrations` : redirectBase;
 
   if (errorParam) {
-    return Response.redirect(`${redirectBase}?fb=error&reason=${encodeURIComponent(errorParam)}`, 302);
+    return oauthResult({ fb: "error", reason: errorParam }, resultBase);
   }
   if (!code || !state) {
-    return Response.redirect(`${redirectBase}?fb=error&reason=missing_params`, 302);
+    return oauthResult({ fb: "error", reason: "missing_params" }, resultBase);
   }
 
-  const [userId, workspaceIdRaw] = state.split("|");
+  const userId = parsedState.userId;
+  const workspaceIdRaw = parsedState.workspaceId;
   const workspace_id = workspaceIdRaw && workspaceIdRaw.length > 0 ? workspaceIdRaw : null;
 
   try {
@@ -32,7 +35,7 @@ Deno.serve(async (req) => {
     const tokenJson = await tokenRes.json();
     if (!tokenJson.access_token) {
       console.error("[fb-callback] token exchange failed", tokenJson);
-      return Response.redirect(`${redirectBase}?fb=error&reason=token_exchange`, 302);
+      return oauthResult({ fb: "error", reason: "token_exchange" }, resultBase);
     }
 
     const longRes = await fetch(
@@ -131,7 +134,7 @@ Deno.serve(async (req) => {
 
     if (pendingErr || !pendingRow) {
       console.error("[fb-callback] failed to stash pending", pendingErr);
-      return Response.redirect(`${redirectBase}?fb=error&reason=stash_failed`, 302);
+      return oauthResult({ fb: "error", reason: "stash_failed" }, resultBase);
     }
 
     // Cleanup older pending sessions for this user (>1h)
@@ -140,12 +143,65 @@ Deno.serve(async (req) => {
       .delete()
       .lt("expires_at", new Date().toISOString());
 
-    return Response.redirect(
-      `${redirectBase}?fb=pick&session=${pendingRow.id}&pages=${pages.length}&ads=${adAccounts.length}&wa=${waNumbers.length}`,
-      302,
-    );
+    return oauthResult({
+      fb: "pick",
+      session: pendingRow.id,
+      pages: String(pages.length),
+      ads: String(adAccounts.length),
+      wa: String(waNumbers.length),
+    }, resultBase);
   } catch (err) {
     console.error("[fb-callback]", err);
-    return Response.redirect(`${redirectBase}?fb=error&reason=internal`, 302);
+    return oauthResult({ fb: "error", reason: "internal" }, resultBase);
   }
 });
+
+function parseState(state: string) {
+  try {
+    const base64 = state.replaceAll("-", "+").replaceAll("_", "/");
+    const padded = base64 + "=".repeat((4 - base64.length % 4) % 4);
+    const parsed = JSON.parse(atob(padded));
+    return {
+      userId: String(parsed.u || ""),
+      workspaceId: String(parsed.w || ""),
+      origin: sanitizeOrigin(parsed.o),
+    };
+  } catch {
+    const [userId, workspaceIdRaw] = state.split("|");
+    return { userId, workspaceId: workspaceIdRaw || "", origin: "" };
+  }
+}
+
+function sanitizeOrigin(origin?: string) {
+  if (!origin) return "";
+  try {
+    const url = new URL(origin);
+    return url.protocol === "https:" || url.hostname === "localhost" ? url.origin : "";
+  } catch {
+    return "";
+  }
+}
+
+function oauthResult(params: Record<string, string>, redirectBase: string) {
+  const url = new URL(redirectBase);
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+  const targetOrigin = new URL(redirectBase).origin;
+  const payload = JSON.stringify({ type: "meta-oauth-result", ...params });
+  const fallbackUrl = JSON.stringify(url.toString());
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Meta connecté</title></head><body><script>
+    (function(){
+      var payload = ${payload};
+      var fallbackUrl = ${fallbackUrl};
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage(payload, ${JSON.stringify(targetOrigin)});
+          window.close();
+          setTimeout(function(){ location.replace(fallbackUrl); }, 800);
+          return;
+        }
+      } catch (e) {}
+      location.replace(fallbackUrl);
+    })();
+  </script></body></html>`;
+  return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+}

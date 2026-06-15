@@ -50,6 +50,21 @@ Deno.serve(async (req) => {
     const workspace_id: string | null = pending.workspace_id || null;
     const userToken: string = pending.user_token;
 
+    if (workspace_id) {
+      const { data: isMember } = await admin.rpc("is_workspace_member", {
+        _workspace_id: workspace_id,
+        _user_id: user.id,
+      });
+      if (!isMember) return json({ error: "Not a member of this workspace" }, 403);
+    }
+
+    const { data: memberships } = await admin
+      .from("workspace_members")
+      .select("workspace_id")
+      .eq("user_id", user.id);
+    const memberWorkspaceIds = new Set<string>((memberships || []).map((m: any) => m.workspace_id));
+    if (workspace_id) memberWorkspaceIds.add(workspace_id);
+
     // ------- LIST -------
     if (action === "list") {
       // Annotate which pages/numbers are already taken (in any workspace)
@@ -67,29 +82,45 @@ Deno.serve(async (req) => {
         ? await admin.from("whatsapp_config").select("phone_number_id, workspace_id, owner_id").in("phone_number_id", phoneIds)
         : { data: [] as any[] };
 
+      const takenWorkspaceIds = Array.from(new Set([
+        ...(takenPages || []).map((r: any) => r.workspace_id),
+        ...(takenAds || []).map((r: any) => r.workspace_id),
+        ...(takenWa || []).map((r: any) => r.workspace_id),
+      ].filter(Boolean)));
+      const { data: takenWorkspaces } = takenWorkspaceIds.length
+        ? await admin.from("workspaces").select("id, company_name").in("id", takenWorkspaceIds)
+        : { data: [] as any[] };
+      const workspaceNames = new Map((takenWorkspaces || []).map((w: any) => [w.id, w.company_name || "Autre espace"]));
+
       const pageStatus = (pid: string) => {
         const rows = (takenPages || []).filter((r: any) => r.page_id === pid);
-        if (rows.length === 0) return { taken: false, mine: false };
+        if (rows.length === 0) return { taken: false, mine: false, assigned_elsewhere: false, assigned_workspace_names: [] };
         const mine = rows.some((r: any) =>
           workspace_id ? r.workspace_id === workspace_id : (r.workspace_id === null && r.owner_id === user.id),
         );
-        return { taken: !mine, mine };
+        const otherRows = rows.filter((r: any) => !(workspace_id ? r.workspace_id === workspace_id : (r.workspace_id === null && r.owner_id === user.id)));
+        const locked = otherRows.some((r: any) => r.workspace_id ? !memberWorkspaceIds.has(r.workspace_id) : r.owner_id !== user.id);
+        return { taken: locked, mine, assigned_elsewhere: !mine && otherRows.length > 0 && !locked, assigned_workspace_names: otherRows.map((r: any) => workspaceNames.get(r.workspace_id) || "Autre espace") };
       };
       const adStatus = (aid: string) => {
         const rows = (takenAds || []).filter((r: any) => r.ad_account_id === aid);
-        if (rows.length === 0) return { taken: false, mine: false };
+        if (rows.length === 0) return { taken: false, mine: false, assigned_elsewhere: false, assigned_workspace_names: [] };
         const mine = rows.some((r: any) =>
           workspace_id ? r.workspace_id === workspace_id : (r.workspace_id === null && r.owner_id === user.id),
         );
-        return { taken: !mine, mine };
+        const otherRows = rows.filter((r: any) => !(workspace_id ? r.workspace_id === workspace_id : (r.workspace_id === null && r.owner_id === user.id)));
+        const locked = otherRows.some((r: any) => r.workspace_id ? !memberWorkspaceIds.has(r.workspace_id) : r.owner_id !== user.id);
+        return { taken: locked, mine, assigned_elsewhere: !mine && otherRows.length > 0 && !locked, assigned_workspace_names: otherRows.map((r: any) => workspaceNames.get(r.workspace_id) || "Autre espace") };
       };
       const waStatus = (pid: string) => {
         const rows = (takenWa || []).filter((r: any) => r.phone_number_id === pid);
-        if (rows.length === 0) return { taken: false, mine: false };
+        if (rows.length === 0) return { taken: false, mine: false, assigned_elsewhere: false, assigned_workspace_names: [] };
         const mine = rows.some((r: any) =>
           workspace_id ? r.workspace_id === workspace_id : (r.workspace_id === null && r.owner_id === user.id),
         );
-        return { taken: !mine, mine };
+        const otherRows = rows.filter((r: any) => !(workspace_id ? r.workspace_id === workspace_id : (r.workspace_id === null && r.owner_id === user.id)));
+        const locked = otherRows.some((r: any) => r.workspace_id ? !memberWorkspaceIds.has(r.workspace_id) : r.owner_id !== user.id);
+        return { taken: locked, mine, assigned_elsewhere: !mine && otherRows.length > 0 && !locked, assigned_workspace_names: otherRows.map((r: any) => workspaceNames.get(r.workspace_id) || "Autre espace") };
       };
 
       return json({
@@ -125,6 +156,24 @@ Deno.serve(async (req) => {
       const selectedAdAccountIds: string[] = Array.isArray(body.ad_account_ids) ? body.ad_account_ids : [];
       const selectedPhoneIds: string[] = Array.isArray(body.phone_number_ids) ? body.phone_number_ids : [];
 
+      const discoveredPageIds = (pending.pages || []).map((p: any) => p.id);
+      const discoveredAdIds = (pending.ad_accounts || []).map((a: any) => a.id);
+      const discoveredPhoneIds = (pending.wa_numbers || []).map((p: any) => p.phone_number_id);
+
+      if (discoveredPageIds.length > 0) {
+        const removePageIds = discoveredPageIds.filter((id: string) => !selectedPageIds.includes(id));
+        await pruneScoped(admin, "meta_pages", "page_id", removePageIds, workspace_id, user.id);
+        await pruneScoped(admin, "meta_channel_identities", "page_id", removePageIds, workspace_id, user.id);
+      }
+      if (discoveredAdIds.length > 0) {
+        const removeAdIds = discoveredAdIds.filter((id: string) => !selectedAdAccountIds.includes(id));
+        await pruneScoped(admin, "meta_ad_accounts", "ad_account_id", removeAdIds, workspace_id, user.id);
+      }
+      if (discoveredPhoneIds.length > 0) {
+        const removePhoneIds = discoveredPhoneIds.filter((id: string) => !selectedPhoneIds.includes(id));
+        await pruneScoped(admin, "whatsapp_config", "phone_number_id", removePhoneIds, workspace_id, user.id);
+      }
+
       let attachedPages = 0, skippedPages = 0, subscribedPages = 0;
       let attachedAds = 0, skippedAds = 0;
       let attachedWa = 0, skippedWa = 0;
@@ -140,10 +189,17 @@ Deno.serve(async (req) => {
           .eq("page_id", p.id);
         const conflict = (taken || []).some((row: any) =>
           workspace_id
-            ? row.workspace_id && row.workspace_id !== workspace_id
+            ? row.workspace_id && row.workspace_id !== workspace_id && !memberWorkspaceIds.has(row.workspace_id)
             : row.workspace_id !== null || row.owner_id !== user.id,
         );
         if (conflict) { skippedPages++; continue; }
+        if (workspace_id) {
+          for (const row of taken || []) {
+            if (row.workspace_id && row.workspace_id !== workspace_id && memberWorkspaceIds.has(row.workspace_id)) {
+              await admin.from("meta_pages").delete().eq("id", row.id);
+            }
+          }
+        }
 
         // Subscribe to webhook fields
         let subscribed = false;
@@ -236,10 +292,17 @@ Deno.serve(async (req) => {
           .eq("ad_account_id", ad.id);
         const conflict = (taken || []).some((row: any) =>
           workspace_id
-            ? row.workspace_id && row.workspace_id !== workspace_id
+            ? row.workspace_id && row.workspace_id !== workspace_id && !memberWorkspaceIds.has(row.workspace_id)
             : row.workspace_id !== null || row.owner_id !== user.id,
         );
         if (conflict) { skippedAds++; continue; }
+        if (workspace_id) {
+          for (const row of taken || []) {
+            if (row.workspace_id && row.workspace_id !== workspace_id && memberWorkspaceIds.has(row.workspace_id)) {
+              await admin.from("meta_ad_accounts").delete().eq("id", row.id);
+            }
+          }
+        }
 
         const scope = (q: any) =>
           workspace_id ? q.eq("workspace_id", workspace_id) : q.eq("owner_id", user.id).is("workspace_id", null);
@@ -276,10 +339,17 @@ Deno.serve(async (req) => {
           .eq("phone_number_id", ph.phone_number_id);
         const conflict = (taken || []).some((row: any) =>
           workspace_id
-            ? row.workspace_id && row.workspace_id !== workspace_id
+            ? row.workspace_id && row.workspace_id !== workspace_id && !memberWorkspaceIds.has(row.workspace_id)
             : row.workspace_id !== null || row.owner_id !== user.id,
         );
         if (conflict) { skippedWa++; continue; }
+        if (workspace_id) {
+          for (const row of taken || []) {
+            if (row.workspace_id && row.workspace_id !== workspace_id && memberWorkspaceIds.has(row.workspace_id)) {
+              await admin.from("whatsapp_config").delete().eq("id", row.id);
+            }
+          }
+        }
 
         const scope = (q: any) =>
           workspace_id ? q.eq("workspace_id", workspace_id) : q.eq("owner_id", user.id).is("workspace_id", null);
@@ -337,4 +407,22 @@ function json(body: any, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+async function pruneScoped(
+  admin: any,
+  table: string,
+  idColumn: string,
+  keepIds: string[],
+  workspace_id: string | null,
+  userId: string,
+) {
+  let query = admin.from(table).delete();
+  query = workspace_id
+    ? query.eq("workspace_id", workspace_id)
+    : query.eq("owner_id", userId).is("workspace_id", null);
+  if (keepIds.length === 0) return;
+  query = query.in(idColumn, keepIds);
+  const { error } = await query;
+  if (error) throw error;
 }

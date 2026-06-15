@@ -7,7 +7,8 @@ import { Loader2, Facebook, Phone, CheckCircle2, CreditCard } from "lucide-react
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-interface PageOpt { page_id: string; name: string; taken: boolean; mine: boolean; }
+interface PickStatus { taken: boolean; mine: boolean; assigned_elsewhere?: boolean; assigned_workspace_names?: string[]; }
+interface PageOpt extends PickStatus { page_id: string; name: string; }
 interface AdAccountOpt {
   ad_account_id: string;
   account_id: string;
@@ -16,14 +17,14 @@ interface AdAccountOpt {
   business_name: string;
   taken: boolean;
   mine: boolean;
+  assigned_elsewhere?: boolean;
+  assigned_workspace_names?: string[];
 }
-interface WaOpt {
+interface WaOpt extends PickStatus {
   phone_number_id: string;
   business_name: string;
   display_phone_number: string;
   verified_name: string;
-  taken: boolean;
-  mine: boolean;
 }
 
 interface Props {
@@ -130,7 +131,7 @@ export function MetaOAuthPicker({ sessionId, workspaceName, onClose, onAttached 
           <DialogTitle>Choisis ce que tu veux connecter</DialogTitle>
           <DialogDescription>
             {workspaceName ? `Espace : ${workspaceName}. ` : ""}
-            Coche uniquement les Pages et numéros WhatsApp qui appartiennent à ce client. Les éléments déjà attribués à un autre espace sont désactivés.
+            Coche uniquement les Pages, comptes pub et numéros WhatsApp à attacher à cet espace. Décocher un élément le retire de cet espace.
           </DialogDescription>
         </DialogHeader>
 
@@ -167,6 +168,9 @@ export function MetaOAuthPicker({ sessionId, workspaceName, onClose, onAttached 
                         </Badge>
                       )}
                       {p.taken && <Badge variant="outline">Autre espace</Badge>}
+                      {!p.taken && p.assigned_elsewhere && (
+                        <Badge variant="outline">Déplacer depuis {p.assigned_workspace_names?.[0] || "un autre espace"}</Badge>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -204,6 +208,9 @@ export function MetaOAuthPicker({ sessionId, workspaceName, onClose, onAttached 
                         </Badge>
                       )}
                       {a.taken && <Badge variant="outline">Autre espace</Badge>}
+                      {!a.taken && a.assigned_elsewhere && (
+                        <Badge variant="outline">Déplacer depuis {a.assigned_workspace_names?.[0] || "un autre espace"}</Badge>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -241,6 +248,9 @@ export function MetaOAuthPicker({ sessionId, workspaceName, onClose, onAttached 
                         </Badge>
                       )}
                       {p.taken && <Badge variant="outline">Autre espace</Badge>}
+                      {!p.taken && p.assigned_elsewhere && (
+                        <Badge variant="outline">Déplacer depuis {p.assigned_workspace_names?.[0] || "un autre espace"}</Badge>
+                      )}
                     </li>
                   ))}
                 </ul>

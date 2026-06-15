@@ -75,6 +75,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   // Auto-select first workspace if none selected or invalid
   useEffect(() => {
+    // Keep the persisted workspace during the auth/query bootstrap. Otherwise a
+    // page refresh briefly sees `workspaces=[]`, clears state, then falls back to
+    // Digital Launch even when the user was working in another workspace.
+    if (!user?.id || isLoading) return;
+
     if (workspaces.length === 0) {
       if (currentId !== null) setCurrentId(null);
       return;
@@ -89,7 +94,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setCurrentId(next);
       try { localStorage.setItem(STORAGE_KEY, next); } catch {}
     }
-  }, [workspaces, currentId]);
+  }, [workspaces, currentId, user?.id, isLoading]);
 
   const switchWorkspace = (id: string) => {
     setCurrentId(id);
@@ -100,6 +105,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       'followup-tasks', 'wa-messages', 'conv-state', 'wa-inbox',
       'due-tasks-count', 'followup-settings', 'sequence-steps',
       'clients', 'offers', 'bookings', 'weekly-availability', 'meta-pages',
+      'meta-campaigns',
     ];
     scopedKeys.forEach((k) => qc.removeQueries({ queryKey: [k] }));
     // Invalidate all queries so data refetches with new workspace context
