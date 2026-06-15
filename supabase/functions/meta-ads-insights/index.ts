@@ -239,18 +239,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Purge cache entries whose page_id is no longer in this workspace's valid pages
-    // (cleans up rows from older runs that incorrectly mixed pages across workspaces).
-    if (!useCache) {
-      const validPageIds = pages.map((p: any) => p.page_id);
-      const scopeCol = workspace_id ? "workspace_id" : "owner_id";
-      const scopeVal = workspace_id ?? user.id;
-      await admin.from("meta_campaigns_cache").delete().eq(scopeCol, scopeVal).not("page_id", "in", `(${validPageIds.map((id) => `"${id}"`).join(",")})`);
-    }
+    const validPageIds = pages.map((p: any) => p.page_id);
+    const scopeCol = workspace_id ? "workspace_id" : "owner_id";
+    const scopeVal = workspace_id ?? user.id;
+    await admin.from("meta_campaigns_cache").delete().eq(scopeCol, scopeVal).not("page_id", "in", `(${validPageIds.map((id) => `"${id}"`).join(",")})`);
 
     // Ad accounts are cached per user-token (a user-token returns the same list of ad accounts
     // regardless of which page we ask for). But campaign listing IS scoped per page below.
     const adAccountsByToken = new Map<string, Array<{ id: string; account_id: string; currency?: string }>>();
+    const campaignPagesByAccount = new Map<string, Map<string, Set<string>>>();
 
     // Process each page individually so campaigns are scoped to that page's promoted_object.page_id
     for (const page of pages) {
@@ -278,11 +275,20 @@ Deno.serve(async (req) => {
       accounts = accounts ?? [];
 
       for (const account of accounts) {
-        const campaigns = await fetchCampaignsForAccount(account.id, userTok, include_paused, page.page_id);
+        const campaigns = await fetchCampaignsForAccount(account.id, userTok, include_paused);
         if (campaigns.length === 0) continue;
+
+        let pageMap = campaignPagesByAccount.get(account.id);
+        if (!pageMap) {
+          pageMap = await fetchCampaignPageMap(account.id, userTok);
+          campaignPagesByAccount.set(account.id, pageMap);
+        }
+
+        const scopedCampaigns = campaigns.filter((c: any) => pageMap?.get(String(c.id))?.has(String(page.page_id)));
+        if (scopedCampaigns.length === 0) continue;
         const insights = await fetchInsightsForAccount(account.id, userTok, date_from, date_to);
 
-        for (const c of campaigns) {
+        for (const c of scopedCampaigns) {
           allCampaigns.push({
             campaign_id: String(c.id),
             campaign_name: c.name ?? "(sans nom)",
