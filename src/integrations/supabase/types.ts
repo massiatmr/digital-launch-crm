@@ -1661,6 +1661,51 @@ export type Database = {
           },
         ]
       }
+      meta_ad_accounts: {
+        Row: {
+          account_id: string | null
+          account_name: string
+          ad_account_id: string
+          business_id: string | null
+          business_name: string | null
+          created_at: string
+          currency: string | null
+          id: string
+          is_active: boolean
+          owner_id: string
+          updated_at: string
+          workspace_id: string | null
+        }
+        Insert: {
+          account_id?: string | null
+          account_name?: string
+          ad_account_id: string
+          business_id?: string | null
+          business_name?: string | null
+          created_at?: string
+          currency?: string | null
+          id?: string
+          is_active?: boolean
+          owner_id: string
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Update: {
+          account_id?: string | null
+          account_name?: string
+          ad_account_id?: string
+          business_id?: string | null
+          business_name?: string | null
+          created_at?: string
+          currency?: string | null
+          id?: string
+          is_active?: boolean
+          owner_id?: string
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Relationships: []
+      }
       meta_campaign_insights_cache: {
         Row: {
           campaign_id: string
@@ -1940,6 +1985,7 @@ export type Database = {
       }
       meta_oauth_pending: {
         Row: {
+          ad_accounts: Json
           created_at: string
           expires_at: string
           id: string
@@ -1950,6 +1996,7 @@ export type Database = {
           workspace_id: string | null
         }
         Insert: {
+          ad_accounts?: Json
           created_at?: string
           expires_at?: string
           id?: string
@@ -1960,6 +2007,7 @@ export type Database = {
           workspace_id?: string | null
         }
         Update: {
+          ad_accounts?: Json
           created_at?: string
           expires_at?: string
           id?: string
