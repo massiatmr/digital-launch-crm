@@ -86,6 +86,27 @@ export function MetaCampaignsSection({ workspaceId, dateFrom, dateTo }: Props) {
             />
             Inclure désactivées
           </label>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={range} onValueChange={(v) => setRange(v as RangeKey)}>
+            <SelectTrigger className="h-8 w-[140px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="inherit">Période dashboard</SelectItem>
+              <SelectItem value="7d">7 derniers jours</SelectItem>
+              <SelectItem value="30d">30 derniers jours</SelectItem>
+              <SelectItem value="90d">90 derniers jours</SelectItem>
+              <SelectItem value="ytd">Depuis le 1er janvier</SelectItem>
+            </SelectContent>
+          </Select>
+          <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+            <Switch
+              checked={includePaused}
+              onCheckedChange={setIncludePaused}
+              aria-label="Inclure désactivées"
+            />
+            Inclure désactivées
+          </label>
           <Button
             size="sm"
             variant="ghost"
