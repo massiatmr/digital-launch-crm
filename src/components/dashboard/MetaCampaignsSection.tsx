@@ -33,12 +33,24 @@ function formatMoney(value: number, currency: string) {
 
 export function MetaCampaignsSection({ workspaceId, dateFrom, dateTo }: Props) {
   const [includePaused, setIncludePaused] = useState(false);
+  const [range, setRange] = useState<RangeKey>("inherit");
   const isMobile = useIsMobile();
+
+  const { effectiveFrom, effectiveTo } = useMemo(() => {
+    if (range === "inherit") return { effectiveFrom: dateFrom, effectiveTo: dateTo };
+    const to = new Date();
+    const from = new Date();
+    if (range === "7d") from.setDate(to.getDate() - 7);
+    else if (range === "30d") from.setDate(to.getDate() - 30);
+    else if (range === "90d") from.setDate(to.getDate() - 90);
+    else if (range === "ytd") { from.setMonth(0); from.setDate(1); }
+    return { effectiveFrom: from, effectiveTo: to };
+  }, [range, dateFrom, dateTo]);
 
   const { data, isLoading, isFetching, refetch, error } = useMetaCampaigns({
     workspaceId,
-    dateFrom,
-    dateTo,
+    dateFrom: effectiveFrom,
+    dateTo: effectiveTo,
     includePaused,
   });
 
