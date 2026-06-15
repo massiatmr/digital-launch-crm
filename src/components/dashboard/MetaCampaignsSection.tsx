@@ -111,46 +111,41 @@ export function MetaCampaignsSection({ workspaceId, dateFrom, dateTo }: Props) {
         </div>
       ) : isMobile ? (
         <div className="space-y-2">
-          {campaigns.map((c) => {
-            const displayLeads = c.leads_crm > 0 ? c.leads_crm : c.leads_meta;
-            const displayCpl = c.cpl_crm ?? c.cpl_meta;
-            const leadsFromMeta = c.leads_crm === 0 && c.leads_meta > 0;
-            return (
-              <div key={c.campaign_id} className="rounded-md border border-white/5 bg-white/[0.02] p-3">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-foreground truncate">{c.campaign_name}</div>
-                    <div className="text-[10px] text-muted-foreground truncate">{c.page_name}</div>
-                  </div>
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "text-[10px]",
-                      c.status === "ACTIVE" ? "border-green-500/40 text-green-400" : "border-muted text-muted-foreground"
-                    )}
-                  >
-                    {c.status}
-                  </Badge>
+          {campaigns.map((c) => (
+            <div key={c.campaign_id} className="rounded-md border border-white/5 bg-white/[0.02] p-3">
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-foreground truncate">{c.campaign_name}</div>
+                  <div className="text-[10px] text-muted-foreground truncate">{c.page_name}</div>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-center items-end">
-                  <div className="col-span-1 rounded-md bg-primary/10 border border-primary/30 py-2">
-                    <div className="text-[10px] text-primary/80 uppercase tracking-wide">CPL</div>
-                    <div className="text-base font-mono font-bold text-primary">
-                      {displayCpl != null ? formatMoney(displayCpl, c.currency) : "—"}
-                    </div>
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "text-[10px]",
+                    c.status === "ACTIVE" ? "border-green-500/40 text-green-400" : "border-muted text-muted-foreground"
+                  )}
+                >
+                  {c.status}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center items-end">
+                <div className="col-span-1 rounded-md bg-primary/10 border border-primary/30 py-2">
+                  <div className="text-[10px] text-primary/80 uppercase tracking-wide">CPL</div>
+                  <div className="text-base font-mono font-bold text-primary">
+                    {c.cpl_meta != null ? formatMoney(c.cpl_meta, c.currency) : "—"}
                   </div>
-                  <div>
-                    <div className="text-[10px] text-muted-foreground">Leads{leadsFromMeta ? " (Meta)" : ""}</div>
-                    <div className="text-sm font-mono text-foreground">{displayLeads}</div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] text-muted-foreground">Dépense</div>
-                    <div className="text-sm font-mono text-foreground">{formatMoney(c.spend, c.currency)}</div>
-                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-muted-foreground">Leads</div>
+                  <div className="text-sm font-mono text-foreground">{c.leads_meta}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-muted-foreground">Dépense</div>
+                  <div className="text-sm font-mono text-foreground">{formatMoney(c.spend, c.currency)}</div>
                 </div>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       ) : (
         <div className="overflow-x-auto -mx-2">
