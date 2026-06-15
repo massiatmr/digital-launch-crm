@@ -285,17 +285,24 @@ Deno.serve(async (req) => {
         ? accounts.filter((account) => scopedAdAccountIds.has(String(account.id)))
         : accounts;
 
+      // If user explicitly picked ad accounts for this workspace, trust that scope
+      // and don't apply the page_id sub-filter (older campaigns may not expose
+      // promoted_object.page_id and would be wrongly excluded).
+      const skipPageFilter = scopedAdAccountIds.size > 0;
+
       for (const account of allowedAccounts) {
         const campaigns = await fetchCampaignsForAccount(account.id, userTok, include_paused);
         if (campaigns.length === 0) continue;
 
-        let pageMap = campaignPagesByAccount.get(account.id);
-        if (!pageMap) {
-          pageMap = await fetchCampaignPageMap(account.id, userTok);
-          campaignPagesByAccount.set(account.id, pageMap);
+        let scopedCampaigns = campaigns;
+        if (!skipPageFilter) {
+          let pageMap = campaignPagesByAccount.get(account.id);
+          if (!pageMap) {
+            pageMap = await fetchCampaignPageMap(account.id, userTok);
+            campaignPagesByAccount.set(account.id, pageMap);
+          }
+          scopedCampaigns = campaigns.filter((c: any) => pageMap?.get(String(c.id))?.has(String(page.page_id)));
         }
-
-        const scopedCampaigns = campaigns.filter((c: any) => pageMap?.get(String(c.id))?.has(String(page.page_id)));
         if (scopedCampaigns.length === 0) continue;
         const insights = await fetchInsightsForAccount(account.id, userTok, date_from, date_to);
 
