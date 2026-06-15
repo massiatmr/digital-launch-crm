@@ -113,11 +113,28 @@ Deno.serve(async (req) => {
     const { data: ws } = await admin.from("workspaces").select("*").eq("id", workspace_id).single();
     exportData.workspace = ws ? sanitize(ws) : null;
 
+    // Pre-fetch IDs for join-based scoping
+    const { data: wsOffers } = await admin.from("offers").select("id").eq("workspace_id", workspace_id);
+    const offerIds = (wsOffers || []).map((r: any) => r.id);
+    const { data: wsClients } = await admin.from("clients").select("id").eq("workspace_id", workspace_id);
+    const clientIds = (wsClients || []).map((r: any) => r.id);
+
     // All scoped tables
     for (const table of SAFE_TABLES) {
-      const filterCol = WORKSPACE_TABLES.has(table) ? "workspace_id" : null;
       let q: any = admin.from(table).select("*");
-      if (filterCol) q = q.eq(filterCol, workspace_id);
+      if (WORKSPACE_TABLES.has(table)) {
+        q = q.eq("workspace_id", workspace_id);
+      } else if (table === "offer_pages") {
+        if (offerIds.length === 0) { exportData[table] = []; continue; }
+        q = q.in("offer_id", offerIds);
+      } else if (table === "client_onboarding_responses") {
+        if (clientIds.length === 0) { exportData[table] = []; continue; }
+        q = q.in("client_id", clientIds);
+      } else {
+        // Unknown scoping — skip to avoid cross-tenant leak
+        exportData[table] = { error: "table_not_scoped" };
+        continue;
+      }
       const { data, error } = await q;
       if (error) {
         exportData[table] = { error: error.message };
