@@ -6,6 +6,7 @@ const corsHeaders = {
 };
 
 const CACHE_TTL_MIN = 30;
+const LEAD_COUNTING_FIX_AT = Date.parse("2026-06-15T22:33:00.000Z");
 
 type CampaignRow = {
   campaign_id: string;
@@ -162,6 +163,31 @@ async function fetchInsightsForAccount(
     });
   }
   return map;
+}
+
+function extractMetaLeadCount(actions: any[]): number {
+  const values = new Map<string, number>();
+  for (const a of actions) {
+    const type = String(a?.action_type ?? "");
+    if (!type) continue;
+    const value = Number(a?.value ?? 0);
+    if (!Number.isFinite(value)) continue;
+    values.set(type, value);
+  }
+
+  // Meta may return the same lead under multiple action_type labels. The Ads
+  // Manager "Leads" column maps to the aggregate `lead` when present, so never
+  // sum aliases like `leadgen.other` + `onsite_conversion.lead_grouped`.
+  for (const preferredType of ["lead", "onsite_conversion.lead_grouped", "leadgen.other", "onsite_conversion.lead"]) {
+    const value = values.get(preferredType);
+    if (value && value > 0) return value;
+  }
+
+  let fallback = 0;
+  for (const [type, value] of values) {
+    if (type.includes("lead")) fallback = Math.max(fallback, value);
+  }
+  return fallback;
 }
 
 Deno.serve(async (req) => {
