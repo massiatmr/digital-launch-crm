@@ -98,13 +98,28 @@ export function AvailabilityPanel() {
       toast.error('Délai minimum entre 0 et 168h');
       return;
     }
+    // Validate per-day overrides
+    const cleaned: Record<string, { start: string; end: string }> = {};
+    for (const [k, v] of Object.entries(dayHours)) {
+      if (!v?.start || !v?.end) continue;
+      if (!/^\d{2}:\d{2}$/.test(v.start) || !/^\d{2}:\d{2}$/.test(v.end)) {
+        toast.error(`Format HH:MM invalide pour le jour ${k}`);
+        return;
+      }
+      if (v.start >= v.end) {
+        toast.error(`Fin doit être après début (jour ${k})`);
+        return;
+      }
+      cleaned[k] = { start: v.start, end: v.end };
+    }
     await upsert.mutateAsync({
       day_start_time: start,
       day_end_time: end,
       slot_duration_minutes: duration,
       max_future_days: maxDays,
       min_lead_time_hours: minLeadHours,
-    });
+      day_hours: cleaned as any,
+    } as any);
     toast.success('Disponibilités mises à jour');
   };
 
