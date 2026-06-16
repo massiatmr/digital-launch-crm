@@ -2,7 +2,7 @@
 // Each user can mute email/push notifications for specific workspaces.
 // Default (no row): both channels enabled.
 
-export type NotifChannel = "email" | "push";
+export type NotifChannel = "email" | "push" | "whatsapp";
 
 export async function getMutedUserIds(
   admin: any,
@@ -13,7 +13,12 @@ export async function getMutedUserIds(
   const muted = new Set<string>();
   if (!workspaceId || !userIds || userIds.length === 0) return muted;
   try {
-    const col = channel === "email" ? "email_enabled" : "push_enabled";
+    const col =
+      channel === "email"
+        ? "email_enabled"
+        : channel === "push"
+          ? "push_enabled"
+          : "whatsapp_enabled";
     const { data, error } = await admin
       .from("user_workspace_notification_prefs")
       .select(`user_id, ${col}`)
