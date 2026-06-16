@@ -269,9 +269,8 @@ export function AvailabilityPanel() {
             </div>
           </div>
 
-          <div>{/* spacer */}</div>
-          <div>{/* spacer */}</div>
-          <div className="hidden">
+
+
 
           {previewSlots.length > 0 && (
             <div className="flex flex-wrap gap-1 pt-1">
