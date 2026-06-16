@@ -21,7 +21,17 @@ Deno.serve(async (req) => {
 
     // Decode JWT payload to detect service_role tokens robustly (handles key rotation
     // where the vault-stored key may differ from the env SUPABASE_SERVICE_ROLE_KEY).
-    const isServiceRole = bearer.length > 0 && (bearer === SERVICE_KEY);
+    let isServiceRole = bearer.length > 0 && (bearer === SERVICE_KEY);
+    if (!isServiceRole && bearer) {
+      try {
+        const parts = bearer.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+          if (payload?.role === 'service_role') isServiceRole = true;
+        }
+      } catch (_) {}
+    }
+
 
     let callerUserId: string | null = null;
     if (!isServiceRole) {
