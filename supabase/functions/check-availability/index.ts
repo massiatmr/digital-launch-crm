@@ -142,8 +142,9 @@ Deno.serve(async (req) => {
 
     const ownerTimeZone: string = avail?.timezone ?? "Europe/Paris";
     const workingDays: number[] = avail?.working_days ?? [1, 2, 3, 4, 5];
-    const dayStart: string = avail?.day_start_time ?? "11:00";
-    const dayEnd: string = avail?.day_end_time ?? "15:00";
+    const defaultStart: string = avail?.day_start_time ?? "11:00";
+    const defaultEnd: string = avail?.day_end_time ?? "15:00";
+    const dayHours: Record<string, { start?: string; end?: string }> = (avail?.day_hours as any) ?? {};
     const slotDurationMin: number = avail?.slot_duration_minutes ?? 45;
     const maxFutureDays: number = avail?.max_future_days ?? 14;
     const minLeadHours: number = avail?.min_lead_time_hours ?? 2;
