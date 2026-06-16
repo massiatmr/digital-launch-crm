@@ -225,6 +225,54 @@ export function AvailabilityPanel() {
               Empêche la réservation d'un créneau qui commence dans moins de {minLeadHours}h.
             </p>
           </div>
+
+          <div className="space-y-2 pt-1">
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider">Horaires personnalisés par jour (optionnel)</Label>
+            <p className="text-[11px] text-muted-foreground">Laisse vide pour utiliser la plage par défaut ci-dessus.</p>
+            <div className="space-y-1.5">
+              {DAYS.filter(d => settings.working_days.includes(d.v)).map(d => {
+                const key = String(d.v);
+                const override = dayHours[key];
+                const enabled = !!(override?.start || override?.end);
+                return (
+                  <div key={d.v} className="flex items-center gap-2">
+                    <div className="w-10 text-xs text-muted-foreground">{d.label}</div>
+                    {enabled ? (
+                      <>
+                        <Input
+                          type="time"
+                          step={900}
+                          className="h-8 text-xs"
+                          value={override?.start ?? start}
+                          onChange={e => setDayHours(prev => ({ ...prev, [key]: { start: e.target.value, end: prev[key]?.end ?? end } }))}
+                        />
+                        <span className="text-xs text-muted-foreground">→</span>
+                        <Input
+                          type="time"
+                          step={900}
+                          className="h-8 text-xs"
+                          value={override?.end ?? end}
+                          onChange={e => setDayHours(prev => ({ ...prev, [key]: { start: prev[key]?.start ?? start, end: e.target.value } }))}
+                        />
+                        <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => setDayHours(prev => { const n = { ...prev }; delete n[key]; return n; })}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </>
+                    ) : (
+                      <Button size="sm" variant="outline" className="h-8 text-[11px] flex-1 justify-start text-muted-foreground" onClick={() => setDayHours(prev => ({ ...prev, [key]: { start, end } }))}>
+                        Personnaliser ({start}–{end})
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>{/* spacer */}</div>
+          <div>{/* spacer */}</div>
+          <div className="hidden">
+
           {previewSlots.length > 0 && (
             <div className="flex flex-wrap gap-1 pt-1">
               {previewSlots.map(s => (
