@@ -2610,6 +2610,7 @@ export type Database = {
           push_enabled: boolean
           updated_at: string
           user_id: string
+          whatsapp_enabled: boolean
           workspace_id: string
         }
         Insert: {
@@ -2618,6 +2619,7 @@ export type Database = {
           push_enabled?: boolean
           updated_at?: string
           user_id: string
+          whatsapp_enabled?: boolean
           workspace_id: string
         }
         Update: {
@@ -2626,6 +2628,7 @@ export type Database = {
           push_enabled?: boolean
           updated_at?: string
           user_id?: string
+          whatsapp_enabled?: boolean
           workspace_id?: string
         }
         Relationships: []
