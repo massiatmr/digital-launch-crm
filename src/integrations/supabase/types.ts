@@ -221,7 +221,7 @@ export type Database = {
           meet_link: string | null
           name: string
           notes: string | null
-          offer_id: string
+          offer_id: string | null
           owner_id: string
           phone: string | null
           status: Database["public"]["Enums"]["booking_status"]
@@ -241,7 +241,7 @@ export type Database = {
           meet_link?: string | null
           name: string
           notes?: string | null
-          offer_id: string
+          offer_id?: string | null
           owner_id?: string
           phone?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
@@ -261,7 +261,7 @@ export type Database = {
           meet_link?: string | null
           name?: string
           notes?: string | null
-          offer_id?: string
+          offer_id?: string | null
           owner_id?: string
           phone?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
