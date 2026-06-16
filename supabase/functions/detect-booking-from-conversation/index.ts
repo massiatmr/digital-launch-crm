@@ -206,6 +206,8 @@ Réponds UNIQUEMENT en JSON :
   "confirmed": true|false,
   "booking_date": "YYYY-MM-DD" | null,
   "time_slot": "HH:MM" | null,
+  "address": "adresse complète mentionnée par le lead (rue, numéro, ville) ou null si non mentionnée",
+  "lead_summary": "résumé en 2-3 phrases : besoin / contexte / infos clés (volume, date, budget…)",
   "reason": "courte explication"
 }
 
@@ -291,21 +293,12 @@ ${transcript}`;
       }
     }
 
+    // ⚠️ Plus aucun offre ? On crée quand même le booking (offer_id = null).
+    // L'utilisateur pourra lier l'offre plus tard depuis le backoffice.
     if (!resolvedOfferId) {
-      // ⚠️ Pas d'offre dispo : on NE bloque PAS l'automatisation et on NE marque PAS BOOKED.
-      // On log juste l'activité — l'IA continue de répondre normalement au lead.
-      await admin.from("lead_activities").insert({
-        lead_id: lead.id,
-        owner_id: lead.owner_id,
-        workspace_id: lead.workspace_id,
-        activity_type: "meeting",
-        description: `📅 RDV potentiel détecté (${parsed.booking_date} à ${parsed.time_slot}) mais aucune offre disponible dans le workspace — booking non créé, l'IA continue la conversation.`,
-      } as any);
-      return new Response(
-        JSON.stringify({ ok: true, detected: true, skipped: true, reason: "no_offer_available" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      offerName = "Rendez-vous";
     }
+
 
 
     // Créer event calendrier sur le compte principal du workspace si disponible
@@ -353,7 +346,7 @@ ${transcript}`;
       phone: lead.phone || "",
       booking_date: parsed.booking_date,
       time_slot: parsed.time_slot,
-      notes: `RDV confirmé par IA depuis WhatsApp.\n${parsed.reason ?? ""}`,
+      notes: `RDV confirmé par IA depuis WhatsApp.${parsed.address ? `\n📍 Adresse : ${parsed.address}` : ""}${parsed.lead_summary ? `\n\n📝 Résumé : ${parsed.lead_summary}` : ""}${parsed.reason ? `\n\n💡 ${parsed.reason}` : ""}`,
       status: "confirmed",
       google_event_id: googleEventId,
       meet_link: meetLink,
@@ -475,9 +468,27 @@ ${transcript}`;
           const subject = `📅 ${wsPrefix}Nouveau RDV (WhatsApp) — ${lead.name} (${parsed.booking_date} ${parsed.time_slot})`;
           const meetRow = meetLink
             ? `<p style="margin:6px 0"><a href="${meetLink}" style="color:#7c3aed;font-weight:600">🔗 Google Meet</a></p>` : "";
+          const addressRow = parsed.address
+            ? `<p style="margin:4px 0"><strong>📍 Adresse :</strong> ${String(parsed.address).replace(/[<>]/g, "")}</p>` : "";
+          const summaryBlock = parsed.lead_summary
+            ? `<div style="background:#fef3c7;border-radius:8px;padding:12px 16px;margin:12px 0;border-left:3px solid #f59e0b">
+                 <p style="margin:0 0 4px;font-weight:600;color:#92400e">📝 Résumé conversation</p>
+                 <p style="margin:0;color:#451a03">${String(parsed.lead_summary).replace(/[<>]/g, "")}</p>
+               </div>` : "";
+          const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          const transcriptHtml = messages.map((m: any) => {
+            const isLead = m.direction === "inbound";
+            const color = isLead ? "#1e40af" : "#7c3aed";
+            const bg = isLead ? "#eff6ff" : "#f5f3ff";
+            const label = isLead ? `💬 ${lead.name || "Lead"}` : `🤖 Vous (IA)`;
+            return `<div style="background:${bg};border-left:3px solid ${color};border-radius:6px;padding:10px 14px;margin:8px 0">
+              <div style="font-size:11px;color:${color};font-weight:600;margin-bottom:4px">${label}</div>
+              <div style="color:#111827;white-space:pre-wrap">${escapeHtml(m.content || "")}</div>
+            </div>`;
+          }).join("");
           const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"></head>
 <body style="background:#fff;font-family:'Plus Jakarta Sans',Arial,sans-serif;margin:0;padding:0;color:#111827">
-  <div style="max-width:560px;margin:0 auto;padding:28px 24px;font-size:14px;line-height:1.6">
+  <div style="max-width:640px;margin:0 auto;padding:28px 24px;font-size:14px;line-height:1.6">
     <h1 style="font-size:20px;margin:0 0 12px">📅 Nouveau RDV (auto-détecté via WhatsApp)</h1>
     ${workspaceName ? `<div style="font-size:13px;color:#6b7280;margin:0 0 12px">Espace : ${workspaceName}</div>` : ""}
     <div style="background:#f9fafb;border-radius:8px;padding:16px 18px;margin:12px 0;border-left:3px solid #7c3aed">
@@ -486,9 +497,13 @@ ${transcript}`;
       ${lead.phone ? `<p style="margin:4px 0"><strong>Téléphone :</strong> ${lead.phone}</p>` : ""}
       <p style="margin:4px 0"><strong>Créneau :</strong> ${parsed.booking_date} à ${parsed.time_slot}</p>
       <p style="margin:4px 0"><strong>Offre :</strong> ${offerName}</p>
+      ${addressRow}
       ${meetRow}
     </div>
-    <p><a href="${bookingUrl}" style="background:#7c3aed;color:#fff;padding:10px 18px;border-radius:6px;font-weight:600;text-decoration:none;display:inline-block">Ouvrir la fiche lead</a></p>
+    ${summaryBlock}
+    <h2 style="font-size:15px;margin:24px 0 8px;color:#374151">Conversation complète</h2>
+    <div style="max-height:none">${transcriptHtml}</div>
+    <p style="margin-top:20px"><a href="${bookingUrl}" style="background:#7c3aed;color:#fff;padding:10px 18px;border-radius:6px;font-weight:600;text-decoration:none;display:inline-block">Ouvrir la fiche lead</a></p>
   </div>
 </body></html>`;
           await admin.functions.invoke("send-smtp-email", {
