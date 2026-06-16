@@ -206,6 +206,8 @@ Réponds UNIQUEMENT en JSON :
   "confirmed": true|false,
   "booking_date": "YYYY-MM-DD" | null,
   "time_slot": "HH:MM" | null,
+  "address": "adresse complète mentionnée par le lead (rue, numéro, ville) ou null si non mentionnée",
+  "lead_summary": "résumé en 2-3 phrases : besoin / contexte / infos clés (volume, date, budget…)",
   "reason": "courte explication"
 }
 
