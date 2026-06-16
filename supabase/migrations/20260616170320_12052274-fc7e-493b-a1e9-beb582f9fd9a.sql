@@ -1,0 +1,2 @@
+DELETE FROM public.calendar_accounts WHERE workspace_id = '4dc6a5ab-7395-4593-b088-294042cbc035' AND provider = 'google';
+DELETE FROM public.google_tokens WHERE workspace_id = '4dc6a5ab-7395-4593-b088-294042cbc035';
