@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Building2, Plus, Check, Users, UserPlus, Trash2, ShieldCheck, MessageCircle, CalendarCheck, Package, Facebook, UserCheck, AlertTriangle, Upload, Loader2, X, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { InviteMemberDialog } from '@/components/InviteMemberDialog';
+import { MemberNotificationControls } from '@/components/settings/MemberNotificationControls';
 
 const slugify = (s: string) =>
   s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
