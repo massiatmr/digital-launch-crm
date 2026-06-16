@@ -104,6 +104,10 @@ Deno.serve(async (req) => {
       'offer_slug', 'company_name', 'utm', 'page_url',
       'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term',
       'fields', 'extra', 'custom', 'data', 'answers',
+      // skip keys that are typically a duplicate of `message`
+      'note', 'notes', 'body', 'content', 'description', 'comment', 'comments',
+      'summary', 'recap', 'recapitulatif', 'récapitulatif', 'details', 'détails',
+      'formatted', 'formatted_message', 'raw',
     ]);
 
     const humanize = (k: string) =>
@@ -118,21 +122,47 @@ Deno.serve(async (req) => {
       return String(v).trim();
     };
 
+    // Normalize for duplicate detection (strip whitespace + punctuation noise)
+    const normalize = (s: string) =>
+      s.replace(/[\s━─\-_=*•·.]+/g, ' ').trim().toLowerCase();
+    const normalizedMessage = normalize(message);
+
+    const looksLikeFormattedBlock = (s: string) =>
+      /━{3,}|─{3,}|={3,}|\*{3,}/.test(s) ||
+      // contains 3+ "• Key: value" lines
+      (s.match(/^\s*•\s+\S+\s*:/gm)?.length ?? 0) >= 3;
+
+    const isDuplicateOfMessage = (val: string) => {
+      if (!normalizedMessage || val.length < 40) return false;
+      const n = normalize(val);
+      if (!n) return false;
+      if (n === normalizedMessage) return true;
+      if (n.length >= 80 && normalizedMessage.includes(n)) return true;
+      if (normalizedMessage.length >= 80 && n.includes(normalizedMessage)) return true;
+      return false;
+    };
+
     // Collect custom fields: from body.fields/extra/custom/data/answers + unknown root keys
     const customEntries: Array<[string, string]> = [];
     const pushEntry = (k: string, v: any) => {
       const val = formatValue(v).slice(0, 1000);
-      if (val) customEntries.push([humanize(k), val]);
+      if (!val) return;
+      if (isDuplicateOfMessage(val)) return;
+      if (val.length > 200 && looksLikeFormattedBlock(val)) return;
+      customEntries.push([humanize(k), val]);
     };
 
     for (const container of ['fields', 'extra', 'custom', 'data', 'answers']) {
       const obj = body[container];
       if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
-        for (const [k, v] of Object.entries(obj)) pushEntry(k, v);
+        for (const [k, v] of Object.entries(obj)) {
+          if (KNOWN_KEYS.has(k.toLowerCase())) continue;
+          pushEntry(k, v);
+        }
       }
     }
     for (const [k, v] of Object.entries(body)) {
-      if (KNOWN_KEYS.has(k)) continue;
+      if (KNOWN_KEYS.has(k.toLowerCase())) continue;
       if (v === null || v === undefined || v === '') continue;
       pushEntry(k, v);
     }
