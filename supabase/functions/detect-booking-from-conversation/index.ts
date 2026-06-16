@@ -292,19 +292,21 @@ ${transcript}`;
     }
 
     if (!resolvedOfferId) {
-      await markLeadBookedAndStopAutomations(admin, lead, "RDV confirmé mais aucune offre disponible dans le workspace — création booking ignorée");
+      // ⚠️ Pas d'offre dispo : on NE bloque PAS l'automatisation et on NE marque PAS BOOKED.
+      // On log juste l'activité — l'IA continue de répondre normalement au lead.
       await admin.from("lead_activities").insert({
         lead_id: lead.id,
         owner_id: lead.owner_id,
         workspace_id: lead.workspace_id,
         activity_type: "meeting",
-        description: `📅 RDV confirmé via WhatsApp (${parsed.booking_date} à ${parsed.time_slot}) mais aucune offre n'est disponible : booking non créé.`,
+        description: `📅 RDV potentiel détecté (${parsed.booking_date} à ${parsed.time_slot}) mais aucune offre disponible dans le workspace — booking non créé, l'IA continue la conversation.`,
       } as any);
       return new Response(
         JSON.stringify({ ok: true, detected: true, skipped: true, reason: "no_offer_available" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+
 
     // Créer event calendrier sur le compte principal du workspace si disponible
     let googleEventId: string | null = null;
