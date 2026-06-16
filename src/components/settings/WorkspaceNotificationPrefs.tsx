@@ -78,6 +78,7 @@ export function WorkspaceNotificationPrefs() {
           const p = prefByWs.get(ws.id);
           const email = p ? p.email_enabled : true;
           const push = p ? p.push_enabled : true;
+          const wa = p ? p.whatsapp_enabled : true;
           return (
             <div
               key={ws.id}
@@ -89,7 +90,7 @@ export function WorkspaceNotificationPrefs() {
                   {ws.role === 'owner' ? 'Propriétaire' : 'Membre'}
                 </div>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 flex-wrap">
                 <label className="flex items-center gap-2 text-xs cursor-pointer">
                   <Mail className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-muted-foreground">Email</span>
@@ -99,6 +100,11 @@ export function WorkspaceNotificationPrefs() {
                   <Bell className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-muted-foreground">Push</span>
                   <Switch checked={push} onCheckedChange={(v) => toggle(ws.id, 'push', v)} />
+                </label>
+                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                  <MessageCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-muted-foreground">WhatsApp</span>
+                  <Switch checked={wa} onCheckedChange={(v) => toggle(ws.id, 'whatsapp', v)} />
                 </label>
               </div>
             </div>
