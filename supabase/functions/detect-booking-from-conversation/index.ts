@@ -346,7 +346,7 @@ ${transcript}`;
       phone: lead.phone || "",
       booking_date: parsed.booking_date,
       time_slot: parsed.time_slot,
-      notes: `RDV confirmé par IA depuis WhatsApp.\n${parsed.reason ?? ""}`,
+      notes: `RDV confirmé par IA depuis WhatsApp.${parsed.address ? `\n📍 Adresse : ${parsed.address}` : ""}${parsed.lead_summary ? `\n\n📝 Résumé : ${parsed.lead_summary}` : ""}${parsed.reason ? `\n\n💡 ${parsed.reason}` : ""}`,
       status: "confirmed",
       google_event_id: googleEventId,
       meet_link: meetLink,
