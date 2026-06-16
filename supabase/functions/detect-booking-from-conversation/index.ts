@@ -516,12 +516,37 @@ ${transcript}`;
       ${lead.phone ? `<p style="margin:4px 0"><strong>Téléphone :</strong> ${lead.phone}</p>` : ""}
       <p style="margin:4px 0"><strong>Créneau :</strong> ${parsed.booking_date} à ${parsed.time_slot}</p>
       <p style="margin:4px 0"><strong>Offre :</strong> ${offerName}</p>
+          const escapeHtml = (s: string) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          // Récap clair du formulaire initial (et notes) → bien plus lisible que la conversation complète
+          const formText = String(lead.message || "").trim();
+          const notesText = String(lead.notes || "").trim();
+          const formBlock = (formText || notesText)
+            ? `<div style="background:#eff6ff;border-radius:8px;padding:12px 16px;margin:12px 0;border-left:3px solid #2563eb">
+                 <p style="margin:0 0 6px;font-weight:600;color:#1e40af">📋 Détails du formulaire initial</p>
+                 ${formText ? `<div style="color:#1e3a8a;white-space:pre-wrap;font-size:13px">${escapeHtml(formText)}</div>` : ""}
+                 ${notesText ? `<div style="color:#1e3a8a;white-space:pre-wrap;font-size:13px;margin-top:8px"><strong>Notes :</strong> ${escapeHtml(notesText)}</div>` : ""}
+               </div>` : "";
+          const summaryBlock = parsed.lead_summary
+            ? `<div style="background:#fef3c7;border-radius:8px;padding:12px 16px;margin:12px 0;border-left:3px solid #f59e0b">
+                 <p style="margin:0 0 4px;font-weight:600;color:#92400e">🆕 Infos apprises pendant la conversation</p>
+                 <p style="margin:0;color:#451a03;white-space:pre-wrap">${escapeHtml(parsed.lead_summary)}</p>
+               </div>` : "";
+          const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"></head>
+<body style="background:#fff;font-family:'Plus Jakarta Sans',Arial,sans-serif;margin:0;padding:0;color:#111827">
+  <div style="max-width:640px;margin:0 auto;padding:28px 24px;font-size:14px;line-height:1.6">
+    <h1 style="font-size:20px;margin:0 0 12px">📅 Nouveau RDV (auto-détecté via WhatsApp)</h1>
+    ${workspaceName ? `<div style="font-size:13px;color:#6b7280;margin:0 0 12px">Espace : ${escapeHtml(workspaceName)}</div>` : ""}
+    <div style="background:#f9fafb;border-radius:8px;padding:16px 18px;margin:12px 0;border-left:3px solid #7c3aed">
+      <p style="margin:4px 0"><strong>Lead :</strong> ${escapeHtml(lead.name || "")}</p>
+      ${lead.email ? `<p style="margin:4px 0"><strong>Email :</strong> ${escapeHtml(lead.email)}</p>` : ""}
+      ${lead.phone ? `<p style="margin:4px 0"><strong>Téléphone :</strong> ${escapeHtml(lead.phone)}</p>` : ""}
+      <p style="margin:4px 0"><strong>Créneau :</strong> ${parsed.booking_date} à ${parsed.time_slot}</p>
+      <p style="margin:4px 0"><strong>Offre :</strong> ${escapeHtml(offerName)}</p>
       ${addressRow}
       ${meetRow}
     </div>
+    ${formBlock}
     ${summaryBlock}
-    <h2 style="font-size:15px;margin:24px 0 8px;color:#374151">Conversation complète</h2>
-    <div style="max-height:none">${transcriptHtml}</div>
     <p style="margin-top:20px"><a href="${bookingUrl}" style="background:#7c3aed;color:#fff;padding:10px 18px;border-radius:6px;font-weight:600;text-decoration:none;display:inline-block">Ouvrir la fiche lead</a></p>
   </div>
 </body></html>`;
