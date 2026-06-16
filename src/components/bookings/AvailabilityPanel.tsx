@@ -51,6 +51,7 @@ export function AvailabilityPanel() {
   const [duration, setDuration] = useState<number>(45);
   const [maxDays, setMaxDays] = useState<number>(14);
   const [minLeadHours, setMinLeadHours] = useState<number>(2);
+  const [dayHours, setDayHours] = useState<Record<string, { start: string; end: string }>>({});
 
   useEffect(() => {
     if (settings) {
@@ -59,6 +60,7 @@ export function AvailabilityPanel() {
       setDuration(settings.slot_duration_minutes);
       setMaxDays(settings.max_future_days);
       setMinLeadHours(settings.min_lead_time_hours ?? 2);
+      setDayHours((settings.day_hours as any) ?? {});
     }
   }, [settings?.workspace_id, settings?.owner_id, settings?.day_start_time, settings?.day_end_time, settings?.slot_duration_minutes, settings?.max_future_days, settings?.min_lead_time_hours]);
 
