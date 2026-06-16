@@ -1,13 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { Mail, Bell, Building2 } from 'lucide-react';
+import { Mail, Bell, Building2, MessageCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useWorkspaces } from '@/hooks/useWorkspaces';
 import { toast } from 'sonner';
 
-type Pref = { workspace_id: string; email_enabled: boolean; push_enabled: boolean };
+type Pref = { workspace_id: string; email_enabled: boolean; push_enabled: boolean; whatsapp_enabled: boolean };
 
 export function WorkspaceNotificationPrefs() {
   const { user } = useAuth();
