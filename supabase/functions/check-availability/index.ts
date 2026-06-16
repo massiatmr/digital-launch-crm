@@ -182,6 +182,9 @@ Deno.serve(async (req) => {
     }
 
     const minStartMs = nowMs + minLeadMs;
+    const dayOverride = dayHours?.[String(dow)] ?? {};
+    const dayStart = (dayOverride.start && /^\d{2}:\d{2}$/.test(dayOverride.start)) ? dayOverride.start : defaultStart;
+    const dayEnd = (dayOverride.end && /^\d{2}:\d{2}$/.test(dayOverride.end)) ? dayOverride.end : defaultEnd;
     const ownerSlots = generateHourlySlots(dayStart, dayEnd, slotDurationMin).filter((slot) => {
       return zonedDateTimeToUtc(date, slot, ownerTimeZone).getTime() >= minStartMs;
     });
