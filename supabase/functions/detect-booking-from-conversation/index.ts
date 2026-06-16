@@ -31,9 +31,28 @@ async function sendBookingConfirmationWhatsApp(
   lead: any,
   bookingDate: string,
   timeSlot: string,
-  offerName: string,
-  meetLink: string | null,
+  _offerName: string,
+  _meetLink: string | null,
 ): Promise<void> {
+  // Anti-doublon : si l'IA conversationnelle a DÉJÀ envoyé une confirmation dans les
+  // 30 dernières minutes (message outbound contenant "noté"/"confirmé"/"bloqué" + la date/heure,
+  // OU déjà un message marqué kind=booking_confirmation), on ne renvoie pas un message générique.
+  const since = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const { data: recentOut } = await admin
+    .from("whatsapp_messages")
+    .select("content, metadata, sent_at")
+    .eq("lead_id", lead.id)
+    .eq("direction", "outbound")
+    .gte("sent_at", since)
+    .order("sent_at", { ascending: false })
+    .limit(5);
+  const alreadyConfirmed = (recentOut ?? []).some((m: any) => {
+    if (m?.metadata?.kind === "booking_confirmation") return true;
+    const c = String(m?.content || "").toLowerCase();
+    return /(c'est not[ée]|confirm[ée]|bloqu[ée]|à demain|à tout à l'heure)/i.test(c);
+  });
+  if (alreadyConfirmed) return;
+
   // Récupère config WA + dry_run
   let configQuery = admin.from("whatsapp_config").select("*").eq("is_active", true);
   if (lead.workspace_id) configQuery = configQuery.eq("workspace_id", lead.workspace_id);
@@ -48,10 +67,10 @@ async function sendBookingConfirmationWhatsApp(
 
   const dateFr = formatBookingDateFr(bookingDate);
   const email = lead.email || "";
-  const text = `Parfait c'est noté pour ${dateFr} à ${timeSlot}.
-
-Je t'envoie aussi par email${email ? ` (${email})` : ""} quelques ressources à parcourir et le lien du meet avant le rendez-vous. Dis-moi si c'est pas le bon email.
-A bientôt`;
+  // Message neutre : pas de mention "meet" (certains workspaces font des visites physiques).
+  const text = `C'est noté pour ${dateFr} à ${timeSlot} ✅
+${email ? `Je t'envoie la confirmation par email (${email}).` : "Je reviens vers toi rapidement avec la confirmation."}
+À bientôt 🙏`;
 
   let waMessageId: string | null = null;
   let errorMessage: string | null = null;
@@ -140,7 +159,7 @@ Deno.serve(async (req) => {
 
     const { data: lead } = await admin
       .from("leads")
-      .select("id, name, email, phone, owner_id, workspace_id, offer_id, offers(name)")
+      .select("id, name, email, phone, owner_id, workspace_id, offer_id, message, notes, source, created_at, offers(name)")
       .eq("id", lead_id)
       .maybeSingle();
     if (!lead) {
@@ -470,39 +489,37 @@ ${transcript}`;
             ? `<p style="margin:6px 0"><a href="${meetLink}" style="color:#7c3aed;font-weight:600">🔗 Google Meet</a></p>` : "";
           const addressRow = parsed.address
             ? `<p style="margin:4px 0"><strong>📍 Adresse :</strong> ${String(parsed.address).replace(/[<>]/g, "")}</p>` : "";
+          const escapeHtml = (s: string) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          // Récap clair du formulaire initial (et notes) → bien plus lisible que la conversation complète
+          const formText = String(lead.message || "").trim();
+          const notesText = String(lead.notes || "").trim();
+          const formBlock = (formText || notesText)
+            ? `<div style="background:#eff6ff;border-radius:8px;padding:12px 16px;margin:12px 0;border-left:3px solid #2563eb">
+                 <p style="margin:0 0 6px;font-weight:600;color:#1e40af">📋 Détails du formulaire initial</p>
+                 ${formText ? `<div style="color:#1e3a8a;white-space:pre-wrap;font-size:13px">${escapeHtml(formText)}</div>` : ""}
+                 ${notesText ? `<div style="color:#1e3a8a;white-space:pre-wrap;font-size:13px;margin-top:8px"><strong>Notes :</strong> ${escapeHtml(notesText)}</div>` : ""}
+               </div>` : "";
           const summaryBlock = parsed.lead_summary
             ? `<div style="background:#fef3c7;border-radius:8px;padding:12px 16px;margin:12px 0;border-left:3px solid #f59e0b">
-                 <p style="margin:0 0 4px;font-weight:600;color:#92400e">📝 Résumé conversation</p>
-                 <p style="margin:0;color:#451a03">${String(parsed.lead_summary).replace(/[<>]/g, "")}</p>
+                 <p style="margin:0 0 4px;font-weight:600;color:#92400e">🆕 Infos apprises pendant la conversation</p>
+                 <p style="margin:0;color:#451a03;white-space:pre-wrap">${escapeHtml(parsed.lead_summary)}</p>
                </div>` : "";
-          const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-          const transcriptHtml = messages.map((m: any) => {
-            const isLead = m.direction === "inbound";
-            const color = isLead ? "#1e40af" : "#7c3aed";
-            const bg = isLead ? "#eff6ff" : "#f5f3ff";
-            const label = isLead ? `💬 ${lead.name || "Lead"}` : `🤖 Vous (IA)`;
-            return `<div style="background:${bg};border-left:3px solid ${color};border-radius:6px;padding:10px 14px;margin:8px 0">
-              <div style="font-size:11px;color:${color};font-weight:600;margin-bottom:4px">${label}</div>
-              <div style="color:#111827;white-space:pre-wrap">${escapeHtml(m.content || "")}</div>
-            </div>`;
-          }).join("");
           const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"></head>
 <body style="background:#fff;font-family:'Plus Jakarta Sans',Arial,sans-serif;margin:0;padding:0;color:#111827">
   <div style="max-width:640px;margin:0 auto;padding:28px 24px;font-size:14px;line-height:1.6">
     <h1 style="font-size:20px;margin:0 0 12px">📅 Nouveau RDV (auto-détecté via WhatsApp)</h1>
-    ${workspaceName ? `<div style="font-size:13px;color:#6b7280;margin:0 0 12px">Espace : ${workspaceName}</div>` : ""}
+    ${workspaceName ? `<div style="font-size:13px;color:#6b7280;margin:0 0 12px">Espace : ${escapeHtml(workspaceName)}</div>` : ""}
     <div style="background:#f9fafb;border-radius:8px;padding:16px 18px;margin:12px 0;border-left:3px solid #7c3aed">
-      <p style="margin:4px 0"><strong>Lead :</strong> ${lead.name || ""}</p>
-      ${lead.email ? `<p style="margin:4px 0"><strong>Email :</strong> ${lead.email}</p>` : ""}
-      ${lead.phone ? `<p style="margin:4px 0"><strong>Téléphone :</strong> ${lead.phone}</p>` : ""}
+      <p style="margin:4px 0"><strong>Lead :</strong> ${escapeHtml(lead.name || "")}</p>
+      ${lead.email ? `<p style="margin:4px 0"><strong>Email :</strong> ${escapeHtml(lead.email)}</p>` : ""}
+      ${lead.phone ? `<p style="margin:4px 0"><strong>Téléphone :</strong> ${escapeHtml(lead.phone)}</p>` : ""}
       <p style="margin:4px 0"><strong>Créneau :</strong> ${parsed.booking_date} à ${parsed.time_slot}</p>
-      <p style="margin:4px 0"><strong>Offre :</strong> ${offerName}</p>
+      <p style="margin:4px 0"><strong>Offre :</strong> ${escapeHtml(offerName)}</p>
       ${addressRow}
       ${meetRow}
     </div>
+    ${formBlock}
     ${summaryBlock}
-    <h2 style="font-size:15px;margin:24px 0 8px;color:#374151">Conversation complète</h2>
-    <div style="max-height:none">${transcriptHtml}</div>
     <p style="margin-top:20px"><a href="${bookingUrl}" style="background:#7c3aed;color:#fff;padding:10px 18px;border-radius:6px;font-weight:600;text-decoration:none;display:inline-block">Ouvrir la fiche lead</a></p>
   </div>
 </body></html>`;

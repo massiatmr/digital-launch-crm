@@ -60,6 +60,21 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Garde-fou : si la conversation est déjà BOOKED/CLOSED ou résolue, on n'enchaîne plus
+    // aucune action (sinon l'IA renvoie un "c'est noté" à chaque "Oui"/"Parfait" du lead
+    // après la création du booking).
+    const { data: convState } = await admin
+      .from("lead_conversation_state")
+      .select("state, resolved_at")
+      .eq("lead_id", lead_id)
+      .maybeSingle();
+    if (convState && (convState.state === "BOOKED" || convState.state === "CLOSED" || convState.resolved_at)) {
+      return new Response(
+        JSON.stringify({ ok: true, skipped: true, reason: `conversation_${convState.state ?? "resolved"}` }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     // Settings (pour modèle + prompt custom)
     let settings: any = null;
     if (lead.workspace_id) {
