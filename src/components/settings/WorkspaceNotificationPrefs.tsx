@@ -20,7 +20,7 @@ export function WorkspaceNotificationPrefs() {
     queryFn: async (): Promise<Pref[]> => {
       const { data, error } = await supabase
         .from('user_workspace_notification_prefs' as any)
-        .select('workspace_id, email_enabled, push_enabled')
+        .select('workspace_id, email_enabled, push_enabled, whatsapp_enabled')
         .eq('user_id', user!.id);
       if (error) throw error;
       return (data as any) || [];
@@ -30,7 +30,7 @@ export function WorkspaceNotificationPrefs() {
   const prefByWs = new Map(prefs.map((p) => [p.workspace_id, p]));
 
   const update = useMutation({
-    mutationFn: async (payload: { workspace_id: string; email_enabled: boolean; push_enabled: boolean }) => {
+    mutationFn: async (payload: { workspace_id: string; email_enabled: boolean; push_enabled: boolean; whatsapp_enabled: boolean }) => {
       const { error } = await supabase
         .from('user_workspace_notification_prefs' as any)
         .upsert(
@@ -45,16 +45,18 @@ export function WorkspaceNotificationPrefs() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const toggle = (workspaceId: string, channel: 'email' | 'push', value: boolean) => {
+  const toggle = (workspaceId: string, channel: 'email' | 'push' | 'whatsapp', value: boolean) => {
     const current = prefByWs.get(workspaceId) || {
       workspace_id: workspaceId,
       email_enabled: true,
       push_enabled: true,
+      whatsapp_enabled: true,
     };
     update.mutate({
       workspace_id: workspaceId,
       email_enabled: channel === 'email' ? value : current.email_enabled,
       push_enabled: channel === 'push' ? value : current.push_enabled,
+      whatsapp_enabled: channel === 'whatsapp' ? value : current.whatsapp_enabled,
     });
   };
 
