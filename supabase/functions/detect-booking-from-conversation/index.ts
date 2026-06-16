@@ -31,9 +31,28 @@ async function sendBookingConfirmationWhatsApp(
   lead: any,
   bookingDate: string,
   timeSlot: string,
-  offerName: string,
-  meetLink: string | null,
+  _offerName: string,
+  _meetLink: string | null,
 ): Promise<void> {
+  // Anti-doublon : si l'IA conversationnelle a DÉJÀ envoyé une confirmation dans les
+  // 30 dernières minutes (message outbound contenant "noté"/"confirmé"/"bloqué" + la date/heure,
+  // OU déjà un message marqué kind=booking_confirmation), on ne renvoie pas un message générique.
+  const since = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const { data: recentOut } = await admin
+    .from("whatsapp_messages")
+    .select("content, metadata, sent_at")
+    .eq("lead_id", lead.id)
+    .eq("direction", "outbound")
+    .gte("sent_at", since)
+    .order("sent_at", { ascending: false })
+    .limit(5);
+  const alreadyConfirmed = (recentOut ?? []).some((m: any) => {
+    if (m?.metadata?.kind === "booking_confirmation") return true;
+    const c = String(m?.content || "").toLowerCase();
+    return /(c'est not[ée]|confirm[ée]|bloqu[ée]|à demain|à tout à l'heure)/i.test(c);
+  });
+  if (alreadyConfirmed) return;
+
   // Récupère config WA + dry_run
   let configQuery = admin.from("whatsapp_config").select("*").eq("is_active", true);
   if (lead.workspace_id) configQuery = configQuery.eq("workspace_id", lead.workspace_id);
@@ -48,10 +67,10 @@ async function sendBookingConfirmationWhatsApp(
 
   const dateFr = formatBookingDateFr(bookingDate);
   const email = lead.email || "";
-  const text = `Parfait c'est noté pour ${dateFr} à ${timeSlot}.
-
-Je t'envoie aussi par email${email ? ` (${email})` : ""} quelques ressources à parcourir et le lien du meet avant le rendez-vous. Dis-moi si c'est pas le bon email.
-A bientôt`;
+  // Message neutre : pas de mention "meet" (certains workspaces font des visites physiques).
+  const text = `C'est noté pour ${dateFr} à ${timeSlot} ✅
+${email ? `Je t'envoie la confirmation par email (${email}).` : "Je reviens vers toi rapidement avec la confirmation."}
+À bientôt 🙏`;
 
   let waMessageId: string | null = null;
   let errorMessage: string | null = null;
