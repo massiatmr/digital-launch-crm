@@ -88,17 +88,10 @@ Deno.serve(async (req) => {
           .single();
         if (!lead) continue;
 
-        // === CAS 1 : conversation inactive (silence > seuil, dans fenêtre 24h) ===
-        // Déclenchée si : on a engagé (au moins 1 inbound) ET silence > seuil ET fenêtre 24h pas expirée
-        // On couvre 2 sous-cas :
-        //  a) dernier msg = nous → le lead n'a pas répondu à notre dernière question
-        //  b) dernier msg = lead → on n'a pas relancé après sa réponse
-        const lastIsOutbound = (lastOut?.getTime() ?? 0) >= (lastIn?.getTime() ?? 0);
-        if (
-          lastActivity < inactivityCutoff &&
-          lastActivity > window24hCutoff
-        ) {
-          // Vérifie qu'on n'a pas déjà une tâche active
+        // === CAS 1 : conversation inactive (silence > seuil) ===
+        // Pas de borne haute : un lead silencieux depuis 3j ou 30j doit aussi être relancé.
+        // Cooldown progressif entre tentatives : 2j, 5j, 10j (max 4 tentatives sans réponse).
+        if (lastActivity < inactivityCutoff) {
           const { data: existing } = await admin
             .from("lead_followup_tasks")
             .select("id")
@@ -107,38 +100,51 @@ Deno.serve(async (req) => {
             .in("status", ["pending", "scheduled"])
             .limit(1);
 
-          // Anti-spam : ne pas relancer en boucle. Si une reactivation a déjà été envoyée
-          // ET que le lead n'a pas répondu depuis, on s'arrête (max 1 réactivation tant qu'il ne répond pas).
-          const { data: lastSentReact } = await admin
+          const { data: sentReacts } = await admin
             .from("lead_followup_tasks")
             .select("executed_at")
             .eq("lead_id", st.lead_id)
             .eq("task_type", "reactivation")
             .eq("status", "sent")
-            .order("executed_at", { ascending: false })
-            .limit(1);
-          const lastReactSentAt = lastSentReact?.[0]?.executed_at ? new Date(lastSentReact[0].executed_at) : null;
-          const leadRepliedAfterLastReact = lastReactSentAt && lastIn && lastIn.getTime() > lastReactSentAt.getTime();
-          const blockedByPrevReact = lastReactSentAt && !leadRepliedAfterLastReact;
+            .order("executed_at", { ascending: false });
 
-          if (!existing?.length && !blockedByPrevReact) {
+          const sentCount = sentReacts?.length ?? 0;
+          const lastReactSentAt = sentReacts?.[0]?.executed_at ? new Date(sentReacts[0].executed_at) : null;
+          const leadRepliedAfterLastReact = lastReactSentAt && lastIn && lastIn.getTime() > lastReactSentAt.getTime();
+
+          const MAX_REACT_ATTEMPTS = 4;
+          const cooldownDaysByAttempt = [0, 2, 5, 10];
+          let blockedByCooldown = false;
+          if (lastReactSentAt && !leadRepliedAfterLastReact) {
+            if (sentCount >= MAX_REACT_ATTEMPTS) {
+              blockedByCooldown = true;
+            } else {
+              const cooldownDays = cooldownDaysByAttempt[Math.min(sentCount, cooldownDaysByAttempt.length - 1)] ?? 10;
+              const cooldownCutoff = new Date(lastReactSentAt.getTime() + cooldownDays * 86400 * 1000);
+              if (now < cooldownCutoff) blockedByCooldown = true;
+            }
+          }
+
+          if (!existing?.length && !blockedByCooldown) {
             const { data: t } = await admin
               .from("lead_followup_tasks")
               .insert({
                 lead_id: st.lead_id,
                 owner_id: s.owner_id,
+                workspace_id: st.workspace_id,
                 task_type: "reactivation",
                 status: "scheduled",
                 scheduled_at: now.toISOString(),
-                step_order: 50,
+                step_order: 50 + sentCount,
               })
               .select("id")
               .single();
-            created.push({ type: "reactivation", lead_id: st.lead_id, task_id: t?.id });
+            created.push({ type: "reactivation", lead_id: st.lead_id, task_id: t?.id, attempt: sentCount + 1 });
+            const hoursSilent = Math.round((now.getTime() - lastActivity.getTime()) / 3600000);
             await pushNotif(
               s.owner_id,
               `🔄 Relancer ${lead.name}`,
-              `Conversation inactive depuis ${inactivityHours}h`,
+              `Silence ${hoursSilent}h — tentative ${sentCount + 1}/${MAX_REACT_ATTEMPTS}`,
               st.lead_id,
             );
           }
