@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Building2, Plus, Check, Users, UserPlus, Trash2, ShieldCheck, MessageCircle, CalendarCheck, Package, Facebook, UserCheck, AlertTriangle, Upload, Loader2, X, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { InviteMemberDialog } from '@/components/InviteMemberDialog';
+import { MemberNotificationControls } from '@/components/settings/MemberNotificationControls';
 
 const slugify = (s: string) =>
   s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -430,41 +431,46 @@ function MembersList({ workspaceId, currentUserId, canManage }: { workspaceId: s
         {members?.map((m) => {
           const isSelf = m.user_id === currentUserId;
           return (
-            <div key={m.user_id} className="flex items-center justify-between gap-2 rounded-md bg-muted/30 px-2 py-1.5">
-              <div className="min-w-0 flex-1">
-                <div className="text-sm truncate">{m.email}{isSelf && <span className="text-xs text-muted-foreground"> (vous)</span>}</div>
+            <div key={m.user_id} className="rounded-md bg-muted/30 px-2 py-1.5 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm truncate">{m.email}{isSelf && <span className="text-xs text-muted-foreground"> (vous)</span>}</div>
+                </div>
+                {canManage && !isSelf ? (
+                  <>
+                    <Select
+                      value={m.role}
+                      onValueChange={(v) => updateRole.mutate({ workspaceId, userId: m.user_id, role: v as any }, {
+                        onSuccess: () => toast.success('Rôle mis à jour'),
+                        onError: (e: any) => toast.error(e.message),
+                      })}
+                    >
+                      <SelectTrigger className="h-7 w-[100px] text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="owner">Owner</SelectItem>
+                        <SelectItem value="member">Member</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="icon" variant="ghost" className="h-7 w-7 text-destructive"
+                      onClick={() => {
+                        if (confirm(`Retirer ${m.email} ?`)) {
+                          remove.mutate({ workspaceId, userId: m.user_id }, {
+                            onSuccess: () => toast.success('Membre retiré'),
+                            onError: (e: any) => toast.error(e.message),
+                          });
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </>
+                ) : (
+                  <Badge variant="outline" className="text-xs capitalize">{m.role}</Badge>
+                )}
               </div>
-              {canManage && !isSelf ? (
-                <>
-                  <Select
-                    value={m.role}
-                    onValueChange={(v) => updateRole.mutate({ workspaceId, userId: m.user_id, role: v as any }, {
-                      onSuccess: () => toast.success('Rôle mis à jour'),
-                      onError: (e: any) => toast.error(e.message),
-                    })}
-                  >
-                    <SelectTrigger className="h-7 w-[100px] text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="owner">Owner</SelectItem>
-                      <SelectItem value="member">Member</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    size="icon" variant="ghost" className="h-7 w-7 text-destructive"
-                    onClick={() => {
-                      if (confirm(`Retirer ${m.email} ?`)) {
-                        remove.mutate({ workspaceId, userId: m.user_id }, {
-                          onSuccess: () => toast.success('Membre retiré'),
-                          onError: (e: any) => toast.error(e.message),
-                        });
-                      }
-                    }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </>
-              ) : (
-                <Badge variant="outline" className="text-xs capitalize">{m.role}</Badge>
+              {canManage && (
+                <MemberNotificationControls workspaceId={workspaceId} userId={m.user_id} />
               )}
             </div>
           );

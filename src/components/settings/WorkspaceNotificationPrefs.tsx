@@ -1,13 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { Mail, Bell, Building2 } from 'lucide-react';
+import { Mail, Bell, Building2, MessageCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useWorkspaces } from '@/hooks/useWorkspaces';
 import { toast } from 'sonner';
 
-type Pref = { workspace_id: string; email_enabled: boolean; push_enabled: boolean };
+type Pref = { workspace_id: string; email_enabled: boolean; push_enabled: boolean; whatsapp_enabled: boolean };
 
 export function WorkspaceNotificationPrefs() {
   const { user } = useAuth();
@@ -20,7 +20,7 @@ export function WorkspaceNotificationPrefs() {
     queryFn: async (): Promise<Pref[]> => {
       const { data, error } = await supabase
         .from('user_workspace_notification_prefs' as any)
-        .select('workspace_id, email_enabled, push_enabled')
+        .select('workspace_id, email_enabled, push_enabled, whatsapp_enabled')
         .eq('user_id', user!.id);
       if (error) throw error;
       return (data as any) || [];
@@ -30,7 +30,7 @@ export function WorkspaceNotificationPrefs() {
   const prefByWs = new Map(prefs.map((p) => [p.workspace_id, p]));
 
   const update = useMutation({
-    mutationFn: async (payload: { workspace_id: string; email_enabled: boolean; push_enabled: boolean }) => {
+    mutationFn: async (payload: { workspace_id: string; email_enabled: boolean; push_enabled: boolean; whatsapp_enabled: boolean }) => {
       const { error } = await supabase
         .from('user_workspace_notification_prefs' as any)
         .upsert(
@@ -45,16 +45,18 @@ export function WorkspaceNotificationPrefs() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const toggle = (workspaceId: string, channel: 'email' | 'push', value: boolean) => {
+  const toggle = (workspaceId: string, channel: 'email' | 'push' | 'whatsapp', value: boolean) => {
     const current = prefByWs.get(workspaceId) || {
       workspace_id: workspaceId,
       email_enabled: true,
       push_enabled: true,
+      whatsapp_enabled: true,
     };
     update.mutate({
       workspace_id: workspaceId,
       email_enabled: channel === 'email' ? value : current.email_enabled,
       push_enabled: channel === 'push' ? value : current.push_enabled,
+      whatsapp_enabled: channel === 'whatsapp' ? value : current.whatsapp_enabled,
     });
   };
 
@@ -76,6 +78,7 @@ export function WorkspaceNotificationPrefs() {
           const p = prefByWs.get(ws.id);
           const email = p ? p.email_enabled : true;
           const push = p ? p.push_enabled : true;
+          const wa = p ? p.whatsapp_enabled : true;
           return (
             <div
               key={ws.id}
@@ -87,7 +90,7 @@ export function WorkspaceNotificationPrefs() {
                   {ws.role === 'owner' ? 'Propriétaire' : 'Membre'}
                 </div>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 flex-wrap">
                 <label className="flex items-center gap-2 text-xs cursor-pointer">
                   <Mail className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-muted-foreground">Email</span>
@@ -97,6 +100,11 @@ export function WorkspaceNotificationPrefs() {
                   <Bell className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-muted-foreground">Push</span>
                   <Switch checked={push} onCheckedChange={(v) => toggle(ws.id, 'push', v)} />
+                </label>
+                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                  <MessageCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-muted-foreground">WhatsApp</span>
+                  <Switch checked={wa} onCheckedChange={(v) => toggle(ws.id, 'whatsapp', v)} />
                 </label>
               </div>
             </div>
