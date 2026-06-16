@@ -159,7 +159,7 @@ Deno.serve(async (req) => {
 
     const { data: lead } = await admin
       .from("leads")
-      .select("id, name, email, phone, owner_id, workspace_id, offer_id, offers(name)")
+      .select("id, name, email, phone, owner_id, workspace_id, offer_id, message, notes, source, created_at, offers(name)")
       .eq("id", lead_id)
       .maybeSingle();
     if (!lead) {
