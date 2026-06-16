@@ -1,0 +1,1 @@
+ALTER TABLE public.availability_settings ADD COLUMN IF NOT EXISTS day_hours JSONB NOT NULL DEFAULT '{}'::jsonb;

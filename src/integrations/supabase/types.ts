@@ -79,6 +79,7 @@ export type Database = {
           afternoon_slot: string
           created_at: string
           day_end_time: string
+          day_hours: Json
           day_start_time: string
           id: string
           max_future_days: number
@@ -95,6 +96,7 @@ export type Database = {
           afternoon_slot?: string
           created_at?: string
           day_end_time?: string
+          day_hours?: Json
           day_start_time?: string
           id?: string
           max_future_days?: number
@@ -111,6 +113,7 @@ export type Database = {
           afternoon_slot?: string
           created_at?: string
           day_end_time?: string
+          day_hours?: Json
           day_start_time?: string
           id?: string
           max_future_days?: number
