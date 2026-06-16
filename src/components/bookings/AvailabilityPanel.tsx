@@ -51,6 +51,7 @@ export function AvailabilityPanel() {
   const [duration, setDuration] = useState<number>(45);
   const [maxDays, setMaxDays] = useState<number>(14);
   const [minLeadHours, setMinLeadHours] = useState<number>(2);
+  const [dayHours, setDayHours] = useState<Record<string, { start: string; end: string }>>({});
 
   useEffect(() => {
     if (settings) {
@@ -59,6 +60,7 @@ export function AvailabilityPanel() {
       setDuration(settings.slot_duration_minutes);
       setMaxDays(settings.max_future_days);
       setMinLeadHours(settings.min_lead_time_hours ?? 2);
+      setDayHours((settings.day_hours as any) ?? {});
     }
   }, [settings?.workspace_id, settings?.owner_id, settings?.day_start_time, settings?.day_end_time, settings?.slot_duration_minutes, settings?.max_future_days, settings?.min_lead_time_hours]);
 
@@ -96,13 +98,28 @@ export function AvailabilityPanel() {
       toast.error('Délai minimum entre 0 et 168h');
       return;
     }
+    // Validate per-day overrides
+    const cleaned: Record<string, { start: string; end: string }> = {};
+    for (const [k, v] of Object.entries(dayHours)) {
+      if (!v?.start || !v?.end) continue;
+      if (!/^\d{2}:\d{2}$/.test(v.start) || !/^\d{2}:\d{2}$/.test(v.end)) {
+        toast.error(`Format HH:MM invalide pour le jour ${k}`);
+        return;
+      }
+      if (v.start >= v.end) {
+        toast.error(`Fin doit être après début (jour ${k})`);
+        return;
+      }
+      cleaned[k] = { start: v.start, end: v.end };
+    }
     await upsert.mutateAsync({
       day_start_time: start,
       day_end_time: end,
       slot_duration_minutes: duration,
       max_future_days: maxDays,
       min_lead_time_hours: minLeadHours,
-    });
+      day_hours: cleaned as any,
+    } as any);
     toast.success('Disponibilités mises à jour');
   };
 
@@ -180,7 +197,7 @@ export function AvailabilityPanel() {
         </div>
 
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground uppercase tracking-wider">Plage horaire (créneaux toutes les heures)</Label>
+          <Label className="text-xs text-muted-foreground uppercase tracking-wider">Plage horaire par défaut (créneaux toutes les heures)</Label>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label className="text-[11px] text-muted-foreground">Début</Label>
@@ -208,6 +225,53 @@ export function AvailabilityPanel() {
               Empêche la réservation d'un créneau qui commence dans moins de {minLeadHours}h.
             </p>
           </div>
+
+          <div className="space-y-2 pt-1">
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider">Horaires personnalisés par jour (optionnel)</Label>
+            <p className="text-[11px] text-muted-foreground">Laisse vide pour utiliser la plage par défaut ci-dessus.</p>
+            <div className="space-y-1.5">
+              {DAYS.filter(d => settings.working_days.includes(d.v)).map(d => {
+                const key = String(d.v);
+                const override = dayHours[key];
+                const enabled = !!(override?.start || override?.end);
+                return (
+                  <div key={d.v} className="flex items-center gap-2">
+                    <div className="w-10 text-xs text-muted-foreground">{d.label}</div>
+                    {enabled ? (
+                      <>
+                        <Input
+                          type="time"
+                          step={900}
+                          className="h-8 text-xs"
+                          value={override?.start ?? start}
+                          onChange={e => setDayHours(prev => ({ ...prev, [key]: { start: e.target.value, end: prev[key]?.end ?? end } }))}
+                        />
+                        <span className="text-xs text-muted-foreground">→</span>
+                        <Input
+                          type="time"
+                          step={900}
+                          className="h-8 text-xs"
+                          value={override?.end ?? end}
+                          onChange={e => setDayHours(prev => ({ ...prev, [key]: { start: prev[key]?.start ?? start, end: e.target.value } }))}
+                        />
+                        <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => setDayHours(prev => { const n = { ...prev }; delete n[key]; return n; })}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </>
+                    ) : (
+                      <Button size="sm" variant="outline" className="h-8 text-[11px] flex-1 justify-start text-muted-foreground" onClick={() => setDayHours(prev => ({ ...prev, [key]: { start, end } }))}>
+                        Personnaliser ({start}–{end})
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+
+
+
           {previewSlots.length > 0 && (
             <div className="flex flex-wrap gap-1 pt-1">
               {previewSlots.map(s => (

@@ -15,6 +15,7 @@ export interface AvailabilitySettings {
   timezone: string;
   morning_slot?: string;
   afternoon_slot?: string;
+  day_hours?: Record<string, { start: string; end: string }>;
 }
 
 export interface Blackout {
