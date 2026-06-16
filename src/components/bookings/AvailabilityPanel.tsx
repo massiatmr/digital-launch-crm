@@ -197,7 +197,7 @@ export function AvailabilityPanel() {
         </div>
 
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground uppercase tracking-wider">Plage horaire (créneaux toutes les heures)</Label>
+          <Label className="text-xs text-muted-foreground uppercase tracking-wider">Plage horaire par défaut (créneaux toutes les heures)</Label>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label className="text-[11px] text-muted-foreground">Début</Label>
