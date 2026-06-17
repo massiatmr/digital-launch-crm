@@ -306,12 +306,12 @@ export function LeadDetailContent({
                 </div>
 
                 {aiNotesBlock && (
-                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 overflow-hidden">
                     <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-primary">
                       <Sparkles className="h-3.5 w-3.5" />
                       Préparation d'appel par l'IA
                     </div>
-                    <div className="prose prose-sm prose-invert max-w-none text-sm [&_h2]:mb-1 [&_h2]:mt-3 [&_h2]:text-sm [&_h2]:font-semibold [&_li]:my-0.5 [&_ul]:my-1">
+                    <div className="prose prose-sm prose-invert max-w-none text-sm break-words [&_*]:min-w-0 [&_a]:break-all [&_code]:break-all [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_h2]:mb-1 [&_h2]:mt-3 [&_h2]:text-sm [&_h2]:font-semibold [&_li]:my-0.5 [&_ul]:my-1">
                       <ReactMarkdown>{aiNotesBlock}</ReactMarkdown>
                     </div>
                   </div>
