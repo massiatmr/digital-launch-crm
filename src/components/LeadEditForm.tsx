@@ -145,7 +145,7 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
         <div className="space-y-1.5">
           <Label>Source</Label>
           <Select value={form.source} onValueChange={v => update('source', v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-11 text-base sm:h-10 sm:text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
               {sources.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
             </SelectContent>
@@ -154,7 +154,7 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
         <div className="space-y-1.5">
           <Label>Score</Label>
           <Select value={form.score} onValueChange={v => update('score', v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-11 text-base sm:h-10 sm:text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
               {scores.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
             </SelectContent>
@@ -163,7 +163,7 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
         <div className="space-y-1.5">
           <Label>Statut</Label>
           <Select value={form.status} onValueChange={handleStatusChange}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-11 text-base sm:h-10 sm:text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
               {statuses.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
             </SelectContent>
@@ -199,7 +199,7 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
         <div className="space-y-1.5">
           <Label>Offre</Label>
           <Select value={form.offer_id} onValueChange={v => update('offer_id', v)}>
-            <SelectTrigger><SelectValue placeholder="Aucune offre" /></SelectTrigger>
+            <SelectTrigger className="h-11 text-base sm:h-10 sm:text-sm"><SelectValue placeholder="Aucune offre" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Aucune offre</SelectItem>
               {offers.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
@@ -209,7 +209,7 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
         <div className="space-y-1.5">
           <Label>Présence au RDV</Label>
           <Select value={form.show_status} onValueChange={v => update('show_status', v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-11 text-base sm:h-10 sm:text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
               {showStatuses.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
             </SelectContent>
