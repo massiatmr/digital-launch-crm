@@ -251,9 +251,10 @@ export function LeadDetailContent({
                   <p className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">
                     Message initial du lead
                   </p>
-                  <pre className="w-full min-w-0 max-w-full overflow-x-auto whitespace-pre-wrap [overflow-wrap:anywhere] break-words font-sans text-sm italic">"{lead.message}"</pre>
+                  <pre className="w-full min-w-0 max-w-full overflow-x-auto whitespace-pre-wrap [overflow-wrap:anywhere] break-words font-sans text-xs sm:text-sm italic">"{lead.message}"</pre>
                 </div>
               )}
+
 
               {(lead.ai_summary || lead.sales_angle || lead.next_action) && (
                 <div className="space-y-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
