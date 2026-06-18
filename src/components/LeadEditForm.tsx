@@ -125,7 +125,7 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         <div className="space-y-1.5">
           <Label htmlFor="edit-name">Nom *</Label>
           <Input id="edit-name" value={form.name} onChange={e => update('name', e.target.value)} />
