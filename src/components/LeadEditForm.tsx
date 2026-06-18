@@ -113,8 +113,9 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
       onSubmit={handleSubmit}
-      className="rounded-xl border border-border bg-card p-5 space-y-4"
+      className="w-full min-w-0 max-w-full rounded-xl border border-border/60 bg-card p-3 sm:p-5 space-y-4"
     >
+
       <div className="flex items-center justify-between">
         <h3 className="font-heading text-base">Modifier le lead</h3>
         {onClose && !inline && (
