@@ -128,19 +128,19 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         <div className="space-y-1.5">
           <Label htmlFor="edit-name">Nom *</Label>
-          <Input id="edit-name" value={form.name} onChange={e => update('name', e.target.value)} />
+          <Input id="edit-name" className="h-11 text-base sm:h-10 sm:text-sm" value={form.name} onChange={e => update('name', e.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="edit-company">Entreprise</Label>
-          <Input id="edit-company" value={form.company_name} onChange={e => update('company_name', e.target.value)} />
+          <Input id="edit-company" className="h-11 text-base sm:h-10 sm:text-sm" value={form.company_name} onChange={e => update('company_name', e.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="edit-email">Email</Label>
-          <Input id="edit-email" type="email" value={form.email} onChange={e => update('email', e.target.value)} />
+          <Input id="edit-email" className="h-11 text-base sm:h-10 sm:text-sm" type="email" value={form.email} onChange={e => update('email', e.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="edit-phone">Téléphone</Label>
-          <Input id="edit-phone" type="tel" value={form.phone} onChange={e => update('phone', e.target.value)} />
+          <Input id="edit-phone" className="h-11 text-base sm:h-10 sm:text-sm" type="tel" value={form.phone} onChange={e => update('phone', e.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label>Source</Label>
@@ -174,7 +174,7 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="edit-action">Prochaine action</Label>
-          <Input id="edit-action" value={form.next_action} onChange={e => update('next_action', e.target.value)} />
+          <Input id="edit-action" className="h-11 text-base sm:h-10 sm:text-sm" value={form.next_action} onChange={e => update('next_action', e.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label>Date de création</Label>
