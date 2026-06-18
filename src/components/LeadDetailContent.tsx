@@ -99,12 +99,12 @@ export function LeadDetailContent({
   };
 
   return (
-    <div className="flex h-[calc(100vh-80px)] flex-col">
-      <div className="sticky top-0 z-10 border-b border-border bg-background/95 pb-2 pr-12 backdrop-blur-sm">
+    <div className="flex h-[100dvh] sm:h-[calc(100vh-80px)] min-w-0 max-w-full flex-col overflow-x-hidden">
+      <div className="sticky top-0 z-10 border-b border-border/60 bg-background/95 pb-3 pr-10 backdrop-blur-sm">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <h2 className="font-heading truncate text-lg">{lead.name}</h2>
+              <h2 className="font-heading truncate text-base sm:text-lg">{lead.name}</h2>
               <LeadScoreBadge score={lead.score} />
               <LeadStatusBadge status={lead.status} />
               <ShowStatusToggle leadId={lead.id} currentStatus={lead.show_status} size="sm" showHelper />
@@ -117,6 +117,7 @@ export function LeadDetailContent({
           <CreateTaskForLeadDialog leadId={lead.id} leadName={lead.name} />
         </div>
       </div>
+
 
       <AlertDialog open={confirmDelete} onOpenChange={(o) => { setConfirmDelete(o); if (!o) setHardDelete(false); }}>
         <AlertDialogContent>
