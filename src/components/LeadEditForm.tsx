@@ -180,10 +180,11 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
           <Label>Date de création</Label>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("w-full justify-start text-left font-normal")}>
+              <Button variant="outline" className={cn("h-11 sm:h-10 text-base sm:text-sm w-full justify-start text-left font-normal")}>
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 {format(new Date(form.created_at), 'dd MMM yyyy', { locale: fr })}
               </Button>
+
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
               <Calendar
