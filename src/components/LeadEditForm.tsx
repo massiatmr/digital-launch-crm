@@ -220,18 +220,19 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
 
       <div className="space-y-1.5">
         <Label htmlFor="edit-notes">Notes</Label>
-        <Textarea id="edit-notes" value={form.notes} onChange={e => update('notes', e.target.value)} rows={3} />
+        <Textarea id="edit-notes" className="text-base sm:text-sm" value={form.notes} onChange={e => update('notes', e.target.value)} rows={3} />
       </div>
 
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 border-t border-border/60 pt-3">
         {onClose && !inline && (
-          <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
+          <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={onClose}>Annuler</Button>
         )}
-        <Button type="submit" disabled={updateLead.isPending}>
+        <Button type="submit" className="w-full sm:w-auto min-h-11" disabled={updateLead.isPending}>
           {updateLead.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
           Enregistrer
         </Button>
       </div>
+
       <LostReasonDialog
         open={showLostDialog}
         onConfirm={handleLostConfirm}
