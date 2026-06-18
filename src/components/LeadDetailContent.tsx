@@ -244,11 +244,11 @@ export function LeadDetailContent({
               <LeadEditForm lead={lead} inline />
 
               {lead.message && (
-                <div className="overflow-hidden rounded-lg border-l-2 border-primary/40 bg-muted/50 p-3">
+                <div className="w-full min-w-0 max-w-full overflow-hidden rounded-lg border-l-2 border-primary/40 bg-muted/50 p-3">
                   <p className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">
                     Message initial du lead
                   </p>
-                  <pre className="max-w-full overflow-x-auto whitespace-pre-wrap break-words font-sans text-sm italic">"{lead.message}"</pre>
+                  <pre className="w-full min-w-0 max-w-full overflow-x-auto whitespace-pre-wrap [overflow-wrap:anywhere] break-words font-sans text-sm italic">"{lead.message}"</pre>
                 </div>
               )}
 
