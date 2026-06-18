@@ -159,22 +159,23 @@ export function LeadDetailContent({
       </AlertDialog>
 
       <Tabs defaultValue="overview" className="mt-3 flex min-h-0 flex-1 flex-col">
-        <TabsList className={cn('grid w-full', whatsappEnabled ? 'grid-cols-3' : 'grid-cols-2')}>
-          <TabsTrigger value="overview" className="gap-1 text-xs">
+        <TabsList className={cn('grid w-full gap-1', whatsappEnabled ? 'grid-cols-3' : 'grid-cols-2')}>
+          <TabsTrigger value="overview" className="gap-1 text-[11px] sm:text-xs">
             <LayoutGrid className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Détails</span>
           </TabsTrigger>
           {whatsappEnabled && (
-            <TabsTrigger value="followup" className="gap-1 text-xs">
+            <TabsTrigger value="followup" className="gap-1 text-[11px] sm:text-xs">
               <Smartphone className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">WhatsApp</span>
             </TabsTrigger>
           )}
-          <TabsTrigger value="activities" className="gap-1 text-xs">
+          <TabsTrigger value="activities" className="gap-1 text-[11px] sm:text-xs">
             <Activity className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Activité & tâches</span>
           </TabsTrigger>
         </TabsList>
+
 
         <ScrollArea className="mt-3 flex-1">
           <div className="space-y-4 pb-40 sm:pb-6 pr-3" style={{ paddingBottom: 'max(10rem, calc(env(safe-area-inset-bottom) + 8rem))' }}>
