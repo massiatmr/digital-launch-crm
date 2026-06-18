@@ -1,90 +1,42 @@
-# Calendrier par workspace + multi-providers
+## Refonte mobile — page détail du lead
 
-Chantier en 3 phases. Chaque phase est livrable indépendamment.
+Objectif : rendre la sheet détail respirable sur iPhone (390px et moins car c'est moins que ça bug, genre le width des elements ne s'adapte plus quand l'ecran est plus petit, ils ont un width fix, mais puisque l'écran est petit ça depasse vers la droite), régler les éléments écrasés, les contours flous et le clipping des focus.
 
-## Phase 1 — Migration vers workspace (base)
+### 1. SheetContent (`src/pages/PipelinePage.tsx`)
 
-**Tables migrées (ajout `workspace_id` + RLS workspace) :**
-- `availability_settings` : devient unique par workspace (au lieu de par owner). Migration : on copie les settings du owner du workspace vers une ligne workspace_id.
-- `availability_blackouts` : ajout `workspace_id`, RLS = membres du workspace.
-- `google_tokens` → renommé en `calendar_accounts` (cf phase 2). Pour phase 1 : ajout `workspace_id` + RLS.
+- Remplacer `p-6` par `p-4 sm:p-6` (réduit ~16px de chaque côté gagnés sur mobile).
+- Retirer le double système de hauteur en supprimant `overflow-y-auto custom-scrollbar` ici (le scroll est déjà géré à l'intérieur par `LeadDetailContent`).
 
-**RPC mises à jour :**
-- `get_availability_for_offer` / FreeBusy : résolvent les settings via `offer.workspace_id` au lieu du `owner_id`.
+### 2. LeadDetailContent (`src/components/LeadDetailContent.tsx`)
 
-**Edge functions touchées :**
-- `bookings-availability`, `create-booking-from-public-page`, `google-calendar-*` : passent par `workspace_id` (résolu via l'offer ou le lead).
+- Hauteur : remplacer `h-[calc(100vh-80px)]` par `h-[100dvh] sm:h-[calc(100vh-80px)]` pour utiliser la dynamic viewport iOS et éviter le scroll fantôme sous la barre Safari.
+- Header sticky : padding plus aéré (`pb-3 pr-10`), titre `text-base sm:text-lg` pour éviter l'écrasement avec les badges.
+- Cartes (`bg-card p-3/4`) : retirer les `overflow-hidden` qui coupent les focus rings/glows ; remplacer par `overflow-x-hidden` uniquement où nécessaire pour conserver les anneaux de focus visibles.
+- Boutons d'actions (WhatsApp / téléphone / email / Fusionner / Supprimer) : passer en `w-full sm:w-auto` sur la rangée principale et `justify-center` pour éviter les boutons coupés ; ajouter `min-h-10` pour la cible tactile.
+- ScrollArea : conserver le `pb-40 sm:pb-6` déjà ajouté ; ajouter `px-1` pour laisser respirer les bordures contre la barre de scroll.
+- Bloc « Message initial du lead » : passer en `text-xs sm:text-sm` pour réduire le pavé sur mobile, garder le wrap.
 
-**UI :**
-- `/settings/calendar` : tous les réglages (horaires, slots, blackouts, lien public) deviennent workspace-scoped. Lecture seule si l'utilisateur n'est pas owner du workspace.
+### 3. LeadEditForm (`src/components/LeadEditForm.tsx`)
 
-## Phase 2 — Abstraction multi-providers
+- Padding carte : `p-3 sm:p-5` (au lieu de `p-5`).
+- Grille : passer en `gap-3 sm:gap-4`.
+- Inputs / SelectTrigger : forcer `h-11 text-base` sur mobile (`sm:h-10 sm:text-sm`) pour des cibles tactiles iOS et éviter le zoom auto Safari sur focus (< 16px).
+- Labels : `text-xs font-medium uppercase tracking-wider text-muted-foreground` pour un contour plus lisible et marquer chaque champ.
+- Bouton « Enregistrer » : `w-full sm:w-auto` en bas, séparé par une bordure top `border-t border-border pt-3` pour bien le détacher du dernier champ.
 
-**Nouvelle table `calendar_accounts` (remplace `google_tokens`) :**
+### 4. Détails visuels
 
-| col | type |
-|---|---|
-| id | uuid PK |
-| workspace_id | uuid (non null) |
-| provider | enum `google` \| `microsoft` \| `caldav` \| `ical` |
-| display_name | text |
-| is_primary | bool (1 seul primary par workspace = celui qui crée les events) |
-| credentials | jsonb chiffré côté edge (refresh_token / app_password / ics_url) |
-| calendar_id | text (ex: 'primary', email Outlook, URL CalDAV) |
-| sync_freebusy | bool default true |
-| created_by | uuid |
-| created_at / updated_at |
+- Tabs : ajouter `gap-1` sur la `TabsList` et `text-[11px] sm:text-xs` pour que les 3 onglets cessent d'être collés.
+- Toutes les cartes : bordure unifiée `border border-border/60` + `rounded-xl` pour des contours nets en dark mode.
 
-Migration des `google_tokens` existants → `calendar_accounts` avec `provider='google'`, `workspace_id` = workspace solo de l'utilisateur.
+### Détails techniques
 
-**Abstraction code :**
-- `supabase/functions/_shared/calendar/` : un fichier par provider (`google.ts`, `microsoft.ts`, `caldav.ts`, `ical.ts`) exposant `{ getFreeBusy, createEvent, updateEvent, deleteEvent }`.
-- `getFreeBusy(workspace_id, range)` agrège tous les comptes du workspace (lecture seule pour ical).
-- `createEvent` n'écrit que sur le compte `is_primary = true`.
+- Aucune modification de logique métier ni de schéma : uniquement classes Tailwind / structure JSX.
+- Les classes `h-11`, `text-base` sur mobile suivent la règle iOS 16px anti-zoom focus.
+- Pas de hardcoded colors : on garde `border-border`, `bg-card`, `text-muted-foreground` (design tokens existants).
+- Fichiers touchés :
+  - `src/pages/PipelinePage.tsx` (1 ligne sheet)
+  - `src/components/LeadDetailContent.tsx`
+  - `src/components/LeadEditForm.tsx`
 
-## Phase 3 — Connexion des providers
-
-**Google :** déjà OK, juste rebranché sur workspace.
-
-**Microsoft Outlook :**
-- OAuth 2.0 Microsoft Identity (per-user, via app Azure AD à créer par toi).
-- Edge functions `microsoft-oauth-start` / `microsoft-oauth-callback`.
-- Secrets : `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, redirect URI à configurer.
-
-**CalDAV / iCloud :**
-- Form UI : URL serveur + email + mot de passe d'application.
-- Edge function `caldav-test-connection` (PROPFIND).
-- Pour iCloud : URL fixe `https://caldav.icloud.com/`.
-
-**Flux iCal (.ics) :**
-- Simple input URL, on parse côté edge avec un parseur ICS (npm `node-ical` via esm.sh).
-- Synchro 1×/h via pg_cron (cache busy slots dans `calendar_external_busy`).
-
-**UI `/settings/calendar/accounts` :**
-- Liste des comptes connectés du workspace + bouton "Ajouter un agenda" (4 cards : Google, Microsoft, iCloud/CalDAV, Lien iCal).
-- Toggle `is_primary` (radio, 1 seul).
-- Toggle `sync_freebusy` par compte.
-
-## Détails techniques
-
-**Sécurité :**
-- RLS toutes tables : `is_workspace_member(workspace_id, auth.uid())` pour SELECT, `is_workspace_owner(...)` pour UPDATE/DELETE des credentials.
-- Credentials stockés chiffrés via une clé `CALENDAR_ENCRYPTION_KEY` (AES-GCM côté edge) — pour iCloud app password notamment.
-
-**Bookings :**
-- `bookings.workspace_id` est déjà là → ne change pas.
-- L'event externe est créé sur le compte `is_primary` du workspace au moment du booking.
-
-**Compat ascendante :**
-- Les comptes Google existants restent fonctionnels (migration auto vers `calendar_accounts`).
-- Si un workspace n'a aucun `calendar_account`, le booking est créé sans event externe (comme aujourd'hui sans Google connecté).
-
-## Étapes d'exécution
-
-1. **Migration SQL phase 1** (workspace_id + RLS) — je créerai la migration et attendrai validation.
-2. Edge functions + UI `/settings/calendar` adaptées.
-3. **Migration SQL phase 2** (table `calendar_accounts` + backfill depuis `google_tokens`).
-4. Refacto edge functions vers l'abstraction `_shared/calendar`.
-5. Phase 3 : Microsoft (OAuth + secrets) puis CalDAV puis iCal, livrés un par un.
-
-Je commence par la phase 1 si tu valides. Tu veux que je découpe en 3 livraisons séparées ou que j'enchaîne ?
+Vérification après build : screenshot mobile 390×844 de la sheet ouverte sur un lead pour confirmer espacement, contours et bouton Enregistrer entièrement visible.

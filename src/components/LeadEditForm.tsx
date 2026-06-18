@@ -113,8 +113,9 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
       onSubmit={handleSubmit}
-      className="rounded-xl border border-border bg-card p-5 space-y-4"
+      className="w-full min-w-0 max-w-full rounded-xl border border-border/60 bg-card p-3 sm:p-5 space-y-4"
     >
+
       <div className="flex items-center justify-between">
         <h3 className="font-heading text-base">Modifier le lead</h3>
         {onClose && !inline && (
@@ -124,27 +125,27 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         <div className="space-y-1.5">
           <Label htmlFor="edit-name">Nom *</Label>
-          <Input id="edit-name" value={form.name} onChange={e => update('name', e.target.value)} />
+          <Input id="edit-name" className="h-11 text-base sm:h-10 sm:text-sm" value={form.name} onChange={e => update('name', e.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="edit-company">Entreprise</Label>
-          <Input id="edit-company" value={form.company_name} onChange={e => update('company_name', e.target.value)} />
+          <Input id="edit-company" className="h-11 text-base sm:h-10 sm:text-sm" value={form.company_name} onChange={e => update('company_name', e.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="edit-email">Email</Label>
-          <Input id="edit-email" type="email" value={form.email} onChange={e => update('email', e.target.value)} />
+          <Input id="edit-email" className="h-11 text-base sm:h-10 sm:text-sm" type="email" value={form.email} onChange={e => update('email', e.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="edit-phone">Téléphone</Label>
-          <Input id="edit-phone" type="tel" value={form.phone} onChange={e => update('phone', e.target.value)} />
+          <Input id="edit-phone" className="h-11 text-base sm:h-10 sm:text-sm" type="tel" value={form.phone} onChange={e => update('phone', e.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label>Source</Label>
           <Select value={form.source} onValueChange={v => update('source', v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-11 text-base sm:h-10 sm:text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
               {sources.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
             </SelectContent>
@@ -153,7 +154,7 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
         <div className="space-y-1.5">
           <Label>Score</Label>
           <Select value={form.score} onValueChange={v => update('score', v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-11 text-base sm:h-10 sm:text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
               {scores.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
             </SelectContent>
@@ -162,7 +163,7 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
         <div className="space-y-1.5">
           <Label>Statut</Label>
           <Select value={form.status} onValueChange={handleStatusChange}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-11 text-base sm:h-10 sm:text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
               {statuses.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
             </SelectContent>
@@ -173,16 +174,17 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="edit-action">Prochaine action</Label>
-          <Input id="edit-action" value={form.next_action} onChange={e => update('next_action', e.target.value)} />
+          <Input id="edit-action" className="h-11 text-base sm:h-10 sm:text-sm" value={form.next_action} onChange={e => update('next_action', e.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label>Date de création</Label>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("w-full justify-start text-left font-normal")}>
+              <Button variant="outline" className={cn("h-11 sm:h-10 text-base sm:text-sm w-full justify-start text-left font-normal")}>
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 {format(new Date(form.created_at), 'dd MMM yyyy', { locale: fr })}
               </Button>
+
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
               <Calendar
@@ -198,7 +200,7 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
         <div className="space-y-1.5">
           <Label>Offre</Label>
           <Select value={form.offer_id} onValueChange={v => update('offer_id', v)}>
-            <SelectTrigger><SelectValue placeholder="Aucune offre" /></SelectTrigger>
+            <SelectTrigger className="h-11 text-base sm:h-10 sm:text-sm"><SelectValue placeholder="Aucune offre" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Aucune offre</SelectItem>
               {offers.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
@@ -208,7 +210,7 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
         <div className="space-y-1.5">
           <Label>Présence au RDV</Label>
           <Select value={form.show_status} onValueChange={v => update('show_status', v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-11 text-base sm:h-10 sm:text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
               {showStatuses.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
             </SelectContent>
@@ -218,18 +220,19 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
 
       <div className="space-y-1.5">
         <Label htmlFor="edit-notes">Notes</Label>
-        <Textarea id="edit-notes" value={form.notes} onChange={e => update('notes', e.target.value)} rows={3} />
+        <Textarea id="edit-notes" className="text-base sm:text-sm" value={form.notes} onChange={e => update('notes', e.target.value)} rows={3} />
       </div>
 
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 border-t border-border/60 pt-3">
         {onClose && !inline && (
-          <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
+          <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={onClose}>Annuler</Button>
         )}
-        <Button type="submit" disabled={updateLead.isPending}>
+        <Button type="submit" className="w-full sm:w-auto min-h-11" disabled={updateLead.isPending}>
           {updateLead.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
           Enregistrer
         </Button>
       </div>
+
       <LostReasonDialog
         open={showLostDialog}
         onConfirm={handleLostConfirm}

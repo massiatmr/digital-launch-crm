@@ -99,12 +99,12 @@ export function LeadDetailContent({
   };
 
   return (
-    <div className="flex h-[calc(100vh-80px)] flex-col">
-      <div className="sticky top-0 z-10 border-b border-border bg-background/95 pb-2 pr-12 backdrop-blur-sm">
+    <div className="flex h-[100dvh] sm:h-[calc(100vh-80px)] min-w-0 max-w-full flex-col overflow-x-hidden">
+      <div className="sticky top-0 z-10 border-b border-border/60 bg-background/95 pb-3 pr-10 backdrop-blur-sm">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <h2 className="font-heading truncate text-lg">{lead.name}</h2>
+              <h2 className="font-heading truncate text-base sm:text-lg">{lead.name}</h2>
               <LeadScoreBadge score={lead.score} />
               <LeadStatusBadge status={lead.status} />
               <ShowStatusToggle leadId={lead.id} currentStatus={lead.show_status} size="sm" showHelper />
@@ -117,6 +117,7 @@ export function LeadDetailContent({
           <CreateTaskForLeadDialog leadId={lead.id} leadName={lead.name} />
         </div>
       </div>
+
 
       <AlertDialog open={confirmDelete} onOpenChange={(o) => { setConfirmDelete(o); if (!o) setHardDelete(false); }}>
         <AlertDialogContent>
@@ -158,30 +159,31 @@ export function LeadDetailContent({
       </AlertDialog>
 
       <Tabs defaultValue="overview" className="mt-3 flex min-h-0 flex-1 flex-col">
-        <TabsList className={cn('grid w-full', whatsappEnabled ? 'grid-cols-3' : 'grid-cols-2')}>
-          <TabsTrigger value="overview" className="gap-1 text-xs">
+        <TabsList className={cn('grid w-full gap-1', whatsappEnabled ? 'grid-cols-3' : 'grid-cols-2')}>
+          <TabsTrigger value="overview" className="gap-1 text-[11px] sm:text-xs">
             <LayoutGrid className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Détails</span>
           </TabsTrigger>
           {whatsappEnabled && (
-            <TabsTrigger value="followup" className="gap-1 text-xs">
+            <TabsTrigger value="followup" className="gap-1 text-[11px] sm:text-xs">
               <Smartphone className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">WhatsApp</span>
             </TabsTrigger>
           )}
-          <TabsTrigger value="activities" className="gap-1 text-xs">
+          <TabsTrigger value="activities" className="gap-1 text-[11px] sm:text-xs">
             <Activity className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Activité & tâches</span>
           </TabsTrigger>
         </TabsList>
 
+
         <ScrollArea className="mt-3 flex-1">
-          <div className="space-y-4 pb-40 sm:pb-6 pr-3" style={{ paddingBottom: 'max(10rem, calc(env(safe-area-inset-bottom) + 8rem))' }}>
+          <div className="space-y-4 pb-40 sm:pb-6 pr-2 sm:pr-3 pl-px" style={{ paddingBottom: 'max(10rem, calc(env(safe-area-inset-bottom) + 8rem))' }}>
             <TabsContent value="overview" className="mt-0 space-y-4">
-              <div className="space-y-2 rounded-xl border border-border bg-card p-3">
-                <div className="flex flex-wrap gap-2">
+              <div className="space-y-2 rounded-xl border border-border/60 bg-card p-3">
+                <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
                   {lead.phone && whatsappEnabled && (
-                    <Button asChild variant="outline" size="sm" className="gap-1.5">
+                    <Button asChild variant="outline" size="sm" className="min-h-10 w-full justify-center gap-1.5 sm:w-auto">
                       <a href={toWhatsAppUrl(lead.phone, cc)} target="_blank" rel="noopener noreferrer">
                         <Smartphone className="h-3.5 w-3.5" />
                         WhatsApp
@@ -190,7 +192,7 @@ export function LeadDetailContent({
                   )}
 
                   {lead.phone && (
-                    <Button asChild variant="outline" size="sm" className="gap-1.5">
+                    <Button asChild variant="outline" size="sm" className="min-h-10 w-full justify-center gap-1.5 sm:w-auto">
                       <a href={`tel:${lead.phone}`}>
                         <Phone className="h-3.5 w-3.5" />
                         {formatPhoneDisplay(lead.phone, cc)}
@@ -199,8 +201,8 @@ export function LeadDetailContent({
                   )}
 
                   {lead.email && (
-                    <Button asChild variant="outline" size="sm" className="max-w-full gap-1.5">
-                      <a href={`mailto:${lead.email}`} className="truncate">
+                    <Button asChild variant="outline" size="sm" className="min-h-10 w-full max-w-full justify-center gap-1.5 sm:w-auto">
+                      <a href={`mailto:${lead.email}`} className="min-w-0 truncate">
                         <Mail className="h-3.5 w-3.5 shrink-0" />
                         <span className="truncate">{lead.email}</span>
                       </a>
@@ -230,6 +232,7 @@ export function LeadDetailContent({
                 </div>
               </div>
 
+
               <MergeLeadDialog
                 open={mergeOpen}
                 onOpenChange={setMergeOpen}
@@ -248,9 +251,10 @@ export function LeadDetailContent({
                   <p className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">
                     Message initial du lead
                   </p>
-                  <pre className="w-full min-w-0 max-w-full overflow-x-auto whitespace-pre-wrap [overflow-wrap:anywhere] break-words font-sans text-sm italic">"{lead.message}"</pre>
+                  <pre className="w-full min-w-0 max-w-full overflow-x-auto whitespace-pre-wrap [overflow-wrap:anywhere] break-words font-sans text-xs sm:text-sm italic">"{lead.message}"</pre>
                 </div>
               )}
+
 
               {(lead.ai_summary || lead.sales_angle || lead.next_action) && (
                 <div className="space-y-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
