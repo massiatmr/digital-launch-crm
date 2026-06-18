@@ -683,7 +683,7 @@ export default function PipelinePage() {
       </div>
 
       <Sheet open={!!selectedLeadId} onOpenChange={(open) => !open && setSelectedLeadId(null)}>
-        <SheetContent side="right" className="sm:max-w-2xl w-full p-6 overflow-y-auto custom-scrollbar pb-24">
+        <SheetContent side="right" className="w-full max-w-full sm:max-w-2xl p-4 sm:p-6">
           <SheetHeader>
             <SheetTitle className="sr-only">Détails du lead</SheetTitle>
           </SheetHeader>
