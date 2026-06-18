@@ -176,7 +176,7 @@ export function LeadDetailContent({
         </TabsList>
 
         <ScrollArea className="mt-3 flex-1">
-          <div className="space-y-4 pb-6 pr-3">
+          <div className="space-y-4 pb-40 sm:pb-6 pr-3" style={{ paddingBottom: 'max(10rem, calc(env(safe-area-inset-bottom) + 8rem))' }}>
             <TabsContent value="overview" className="mt-0 space-y-4">
               <div className="space-y-2 rounded-xl border border-border bg-card p-3">
                 <div className="flex flex-wrap gap-2">
