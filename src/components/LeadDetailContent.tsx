@@ -178,12 +178,12 @@ export function LeadDetailContent({
 
 
         <ScrollArea className="mt-3 flex-1">
-          <div className="space-y-4 pb-40 sm:pb-6 pr-3" style={{ paddingBottom: 'max(10rem, calc(env(safe-area-inset-bottom) + 8rem))' }}>
+          <div className="space-y-4 pb-40 sm:pb-6 pr-2 sm:pr-3 pl-px" style={{ paddingBottom: 'max(10rem, calc(env(safe-area-inset-bottom) + 8rem))' }}>
             <TabsContent value="overview" className="mt-0 space-y-4">
-              <div className="space-y-2 rounded-xl border border-border bg-card p-3">
-                <div className="flex flex-wrap gap-2">
+              <div className="space-y-2 rounded-xl border border-border/60 bg-card p-3">
+                <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
                   {lead.phone && whatsappEnabled && (
-                    <Button asChild variant="outline" size="sm" className="gap-1.5">
+                    <Button asChild variant="outline" size="sm" className="min-h-10 w-full justify-center gap-1.5 sm:w-auto">
                       <a href={toWhatsAppUrl(lead.phone, cc)} target="_blank" rel="noopener noreferrer">
                         <Smartphone className="h-3.5 w-3.5" />
                         WhatsApp
@@ -192,7 +192,7 @@ export function LeadDetailContent({
                   )}
 
                   {lead.phone && (
-                    <Button asChild variant="outline" size="sm" className="gap-1.5">
+                    <Button asChild variant="outline" size="sm" className="min-h-10 w-full justify-center gap-1.5 sm:w-auto">
                       <a href={`tel:${lead.phone}`}>
                         <Phone className="h-3.5 w-3.5" />
                         {formatPhoneDisplay(lead.phone, cc)}
@@ -201,8 +201,8 @@ export function LeadDetailContent({
                   )}
 
                   {lead.email && (
-                    <Button asChild variant="outline" size="sm" className="max-w-full gap-1.5">
-                      <a href={`mailto:${lead.email}`} className="truncate">
+                    <Button asChild variant="outline" size="sm" className="min-h-10 w-full max-w-full justify-center gap-1.5 sm:w-auto">
+                      <a href={`mailto:${lead.email}`} className="min-w-0 truncate">
                         <Mail className="h-3.5 w-3.5 shrink-0" />
                         <span className="truncate">{lead.email}</span>
                       </a>
@@ -231,6 +231,7 @@ export function LeadDetailContent({
                   </Button>
                 </div>
               </div>
+
 
               <MergeLeadDialog
                 open={mergeOpen}
