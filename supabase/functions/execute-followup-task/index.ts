@@ -641,7 +641,18 @@ Deno.serve(async (req) => {
       });
       if (!genResp.ok) {
         const errBody = await genResp.text();
-        await admin.from("lead_followup_tasks").update({ status: 'failed', error_message: errBody } as any).eq("id", task_id);
+        await admin.from("lead_followup_tasks").update({ status: 'failed', error_message: errBody, updated_at: new Date().toISOString() } as any).eq("id", task_id);
+        await createManualFallbackTask(admin, task, lead, "génération IA impossible");
+        await logAutomationEvent(admin, {
+          lead_id: task.lead_id,
+          task_id,
+          owner_id: task.owner_id,
+          workspace_id: lead.workspace_id ?? null,
+          event_type: "task_failed",
+          level: "error",
+          message: "Génération du message impossible, fallback manuel créé",
+          metadata: { error: errBody.slice(0, 1000), task_type: task.task_type },
+        });
         return new Response(JSON.stringify({ error: "Failed to generate message", details: errBody }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       const genData = await genResp.json();
@@ -740,6 +751,31 @@ Deno.serve(async (req) => {
       ai_generated: aiGenerated,
       error_message: errorMessage,
     } as any).eq("id", task_id);
+
+    if (newStatus === "failed" || newStatus === "skipped") {
+      const reason = errorMessage || `status=${logStatus}`;
+      await createManualFallbackTask(admin, task, lead, reason);
+      await logAutomationEvent(admin, {
+        lead_id: task.lead_id,
+        task_id,
+        owner_id: ownerId,
+        workspace_id: lead.workspace_id ?? null,
+        event_type: newStatus === "failed" ? "task_failed" : "task_skipped",
+        level: newStatus === "failed" ? "error" : "warn",
+        message: "Envoi automatique non effectué, fallback manuel créé",
+        metadata: { logStatus, errorMessage, task_type: task.task_type, channel: leadChannel },
+      });
+    } else {
+      await logAutomationEvent(admin, {
+        lead_id: task.lead_id,
+        task_id,
+        owner_id: ownerId,
+        workspace_id: lead.workspace_id ?? null,
+        event_type: "task_sent",
+        message: "Message automatique enregistré",
+        metadata: { logStatus, task_type: task.task_type, channel: leadChannel, waMessageId },
+      });
+    }
 
     // Au premier outbound réussi (sent ou dry_run), basculer le lead "new" → "contacted"
     if ((logStatus === "sent" || logStatus === "dry_run") && lead.status === "new") {
