@@ -32,6 +32,50 @@ function templateKey(taskType: string): string | null {
 // Tâches qui ne déclenchent PAS d'envoi auto (action humaine requise)
 const HUMAN_TASK_TYPES = new Set(["manual_call"]);
 
+async function logAutomationEvent(admin: any, payload: {
+  lead_id?: string | null;
+  task_id?: string | null;
+  owner_id?: string | null;
+  workspace_id?: string | null;
+  event_type: string;
+  level?: string;
+  message: string;
+  metadata?: Record<string, unknown>;
+}) {
+  try {
+    await admin.from("followup_automation_events").insert({
+      lead_id: payload.lead_id ?? null,
+      task_id: payload.task_id ?? null,
+      owner_id: payload.owner_id,
+      workspace_id: payload.workspace_id ?? null,
+      event_type: payload.event_type,
+      level: payload.level ?? "info",
+      message: payload.message,
+      metadata: payload.metadata ?? {},
+    } as any);
+  } catch (e) {
+    console.warn("followup automation event log failed", e);
+  }
+}
+
+async function createManualFallbackTask(admin: any, task: any, lead: any, reason: string) {
+  try {
+    const scheduledAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    await admin.from("lead_followup_tasks").insert({
+      lead_id: task.lead_id,
+      owner_id: task.owner_id,
+      workspace_id: lead?.workspace_id ?? task.workspace_id ?? null,
+      task_type: "manual_call",
+      status: "pending",
+      scheduled_at: scheduledAt,
+      step_order: 98,
+      error_message: `Fallback manuel: ${reason}`,
+    } as any);
+  } catch (e) {
+    console.warn("manual fallback task create failed", e);
+  }
+}
+
 async function generateVariablesWithAI(template: any, lead: any, apiKey: string): Promise<string[]> {
   if (template.variables_count === 0) return [];
   const prompt = `Tu génères les variables d'un template WhatsApp.
@@ -139,7 +183,33 @@ Deno.serve(async (req) => {
     // Charger lead pour variables/contexte (avant settings → on a besoin de workspace_id)
     const { data: lead } = await supabase
       .from("leads").select("*").eq("id", task.lead_id).maybeSingle();
-    if (!lead) return new Response(JSON.stringify({ error: "Lead not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (!lead) {
+      await admin.from("lead_followup_tasks").update({
+        status: "failed",
+        error_message: "Lead not found",
+        updated_at: new Date().toISOString(),
+      } as any).eq("id", task_id);
+      await logAutomationEvent(admin, {
+        lead_id: task.lead_id,
+        task_id,
+        owner_id: task.owner_id,
+        workspace_id: task.workspace_id,
+        event_type: "task_failed",
+        level: "error",
+        message: "Lead introuvable pendant l’exécution de la tâche",
+      });
+      return new Response(JSON.stringify({ error: "Lead not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    await logAutomationEvent(admin, {
+      lead_id: task.lead_id,
+      task_id,
+      owner_id: task.owner_id,
+      workspace_id: lead.workspace_id ?? task.workspace_id ?? null,
+      event_type: "task_claimed",
+      message: "Tâche automatique prise en charge",
+      metadata: { task_type: task.task_type, step_order: task.step_order },
+    });
 
     const [{ data: conversationState }, { data: activeBooking }] = await Promise.all([
       admin.from("lead_conversation_state").select("state, automation_paused_at, snoozed_until, resolved_at").eq("lead_id", task.lead_id).maybeSingle(),
@@ -571,7 +641,18 @@ Deno.serve(async (req) => {
       });
       if (!genResp.ok) {
         const errBody = await genResp.text();
-        await admin.from("lead_followup_tasks").update({ status: 'failed', error_message: errBody } as any).eq("id", task_id);
+        await admin.from("lead_followup_tasks").update({ status: 'failed', error_message: errBody, updated_at: new Date().toISOString() } as any).eq("id", task_id);
+        await createManualFallbackTask(admin, task, lead, "génération IA impossible");
+        await logAutomationEvent(admin, {
+          lead_id: task.lead_id,
+          task_id,
+          owner_id: task.owner_id,
+          workspace_id: lead.workspace_id ?? null,
+          event_type: "task_failed",
+          level: "error",
+          message: "Génération du message impossible, fallback manuel créé",
+          metadata: { error: errBody.slice(0, 1000), task_type: task.task_type },
+        });
         return new Response(JSON.stringify({ error: "Failed to generate message", details: errBody }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       const genData = await genResp.json();
@@ -670,6 +751,31 @@ Deno.serve(async (req) => {
       ai_generated: aiGenerated,
       error_message: errorMessage,
     } as any).eq("id", task_id);
+
+    if (newStatus === "failed" || newStatus === "skipped") {
+      const reason = errorMessage || `status=${logStatus}`;
+      await createManualFallbackTask(admin, task, lead, reason);
+      await logAutomationEvent(admin, {
+        lead_id: task.lead_id,
+        task_id,
+        owner_id: ownerId,
+        workspace_id: lead.workspace_id ?? null,
+        event_type: newStatus === "failed" ? "task_failed" : "task_skipped",
+        level: newStatus === "failed" ? "error" : "warn",
+        message: "Envoi automatique non effectué, fallback manuel créé",
+        metadata: { logStatus, errorMessage, task_type: task.task_type, channel: leadChannel },
+      });
+    } else {
+      await logAutomationEvent(admin, {
+        lead_id: task.lead_id,
+        task_id,
+        owner_id: ownerId,
+        workspace_id: lead.workspace_id ?? null,
+        event_type: "task_sent",
+        message: "Message automatique enregistré",
+        metadata: { logStatus, task_type: task.task_type, channel: leadChannel, waMessageId },
+      });
+    }
 
     // Au premier outbound réussi (sent ou dry_run), basculer le lead "new" → "contacted"
     if ((logStatus === "sent" || logStatus === "dry_run") && lead.status === "new") {

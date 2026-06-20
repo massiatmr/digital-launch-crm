@@ -64,6 +64,19 @@ Deno.serve(async (req) => {
     }
 
 
+    const staleCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const { data: staleTasks } = await admin
+      .from('lead_followup_tasks')
+      .update({
+        status: 'scheduled',
+        error_message: 'Recovered: tâche bloquée en processing >10min, remise en file',
+        updated_at: new Date().toISOString(),
+      } as any)
+      .eq('status', 'processing')
+      .lt('updated_at', staleCutoff)
+      .neq('task_type', 'manual_call')
+      .select('id');
+
     let query = admin
       .from('lead_followup_tasks')
       .select('id, owner_id')
@@ -98,7 +111,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ processed: results.length, results, ran_at: new Date().toISOString() }),
+      JSON.stringify({ recovered_stale: staleTasks?.length ?? 0, processed: results.length, results, ran_at: new Date().toISOString() }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   } catch (e: any) {

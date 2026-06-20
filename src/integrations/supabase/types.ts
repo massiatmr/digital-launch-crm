@@ -785,6 +785,67 @@ export type Database = {
         }
         Relationships: []
       }
+      followup_automation_events: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          lead_id: string | null
+          level: string
+          message: string
+          metadata: Json
+          owner_id: string
+          task_id: string | null
+          workspace_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          lead_id?: string | null
+          level?: string
+          message: string
+          metadata?: Json
+          owner_id: string
+          task_id?: string | null
+          workspace_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          lead_id?: string | null
+          level?: string
+          message?: string
+          metadata?: Json
+          owner_id?: string
+          task_id?: string | null
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "followup_automation_events_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "followup_automation_events_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "lead_followup_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "followup_automation_events_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       followup_automation_settings: {
         Row: {
           ai_examples: string
@@ -3305,6 +3366,19 @@ export type Database = {
           role: Database["public"]["Enums"]["workspace_role"]
           user_id: string
         }[]
+      }
+      log_followup_automation_event: {
+        Args: {
+          p_event_type: string
+          p_lead_id: string
+          p_level: string
+          p_message: string
+          p_metadata?: Json
+          p_owner_id: string
+          p_task_id: string
+          p_workspace_id: string
+        }
+        Returns: undefined
       }
       mark_overdue_invoices: { Args: never; Returns: undefined }
       merge_leads:
