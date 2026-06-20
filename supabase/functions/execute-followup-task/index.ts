@@ -183,7 +183,33 @@ Deno.serve(async (req) => {
     // Charger lead pour variables/contexte (avant settings → on a besoin de workspace_id)
     const { data: lead } = await supabase
       .from("leads").select("*").eq("id", task.lead_id).maybeSingle();
-    if (!lead) return new Response(JSON.stringify({ error: "Lead not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (!lead) {
+      await admin.from("lead_followup_tasks").update({
+        status: "failed",
+        error_message: "Lead not found",
+        updated_at: new Date().toISOString(),
+      } as any).eq("id", task_id);
+      await logAutomationEvent(admin, {
+        lead_id: task.lead_id,
+        task_id,
+        owner_id: task.owner_id,
+        workspace_id: task.workspace_id,
+        event_type: "task_failed",
+        level: "error",
+        message: "Lead introuvable pendant l’exécution de la tâche",
+      });
+      return new Response(JSON.stringify({ error: "Lead not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    await logAutomationEvent(admin, {
+      lead_id: task.lead_id,
+      task_id,
+      owner_id: task.owner_id,
+      workspace_id: lead.workspace_id ?? task.workspace_id ?? null,
+      event_type: "task_claimed",
+      message: "Tâche automatique prise en charge",
+      metadata: { task_type: task.task_type, step_order: task.step_order },
+    });
 
     const [{ data: conversationState }, { data: activeBooking }] = await Promise.all([
       admin.from("lead_conversation_state").select("state, automation_paused_at, snoozed_until, resolved_at").eq("lead_id", task.lead_id).maybeSingle(),
