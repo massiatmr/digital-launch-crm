@@ -32,6 +32,50 @@ function templateKey(taskType: string): string | null {
 // Tâches qui ne déclenchent PAS d'envoi auto (action humaine requise)
 const HUMAN_TASK_TYPES = new Set(["manual_call"]);
 
+async function logAutomationEvent(admin: any, payload: {
+  lead_id?: string | null;
+  task_id?: string | null;
+  owner_id?: string | null;
+  workspace_id?: string | null;
+  event_type: string;
+  level?: string;
+  message: string;
+  metadata?: Record<string, unknown>;
+}) {
+  try {
+    await admin.from("followup_automation_events").insert({
+      lead_id: payload.lead_id ?? null,
+      task_id: payload.task_id ?? null,
+      owner_id: payload.owner_id,
+      workspace_id: payload.workspace_id ?? null,
+      event_type: payload.event_type,
+      level: payload.level ?? "info",
+      message: payload.message,
+      metadata: payload.metadata ?? {},
+    } as any);
+  } catch (e) {
+    console.warn("followup automation event log failed", e);
+  }
+}
+
+async function createManualFallbackTask(admin: any, task: any, lead: any, reason: string) {
+  try {
+    const scheduledAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    await admin.from("lead_followup_tasks").insert({
+      lead_id: task.lead_id,
+      owner_id: task.owner_id,
+      workspace_id: lead?.workspace_id ?? task.workspace_id ?? null,
+      task_type: "manual_call",
+      status: "pending",
+      scheduled_at: scheduledAt,
+      step_order: 98,
+      error_message: `Fallback manuel: ${reason}`,
+    } as any);
+  } catch (e) {
+    console.warn("manual fallback task create failed", e);
+  }
+}
+
 async function generateVariablesWithAI(template: any, lead: any, apiKey: string): Promise<string[]> {
   if (template.variables_count === 0) return [];
   const prompt = `Tu génères les variables d'un template WhatsApp.
