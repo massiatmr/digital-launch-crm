@@ -19,18 +19,8 @@ Deno.serve(async (req) => {
     // Auth: accept service role (cron) OR a logged-in user (UI). Reject anonymous.
     const bearer = req.headers.get('Authorization')?.replace('Bearer ', '') ?? '';
 
-    // Decode JWT payload to detect service_role tokens robustly (handles key rotation
-    // where the vault-stored key may differ from the env SUPABASE_SERVICE_ROLE_KEY).
-    let isServiceRole = bearer.length > 0 && (bearer === SERVICE_KEY);
-    if (!isServiceRole && bearer) {
-      try {
-        const parts = bearer.split('.');
-        if (parts.length === 3) {
-          const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
-          if (payload?.role === 'service_role') isServiceRole = true;
-        }
-      } catch (_) {}
-    }
+    // Strict equality check against env service key — NEVER trust unverified JWT payloads.
+    const isServiceRole = bearer.length > 0 && bearer === SERVICE_KEY;
 
 
     let callerUserId: string | null = null;
