@@ -20,16 +20,21 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get("authorization") ?? "";
   const bearer = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : "";
   let authorized = false;
+  let isServiceRole = false;
+  let userBearer: string | null = null;
   if (bearer && bearer === SERVICE_KEY) {
     authorized = true;
-
+    isServiceRole = true;
   } else if (bearer) {
     try {
       const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
         global: { headers: { Authorization: `Bearer ${bearer}` } },
       });
       const { data, error } = await userClient.auth.getClaims(bearer);
-      if (!error && data?.claims?.sub) authorized = true;
+      if (!error && data?.claims?.sub) {
+        authorized = true;
+        userBearer = bearer;
+      }
     } catch (_) { /* ignore */ }
   }
   if (!authorized) {
@@ -48,6 +53,21 @@ Deno.serve(async (req) => {
     }
 
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+
+    // For non-service-role callers, enforce RLS on lead lookup so users
+    // cannot trigger qualification on leads they don't own/access.
+    if (!isServiceRole && userBearer) {
+      const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
+        global: { headers: { Authorization: `Bearer ${userBearer}` } },
+      });
+      const { data: accessible } = await userClient
+        .from("leads").select("id").eq("id", lead_id).maybeSingle();
+      if (!accessible) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     const { data: lead } = await admin
       .from("leads")
