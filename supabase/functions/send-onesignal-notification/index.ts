@@ -86,8 +86,9 @@ Deno.serve(async (req) => {
 
   // Auth: accept service role OR a valid authenticated user JWT
   const auth = req.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
-  const isServiceRole = auth && auth === SUPABASE_SERVICE_ROLE_KEY;
-  let authorized = Boolean(isServiceRole);
+  const isServiceRole = Boolean(auth) && auth === SUPABASE_SERVICE_ROLE_KEY;
+  let callerUserId: string | null = null;
+  let authorized = isServiceRole;
   if (!authorized && auth) {
     try {
       const supa = createClient(
@@ -96,7 +97,10 @@ Deno.serve(async (req) => {
         { global: { headers: { Authorization: `Bearer ${auth}` } } },
       );
       const { data: claims } = await supa.auth.getClaims(auth);
-      if (claims?.claims?.sub) authorized = true;
+      if (claims?.claims?.sub) {
+        authorized = true;
+        callerUserId = claims.claims.sub as string;
+      }
     } catch { /* ignore */ }
   }
   if (!authorized) {
@@ -122,6 +126,14 @@ Deno.serve(async (req) => {
         error: "missing fields",
         details: { user_id: Boolean(user_id), title: Boolean(title), body: Boolean(body) },
         diagnostics: { error_stage: "validation" },
+      });
+    }
+
+    // Non service-role callers can only push to themselves
+    if (!isServiceRole && user_id !== callerUserId) {
+      return new Response(JSON.stringify({ ok: false, error: "Forbidden" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
