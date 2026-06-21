@@ -228,7 +228,9 @@ Deno.serve(async (req) => {
     logInfo(requestId, "Facebook webhook payload received", {
       object: body?.object,
       entryCount: Array.isArray(body?.entry) ? body.entry.length : 0,
-      payloadPreview: JSON.stringify(body).slice(0, 500),
+      changeFields: (body?.entry ?? []).flatMap((e: any) =>
+        (e?.changes ?? []).map((c: any) => c?.field)
+      ),
     });
 
     // Respond immediately to Facebook; resolve page → token+owner inside processWebhook
