@@ -200,7 +200,8 @@ Deno.serve(async (req) => {
     }
   }
 
-  return new Response(JSON.stringify({ processed: results.length, results }), {
+  return new Response(JSON.stringify({ processed: results.length, expired: expired?.length ?? 0, results }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+
 });
