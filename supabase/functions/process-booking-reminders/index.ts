@@ -64,6 +64,17 @@ Deno.serve(async (req) => {
     const nowIso = new Date().toISOString();
     // Garde-fou : on n'envoie pas un rappel programmé il y a plus de 6h (sinon on spamme d'anciens leads après un downtime).
     const sixHoursAgoIso = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+
+    // Fallback : marque comme "skipped" tout rappel pending dont la date prévue date de plus de 6h.
+    // Évite qu'ils restent bloqués indéfiniment en "pending" après un downtime ou un cron manquant.
+    const { data: expired } = await supabase
+      .from("booking_emails")
+      .update({ status: "skipped", sent_at: nowIso } as any)
+      .eq("status", "pending")
+      .lt("scheduled_at", sixHoursAgoIso)
+      .select("id");
+    const expiredCount = expired?.length ?? 0;
+
     // All reminder types (confirmation is handled directly by handle-booking)
     const { data: due, error } = await supabase
       .from("booking_emails")
@@ -76,7 +87,7 @@ Deno.serve(async (req) => {
 
     if (error) throw error;
     if (!due || due.length === 0) {
-      return new Response(JSON.stringify({ ok: true, processed: 0 }), {
+      return new Response(JSON.stringify({ ok: true, processed: 0, expired: expiredCount }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -280,7 +291,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, processed }), {
+    return new Response(JSON.stringify({ ok: true, processed, expired: expiredCount }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
