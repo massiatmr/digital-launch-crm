@@ -291,7 +291,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, processed }), {
+    return new Response(JSON.stringify({ ok: true, processed, expired: expiredCount }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
