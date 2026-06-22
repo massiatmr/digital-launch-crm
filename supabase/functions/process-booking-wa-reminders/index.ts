@@ -50,6 +50,16 @@ Deno.serve(async (req) => {
   const nowIso = new Date().toISOString();
   // Garde-fou : pas de rattrapage massif sur des rappels > 6h en retard
   const sixHoursAgoIso = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+
+  // 1) Marquer comme "expired" les rappels en retard hors fenêtre (visibilité)
+  const { data: expired } = await supabase
+    .from("booking_wa_reminders")
+    .update({ status: "skipped", error_message: "expired (>6h late)", sent_at: nowIso })
+    .eq("status", "pending")
+    .lt("scheduled_at", sixHoursAgoIso)
+    .select("id");
+
+  // 2) Récupérer les rappels dus dans la fenêtre
   const { data: due, error } = await supabase
     .from("booking_wa_reminders")
     .select("id, booking_id, type")
@@ -58,10 +68,10 @@ Deno.serve(async (req) => {
     .gte("scheduled_at", sixHoursAgoIso)
     .limit(50);
 
-
   if (error) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ error: error.message, expired: expired?.length ?? 0 }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
+
 
   const results: any[] = [];
 
@@ -190,7 +200,8 @@ Deno.serve(async (req) => {
     }
   }
 
-  return new Response(JSON.stringify({ processed: results.length, results }), {
+  return new Response(JSON.stringify({ processed: results.length, expired: expired?.length ?? 0, results }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+
 });
