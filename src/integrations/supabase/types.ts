@@ -349,6 +349,188 @@ export type Database = {
         }
         Relationships: []
       }
+      campaign_recipients: {
+        Row: {
+          attempts: number
+          campaign_id: string
+          client_id: string | null
+          contact_name: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          lead_id: string | null
+          phone: string
+          resolved_variables: Json
+          sent_at: string | null
+          status: Database["public"]["Enums"]["campaign_recipient_status"]
+          updated_at: string
+          wa_message_id: string | null
+          whatsapp_message_id: string | null
+        }
+        Insert: {
+          attempts?: number
+          campaign_id: string
+          client_id?: string | null
+          contact_name?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          lead_id?: string | null
+          phone: string
+          resolved_variables?: Json
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["campaign_recipient_status"]
+          updated_at?: string
+          wa_message_id?: string | null
+          whatsapp_message_id?: string | null
+        }
+        Update: {
+          attempts?: number
+          campaign_id?: string
+          client_id?: string | null
+          contact_name?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          lead_id?: string | null
+          phone?: string
+          resolved_variables?: Json
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["campaign_recipient_status"]
+          updated_at?: string
+          wa_message_id?: string | null
+          whatsapp_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_recipients_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_recipients_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_recipients_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_recipients_whatsapp_message_id_fkey"
+            columns: ["whatsapp_message_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaigns: {
+        Row: {
+          audience_filter: Json
+          audience_mode: string
+          channel: string
+          created_at: string
+          deleted_at: string | null
+          delivered_count: number
+          error_message: string | null
+          failed_count: number
+          finished_at: string | null
+          id: string
+          name: string
+          owner_id: string
+          read_count: number
+          scheduled_at: string | null
+          sent_count: number
+          skipped_count: number
+          started_at: string | null
+          status: Database["public"]["Enums"]["campaign_status"]
+          template_id: string | null
+          template_language: string | null
+          template_name: string | null
+          template_variables_mapping: Json
+          total_recipients: number
+          updated_at: string
+          workspace_id: string | null
+        }
+        Insert: {
+          audience_filter?: Json
+          audience_mode?: string
+          channel?: string
+          created_at?: string
+          deleted_at?: string | null
+          delivered_count?: number
+          error_message?: string | null
+          failed_count?: number
+          finished_at?: string | null
+          id?: string
+          name: string
+          owner_id?: string
+          read_count?: number
+          scheduled_at?: string | null
+          sent_count?: number
+          skipped_count?: number
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["campaign_status"]
+          template_id?: string | null
+          template_language?: string | null
+          template_name?: string | null
+          template_variables_mapping?: Json
+          total_recipients?: number
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Update: {
+          audience_filter?: Json
+          audience_mode?: string
+          channel?: string
+          created_at?: string
+          deleted_at?: string | null
+          delivered_count?: number
+          error_message?: string | null
+          failed_count?: number
+          finished_at?: string | null
+          id?: string
+          name?: string
+          owner_id?: string
+          read_count?: number
+          scheduled_at?: string | null
+          sent_count?: number
+          skipped_count?: number
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["campaign_status"]
+          template_id?: string | null
+          template_language?: string | null
+          template_name?: string | null
+          template_variables_mapping?: Json
+          total_recipients?: number
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaigns_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaigns_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_activities: {
         Row: {
           action: string
@@ -3468,6 +3650,20 @@ export type Database = {
         | "1h_before"
       booking_status: "pending" | "confirmed" | "cancelled" | "completed"
       calendar_provider: "google" | "microsoft" | "caldav" | "ical"
+      campaign_recipient_status:
+        | "pending"
+        | "sent"
+        | "delivered"
+        | "read"
+        | "failed"
+        | "skipped"
+      campaign_status:
+        | "draft"
+        | "scheduled"
+        | "running"
+        | "completed"
+        | "cancelled"
+        | "failed"
       client_status:
         | "nouveau"
         | "signe"
@@ -3681,6 +3877,22 @@ export const Constants = {
       ],
       booking_status: ["pending", "confirmed", "cancelled", "completed"],
       calendar_provider: ["google", "microsoft", "caldav", "ical"],
+      campaign_recipient_status: [
+        "pending",
+        "sent",
+        "delivered",
+        "read",
+        "failed",
+        "skipped",
+      ],
+      campaign_status: [
+        "draft",
+        "scheduled",
+        "running",
+        "completed",
+        "cancelled",
+        "failed",
+      ],
       client_status: [
         "nouveau",
         "signe",
