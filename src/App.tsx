@@ -32,6 +32,7 @@ import ScheduledFollowupsPage from "@/pages/ScheduledFollowupsPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import NotFound from "@/pages/NotFound";
 import AiMonitorPage from "@/pages/AiMonitorPage";
+import CampaignsPage from "@/pages/CampaignsPage";
 import ScrollRestoration from "@/components/ScrollRestoration";
 import { OneSignalInit } from "@/components/OneSignalInit";
 
