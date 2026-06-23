@@ -74,6 +74,8 @@ const App = () => (
                 <Route path="/conversations/scheduled" element={<ScheduledFollowupsPage />} />
                 <Route path="/reminders" element={<RemindersPage />} />
                 <Route path="/ai-monitor" element={<AiMonitorPage />} />
+                <Route path="/campaigns" element={<CampaignsPage />} />
+                <Route path="/campaigns/:id" element={<CampaignsPage />} />
                 <Route path="/import" element={<ImportPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/settings/:tab" element={<SettingsPage />} />
