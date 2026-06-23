@@ -32,6 +32,7 @@ import ScheduledFollowupsPage from "@/pages/ScheduledFollowupsPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import NotFound from "@/pages/NotFound";
 import AiMonitorPage from "@/pages/AiMonitorPage";
+import CampaignsPage from "@/pages/CampaignsPage";
 import ScrollRestoration from "@/components/ScrollRestoration";
 import { OneSignalInit } from "@/components/OneSignalInit";
 
@@ -73,6 +74,8 @@ const App = () => (
                 <Route path="/conversations/scheduled" element={<ScheduledFollowupsPage />} />
                 <Route path="/reminders" element={<RemindersPage />} />
                 <Route path="/ai-monitor" element={<AiMonitorPage />} />
+                <Route path="/campaigns" element={<CampaignsPage />} />
+                <Route path="/campaigns/:id" element={<CampaignsPage />} />
                 <Route path="/import" element={<ImportPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/settings/:tab" element={<SettingsPage />} />

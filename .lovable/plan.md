@@ -1,42 +1,83 @@
-## Refonte mobile — page détail du lead
+## Objectif
 
-Objectif : rendre la sheet détail respirable sur iPhone (390px et moins car c'est moins que ça bug, genre le width des elements ne s'adapte plus quand l'ecran est plus petit, ils ont un width fix, mais puisque l'écran est petit ça depasse vers la droite), régler les éléments écrasés, les contours flous et le clipping des focus.
+Permettre d'envoyer un message WhatsApp template (HSM approuvé Meta) en une fois à plusieurs leads/clients, soit en les cochant un par un, soit en les ciblant via filtres (statut pipeline, score, source, offre, état conversation, dernière relance, etc.).
 
-### 1. SheetContent (`src/pages/PipelinePage.tsx`)
+## Parcours utilisateur
 
-- Remplacer `p-6` par `p-4 sm:p-6` (réduit ~16px de chaque côté gagnés sur mobile).
-- Retirer le double système de hauteur en supprimant `overflow-y-auto custom-scrollbar` ici (le scroll est déjà géré à l'intérieur par `LeadDetailContent`).
+Nouvelle page **Campagnes WhatsApp** (`/campaigns`), accessible depuis la sidebar (icône mégaphone) sous "Conversations".
 
-### 2. LeadDetailContent (`src/components/LeadDetailContent.tsx`)
+1. **Étape 1 — Audience** : 2 onglets
+   - *Sélection manuelle* : tableau filtrable (recherche, source, statut, score, offre) avec checkbox par ligne + "tout sélectionner sur la page filtrée"
+   - *Ciblage par filtres* : combinaisons de critères → preview du nombre de destinataires en temps réel
+     - Type : leads / clients / les deux
+     - Statut lead (`new`, `contacted`, `qualified`, `lost`…) ou statut client
+     - Score (`hot`, `warm`, `cold`)
+     - Source (facebook, website, messenger…)
+     - Offre liée
+     - État conversation (`NEW`, `CONTACTED`, `QUALIFIED`, `BOOKED`, `CLOSED`)
+     - Dernière activité (>X jours sans réponse, jamais contacté…)
+     - Exclure ceux dans la fenêtre 24h active (déjà en conversation) ou au contraire les inclure pour envoi free-form
+     - Exclure ceux ayant un rappel/relance automatique en cours
+2. **Étape 2 — Message** : choix du template HSM approuvé (liste depuis `whatsapp_templates`), preview avec variables mappées sur les champs lead (`{{1}} = name`, etc.), sélection de la langue.
+3. **Étape 3 — Récap & envoi** : nombre final de destinataires, coût estimé (info), bouton "Envoyer maintenant" ou "Programmer pour…". Bouton "Test sur un numéro" avant lancement.
+4. **Étape 4 — Suivi** : après envoi, vue détail de la campagne avec liste des destinataires + statut (queued / sent / delivered / read / failed + raison), bouton "Renvoyer aux échecs", export CSV.
 
-- Hauteur : remplacer `h-[calc(100vh-80px)]` par `h-[100dvh] sm:h-[calc(100vh-80px)]` pour utiliser la dynamic viewport iOS et éviter le scroll fantôme sous la barre Safari.
-- Header sticky : padding plus aéré (`pb-3 pr-10`), titre `text-base sm:text-lg` pour éviter l'écrasement avec les badges.
-- Cartes (`bg-card p-3/4`) : retirer les `overflow-hidden` qui coupent les focus rings/glows ; remplacer par `overflow-x-hidden` uniquement où nécessaire pour conserver les anneaux de focus visibles.
-- Boutons d'actions (WhatsApp / téléphone / email / Fusionner / Supprimer) : passer en `w-full sm:w-auto` sur la rangée principale et `justify-center` pour éviter les boutons coupés ; ajouter `min-h-10` pour la cible tactile.
-- ScrollArea : conserver le `pb-40 sm:pb-6` déjà ajouté ; ajouter `px-1` pour laisser respirer les bordures contre la barre de scroll.
-- Bloc « Message initial du lead » : passer en `text-xs sm:text-sm` pour réduire le pavé sur mobile, garder le wrap.
+## Architecture technique
 
-### 3. LeadEditForm (`src/components/LeadEditForm.tsx`)
+### Base de données (migration)
 
-- Padding carte : `p-3 sm:p-5` (au lieu de `p-5`).
-- Grille : passer en `gap-3 sm:gap-4`.
-- Inputs / SelectTrigger : forcer `h-11 text-base` sur mobile (`sm:h-10 sm:text-sm`) pour des cibles tactiles iOS et éviter le zoom auto Safari sur focus (< 16px).
-- Labels : `text-xs font-medium uppercase tracking-wider text-muted-foreground` pour un contour plus lisible et marquer chaque champ.
-- Bouton « Enregistrer » : `w-full sm:w-auto` en bas, séparé par une bordure top `border-t border-border pt-3` pour bien le détacher du dernier champ.
+```text
+campaigns
+  id, workspace_id, owner_id, name, channel='whatsapp',
+  template_id (fk whatsapp_templates), template_language,
+  template_variables_mapping jsonb,  -- {"1":"name","2":"company_name"}
+  audience_mode ('manual'|'filter'),
+  audience_filter jsonb,             -- snapshot des critères
+  scheduled_at, started_at, finished_at,
+  status ('draft'|'scheduled'|'running'|'completed'|'cancelled'|'failed'),
+  total_recipients, sent_count, delivered_count, read_count, failed_count,
+  created_at, updated_at
 
-### 4. Détails visuels
+campaign_recipients
+  id, campaign_id, lead_id (nullable), client_id (nullable),
+  phone, resolved_variables jsonb,
+  status ('pending'|'sent'|'delivered'|'read'|'failed'|'skipped'),
+  wa_message_id (fk whatsapp_messages),
+  error_message, sent_at, updated_at
+  unique(campaign_id, phone)
+```
 
-- Tabs : ajouter `gap-1` sur la `TabsList` et `text-[11px] sm:text-xs` pour que les 3 onglets cessent d'être collés.
-- Toutes les cartes : bordure unifiée `border border-border/60` + `rounded-xl` pour des contours nets en dark mode.
+GRANTs + RLS workspace-scoped (membres workspace en lecture, owner en écriture).
 
-### Détails techniques
+### Edge Functions
 
-- Aucune modification de logique métier ni de schéma : uniquement classes Tailwind / structure JSX.
-- Les classes `h-11`, `text-base` sur mobile suivent la règle iOS 16px anti-zoom focus.
-- Pas de hardcoded colors : on garde `border-border`, `bg-card`, `text-muted-foreground` (design tokens existants).
-- Fichiers touchés :
-  - `src/pages/PipelinePage.tsx` (1 ligne sheet)
-  - `src/components/LeadDetailContent.tsx`
-  - `src/components/LeadEditForm.tsx`
+- `campaigns-preview-audience` (POST) : retourne le count + 20 premiers contacts pour un set de filtres, sans rien écrire.
+- `campaigns-launch` (POST) : valide la campagne, matérialise les destinataires dans `campaign_recipients`, passe en `scheduled` ou `running`, déclenche `campaigns-process` immédiatement si pas de `scheduled_at`.
+- `campaigns-process` (cron 1 min) : prend les campagnes `running` ou `scheduled` dues, traite par batch de 50 destinataires `pending`, appelle l'API WhatsApp Cloud Meta (template message), insère dans `whatsapp_messages` (direction outbound, kind=`template`), met à jour `campaign_recipients.status`, throttle pour rester sous les limites Meta. Met à jour les compteurs de la campagne.
+- Webhook existant `meta-webhook` : on étend pour propager les statuts `delivered`/`read`/`failed` vers `campaign_recipients` via `wa_message_id`.
 
-Vérification après build : screenshot mobile 390×844 de la sheet ouverte sur un lead pour confirmer espacement, contours et bouton Enregistrer entièrement visible.
+### Frontend
+
+- `src/pages/CampaignsPage.tsx` (liste + bouton "Nouvelle campagne")
+- `src/pages/CampaignBuilderPage.tsx` (wizard 3 étapes avec `Stepper`)
+- `src/pages/CampaignDetailPage.tsx` (suivi destinataires temps réel via Realtime sur `campaign_recipients`)
+- Composants : `AudienceManualPicker`, `AudienceFilterBuilder`, `TemplatePicker` (réutilise le picker WhatsApp existant), `TemplateVariableMapper`, `CampaignRecipientsTable`
+- Route + entrée sidebar dans `src/components/AppSidebar.tsx`
+- Hook `useCampaigns` (CRUD + Realtime)
+
+### Garde-fous
+
+- Bloquer l'envoi si `whatsapp_config.status != 'connected'` pour le workspace.
+- Refuser les templates non `approved` côté Meta.
+- Anti-spam : refuser une campagne ciblant un lead ayant déjà reçu le **même** template dans les 24h.
+- Limite max 5 000 destinataires par campagne (configurable).
+- Dry-run obligatoire activé par défaut pour la 1ère campagne d'un workspace.
+- Soft-delete + audit log via trigger existant `log_entity_changes`.
+
+## Hors scope (V2)
+
+- A/B testing entre 2 templates
+- Compagnes Messenger / Instagram (même schéma, autre canal)
+- Suivi clics sur boutons CTA du template
+
+Je peux démarrer l'implémentation dès validation.
