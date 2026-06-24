@@ -9,7 +9,6 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 
 async function isValidUserToken(admin: ReturnType<typeof createClient>, token: string): Promise<string | null> {
   if (!token) return null;
@@ -39,15 +38,13 @@ Deno.serve(async (req) => {
   try {
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    // Auth: accept service role, the scheduled backend cron using the anon key,
+    // Auth: accept service role, the scheduled backend cron,
     // OR a logged-in user (UI). The cron only triggers the worker; all DB writes
     // still happen server-side through the service client and only for due tasks.
     const bearer = req.headers.get('Authorization')?.replace('Bearer ', '') ?? '';
-    const apiKey = req.headers.get('apikey') ?? '';
-
     // Strict equality check against env service key — NEVER trust unverified JWT payloads.
     const isServiceRole = bearer.length > 0 && bearer === SERVICE_KEY;
-    const isScheduledCron = req.headers.get('x-internal-cron') === '1';
+    const isScheduledCron = req.headers.get('x-internal-cron') === '1' && bearer.length > 20;
 
 
     let callerUserId: string | null = null;
@@ -112,15 +109,26 @@ Deno.serve(async (req) => {
 
     let query = admin
       .from('lead_followup_tasks')
-      .select('id, owner_id')
+      .select('id, owner_id, lead_id, scheduled_at, step_order')
       .eq('status', 'scheduled')
       .lte('scheduled_at', new Date().toISOString())
       .order('scheduled_at', { ascending: true })
       .limit(20);
     if (ownerFilter) query = query.eq('owner_id', ownerFilter);
 
-    const { data: tasks, error } = await query;
+    const { data: dueTasks, error } = await query;
     if (error) throw error;
+
+    // Ne jamais traiter plusieurs tâches dues du même lead dans le même run.
+    // Après un downtime, initial_message + relances peuvent être toutes en retard:
+    // envoyer tout d'un coup spamme le lead ou annule les étapes par anti-doublon.
+    const seenLeads = new Set<string>();
+    const tasks = (dueTasks ?? []).filter((task: any) => {
+      if (!task.lead_id) return true;
+      if (seenLeads.has(task.lead_id)) return false;
+      seenLeads.add(task.lead_id);
+      return true;
+    });
 
     const results = await runWithConcurrency(tasks ?? [], 4, async (t: any): Promise<{ task_id: string; ok: boolean; error?: string }> => {
       try {
