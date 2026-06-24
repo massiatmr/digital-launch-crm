@@ -549,14 +549,12 @@ Deno.serve(async (req) => {
 
     // Mode édition manuelle (custom_message fourni) → on envoie texte libre
     // Sinon : si template mappé, on envoie template. Sinon, on génère via IA.
-    // === Délai de sécurité 30s avant envoi réel ===
-    // Laisse le temps de détecter une discussion WhatsApp/Messenger déjà en cours
-    // (réponse manuelle, nouveau message entrant, autre tâche en parallèle).
-    // Skippé en dry-run pour ne pas ralentir les previews UI.
+    // === Garde-fou anti-course non bloquant ===
+    // Avant, chaque tâche attendait 30s ici. Le cron backend timeoutait avant la
+    // fin du batch, donc les tâches restaient en scheduled/processing et le
+    // problème revenait. On garde la protection, mais sans bloquer le worker.
     if (!dryRun) {
-      await new Promise((r) => setTimeout(r, 30_000));
-      // Re-check : inbound ou outbound apparu pendant l'attente ?
-      const since = new Date(Date.now() - 35 * 1000).toISOString();
+      const since = new Date(Date.now() - 20 * 1000).toISOString();
       const { data: recentMsgs } = await admin
         .from("whatsapp_messages")
         .select("id, direction, task_id, sent_at")
@@ -572,8 +570,8 @@ Deno.serve(async (req) => {
         await admin.from("lead_followup_tasks").update({
           status: "cancelled",
           error_message: hasInbound
-            ? "Annulée : nouvelle réponse du lead détectée pendant le délai de sécurité 30s"
-            : "Annulée : un autre message a été envoyé pendant le délai de sécurité 30s",
+            ? "Annulée : réponse récente du lead détectée avant envoi"
+            : "Annulée : un autre message vient déjà d’être envoyé",
           updated_at: new Date().toISOString(),
         } as any).eq("id", task_id);
         return new Response(JSON.stringify({ ok: true, skipped: true, reason: hasInbound ? "inbound_during_safety_delay" : "concurrent_outbound_during_safety_delay" }), {
