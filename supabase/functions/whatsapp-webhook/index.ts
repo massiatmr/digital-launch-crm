@@ -145,7 +145,44 @@ Deno.serve(async (req) => {
             else if (status === "failed") { update.status = "failed"; update.error_message = JSON.stringify(st.errors || st); }
             else if (status === "sent") update.status = "sent";
             if (Object.keys(update).length) {
+              const { data: existingMsg } = await admin
+                .from("whatsapp_messages")
+                .select("id, task_id, lead_id, owner_id, workspace_id")
+                .eq("wa_message_id", waId)
+                .maybeSingle();
               await (admin.from("whatsapp_messages") as any).update(update).eq("wa_message_id", waId);
+
+              // Meta peut accepter l'envoi puis renvoyer ensuite "failed/undeliverable".
+              // Avant, la tâche restait marquée envoyée: l'automatisation croyait avoir
+              // contacté le lead alors qu'aucun message n'était arrivé.
+              if (status === "failed" && (existingMsg as any)?.task_id) {
+                const errorText = JSON.stringify(st.errors || st).slice(0, 1000);
+                await admin.from("lead_followup_tasks").update({
+                  status: "failed",
+                  error_message: errorText,
+                  updated_at: new Date().toISOString(),
+                } as any).eq("id", (existingMsg as any).task_id);
+
+                const { data: existingManual } = await admin
+                  .from("lead_followup_tasks")
+                  .select("id")
+                  .eq("lead_id", (existingMsg as any).lead_id)
+                  .eq("task_type", "manual_call")
+                  .in("status", ["pending", "scheduled"])
+                  .limit(1);
+                if (!existingManual?.length) {
+                  await admin.from("lead_followup_tasks").insert({
+                    lead_id: (existingMsg as any).lead_id,
+                    owner_id: (existingMsg as any).owner_id,
+                    workspace_id: (existingMsg as any).workspace_id ?? null,
+                    task_type: "manual_call",
+                    status: "pending",
+                    scheduled_at: new Date().toISOString(),
+                    step_order: 98,
+                    error_message: `Fallback manuel: message WhatsApp non délivré (${errorText.slice(0, 180)})`,
+                  } as any);
+                }
+              }
             }
           }
           continue;

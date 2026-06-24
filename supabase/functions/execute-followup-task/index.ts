@@ -29,6 +29,17 @@ function templateKey(taskType: string): string | null {
   }
 }
 
+function intervalMs(value: number | null | undefined, unit: string | null | undefined): number {
+  const safeValue = Math.max(1, Number(value || 1));
+  switch (unit) {
+    case "minutes": return safeValue * 60 * 1000;
+    case "days": return safeValue * 24 * 60 * 60 * 1000;
+    case "hours":
+    default:
+      return safeValue * 60 * 60 * 1000;
+  }
+}
+
 // Tâches qui ne déclenchent PAS d'envoi auto (action humaine requise)
 const HUMAN_TASK_TYPES = new Set(["manual_call"]);
 
@@ -549,14 +560,12 @@ Deno.serve(async (req) => {
 
     // Mode édition manuelle (custom_message fourni) → on envoie texte libre
     // Sinon : si template mappé, on envoie template. Sinon, on génère via IA.
-    // === Délai de sécurité 30s avant envoi réel ===
-    // Laisse le temps de détecter une discussion WhatsApp/Messenger déjà en cours
-    // (réponse manuelle, nouveau message entrant, autre tâche en parallèle).
-    // Skippé en dry-run pour ne pas ralentir les previews UI.
+    // === Garde-fou anti-course non bloquant ===
+    // Avant, chaque tâche attendait 30s ici. Le cron backend timeoutait avant la
+    // fin du batch, donc les tâches restaient en scheduled/processing et le
+    // problème revenait. On garde la protection, mais sans bloquer le worker.
     if (!dryRun) {
-      await new Promise((r) => setTimeout(r, 30_000));
-      // Re-check : inbound ou outbound apparu pendant l'attente ?
-      const since = new Date(Date.now() - 35 * 1000).toISOString();
+      const since = new Date(Date.now() - 20 * 1000).toISOString();
       const { data: recentMsgs } = await admin
         .from("whatsapp_messages")
         .select("id, direction, task_id, sent_at")
@@ -572,8 +581,8 @@ Deno.serve(async (req) => {
         await admin.from("lead_followup_tasks").update({
           status: "cancelled",
           error_message: hasInbound
-            ? "Annulée : nouvelle réponse du lead détectée pendant le délai de sécurité 30s"
-            : "Annulée : un autre message a été envoyé pendant le délai de sécurité 30s",
+            ? "Annulée : réponse récente du lead détectée avant envoi"
+            : "Annulée : un autre message vient déjà d’être envoyé",
           updated_at: new Date().toISOString(),
         } as any).eq("id", task_id);
         return new Response(JSON.stringify({ ok: true, skipped: true, reason: hasInbound ? "inbound_during_safety_delay" : "concurrent_outbound_during_safety_delay" }), {
@@ -780,6 +789,44 @@ Deno.serve(async (req) => {
     // Au premier outbound réussi (sent ou dry_run), basculer le lead "new" → "contacted"
     if ((logStatus === "sent" || logStatus === "dry_run") && lead.status === "new") {
       await admin.from("leads").update({ status: "contacted" } as any).eq("id", task.lead_id);
+    }
+
+    // Si on rattrape une tâche très en retard après un downtime, les étapes suivantes
+    // peuvent aussi être déjà dues. On les décale depuis maintenant pour éviter une
+    // rafale de relances ou des annulations anti-doublon.
+    if ((logStatus === "sent" || logStatus === "dry_run") && typeof task.step_order === "number") {
+      try {
+        const nowIso = new Date().toISOString();
+        const { data: overdueNextTasks } = await admin
+          .from("lead_followup_tasks")
+          .select("id, task_type, step_order")
+          .eq("lead_id", task.lead_id)
+          .eq("status", "scheduled")
+          .neq("task_type", "manual_call")
+          .gt("step_order", task.step_order)
+          .lte("scheduled_at", nowIso)
+          .order("step_order", { ascending: true });
+
+        for (const nextTask of overdueNextTasks ?? []) {
+          let stepQuery = admin
+            .from("followup_sequence_steps")
+            .select("delay_value, delay_unit")
+            .eq("task_type", (nextTask as any).task_type)
+            .eq("step_order", (nextTask as any).step_order)
+            .eq("is_enabled", true);
+          if (lead.workspace_id) stepQuery = stepQuery.eq("workspace_id", lead.workspace_id);
+          else stepQuery = stepQuery.eq("owner_id", ownerId).is("workspace_id", null);
+          const { data: stepCfg } = await stepQuery.maybeSingle();
+          const nextScheduledAt = new Date(Date.now() + intervalMs((stepCfg as any)?.delay_value, (stepCfg as any)?.delay_unit)).toISOString();
+          await admin.from("lead_followup_tasks").update({
+            scheduled_at: nextScheduledAt,
+            error_message: "Décalée automatiquement après rattrapage d'une tâche en retard",
+            updated_at: new Date().toISOString(),
+          } as any).eq("id", (nextTask as any).id);
+        }
+      } catch (rescheduleErr) {
+        console.warn("overdue followup reschedule failed", rescheduleErr);
+      }
     }
 
     // Détection auto de RDV confirmé après outbound IA (fire-and-forget).
