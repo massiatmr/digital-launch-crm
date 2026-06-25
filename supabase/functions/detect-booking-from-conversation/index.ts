@@ -217,6 +217,11 @@ Détermine si un RENDEZ-VOUS a été CONFIRMÉ. Deux cas valides :
 Un simple "ok je vais y réfléchir", "peut-être", "je te rappelle" n'est PAS une confirmation.
 Si le LEAD a refusé un créneau MAIS que le commercial a ensuite "noté" un autre créneau (ou le même) sans réaction négative postérieure du LEAD, considère le rendez-vous comme confirmé (cas B).
 
+⚠️ DISTINCTION CRITIQUE — date du RDV vs date de la prestation :
+- "booking_date" / "time_slot" = UNIQUEMENT la date/heure du RENDEZ-VOUS commercial (appel, visio, visite technique, estimation, devis…).
+- Si le LEAD donne une date pour l'EXÉCUTION du service (ex: "je déménage dimanche 28", "livraison le 15", "intervention prévue mardi", "j'emménage le 3"), cette date NE doit JAMAIS être mise dans "booking_date". Mets-la plutôt dans "lead_summary" (ex: "déménagement prévu le 28").
+- Ne considère "confirmed=true" QUE si un VRAI rendez-vous (visite, appel, visio…) a été calé avec une date+heure précises. Une simple date de prestation sans RDV planifié ⇒ confirmed=false, booking_date=null, time_slot=null.
+
 Date du jour : ${today} (${parisWeekday}, timezone Europe/Paris, horaires 11h–15h30 jours ouvrés).
 IMPORTANT : "dimanche" = le PROCHAIN dimanche À PARTIR de la date du jour ci-dessus. Si aujourd'hui est déjà ce jour-là, c'est aujourd'hui (pas la semaine suivante). Ne jamais ajouter +1 jour par sécurité.
 

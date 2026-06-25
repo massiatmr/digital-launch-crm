@@ -235,7 +235,23 @@ async function getNextAvailableSlots(
   return null;
 }
 
+// Mots-clés indiquant que le lead parle d'un RDV / appel (et donc qu'une date
+// mentionnée concerne bien le rendez-vous, pas l'exécution du service).
+const MEETING_INTENT_REGEX = /\b(rdv|rendez[\s-]?vous|appel|call|t[ée]l[ée]phon|visio|zoom|meet|teams|cr[ée]neau|cr[ée]neaux|dispo|disponibilit|r[ée]serv|booker|planifier|caler|fixer|on\s+s'?appelle|on\s+se\s+call|on\s+se\s+parle|on\s+se\s+voit|visite|estimation|devis|passer\s+(voir|chez))\w*/i;
+// Mots-clés qui indiquent que la date concerne l'EXÉCUTION du service (ex: déménagement,
+// livraison, intervention…) et non un rendez-vous commercial.
+const SERVICE_EXECUTION_REGEX = /\b(d[ée]m[ée]nag|livraison|livrer|installation|installer|intervention|intervenir|prestation|travaux|chantier|arriv[ée]e?|emm[ée]nag|d[ée]ploiement|mise\s+en\s+(place|service)|d[ée]marrage|lancement|go[\s-]?live|mise\s+en\s+route|transport|enl[èe]vement|charger|d[ée]charger)\w*/i;
+
 function resolveRequestedDateFromText(text: string, timeZone: string): { date: string; label: string } | null {
+  if (!text) return null;
+  const hasMeetingIntent = MEETING_INTENT_REGEX.test(text);
+  const hasServiceContext = SERVICE_EXECUTION_REGEX.test(text);
+  // Si le lead évoque une date dans un contexte d'exécution du service (ex: "je déménage dimanche")
+  // SANS demander explicitement un RDV, on ne tente PAS de vérifier nos dispos sur cette date.
+  if (hasServiceContext && !hasMeetingIntent) return null;
+  // Sinon, on ne résout une date que si le lead parle clairement d'un RDV/appel.
+  if (!hasMeetingIntent) return null;
+
   const normalized = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const weekdays = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
   const today = formatDateInTimeZone(new Date(), timeZone);
@@ -522,6 +538,13 @@ Deno.serve(async (req) => {
         ? `\nPROCHAIN JOUR DISPONIBLE (calendrier + Google sync) : **${nextSlot.label}**\nCréneaux libres ce jour-là (durée ${nextSlot.duration} min) : ${nextSlot.slots.join(" / ")}\n⚠️ Si tu proposes un RDV : propose 2 créneaux MAX du même jour parmi cette liste (idéalement un tôt + un plus tard). N'invente JAMAIS d'autre horaire/jour.\n⚠️ Les jours déjà proposés dans l'historique ont été automatiquement évités, ce jour est NOUVEAU.`
         : "\n⚠️ Aucun créneau disponible dans la fenêtre de réservation autorisée. Propose au lead de te recontacter plus tard.";
 
+    const dateDisambiguationBlock = `\nDISTINCTION DES DATES (IMPORTANT) :
+- Les "DISPONIBILITÉS" et "Créneaux libres" ci-dessus concernent UNIQUEMENT le rendez-vous commercial (appel, visio, visite technique, estimation, devis…).
+- Si le lead évoque une date pour l'EXÉCUTION du service (ex: "je déménage dimanche", "livraison le 28", "intervention prévue mardi", "j'emménage le 15"), cette date concerne la prestation, PAS le rendez-vous.
+- NE confonds JAMAIS la date de la prestation avec la date du rendez-vous.
+- NE dis JAMAIS "on ne travaille pas ce jour-là" ou "on est fermé ce jour-là" en réponse à une date de prestation : nos jours fermés ne s'appliquent qu'au RDV, pas à la prestation chez le client.
+- Si le lead donne uniquement la date de sa prestation (sans demander de RDV), prends-en note et propose un RDV à un autre moment (sur tes vrais créneaux libres) pour préparer l'intervention.`;
+
     const knownEmail = (lead.email && lead.email.includes("@") && !lead.email.endsWith("@whatsapp.tmp"))
       ? lead.email.trim()
       : null;
@@ -588,6 +611,7 @@ ${nicheRule}
 ${forbiddenRule}
 ${antiRepRule}
 ${slotsBlock}
+${dateDisambiguationBlock}
 ${emailBlock}${nameBlock}${phoneKnown}
 
 ${styleRules}
