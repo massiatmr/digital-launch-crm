@@ -586,15 +586,15 @@ export function WhatsAppChat({ leadId, leadName, leadPhone, className }: { leadI
             />
 
             {input.trim() ? (
-              <Button size="icon" onClick={handleSend} disabled={sendWA.isPending} className="shrink-0">
+              <Button size="icon" onClick={handleSend} disabled={sendWA.isPending} className="shrink-0 h-10 w-10">
                 {sendWA.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
             ) : isWithin24h && !isMeta ? (
-              <Button size="icon" variant="secondary" onClick={startRecording} className="shrink-0" title="Enregistrer un vocal">
+              <Button size="icon" variant="secondary" onClick={startRecording} className="shrink-0 h-10 w-10" title="Enregistrer un vocal">
                 <Mic className="h-4 w-4" />
               </Button>
             ) : !isMeta ? (
-              <Button size="icon" variant="secondary" onClick={() => setTemplateOpen(true)} className="shrink-0" title="Envoyer un template">
+              <Button size="icon" variant="secondary" onClick={() => setTemplateOpen(true)} className="shrink-0 h-10 w-10" title="Envoyer un template">
                 <FileText className="h-4 w-4" />
               </Button>
             ) : null}
