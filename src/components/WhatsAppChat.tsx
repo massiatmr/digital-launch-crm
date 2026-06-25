@@ -553,7 +553,7 @@ export function WhatsAppChat({ leadId, leadName, leadPhone, className }: { leadI
               </Button>
             </div>
           )}
-          <div className="border-t border-border p-2 flex items-end gap-2">
+          <div className="border-t border-border p-2 flex items-end gap-1.5 sm:gap-2">
             <FollowupScriptsPicker
               leadName={leadName}
               onInsert={(text) => setInput((cur) => cur ? `${cur}\n\n${text}` : text)}
@@ -563,7 +563,7 @@ export function WhatsAppChat({ leadId, leadName, leadPhone, className }: { leadI
               variant="ghost"
               onClick={() => fileInputRef.current?.click()}
               disabled={!isWithin24h || isMeta}
-              className="shrink-0"
+              className="shrink-0 h-10 w-10"
               title={isMeta ? 'Pièce jointe non disponible sur ce canal' : (isWithin24h ? 'Joindre un fichier' : 'Hors fenêtre 24h')}
             >
               <Paperclip className="h-4 w-4" />
@@ -578,22 +578,23 @@ export function WhatsAppChat({ leadId, leadName, leadPhone, className }: { leadI
               placeholder={
                 isMeta
                   ? (isWithin24h ? `Réponds via ${channel === 'instagram' ? 'Instagram' : 'Messenger'}…` : 'Hors fenêtre 24h — attends une réponse du lead')
-                  : (isWithin24h ? 'Écris un message... (Entrée pour envoyer)' : 'Hors fenêtre 24h — utilise un template')
+                  : (isWithin24h ? 'Écris un message' : 'Hors fenêtre 24h — utilise un template')
               }
               disabled={isMeta && !isWithin24h}
               rows={1}
-              className="min-h-[40px] max-h-40 resize-none border-0 bg-transparent focus-visible:ring-0 py-2 leading-snug overflow-y-auto"
+              className="flex-1 min-w-0 min-h-[40px] max-h-40 resize-none border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-2 py-2 text-base leading-[1.35] overflow-y-auto break-words"
             />
+
             {input.trim() ? (
-              <Button size="icon" onClick={handleSend} disabled={sendWA.isPending} className="shrink-0">
+              <Button size="icon" onClick={handleSend} disabled={sendWA.isPending} className="shrink-0 h-10 w-10">
                 {sendWA.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
             ) : isWithin24h && !isMeta ? (
-              <Button size="icon" variant="secondary" onClick={startRecording} className="shrink-0" title="Enregistrer un vocal">
+              <Button size="icon" variant="secondary" onClick={startRecording} className="shrink-0 h-10 w-10" title="Enregistrer un vocal">
                 <Mic className="h-4 w-4" />
               </Button>
             ) : !isMeta ? (
-              <Button size="icon" variant="secondary" onClick={() => setTemplateOpen(true)} className="shrink-0" title="Envoyer un template">
+              <Button size="icon" variant="secondary" onClick={() => setTemplateOpen(true)} className="shrink-0 h-10 w-10" title="Envoyer un template">
                 <FileText className="h-4 w-4" />
               </Button>
             ) : null}
