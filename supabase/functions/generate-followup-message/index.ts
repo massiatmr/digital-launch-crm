@@ -235,7 +235,23 @@ async function getNextAvailableSlots(
   return null;
 }
 
+// Mots-clés indiquant que le lead parle d'un RDV / appel (et donc qu'une date
+// mentionnée concerne bien le rendez-vous, pas l'exécution du service).
+const MEETING_INTENT_REGEX = /\b(rdv|rendez[\s-]?vous|appel|call|t[ée]l[ée]phon|visio|zoom|meet|teams|cr[ée]neau|cr[ée]neaux|dispo|disponibilit|r[ée]serv|booker|planifier|caler|fixer|on\s+s'?appelle|on\s+se\s+call|on\s+se\s+parle|on\s+se\s+voit|visite|estimation|devis|passer\s+(voir|chez))\w*/i;
+// Mots-clés qui indiquent que la date concerne l'EXÉCUTION du service (ex: déménagement,
+// livraison, intervention…) et non un rendez-vous commercial.
+const SERVICE_EXECUTION_REGEX = /\b(d[ée]m[ée]nag|livraison|livrer|installation|installer|intervention|intervenir|prestation|travaux|chantier|arriv[ée]e?|emm[ée]nag|d[ée]ploiement|mise\s+en\s+(place|service)|d[ée]marrage|lancement|go[\s-]?live|mise\s+en\s+route|transport|enl[èe]vement|charger|d[ée]charger)\w*/i;
+
 function resolveRequestedDateFromText(text: string, timeZone: string): { date: string; label: string } | null {
+  if (!text) return null;
+  const hasMeetingIntent = MEETING_INTENT_REGEX.test(text);
+  const hasServiceContext = SERVICE_EXECUTION_REGEX.test(text);
+  // Si le lead évoque une date dans un contexte d'exécution du service (ex: "je déménage dimanche")
+  // SANS demander explicitement un RDV, on ne tente PAS de vérifier nos dispos sur cette date.
+  if (hasServiceContext && !hasMeetingIntent) return null;
+  // Sinon, on ne résout une date que si le lead parle clairement d'un RDV/appel.
+  if (!hasMeetingIntent) return null;
+
   const normalized = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const weekdays = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
   const today = formatDateInTimeZone(new Date(), timeZone);
