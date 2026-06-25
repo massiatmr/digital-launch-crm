@@ -611,6 +611,7 @@ ${nicheRule}
 ${forbiddenRule}
 ${antiRepRule}
 ${slotsBlock}
+${dateDisambiguationBlock}
 ${emailBlock}${nameBlock}${phoneKnown}
 
 ${styleRules}
