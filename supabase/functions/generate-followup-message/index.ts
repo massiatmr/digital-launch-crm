@@ -538,6 +538,13 @@ Deno.serve(async (req) => {
         ? `\nPROCHAIN JOUR DISPONIBLE (calendrier + Google sync) : **${nextSlot.label}**\nCréneaux libres ce jour-là (durée ${nextSlot.duration} min) : ${nextSlot.slots.join(" / ")}\n⚠️ Si tu proposes un RDV : propose 2 créneaux MAX du même jour parmi cette liste (idéalement un tôt + un plus tard). N'invente JAMAIS d'autre horaire/jour.\n⚠️ Les jours déjà proposés dans l'historique ont été automatiquement évités, ce jour est NOUVEAU.`
         : "\n⚠️ Aucun créneau disponible dans la fenêtre de réservation autorisée. Propose au lead de te recontacter plus tard.";
 
+    const dateDisambiguationBlock = `\nDISTINCTION DES DATES (IMPORTANT) :
+- Les "DISPONIBILITÉS" et "Créneaux libres" ci-dessus concernent UNIQUEMENT le rendez-vous commercial (appel, visio, visite technique, estimation, devis…).
+- Si le lead évoque une date pour l'EXÉCUTION du service (ex: "je déménage dimanche", "livraison le 28", "intervention prévue mardi", "j'emménage le 15"), cette date concerne la prestation, PAS le rendez-vous.
+- NE confonds JAMAIS la date de la prestation avec la date du rendez-vous.
+- NE dis JAMAIS "on ne travaille pas ce jour-là" ou "on est fermé ce jour-là" en réponse à une date de prestation : nos jours fermés ne s'appliquent qu'au RDV, pas à la prestation chez le client.
+- Si le lead donne uniquement la date de sa prestation (sans demander de RDV), prends-en note et propose un RDV à un autre moment (sur tes vrais créneaux libres) pour préparer l'intervention.`;
+
     const knownEmail = (lead.email && lead.email.includes("@") && !lead.email.endsWith("@whatsapp.tmp"))
       ? lead.email.trim()
       : null;
