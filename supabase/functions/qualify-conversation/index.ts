@@ -348,12 +348,15 @@ Analyse maintenant.`;
       }
     } else if (["qualification_in_progress", "info_request", "objection", "unknown"].includes(q.intent)) {
       const lastInboundAt = lastInbound?.sent_at ?? new Date(Date.now() - 60 * 1000).toISOString();
+      const activeQualificationUntil = new Date(Date.now() + 5 * 60 * 1000).toISOString();
       const { data: existingQualification } = await admin
         .from("lead_followup_tasks")
         .select("id")
         .eq("lead_id", lead_id)
         .eq("task_type", "qualification")
-        .or(`status.in.(pending,scheduled,processing),and(status.eq.sent,executed_at.gte.${lastInboundAt}),and(created_at.gte.${lastInboundAt})`)
+        // Ignore old placeholder qualification tasks scheduled far in the future.
+        // Those placeholders used to block the real AI reply fallback after inbound messages.
+        .or(`and(status.in.(pending,scheduled,processing),scheduled_at.lte.${activeQualificationUntil}),and(status.eq.sent,executed_at.gte.${lastInboundAt}),and(created_at.gte.${lastInboundAt})`)
         .limit(1);
       if (!existingQualification?.length) {
         await admin.from("lead_followup_tasks").insert({
