@@ -180,7 +180,7 @@ Deno.serve(async (req) => {
       error_message: errorMessage,
       reply_to_wa_id: reply_to_wa_id ?? null,
       reply_to_snapshot: replySnapshot,
-      metadata: { sent_by_user: true },
+      metadata: { sent_by_user: true, ...(templateMeta ? { template: templateMeta } : {}) },
     } as any);
 
     // Au premier outbound réussi, basculer le lead "new" → "contacted"
