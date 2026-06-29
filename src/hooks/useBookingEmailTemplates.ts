@@ -34,31 +34,37 @@ export const BOOKING_EMAIL_TYPES: { type: BookingEmailType; label: string; descr
 
 export const DEFAULT_TEMPLATES: Record<BookingEmailType, { subject: string; body_html: string }> = {
   confirmation: {
-    subject: "✅ Votre rendez-vous est confirmé — {{date}} à {{time}}",
+    subject: "✅ Rendez-vous confirmé — {{date}} à {{time}}",
     body_html: `<p>Bonjour {{name}},</p>
-<p>Votre rendez-vous est bien confirmé pour le <strong>{{date}} à {{time}}</strong>{{offer_suffix}}.</p>
+<p>C'est confirmé : on se voit le <strong>{{date}} à {{time}}</strong>{{offer_suffix}}.</p>
+<p>Préparez vos questions, l'objectif de cet échange est simple : comprendre votre situation et voir concrètement comment on peut vous aider à avancer.</p>
 <p>{{meet_block}}</p>
-<p>À très vite !</p>`,
+<p>À très vite,</p>`,
   },
   "24h_before": {
-    subject: "📅 Rappel — votre RDV est demain à {{time}}",
+    subject: "📅 On se voit demain à {{time}}",
     body_html: `<p>Bonjour {{name}},</p>
-<p>Petit rappel : nous avons rendez-vous <strong>demain à {{time}}</strong>{{offer_suffix}}.</p>
+<p>Petit rappel : notre rendez-vous est prévu <strong>demain à {{time}}</strong>{{offer_suffix}}.</p>
+<p>Vous avez pris ce créneau pour une bonne raison — c'est le moment d'avoir les réponses claires que vous cherchez et de repartir avec un plan concret.</p>
+<p>Pensez à noter les 2-3 questions les plus importantes pour vous, on en parlera ensemble.</p>
 <p>{{meet_block}}</p>
-<p>À demain !</p>`,
+<p>À demain,</p>`,
   },
   "12h_before": {
-    subject: "⏰ Votre RDV est dans 12h — {{time}}",
+    subject: "⏰ Rendez-vous demain — {{time}}",
     body_html: `<p>Bonjour {{name}},</p>
-<p>Votre rendez-vous approche : <strong>{{date}} à {{time}}</strong>.</p>
-<p>{{meet_block}}</p>`,
+<p>Notre rendez-vous approche : <strong>{{date}} à {{time}}</strong>.</p>
+<p>Pas besoin de préparation lourde — juste être disponible et au calme pour qu'on puisse échanger sereinement et avancer concrètement sur votre projet.</p>
+<p>{{meet_block}}</p>
+<p>À très vite,</p>`,
   },
   "1h_before": {
-    subject: "🚀 Votre RDV commence dans 1h — {{time}}",
+    subject: "🚀 RDV dans 1h — {{time}}",
     body_html: `<p>Bonjour {{name}},</p>
-<p>Votre rendez-vous démarre dans 1h, à <strong>{{time}}</strong>.</p>
+<p>On se retrouve dans <strong>1h, à {{time}}</strong>.</p>
+<p>Installez-vous au calme, prenez de quoi noter, et on fait le point ensemble sur ce qui compte vraiment pour vous.</p>
 <p>{{meet_block}}</p>
-<p>À tout de suite !</p>`,
+<p>À tout de suite,</p>`,
   },
 };
 
