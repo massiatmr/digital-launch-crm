@@ -140,13 +140,32 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Pour un envoi template, on stocke un texte rendu lisible (template:nom + variables)
+    // Pour un envoi template, on stocke le corps rendu (body_text avec variables substituées)
     let storedContent = message || "";
     let storedType = "text";
+    let templateMeta: any = null;
     if (template) {
       storedType = "template";
       const vars = Array.isArray(template.variables) ? template.variables : [];
-      storedContent = `[Template: ${template.name}]${vars.length ? ` ${vars.join(" | ")}` : ""}`;
+      // Récupérer le body_text du template pour le rendre lisible
+      let rendered = "";
+      try {
+        let tplQuery = admin
+          .from("whatsapp_templates")
+          .select("body_text")
+          .eq("name", template.name)
+          .eq("language", template.language || "fr");
+        if (lead.workspace_id) tplQuery = tplQuery.eq("workspace_id", lead.workspace_id);
+        const { data: tpl } = await tplQuery.maybeSingle();
+        if (tpl?.body_text) {
+          rendered = tpl.body_text;
+          vars.forEach((v: string, i: number) => {
+            rendered = rendered.split(`{{${i + 1}}}`).join(String(v ?? ""));
+          });
+        }
+      } catch (_) { /* ignore */ }
+      storedContent = rendered || (vars.length ? vars.join(" | ") : `[Template: ${template.name}]`);
+      templateMeta = { name: template.name, language: template.language || "fr", variables: vars };
     }
 
     await admin.from("whatsapp_messages").insert({
@@ -161,7 +180,7 @@ Deno.serve(async (req) => {
       error_message: errorMessage,
       reply_to_wa_id: reply_to_wa_id ?? null,
       reply_to_snapshot: replySnapshot,
-      metadata: { sent_by_user: true },
+      metadata: { sent_by_user: true, ...(templateMeta ? { template: templateMeta } : {}) },
     } as any);
 
     // Au premier outbound réussi, basculer le lead "new" → "contacted"
