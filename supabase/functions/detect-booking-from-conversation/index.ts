@@ -413,34 +413,78 @@ ${transcript}`;
       ];
 
       // Send confirmation email to the prospect via SMTP (transactional gateway blocked by DNS)
+      // Résout le template : offer override > workspace default > built-in
       if (lead.email && !lead.email.endsWith("@whatsapp.tmp")) {
         try {
-          const dateStr = new Date(parsed.booking_date + "T12:00:00Z").toLocaleDateString("fr-FR", {
-            day: "2-digit", month: "long", year: "numeric",
-          });
-          const meetBlock = meetLink
-            ? `<p><a href="${meetLink}" style="color:#7c3aed;font-weight:600">🔗 Rejoindre Google Meet</a></p>`
-            : "";
-          const subject = `✅ Votre rendez-vous est confirmé — ${dateStr} à ${parsed.time_slot}`;
-          const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"></head>
+          const DEFAULT_CONF = {
+            subject: "✅ Votre rendez-vous est confirmé — {{date}} à {{time}}",
+            body_html: `<p>Bonjour {{name}},</p><p>Votre rendez-vous est bien confirmé pour le <strong>{{date}} à {{time}}</strong>{{offer_suffix}}.</p><p>{{meet_block}}</p><p>À très vite !</p>`,
+          };
+          let tplEnabled = true;
+          let tplSubject = DEFAULT_CONF.subject;
+          let tplBody = DEFAULT_CONF.body_html;
+          let resolved = false;
+          if (resolvedOfferId) {
+            const { data: tpl } = await admin
+              .from("offer_booking_email_templates")
+              .select("enabled, subject, body_html")
+              .eq("offer_id", resolvedOfferId)
+              .eq("type", "confirmation")
+              .maybeSingle();
+            if (tpl) {
+              resolved = true;
+              tplEnabled = (tpl as any).enabled !== false;
+              if ((tpl as any).subject) tplSubject = (tpl as any).subject;
+              if ((tpl as any).body_html) tplBody = (tpl as any).body_html;
+            }
+          }
+          if (!resolved && lead.workspace_id) {
+            const { data: wsTpl } = await admin
+              .from("workspace_booking_email_templates")
+              .select("enabled, subject, body_html")
+              .eq("workspace_id", lead.workspace_id)
+              .eq("type", "confirmation")
+              .maybeSingle();
+            if (wsTpl) {
+              tplEnabled = (wsTpl as any).enabled !== false;
+              if ((wsTpl as any).subject) tplSubject = (wsTpl as any).subject;
+              if ((wsTpl as any).body_html) tplBody = (wsTpl as any).body_html;
+            }
+          }
+
+          if (tplEnabled) {
+            const dateStr = new Date(parsed.booking_date + "T12:00:00Z").toLocaleDateString("fr-FR", {
+              day: "2-digit", month: "long", year: "numeric",
+            });
+            const meetBlock = meetLink
+              ? `<a href="${meetLink}" style="color:#7c3aed;font-weight:600">🔗 Rejoindre Google Meet</a>`
+              : "";
+            const vars: Record<string, string> = {
+              name: lead.name || "",
+              date: dateStr,
+              time: parsed.time_slot || "",
+              offer_name: offerName || "",
+              offer_suffix: offerName ? ` (${offerName})` : "",
+              meet_link: meetLink || "",
+              meet_block: meetBlock,
+            };
+            const render = (s: string) => s.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? "");
+            const subject = render(tplSubject);
+            const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${subject}</title></head>
 <body style="background:#fff;font-family:'Plus Jakarta Sans',Arial,sans-serif;margin:0;padding:0;color:#111827">
-  <div style="max-width:560px;margin:0 auto;padding:28px 24px;font-size:14px;line-height:1.6">
-    <p>Bonjour ${lead.name || ""},</p>
-    <p>Votre rendez-vous est bien confirmé pour le <strong>${dateStr} à ${parsed.time_slot}</strong>${offerName ? ` (${offerName})` : ""}.</p>
-    ${meetBlock}
-    <p>À très vite !</p>
-  </div>
+  <div style="max-width:560px;margin:0 auto;padding:28px 24px;font-size:14px;line-height:1.6">${render(tplBody)}</div>
 </body></html>`;
-          await admin.functions.invoke("send-smtp-email", {
-            body: { to: [lead.email], subject, html },
-          });
-          await admin.from("email_send_log").insert({
-            template_name: "booking-confirmation",
-            recipient_email: lead.email,
-            status: "sent",
-            message_id: `booking-confirmation-${bookingId}`,
-            metadata: { booking_id: bookingId, type: "confirmation", automated: true, source: "wa_ai" },
-          } as any);
+            await admin.functions.invoke("send-smtp-email", {
+              body: { to: [lead.email], subject, html },
+            });
+            await admin.from("email_send_log").insert({
+              template_name: "booking-confirmation",
+              recipient_email: lead.email,
+              status: "sent",
+              message_id: `booking-confirmation-${bookingId}`,
+              metadata: { booking_id: bookingId, type: "confirmation", automated: true, source: "wa_ai", subject, body_html: html },
+            } as any);
+          }
         } catch (e) {
           console.error("[detect-booking] booking-confirmation email failed:", e);
         }
