@@ -380,7 +380,7 @@ Deno.serve(async (req) => {
           recipient_email: email,
           status: "sent",
           message_id: msgId,
-          metadata: { booking_id: bookingId, type: "confirmation", automated: true },
+          metadata: { booking_id: bookingId, type: "confirmation", automated: true, subject, body_html: html },
         });
 
         // Mark the scheduled confirmation row as sent so it isn't re-processed
