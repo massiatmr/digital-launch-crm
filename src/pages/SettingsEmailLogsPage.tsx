@@ -59,6 +59,7 @@ export default function SettingsEmailLogsPage() {
   const [status, setStatus] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
+  const [preview, setPreview] = useState<EmailRow | null>(null);
 
   const startDate = useMemo(() => getRangeStart(range, customStart), [range, customStart]);
   const endDate = useMemo(() => getRangeEnd(range, customEnd), [range, customEnd]);
