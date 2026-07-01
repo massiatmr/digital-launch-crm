@@ -217,7 +217,7 @@ Deno.serve(async (req) => {
               recipient_email: booking.email,
               status: "sent",
               message_id: clientMsgId,
-              metadata: { booking_id: booking.id, type: row.type, automated: true },
+              metadata: { booking_id: booking.id, type: row.type, automated: true, subject, body_html: html },
             });
           } catch (e) {
             console.error("[process-booking-reminders] client send failed", e);
