@@ -168,19 +168,22 @@ Deno.serve(async (req) => {
     }
     try {
       const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.45.0");
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || "";
       const userClient = createClient(
         Deno.env.get("SUPABASE_URL")!,
-        Deno.env.get("SUPABASE_ANON_KEY")!,
+        anonKey,
         { global: { headers: { Authorization: authHeader } } }
       );
       const token = authHeader.replace("Bearer ", "");
-      const { data, error } = await userClient.auth.getClaims(token);
-      if (error || !data?.claims?.sub) {
+      const { data: userData, error: userErr } = await userClient.auth.getUser(token);
+      if (userErr || !userData?.user?.id) {
+        console.error("auth getUser failed", userErr?.message);
         return new Response(JSON.stringify({ error: "Unauthorized" }), {
           status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-    } catch (_) {
+    } catch (e) {
+      console.error("auth check crashed", e instanceof Error ? e.message : e);
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
