@@ -269,7 +269,7 @@ Deno.serve(async (req) => {
                 recipient_email: recipients.join(","),
                 status: "sent",
                 message_id: adminMsgId,
-                metadata: { booking_id: booking.id, type: "1h_before_admin", automated: true, recipients },
+                metadata: { booking_id: booking.id, type: "1h_before_admin", automated: true, recipients, subject: `⏰ ${wsPrefix}RDV dans 1h — ${booking.name} (${booking.time_slot})`, body_html: adminHtml },
               });
             } catch (e) {
               console.error("[process-booking-reminders] admin send failed", e);
