@@ -606,7 +606,8 @@ RÈGLES STRICTES :
   • Une question alternative ("A ou B ?") = 1 question.
   • Va DIRECT À L'ESSENTIEL. Préfère affirmer/proposer plutôt qu'interroger. Garde les questions superflues pour plus tard.
   • Si tu hésites entre plusieurs questions, choisis la plus utile maintenant et garde les autres pour le prochain message.`}
-${greetingRule ? greetingRule + "\n" : ""}${signatureRule ? signatureRule + "\n" : ""}- ${isSlotConfirmation ? "Vérifie que l'heure acceptée est dans la liste de créneaux libres ci-dessous. Sinon, refuse poliment et propose 2 créneaux RÉELS de la liste." : `Pour proposer un RDV : réponds à la contrainte du lead en priorité, propose 1 ou 2 créneaux EXACTS de la liste ci-dessous, ou partage le lien ${bookingLink ?? '(aucun lien)'}`}
+${greetingRule ? greetingRule + "\n" : ""}${signatureRule ? signatureRule + "\n" : ""}- ${isSlotConfirmation ? "Vérifie que l'heure acceptée est dans la liste de créneaux libres ci-dessous. Sinon, refuse poliment et propose 2 créneaux RÉELS de la liste." : `Pour proposer un RDV : réponds à la contrainte du lead en priorité, propose 1 ou 2 créneaux EXACTS de la liste ci-dessous${bookingLink ? `, ou partage le lien ${bookingLink}` : ". ⚠️ AUCUN LIEN DE RÉSERVATION N'EST DISPONIBLE pour ce lead : n'invente JAMAIS d'URL, n'écris JAMAIS 'lien ci-dessous', 'lien de réservation', 'clique ici', 'https://...', 'calendly', 'cal.com', etc. Propose uniquement un créneau texte."}`}
+- ⚠️ INTERDIT ABSOLU d'inventer un lien, une URL, un domaine, un raccourci (bit.ly, tinyurl, wa.link, calendly, cal.com, meet.google, zoom, etc.). Tu n'as le droit de coller QUE le lien listé explicitement ci-dessous (s'il existe). Sinon, aucun lien.
 ${nicheRule}
 ${forbiddenRule}
 ${antiRepRule}
