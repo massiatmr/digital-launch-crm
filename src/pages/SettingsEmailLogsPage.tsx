@@ -222,28 +222,39 @@ export default function SettingsEmailLogsPage() {
                   <TableHead>Statut</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Erreur</TableHead>
+                  <TableHead className="w-16"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading && (
-                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">Chargement…</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">Chargement…</TableCell></TableRow>
                 )}
                 {!isLoading && paged.length === 0 && (
-                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">Aucun email sur cette période</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">Aucun email sur cette période</TableCell></TableRow>
                 )}
-                {paged.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell className="font-mono text-xs">{r.template_name || '—'}</TableCell>
-                    <TableCell className="text-xs">{r.recipient_email || '—'}</TableCell>
-                    <TableCell>{statusBadge(r.status)}</TableCell>
-                    <TableCell className="text-xs whitespace-nowrap">
-                      {format(new Date(r.created_at), 'dd MMM HH:mm', { locale: fr })}
-                    </TableCell>
-                    <TableCell className="text-xs text-red-300/80 max-w-xs truncate" title={r.error_message || ''}>
-                      {r.error_message || ''}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {paged.map((r) => {
+                  const hasPreview = !!(r.metadata?.body_html || r.metadata?.subject);
+                  return (
+                    <TableRow key={r.id}>
+                      <TableCell className="font-mono text-xs">{r.template_name || '—'}</TableCell>
+                      <TableCell className="text-xs">{r.recipient_email || '—'}</TableCell>
+                      <TableCell>{statusBadge(r.status)}</TableCell>
+                      <TableCell className="text-xs whitespace-nowrap">
+                        {format(new Date(r.created_at), 'dd MMM HH:mm', { locale: fr })}
+                      </TableCell>
+                      <TableCell className="text-xs text-red-300/80 max-w-xs truncate" title={r.error_message || ''}>
+                        {r.error_message || ''}
+                      </TableCell>
+                      <TableCell>
+                        {hasPreview && (
+                          <Button variant="ghost" size="sm" onClick={() => setPreview(r)} className="h-7 px-2">
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
