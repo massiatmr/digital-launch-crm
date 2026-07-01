@@ -269,6 +269,31 @@ export default function SettingsEmailLogsPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!preview} onOpenChange={(v) => !v && setPreview(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] p-0 overflow-hidden">
+          <DialogHeader className="p-4 pb-2 border-b border-white/5">
+            <DialogTitle className="text-sm">
+              {preview?.metadata?.subject || preview?.template_name || 'Aperçu email'}
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              À : {preview?.recipient_email} • {preview && format(new Date(preview.created_at), 'dd MMM yyyy HH:mm', { locale: fr })}
+            </p>
+          </DialogHeader>
+          <div className="bg-white h-[70vh] overflow-hidden">
+            {preview?.metadata?.body_html ? (
+              <iframe
+                title="Aperçu email"
+                srcDoc={preview.metadata.body_html}
+                className="w-full h-full border-0"
+                sandbox=""
+              />
+            ) : (
+              <div className="p-6 text-sm text-muted-foreground">Aucun aperçu disponible pour cet email.</div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
