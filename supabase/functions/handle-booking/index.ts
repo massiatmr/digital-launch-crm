@@ -588,7 +588,7 @@ Deno.serve(async (req) => {
           recipient_email: recipients.join(","),
           status: "sent",
           message_id: adminNotifyMsgId,
-          metadata: { booking_id: bookingId, lead_id: leadId, recipients, automated: true },
+          metadata: { booking_id: bookingId, lead_id: leadId, recipients, automated: true, subject: `📅 ${wsPrefix}Nouveau RDV — ${name} (${booking_date} ${time_slot})`, body_html: html },
         });
       } catch (e) {
         console.error("Notification email failed:", e);
