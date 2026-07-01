@@ -284,6 +284,20 @@ Deno.serve(async (req) => {
     }
     const dryRun = settings?.dry_run !== false; // default true (sécurité)
 
+    // 0. Kill switch : si l'automatisation est désactivée pour ce workspace/owner,
+    // on annule la tâche sans envoyer aucun message (protège contre les tâches
+    // créées automatiquement par les triggers SQL après une réponse inbound).
+    if (settings && settings.is_enabled === false) {
+      await admin.from("lead_followup_tasks").update({
+        status: "cancelled",
+        error_message: "Skipped: automation disabled (is_enabled=false)",
+        updated_at: new Date().toISOString(),
+      } as any).eq("id", task_id);
+      return new Response(JSON.stringify({ ok: true, skipped: true, reason: "automation_disabled" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // === STOP INTELLIGENT ===
     // 1. Skip si lead lost/won
     if (lead.status === "lost" || lead.status === "won") {
