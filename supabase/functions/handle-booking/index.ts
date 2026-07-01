@@ -380,7 +380,7 @@ Deno.serve(async (req) => {
           recipient_email: email,
           status: "sent",
           message_id: msgId,
-          metadata: { booking_id: bookingId, type: "confirmation", automated: true },
+          metadata: { booking_id: bookingId, type: "confirmation", automated: true, subject, body_html: html },
         });
 
         // Mark the scheduled confirmation row as sent so it isn't re-processed
@@ -588,7 +588,7 @@ Deno.serve(async (req) => {
           recipient_email: recipients.join(","),
           status: "sent",
           message_id: adminNotifyMsgId,
-          metadata: { booking_id: bookingId, lead_id: leadId, recipients, automated: true },
+          metadata: { booking_id: bookingId, lead_id: leadId, recipients, automated: true, subject: `📅 ${wsPrefix}Nouveau RDV — ${name} (${booking_date} ${time_slot})`, body_html: html },
         });
       } catch (e) {
         console.error("Notification email failed:", e);

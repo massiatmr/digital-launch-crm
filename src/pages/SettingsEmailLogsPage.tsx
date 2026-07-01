@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Mail, RefreshCw, AlertCircle, CheckCircle2, Ban, Clock } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Mail, RefreshCw, AlertCircle, CheckCircle2, Ban, Clock, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -58,6 +59,7 @@ export default function SettingsEmailLogsPage() {
   const [status, setStatus] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
+  const [preview, setPreview] = useState<EmailRow | null>(null);
 
   const startDate = useMemo(() => getRangeStart(range, customStart), [range, customStart]);
   const endDate = useMemo(() => getRangeEnd(range, customEnd), [range, customEnd]);
@@ -220,28 +222,39 @@ export default function SettingsEmailLogsPage() {
                   <TableHead>Statut</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Erreur</TableHead>
+                  <TableHead className="w-16"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading && (
-                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">Chargement…</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">Chargement…</TableCell></TableRow>
                 )}
                 {!isLoading && paged.length === 0 && (
-                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">Aucun email sur cette période</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">Aucun email sur cette période</TableCell></TableRow>
                 )}
-                {paged.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell className="font-mono text-xs">{r.template_name || '—'}</TableCell>
-                    <TableCell className="text-xs">{r.recipient_email || '—'}</TableCell>
-                    <TableCell>{statusBadge(r.status)}</TableCell>
-                    <TableCell className="text-xs whitespace-nowrap">
-                      {format(new Date(r.created_at), 'dd MMM HH:mm', { locale: fr })}
-                    </TableCell>
-                    <TableCell className="text-xs text-red-300/80 max-w-xs truncate" title={r.error_message || ''}>
-                      {r.error_message || ''}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {paged.map((r) => {
+                  const hasPreview = !!(r.metadata?.body_html || r.metadata?.subject);
+                  return (
+                    <TableRow key={r.id}>
+                      <TableCell className="font-mono text-xs">{r.template_name || '—'}</TableCell>
+                      <TableCell className="text-xs">{r.recipient_email || '—'}</TableCell>
+                      <TableCell>{statusBadge(r.status)}</TableCell>
+                      <TableCell className="text-xs whitespace-nowrap">
+                        {format(new Date(r.created_at), 'dd MMM HH:mm', { locale: fr })}
+                      </TableCell>
+                      <TableCell className="text-xs text-red-300/80 max-w-xs truncate" title={r.error_message || ''}>
+                        {r.error_message || ''}
+                      </TableCell>
+                      <TableCell>
+                        {hasPreview && (
+                          <Button variant="ghost" size="sm" onClick={() => setPreview(r)} className="h-7 px-2">
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
@@ -256,6 +269,31 @@ export default function SettingsEmailLogsPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!preview} onOpenChange={(v) => !v && setPreview(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] p-0 overflow-hidden">
+          <DialogHeader className="p-4 pb-2 border-b border-white/5">
+            <DialogTitle className="text-sm">
+              {preview?.metadata?.subject || preview?.template_name || 'Aperçu email'}
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              À : {preview?.recipient_email} • {preview && format(new Date(preview.created_at), 'dd MMM yyyy HH:mm', { locale: fr })}
+            </p>
+          </DialogHeader>
+          <div className="bg-white h-[70vh] overflow-hidden">
+            {preview?.metadata?.body_html ? (
+              <iframe
+                title="Aperçu email"
+                srcDoc={preview.metadata.body_html}
+                className="w-full h-full border-0"
+                sandbox=""
+              />
+            ) : (
+              <div className="p-6 text-sm text-muted-foreground">Aucun aperçu disponible pour cet email.</div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
