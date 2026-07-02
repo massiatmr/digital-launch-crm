@@ -31,7 +31,16 @@ export default function LeadsPage() {
   const filtered = leads.filter(l => {
     if (filter !== 'all' && l.score !== filter) return false;
     if (offerFilter !== 'all' && l.offer_id !== offerFilter) return false;
-    if (search && !l.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (search) {
+      const q = search.toLowerCase().trim();
+      const qDigits = q.replace(/\D/g, '');
+      const phoneDigits = (l.phone || '').replace(/\D/g, '');
+      const matchName = l.name?.toLowerCase().includes(q);
+      const matchCompany = l.company_name?.toLowerCase().includes(q);
+      const matchEmail = l.email?.toLowerCase().includes(q);
+      const matchPhone = qDigits.length >= 3 && phoneDigits.includes(qDigits);
+      if (!matchName && !matchCompany && !matchEmail && !matchPhone) return false;
+    }
     return true;
   });
 
