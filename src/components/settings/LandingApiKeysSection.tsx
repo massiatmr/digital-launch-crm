@@ -20,6 +20,9 @@ interface ApiKey {
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const INGEST_URL = `${SUPABASE_URL}/functions/v1/ingest-lead`;
+const AVAIL_URL = `${SUPABASE_URL}/functions/v1/landing-availability`;
+const BOOK_URL = `${SUPABASE_URL}/functions/v1/landing-book`;
+
 
 function generateKey(): string {
   const bytes = new Uint8Array(32);
