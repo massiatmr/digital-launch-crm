@@ -156,7 +156,51 @@ await fetch("${INGEST_URL}", {
   })
 });`;
 
-  return (
+  const bookingSample = (key: string) => `// === Étape "Prise de rendez-vous" sur ta landing page externe ===
+// 1) Récupère les créneaux dispo (calendrier + Google Calendar synchronisés en temps réel)
+const availRes = await fetch("${AVAIL_URL}?offer_slug=demenageur&days=14", {
+  headers: { "x-api-key": "${key}" }
+});
+const avail = await availRes.json();
+// avail = {
+//   ok: true,
+//   offer: { id, slug, name },
+//   owner_timezone: "Europe/Paris",
+//   slot_duration_minutes: 45,
+//   synced: true,                       // true si Google Calendar branché
+//   days: [
+//     { date: "2026-07-05", slots: ["11:00","12:00","13:00"] },
+//     { date: "2026-07-06", slots: [] },
+//     ...
+//   ]
+// }
+
+// 2) Une fois que l'utilisateur choisit un créneau, réserve-le :
+const bookRes = await fetch("${BOOK_URL}", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "x-api-key": "${key}"
+  },
+  body: JSON.stringify({
+    name: "Jean Dupont",
+    email: "jean@exemple.com",
+    phone: "+33612345678",
+    offer_slug: "demenageur",           // même slug que dans /landing-availability
+    booking_date: "2026-07-05",         // YYYY-MM-DD
+    time_slot: "11:00",                 // HH:MM (heure locale du workspace)
+    client_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, // optionnel
+    notes: "Déménagement Paris -> Lyon" // optionnel
+  })
+});
+const booking = await bookRes.json();
+// booking = { ok: true, ... }
+// -> Un lead + un booking sont créés dans le CRM
+// -> Google Calendar + Meet auto-générés si branchés
+// -> Emails confirmation + rappels envoyés au client
+// -> Push + email notification côté équipe`;
+
+
     <Card>
       <CardHeader>
         <div className="flex items-center gap-3">
