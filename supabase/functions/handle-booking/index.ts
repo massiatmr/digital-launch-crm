@@ -144,13 +144,27 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2. Check if a lead already exists with this email for this owner
-    const { data: existingLead } = await supabase
+    // 2. Find an existing lead: match by email OR phone within the same workspace/owner.
+    // Avoids creating a duplicate when the landing page already submitted the lead
+    // via /landing-lead before the booking step.
+    const normPhone = (phone || "").replace(/[^\d+]/g, "");
+    let leadQuery = supabase
       .from("leads")
-      .select("id")
-      .eq("owner_id", owner_id)
-      .eq("email", email)
-      .maybeSingle();
+      .select("id, email, phone, created_at")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(5);
+    if (offer_workspace_id) {
+      leadQuery = leadQuery.eq("workspace_id", offer_workspace_id);
+    } else {
+      leadQuery = leadQuery.eq("owner_id", owner_id);
+    }
+    const orParts: string[] = [];
+    if (email) orParts.push(`email.eq.${email}`);
+    if (normPhone) orParts.push(`phone.eq.${normPhone}`);
+    if (orParts.length) leadQuery = leadQuery.or(orParts.join(","));
+    const { data: candidates } = orParts.length ? await leadQuery : { data: [] as any[] };
+    const existingLead = (candidates && candidates.length > 0) ? candidates[0] : null;
 
     let leadId: string;
 
@@ -158,7 +172,13 @@ Deno.serve(async (req) => {
       leadId = existingLead.id;
       await supabase
         .from("leads")
-        .update({ offer_id, status: "qualified", last_contacted_at: new Date().toISOString() })
+        .update({
+          offer_id,
+          status: "qualified",
+          last_contacted_at: new Date().toISOString(),
+          ...(existingLead.phone ? {} : { phone: normPhone }),
+          ...(existingLead.email ? {} : { email }),
+        } as any)
         .eq("id", leadId);
     } else {
       leadId = crypto.randomUUID();
@@ -168,7 +188,7 @@ Deno.serve(async (req) => {
         workspace_id: offer_workspace_id,
         name,
         email,
-        phone: phone || "",
+        phone: normPhone,
         source: "website",
         score: "warm",
         status: "qualified",
@@ -176,6 +196,7 @@ Deno.serve(async (req) => {
         message: `Réservation RDV le ${booking_date} à ${time_slot}`,
       });
     }
+
 
     // Update booking with lead_id
     await supabase
