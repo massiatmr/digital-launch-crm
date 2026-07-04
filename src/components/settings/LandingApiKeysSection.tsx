@@ -112,15 +112,44 @@ await fetch("${INGEST_URL}", {
     "x-api-key": "${key}"
   },
   body: JSON.stringify({
-    name: "Jean Dupont",
-    email: "jean@exemple.com",
-    phone: "+33612345678",
-    message: "Je suis intéressé",
+    // === Contact (au moins 1 requis : name, email ou phone) ===
+    name: "Jean Dupont",                // Nom complet du lead
+    email: "jean@exemple.com",          // Email
+    phone: "+33612345678",              // Téléphone (0X... FR auto-converti en +33)
+    company_name: "Acme SARL",          // Entreprise (optionnel)
+
+    // === Message / contexte ===
+    message: "Je suis intéressé par vos services",
+
+    // === Source du lead ===
+    // Valeurs valides : "website" | "facebook" | "google_my_business"
+    //                  | "organic_social" | "recommendation" | "whatsapp"
+    //                  | "google_sheets" | "manual" | "other"
     source: "website",
-    source_label: "landing-demenageur",
-    offer_slug: "demenageur",        // optionnel
-    page_url: window.location.href,
-    utm: { utm_source: "facebook", utm_campaign: "promo_oct" }
+    source_label: "landing-demenageur", // Libellé libre (nom de la page/campagne)
+
+    // === Liens ===
+    offer_slug: "demenageur",           // Slug de l'offre CRM (optionnel)
+    page_url: window.location.href,     // URL de la landing
+
+    // === UTM tracking (optionnel) ===
+    utm: {
+      utm_source: "facebook",
+      utm_medium: "cpc",
+      utm_campaign: "promo_oct",
+      utm_content: "ad_variant_a",
+      utm_term: "demenagement paris"
+    },
+
+    // === Champs personnalisés (optionnel) ===
+    // Tout ce que tu mets ici sera ajouté aux notes du lead sous forme "Clé : valeur"
+    fields: {
+      budget: "5000 EUR",
+      date_souhaitee: "15/11/2026",
+      surface_m2: 80,
+      ville_depart: "Paris",
+      ville_arrivee: "Lyon"
+    }
   })
 });`;
 
