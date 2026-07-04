@@ -200,8 +200,9 @@ const booking = await bookRes.json();
 // -> Emails confirmation + rappels envoyés au client
 // -> Push + email notification côté équipe`;
 
-
+  return (
     <Card>
+
       <CardHeader>
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
