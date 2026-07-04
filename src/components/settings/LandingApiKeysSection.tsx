@@ -20,6 +20,9 @@ interface ApiKey {
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const INGEST_URL = `${SUPABASE_URL}/functions/v1/ingest-lead`;
+const AVAIL_URL = `${SUPABASE_URL}/functions/v1/landing-availability`;
+const BOOK_URL = `${SUPABASE_URL}/functions/v1/landing-book`;
+
 
 function generateKey(): string {
   const bytes = new Uint8Array(32);
@@ -153,8 +156,53 @@ await fetch("${INGEST_URL}", {
   })
 });`;
 
+  const bookingSample = (key: string) => `// === Étape "Prise de rendez-vous" sur ta landing page externe ===
+// 1) Récupère les créneaux dispo (calendrier + Google Calendar synchronisés en temps réel)
+const availRes = await fetch("${AVAIL_URL}?offer_slug=demenageur&days=14", {
+  headers: { "x-api-key": "${key}" }
+});
+const avail = await availRes.json();
+// avail = {
+//   ok: true,
+//   offer: { id, slug, name },
+//   owner_timezone: "Europe/Paris",
+//   slot_duration_minutes: 45,
+//   synced: true,                       // true si Google Calendar branché
+//   days: [
+//     { date: "2026-07-05", slots: ["11:00","12:00","13:00"] },
+//     { date: "2026-07-06", slots: [] },
+//     ...
+//   ]
+// }
+
+// 2) Une fois que l'utilisateur choisit un créneau, réserve-le :
+const bookRes = await fetch("${BOOK_URL}", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "x-api-key": "${key}"
+  },
+  body: JSON.stringify({
+    name: "Jean Dupont",
+    email: "jean@exemple.com",
+    phone: "+33612345678",
+    offer_slug: "demenageur",           // même slug que dans /landing-availability
+    booking_date: "2026-07-05",         // YYYY-MM-DD
+    time_slot: "11:00",                 // HH:MM (heure locale du workspace)
+    client_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, // optionnel
+    notes: "Déménagement Paris -> Lyon" // optionnel
+  })
+});
+const booking = await bookRes.json();
+// booking = { ok: true, ... }
+// -> Un lead + un booking sont créés dans le CRM
+// -> Google Calendar + Meet auto-générés si branchés
+// -> Emails confirmation + rappels envoyés au client
+// -> Push + email notification côté équipe`;
+
   return (
     <Card>
+
       <CardHeader>
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -185,6 +233,32 @@ await fetch("${INGEST_URL}", {
             Au moins un contact requis : <code>name</code>, <code>email</code> ou <code>phone</code>.
           </p>
         </div>
+
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+          <div className="flex items-center gap-2 text-xs flex-wrap">
+            <Badge className="bg-primary/20 text-primary border-primary/30">📅 Prise de RDV</Badge>
+            <span className="text-muted-foreground">La même clé permet à ta landing d'afficher tes créneaux (synchro Google Calendar en temps réel) et de réserver.</span>
+          </div>
+          <div className="text-xs space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant="outline">GET</Badge>
+              <code className="font-mono break-all">{AVAIL_URL}?offer_slug=xxx&amp;days=14</code>
+              <Button size="sm" variant="ghost" onClick={() => copy(AVAIL_URL, "URL")}>
+                <Copy className="h-3 w-3" />
+              </Button>
+            </div>
+            <p className="text-muted-foreground">→ retourne <code>{`{ days: [{ date, slots: ["11:00", ...] }] }`}</code>, filtré selon tes horaires, blackouts, RDV existants et ton Google Calendar.</p>
+            <div className="flex items-center gap-2 flex-wrap mt-2">
+              <Badge variant="outline">POST</Badge>
+              <code className="font-mono break-all">{BOOK_URL}</code>
+              <Button size="sm" variant="ghost" onClick={() => copy(BOOK_URL, "URL")}>
+                <Copy className="h-3 w-3" />
+              </Button>
+            </div>
+            <p className="text-muted-foreground">→ body : <code>name, email, phone, offer_slug, booking_date (YYYY-MM-DD), time_slot (HH:MM), client_timezone?, notes?</code>. Crée lead + booking + event Google Meet + emails/rappels.</p>
+          </div>
+        </div>
+
 
         <div className="flex flex-wrap items-end gap-2">
           <div className="flex-1 min-w-[200px]">
@@ -221,7 +295,7 @@ await fetch("${INGEST_URL}", {
               </Button>
             </div>
             <details className="text-xs">
-              <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Voir un exemple d'intégration (fetch)</summary>
+              <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Voir un exemple d'intégration (envoi de lead)</summary>
               <pre className="mt-2 p-3 rounded bg-background border border-border overflow-x-auto text-[11px]">
 {sampleCode(revealed.key)}
               </pre>
@@ -229,6 +303,16 @@ await fetch("${INGEST_URL}", {
                 <Copy className="h-3 w-3" /> Copier le code
               </Button>
             </details>
+            <details className="text-xs">
+              <summary className="cursor-pointer text-muted-foreground hover:text-foreground">📅 Voir un exemple d'étape "prise de RDV" (dispo + booking)</summary>
+              <pre className="mt-2 p-3 rounded bg-background border border-border overflow-x-auto text-[11px]">
+{bookingSample(revealed.key)}
+              </pre>
+              <Button size="sm" variant="ghost" className="mt-1" onClick={() => copy(bookingSample(revealed.key), "Code RDV")}>
+                <Copy className="h-3 w-3" /> Copier le code RDV
+              </Button>
+            </details>
+
             <Button size="sm" variant="ghost" onClick={() => setRevealed(null)}>J'ai copié</Button>
           </div>
         )}
