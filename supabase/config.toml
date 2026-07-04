@@ -61,3 +61,8 @@ project_id = "rvangzupebrajhhhvewu"
     verify_jwt = false
   [functions.send-instagram-message]
     verify_jwt = false
+  [functions.landing-availability]
+    verify_jwt = false
+  [functions.landing-book]
+    verify_jwt = false
+
