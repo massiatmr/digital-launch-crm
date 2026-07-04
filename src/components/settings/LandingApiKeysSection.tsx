@@ -178,7 +178,11 @@ await fetch("${INGEST_URL}", {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Méthode : <code>POST</code> · Header : <code>x-api-key: &lt;ta_cle&gt;</code> · Body JSON (name, email, phone, source, source_label, offer_slug, utm).
+            Méthode : <code>POST</code> · Header : <code>x-api-key: &lt;ta_cle&gt;</code>
+            <br />
+            <span className="font-semibold">Champs body JSON :</span> <code>name</code>, <code>email</code>, <code>phone</code>, <code>company_name</code>, <code>message</code>, <code>source</code>, <code>source_label</code>, <code>offer_slug</code>, <code>page_url</code>, <code>utm</code> (objet), <code>fields</code> (objet libre pour champs custom).
+            <br />
+            Au moins un contact requis : <code>name</code>, <code>email</code> ou <code>phone</code>.
           </p>
         </div>
 
