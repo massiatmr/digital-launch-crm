@@ -234,6 +234,32 @@ const booking = await bookRes.json();
           </p>
         </div>
 
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+          <div className="flex items-center gap-2 text-xs flex-wrap">
+            <Badge className="bg-primary/20 text-primary border-primary/30">📅 Prise de RDV</Badge>
+            <span className="text-muted-foreground">La même clé permet à ta landing d'afficher tes créneaux (synchro Google Calendar en temps réel) et de réserver.</span>
+          </div>
+          <div className="text-xs space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant="outline">GET</Badge>
+              <code className="font-mono break-all">{AVAIL_URL}?offer_slug=xxx&amp;days=14</code>
+              <Button size="sm" variant="ghost" onClick={() => copy(AVAIL_URL, "URL")}>
+                <Copy className="h-3 w-3" />
+              </Button>
+            </div>
+            <p className="text-muted-foreground">→ retourne <code>{`{ days: [{ date, slots: ["11:00", ...] }] }`}</code>, filtré selon tes horaires, blackouts, RDV existants et ton Google Calendar.</p>
+            <div className="flex items-center gap-2 flex-wrap mt-2">
+              <Badge variant="outline">POST</Badge>
+              <code className="font-mono break-all">{BOOK_URL}</code>
+              <Button size="sm" variant="ghost" onClick={() => copy(BOOK_URL, "URL")}>
+                <Copy className="h-3 w-3" />
+              </Button>
+            </div>
+            <p className="text-muted-foreground">→ body : <code>name, email, phone, offer_slug, booking_date (YYYY-MM-DD), time_slot (HH:MM), client_timezone?, notes?</code>. Crée lead + booking + event Google Meet + emails/rappels.</p>
+          </div>
+        </div>
+
+
         <div className="flex flex-wrap items-end gap-2">
           <div className="flex-1 min-w-[200px]">
             <Label htmlFor="label" className="text-xs">Nom de la clé (ex: site déménageur)</Label>
