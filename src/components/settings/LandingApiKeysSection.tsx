@@ -295,7 +295,7 @@ const booking = await bookRes.json();
               </Button>
             </div>
             <details className="text-xs">
-              <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Voir un exemple d'intégration (fetch)</summary>
+              <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Voir un exemple d'intégration (envoi de lead)</summary>
               <pre className="mt-2 p-3 rounded bg-background border border-border overflow-x-auto text-[11px]">
 {sampleCode(revealed.key)}
               </pre>
@@ -303,6 +303,16 @@ const booking = await bookRes.json();
                 <Copy className="h-3 w-3" /> Copier le code
               </Button>
             </details>
+            <details className="text-xs">
+              <summary className="cursor-pointer text-muted-foreground hover:text-foreground">📅 Voir un exemple d'étape "prise de RDV" (dispo + booking)</summary>
+              <pre className="mt-2 p-3 rounded bg-background border border-border overflow-x-auto text-[11px]">
+{bookingSample(revealed.key)}
+              </pre>
+              <Button size="sm" variant="ghost" className="mt-1" onClick={() => copy(bookingSample(revealed.key), "Code RDV")}>
+                <Copy className="h-3 w-3" /> Copier le code RDV
+              </Button>
+            </details>
+
             <Button size="sm" variant="ghost" onClick={() => setRevealed(null)}>J'ai copié</Button>
           </div>
         )}
