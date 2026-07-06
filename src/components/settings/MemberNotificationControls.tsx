@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Mail, Bell, MessageCircle } from 'lucide-react';
+import { Mail, Bell, MessageCircle, CalendarCheck } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -10,6 +10,7 @@ type Pref = {
   email_enabled: boolean;
   push_enabled: boolean;
   whatsapp_enabled: boolean;
+  email_booking_enabled: boolean;
 };
 
 export function MemberNotificationControls({
@@ -26,7 +27,7 @@ export function MemberNotificationControls({
     queryFn: async (): Promise<Pref | null> => {
       const { data, error } = await supabase
         .from('user_workspace_notification_prefs' as any)
-        .select('user_id, workspace_id, email_enabled, push_enabled, whatsapp_enabled')
+        .select('user_id, workspace_id, email_enabled, push_enabled, whatsapp_enabled, email_booking_enabled')
         .eq('workspace_id', workspaceId)
         .eq('user_id', userId)
         .maybeSingle();
@@ -36,13 +37,14 @@ export function MemberNotificationControls({
   });
 
   const update = useMutation({
-    mutationFn: async (patch: Partial<Pick<Pref, 'email_enabled' | 'push_enabled' | 'whatsapp_enabled'>>) => {
+    mutationFn: async (patch: Partial<Pick<Pref, 'email_enabled' | 'push_enabled' | 'whatsapp_enabled' | 'email_booking_enabled'>>) => {
       const base = {
         user_id: userId,
         workspace_id: workspaceId,
         email_enabled: pref?.email_enabled ?? true,
         push_enabled: pref?.push_enabled ?? true,
         whatsapp_enabled: pref?.whatsapp_enabled ?? true,
+        email_booking_enabled: pref?.email_booking_enabled ?? true,
         ...patch,
       };
       const { error } = await supabase
@@ -60,10 +62,11 @@ export function MemberNotificationControls({
   const email = pref?.email_enabled ?? true;
   const push = pref?.push_enabled ?? true;
   const wa = pref?.whatsapp_enabled ?? true;
+  const emailBooking = pref?.email_booking_enabled ?? true;
 
   return (
     <div className="flex items-center gap-3 flex-wrap pl-2">
-      <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
+      <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer" title="Emails généraux (nouveaux leads, etc.)">
         <Mail className="h-3 w-3" />
         <Switch
           checked={email}
@@ -71,7 +74,15 @@ export function MemberNotificationControls({
           className="scale-75"
         />
       </label>
-      <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
+      <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer" title="Emails de rendez-vous (nouveau RDV, rappels)">
+        <CalendarCheck className="h-3 w-3" />
+        <Switch
+          checked={emailBooking}
+          onCheckedChange={(v) => update.mutate({ email_booking_enabled: v })}
+          className="scale-75"
+        />
+      </label>
+      <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer" title="Notifications push">
         <Bell className="h-3 w-3" />
         <Switch
           checked={push}
@@ -79,7 +90,7 @@ export function MemberNotificationControls({
           className="scale-75"
         />
       </label>
-      <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
+      <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer" title="WhatsApp">
         <MessageCircle className="h-3 w-3" />
         <Switch
           checked={wa}

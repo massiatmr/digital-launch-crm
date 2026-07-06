@@ -1,13 +1,21 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { Mail, Bell, Building2, MessageCircle } from 'lucide-react';
+import { Mail, Bell, Building2, MessageCircle, CalendarCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useWorkspaces } from '@/hooks/useWorkspaces';
 import { toast } from 'sonner';
 
-type Pref = { workspace_id: string; email_enabled: boolean; push_enabled: boolean; whatsapp_enabled: boolean };
+type Pref = {
+  workspace_id: string;
+  email_enabled: boolean;
+  push_enabled: boolean;
+  whatsapp_enabled: boolean;
+  email_booking_enabled: boolean;
+};
+
+type Channel = 'email' | 'push' | 'whatsapp' | 'email_booking';
 
 export function WorkspaceNotificationPrefs() {
   const { user } = useAuth();
@@ -20,7 +28,7 @@ export function WorkspaceNotificationPrefs() {
     queryFn: async (): Promise<Pref[]> => {
       const { data, error } = await supabase
         .from('user_workspace_notification_prefs' as any)
-        .select('workspace_id, email_enabled, push_enabled, whatsapp_enabled')
+        .select('workspace_id, email_enabled, push_enabled, whatsapp_enabled, email_booking_enabled')
         .eq('user_id', user!.id);
       if (error) throw error;
       return (data as any) || [];
@@ -30,7 +38,7 @@ export function WorkspaceNotificationPrefs() {
   const prefByWs = new Map(prefs.map((p) => [p.workspace_id, p]));
 
   const update = useMutation({
-    mutationFn: async (payload: { workspace_id: string; email_enabled: boolean; push_enabled: boolean; whatsapp_enabled: boolean }) => {
+    mutationFn: async (payload: Pref) => {
       const { error } = await supabase
         .from('user_workspace_notification_prefs' as any)
         .upsert(
@@ -45,18 +53,20 @@ export function WorkspaceNotificationPrefs() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const toggle = (workspaceId: string, channel: 'email' | 'push' | 'whatsapp', value: boolean) => {
+  const toggle = (workspaceId: string, channel: Channel, value: boolean) => {
     const current = prefByWs.get(workspaceId) || {
       workspace_id: workspaceId,
       email_enabled: true,
       push_enabled: true,
       whatsapp_enabled: true,
+      email_booking_enabled: true,
     };
     update.mutate({
       workspace_id: workspaceId,
       email_enabled: channel === 'email' ? value : current.email_enabled,
       push_enabled: channel === 'push' ? value : current.push_enabled,
       whatsapp_enabled: channel === 'whatsapp' ? value : current.whatsapp_enabled,
+      email_booking_enabled: channel === 'email_booking' ? value : current.email_booking_enabled,
     });
   };
 
@@ -70,7 +80,7 @@ export function WorkspaceNotificationPrefs() {
         </CardTitle>
         <CardDescription>
           Choisis pour quels workspaces tu veux recevoir des emails ou notifications push.
-          Les autres membres de chaque workspace continuent de recevoir les leurs.
+          L'email "RDV" est indépendant : tu peux couper les emails généraux et garder uniquement les emails de rendez-vous.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -79,6 +89,7 @@ export function WorkspaceNotificationPrefs() {
           const email = p ? p.email_enabled : true;
           const push = p ? p.push_enabled : true;
           const wa = p ? p.whatsapp_enabled : true;
+          const emailBooking = p ? p.email_booking_enabled : true;
           return (
             <div
               key={ws.id}
@@ -95,6 +106,11 @@ export function WorkspaceNotificationPrefs() {
                   <Mail className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-muted-foreground">Email</span>
                   <Switch checked={email} onCheckedChange={(v) => toggle(ws.id, 'email', v)} />
+                </label>
+                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                  <CalendarCheck className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-muted-foreground">Email RDV</span>
+                  <Switch checked={emailBooking} onCheckedChange={(v) => toggle(ws.id, 'email_booking', v)} />
                 </label>
                 <label className="flex items-center gap-2 text-xs cursor-pointer">
                   <Bell className="h-3.5 w-3.5 text-muted-foreground" />

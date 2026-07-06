@@ -523,7 +523,7 @@ ${transcript}`;
             if (u?.user?.email) userEmailMap.set(lead.owner_id, u.user.email);
           } catch (_) { /* noop */ }
         }
-        const mutedEmail = await getMutedUserIds(admin, lead.workspace_id, memberUserIds, "email");
+        const mutedEmail = await getMutedUserIds(admin, lead.workspace_id, memberUserIds, "email_booking");
         const memberEmails = memberUserIds
           .filter((uid) => !mutedEmail.has(uid))
           .map((uid) => userEmailMap.get(uid))
