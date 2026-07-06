@@ -47,6 +47,7 @@ export default function SettingsAutomationPage() {
   const [form, setForm] = useState<any>(null);
   const [dirty, setDirty] = useState(false);
   const [offerId, setOfferId] = useState<string | null>(null);
+  const [kind, setKind] = useState<'qualification' | 'website_booking'>('qualification');
 
   useEffect(() => { if (settings && !form) setForm(settings); }, [settings, form]);
 
