@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Mail, Bell, MessageCircle } from 'lucide-react';
+import { Mail, Bell, MessageCircle, CalendarCheck } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -10,6 +10,7 @@ type Pref = {
   email_enabled: boolean;
   push_enabled: boolean;
   whatsapp_enabled: boolean;
+  email_booking_enabled: boolean;
 };
 
 export function MemberNotificationControls({
