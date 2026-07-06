@@ -178,7 +178,8 @@ export function useOfferSequenceCounts(kind: SequenceKind = 'qualification') {
   return useQuery({
     queryKey: ['sequence-offer-counts', workspaceId, kind],
     queryFn: async () => {
-      let q = supabase.from('followup_sequence_steps').select('offer_id').eq('sequence_kind' as any, kind).not('offer_id', 'is', null);
+      let q: any = supabase.from('followup_sequence_steps').select('offer_id').not('offer_id', 'is', null);
+      q = q.eq('sequence_kind', kind);
       if (workspaceId) q = q.eq('workspace_id', workspaceId);
       else {
         const { data: { user } } = await supabase.auth.getUser();
