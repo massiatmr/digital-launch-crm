@@ -479,7 +479,7 @@ Deno.serve(async (req) => {
     }
 
     // Per-user, per-workspace mute (admin can mute a client workspace).
-    const mutedEmail = await getMutedUserIds(supabase, leadFull?.workspace_id, memberUserIds, "email");
+    const mutedEmail = await getMutedUserIds(supabase, leadFull?.workspace_id, memberUserIds, "email_booking");
     const mutedPush = await getMutedUserIds(supabase, leadFull?.workspace_id, memberUserIds, "push");
     const memberEmails = memberUserIds
       .filter((uid) => !mutedEmail.has(uid))
