@@ -164,7 +164,6 @@ Deno.serve(async (req) => {
                 status: "scheduled",
                 scheduled_at: new Date(cursor).toISOString(),
                 step_order: s.step_order,
-                template_id: s.template_id,
               };
             });
             const { error: insErr } = await supabase.from("lead_followup_tasks").insert(rows as any);
