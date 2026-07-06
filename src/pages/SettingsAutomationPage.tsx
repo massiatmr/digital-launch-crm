@@ -143,18 +143,20 @@ export default function SettingsAutomationPage() {
       </header>
 
       {/* OFFER SWITCHER */}
-      <OfferSequenceSwitcher value={offerId} onChange={setOfferId} />
+      <OfferSequenceSwitcher value={offerId} onChange={setOfferId} kind={kind} onKindChange={(k) => { setKind(k); setOfferId(null); }} />
 
       {/* SEQUENCE — main view */}
       <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
         <div className="flex flex-col items-center mb-3">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/15 text-primary text-xs font-medium">
-            🆕 Nouveau lead {offerId ? 'sur cette offre' : ''}
+            {kind === 'website_booking'
+              ? `🌐 RDV pris depuis site ${offerId ? '(sur cette offre)' : ''}`
+              : `🆕 Nouveau lead ${offerId ? 'sur cette offre' : ''}`}
           </span>
           <div className="h-4 w-px bg-border mt-1" />
         </div>
 
-        <SequenceEditor offerId={offerId} />
+        <SequenceEditor offerId={offerId} kind={kind} />
 
         <div className="flex flex-col items-center mt-4">
           <div className="h-4 w-px bg-border" />
