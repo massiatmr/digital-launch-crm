@@ -157,7 +157,8 @@ export function useDeleteOfferSequence() {
     mutationFn: async ({ offerId, kind = 'qualification' }: { offerId: string; kind?: SequenceKind }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Non authentifié');
-      let q = supabase.from('followup_sequence_steps').delete().eq('offer_id', offerId).eq('sequence_kind' as any, kind);
+      let q: any = supabase.from('followup_sequence_steps').delete().eq('offer_id', offerId);
+      q = q.eq('sequence_kind', kind);
       if (workspaceId) q = q.eq('workspace_id', workspaceId);
       else q = q.eq('owner_id', user.id).is('workspace_id', null);
       const { error } = await q;
