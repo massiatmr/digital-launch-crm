@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useSequenceSteps, useUpsertSequenceStep, useDeleteSequenceStep, useReorderSequenceSteps, type SequenceStep } from '@/hooks/useSequenceSteps';
+import { useSequenceSteps, useUpsertSequenceStep, useDeleteSequenceStep, useReorderSequenceSteps, type SequenceStep, type SequenceKind } from '@/hooks/useSequenceSteps';
 import { useActiveWorkspaceTemplates } from '@/hooks/useWhatsAppTemplates';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
