@@ -31,11 +31,11 @@ export function useSequenceSteps(offerId?: string | null, kind: SequenceKind = '
   return useQuery({
     queryKey: ['sequence-steps', workspaceId, kind, offerId === undefined ? 'all' : offerId ?? 'default'],
     queryFn: async () => {
-      let query = supabase
+      let query: any = supabase
         .from('followup_sequence_steps')
         .select('*')
-        .eq('sequence_kind' as any, kind)
         .order('step_order', { ascending: true });
+      query = query.eq('sequence_kind', kind);
       if (workspaceId) {
         query = query.eq('workspace_id', workspaceId);
       } else {
