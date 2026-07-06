@@ -1,19 +1,21 @@
 import { useOffers } from '@/hooks/useOfferData';
-import { useOfferSequenceCounts, useDuplicateSequence, useDeleteOfferSequence, useSequenceSteps } from '@/hooks/useSequenceSteps';
+import { useOfferSequenceCounts, useDuplicateSequence, useDeleteOfferSequence, useSequenceSteps, type SequenceKind } from '@/hooks/useSequenceSteps';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Copy, Trash2, Sparkles, AlertTriangle } from 'lucide-react';
+import { Copy, Trash2, Sparkles, AlertTriangle, Bot, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Props {
   value: string | null;
   onChange: (offerId: string | null) => void;
+  kind?: SequenceKind;
+  onKindChange?: (kind: SequenceKind) => void;
 }
 
-export function OfferSequenceSwitcher({ value, onChange }: Props) {
+export function OfferSequenceSwitcher({ value, onChange, kind = 'qualification', onKindChange }: Props) {
   const { data: offers = [] } = useOffers();
-  const { data: counts = {} } = useOfferSequenceCounts();
-  const { data: currentSteps = [] } = useSequenceSteps(value);
+  const { data: counts = {} } = useOfferSequenceCounts(kind);
+  const { data: currentSteps = [] } = useSequenceSteps(value, kind);
   const duplicate = useDuplicateSequence();
   const delOfferSeq = useDeleteOfferSequence();
 
@@ -21,7 +23,41 @@ export function OfferSequenceSwitcher({ value, onChange }: Props) {
   const isEmpty = currentSteps.length === 0;
 
   return (
-    <div className="rounded-xl border border-border bg-card/50 p-3 sm:p-4 sticky top-0 z-10 backdrop-blur-md">
+    <div className="rounded-xl border border-border bg-card/50 p-3 sm:p-4 sticky top-0 z-10 backdrop-blur-md space-y-3">
+      {/* Kind switcher */}
+      {onKindChange && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground shrink-0">Contexte</span>
+          <div className="inline-flex rounded-lg border border-border p-0.5 bg-background">
+            <button
+              type="button"
+              onClick={() => onKindChange('qualification')}
+              className={cn(
+                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                kind === 'qualification' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Bot className="h-3.5 w-3.5" /> Qualification IA
+            </button>
+            <button
+              type="button"
+              onClick={() => onKindChange('website_booking')}
+              className={cn(
+                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                kind === 'website_booking' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Globe className="h-3.5 w-3.5" /> RDV direct site
+            </button>
+          </div>
+          <span className="text-[11px] text-muted-foreground">
+            {kind === 'qualification'
+              ? 'Leads Meta / formulaire — séquence de qualification'
+              : 'Landing page externe — le RDV est déjà pris'}
+          </span>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex items-center gap-2 shrink-0">
           <Sparkles className="h-4 w-4 text-primary" />
@@ -65,7 +101,7 @@ export function OfferSequenceSwitcher({ value, onChange }: Props) {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => duplicate.mutate({ sourceOfferId: null, destOfferId: value })}
+                onClick={() => duplicate.mutate({ sourceOfferId: null, destOfferId: value, kind })}
                 disabled={duplicate.isPending}
                 className="gap-1.5"
               >
@@ -78,7 +114,7 @@ export function OfferSequenceSwitcher({ value, onChange }: Props) {
                 variant="outline"
                 onClick={() => {
                   if (confirm('Supprimer la séquence dédiée à cette offre ? Les nouveaux leads de cette offre utiliseront la séquence par défaut.')) {
-                    delOfferSeq.mutate(value);
+                    delOfferSeq.mutate({ offerId: value, kind });
                   }
                 }}
                 disabled={delOfferSeq.isPending}
@@ -93,7 +129,7 @@ export function OfferSequenceSwitcher({ value, onChange }: Props) {
 
       {isOffer && isEmpty && (
         <div className={cn(
-          'mt-3 flex items-start gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/5 px-3 py-2 text-xs text-yellow-300'
+          'flex items-start gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/5 px-3 py-2 text-xs text-yellow-300'
         )}>
           <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
           <span>Aucune séquence dédiée — les leads de cette offre suivront la séquence <strong>Par défaut</strong>. Duplique-la pour personnaliser.</span>
