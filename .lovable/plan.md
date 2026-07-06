@@ -1,83 +1,99 @@
 ## Objectif
 
-Permettre d'envoyer un message WhatsApp template (HSM approuvé Meta) en une fois à plusieurs leads/clients, soit en les cochant un par un, soit en les ciblant via filtres (statut pipeline, score, source, offre, état conversation, dernière relance, etc.).
+Quand un lead arrive via une landing page externe **avec un RDV pris immédiatement** ou meme quelques minutes apres le premier signal (endpoint `landing-book`), déclencher une **séquence WhatsApp différente** de celle utilisée pour les leads Meta/IA — configurable **par offre**, et **sans la phase de qualification IA** (le RDV est déjà pris).
 
-## Parcours utilisateur
+## Comportement fonctionnel
 
-Nouvelle page **Campagnes WhatsApp** (`/campaigns`), accessible depuis la sidebar (icône mégaphone) sous "Conversations".
+- **Déclencheur unique** : appel réussi à `landing-book` → lead créé/rattaché + booking créé (laisser quelques minutes le temps que le lead choissise un creneau).
+- **Sur ce chemin uniquement** :
+  - La séquence de qualification IA standard est **désactivée** pour ce lead (aucune tâche `qualification`, `followup_1/2`, `last_followup` créée).
+  - Une **nouvelle séquence "RDV direct site"** attachée à l'offre est déclenchée à la place.
+  - Les rappels avant RDV (24h/12h/1h) existants continuent de fonctionner normalement (ils sont liés au booking, pas à la séquence lead).
+- Les leads Meta/formulaire IA gardent exactement le flux actuel.
 
-1. **Étape 1 — Audience** : 2 onglets
-   - *Sélection manuelle* : tableau filtrable (recherche, source, statut, score, offre) avec checkbox par ligne + "tout sélectionner sur la page filtrée"
-   - *Ciblage par filtres* : combinaisons de critères → preview du nombre de destinataires en temps réel
-     - Type : leads / clients / les deux
-     - Statut lead (`new`, `contacted`, `qualified`, `lost`…) ou statut client
-     - Score (`hot`, `warm`, `cold`)
-     - Source (facebook, website, messenger…)
-     - Offre liée
-     - État conversation (`NEW`, `CONTACTED`, `QUALIFIED`, `BOOKED`, `CLOSED`)
-     - Dernière activité (>X jours sans réponse, jamais contacté…)
-     - Exclure ceux dans la fenêtre 24h active (déjà en conversation) ou au contraire les inclure pour envoi free-form
-     - Exclure ceux ayant un rappel/relance automatique en cours
-2. **Étape 2 — Message** : choix du template HSM approuvé (liste depuis `whatsapp_templates`), preview avec variables mappées sur les champs lead (`{{1}} = name`, etc.), sélection de la langue.
-3. **Étape 3 — Récap & envoi** : nombre final de destinataires, coût estimé (info), bouton "Envoyer maintenant" ou "Programmer pour…". Bouton "Test sur un numéro" avant lancement.
-4. **Étape 4 — Suivi** : après envoi, vue détail de la campagne avec liste des destinataires + statut (queued / sent / delivered / read / failed + raison), bouton "Renvoyer aux échecs", export CSV.
+## Portée : "par offre"
 
-## Architecture technique
+Chaque offre peut définir sa propre séquence "RDV direct site", indépendante de la séquence globale de qualification. Fallback : si l'offre n'a rien défini, on utilise une séquence par défaut au niveau workspace ; si rien non plus, aucun message auto n'est envoyé (les rappels de booking suffisent).
 
-### Base de données (migration)
+## Modèle de données
 
-```text
-campaigns
-  id, workspace_id, owner_id, name, channel='whatsapp',
-  template_id (fk whatsapp_templates), template_language,
-  template_variables_mapping jsonb,  -- {"1":"name","2":"company_name"}
-  audience_mode ('manual'|'filter'),
-  audience_filter jsonb,             -- snapshot des critères
-  scheduled_at, started_at, finished_at,
-  status ('draft'|'scheduled'|'running'|'completed'|'cancelled'|'failed'),
-  total_recipients, sent_count, delivered_count, read_count, failed_count,
-  created_at, updated_at
+Réutilise `followup_sequence_steps` en ajoutant deux colonnes de scoping :
 
-campaign_recipients
-  id, campaign_id, lead_id (nullable), client_id (nullable),
-  phone, resolved_variables jsonb,
-  status ('pending'|'sent'|'delivered'|'read'|'failed'|'skipped'),
-  wa_message_id (fk whatsapp_messages),
-  error_message, sent_at, updated_at
-  unique(campaign_id, phone)
+```
+followup_sequence_steps
+  + sequence_kind text NOT NULL DEFAULT 'qualification'
+      -- 'qualification' (existant) | 'website_booking' (nouveau)
+  + offer_id uuid NULL REFERENCES offers(id) ON DELETE CASCADE
 ```
 
-GRANTs + RLS workspace-scoped (membres workspace en lecture, owner en écriture).
+Résolution à l'exécution (ordre) :
 
-### Edge Functions
+1. `sequence_kind = 'website_booking'` + `offer_id = <offre du lead>`
+2. `sequence_kind = 'website_booking'` + `offer_id IS NULL` + `workspace_id = <ws>` (fallback workspace)
+3. rien → pas de séquence auto (les rappels de booking restent actifs)
 
-- `campaigns-preview-audience` (POST) : retourne le count + 20 premiers contacts pour un set de filtres, sans rien écrire.
-- `campaigns-launch` (POST) : valide la campagne, matérialise les destinataires dans `campaign_recipients`, passe en `scheduled` ou `running`, déclenche `campaigns-process` immédiatement si pas de `scheduled_at`.
-- `campaigns-process` (cron 1 min) : prend les campagnes `running` ou `scheduled` dues, traite par batch de 50 destinataires `pending`, appelle l'API WhatsApp Cloud Meta (template message), insère dans `whatsapp_messages` (direction outbound, kind=`template`), met à jour `campaign_recipients.status`, throttle pour rester sous les limites Meta. Met à jour les compteurs de la campagne.
-- Webhook existant `meta-webhook` : on étend pour propager les statuts `delivered`/`read`/`failed` vers `campaign_recipients` via `wa_message_id`.
+Aucune migration destructive : toutes les lignes existantes deviennent `sequence_kind = 'qualification'` avec `offer_id = NULL` (comportement actuel préservé).
 
-### Frontend
+## Backend
 
-- `src/pages/CampaignsPage.tsx` (liste + bouton "Nouvelle campagne")
-- `src/pages/CampaignBuilderPage.tsx` (wizard 3 étapes avec `Stepper`)
-- `src/pages/CampaignDetailPage.tsx` (suivi destinataires temps réel via Realtime sur `campaign_recipients`)
-- Composants : `AudienceManualPicker`, `AudienceFilterBuilder`, `TemplatePicker` (réutilise le picker WhatsApp existant), `TemplateVariableMapper`, `CampaignRecipientsTable`
-- Route + entrée sidebar dans `src/components/AppSidebar.tsx`
-- Hook `useCampaigns` (CRUD + Realtime)
+### 1. Migration
 
-### Garde-fous
+- Ajouter `sequence_kind` + `offer_id` à `followup_sequence_steps`.
+- Index sur `(workspace_id, sequence_kind, offer_id, step_order)`.
+- Politiques RLS existantes conservées (déjà scoping owner/workspace).
 
-- Bloquer l'envoi si `whatsapp_config.status != 'connected'` pour le workspace.
-- Refuser les templates non `approved` côté Meta.
-- Anti-spam : refuser une campagne ciblant un lead ayant déjà reçu le **même** template dans les 24h.
-- Limite max 5 000 destinataires par campagne (configurable).
-- Dry-run obligatoire activé par défaut pour la 1ère campagne d'un workspace.
-- Soft-delete + audit log via trigger existant `log_entity_changes`.
+### 2. Trigger `create_followup_sequence_for_lead`
 
-## Hors scope (V2)
+Adapter pour :
 
-- A/B testing entre 2 templates
-- Compagnes Messenger / Instagram (même schéma, autre canal)
-- Suivi clics sur boutons CTA du template
+- Si le lead vient de `landing-book` (marqueur : `lead.source = 'website'` **ET** un booking existe pour ce lead créé dans les 60s) → **ne PAS créer** les étapes `sequence_kind='qualification'`. À la place, itérer les étapes `sequence_kind='website_booking'` résolues selon l'ordre ci-dessus.
+- Sinon : comportement actuel inchangé.
 
-Je peux démarrer l'implémentation dès validation.
+Alternative plus propre côté code : la fonction `landing-book` passe un flag `skip_qualification=true` lors de l'insert lead (via `metadata.website_booking = true`), et le trigger lit ce flag. C'est la voie retenue → pas d'ambiguïté temporelle.
+
+### 3. `supabase/functions/landing-book`
+
+- Après création du lead + booking, marquer `leads.metadata.website_booking = true` et `booking_context = 'direct_site'`.
+- Le trigger SQL lit ce flag pour choisir la séquence.
+
+### 4. `supabase/functions/execute-followup-task` / `process-followup-tasks`
+
+Aucun changement de logique — les tâches créées avec les steps de la nouvelle séquence sont traitées comme les autres (même moteur d'envoi, même throttle, même annulation sur réponse inbound).
+
+## Frontend
+
+### `/settings/automation` → onglet "Séquence"
+
+- Ajouter un **switcher de contexte** en haut : `Qualification IA` | `RDV direct site (landing)`.
+- Quand on est sur "RDV direct site" : ajouter un sélecteur d'offre (`Toutes les offres (défaut workspace)` ou une offre précise).
+- Le composant `SequenceEditor` existant est réutilisé, avec `sequence_kind` et `offer_id` passés en props.
+- Hooks `useSequenceSteps` / `useUpsertSequenceStep` étendus pour accepter ces deux filtres.
+
+### `OfferSequenceSwitcher` (déjà présent)
+
+- Étendre pour montrer les 2 dimensions : `kind` et `offer`.
+
+Aucune modification du reste de l'UI (Pipeline, Conversations, Bookings).
+
+## Garde-fous
+
+- Si un lead website avec RDV répond en WhatsApp avant la fin de la séquence, `handle_inbound_whatsapp` annule les tâches en attente (comportement déjà en place, aucun changement).
+- Si l'offre est modifiée après création du lead, on ne rebascule pas de séquence (idempotence).
+- Test rapide accessible via `/settings/tests` : bouton "Simuler booking landing" qui appelle `landing-book` en dry-run.
+
+## Ce qui **ne change pas**
+
+- Flux Meta/lead form → séquence qualification IA identique.
+- Rappels booking 24h/12h/1h (email + WhatsApp) → identiques.
+- Détection RDV depuis conversation → identique.
+- Landing API keys / endpoints publics → identiques.
+
+## Résumé des fichiers touchés
+
+- **Migration SQL** : `followup_sequence_steps` (2 colonnes + index), fonction `create_followup_sequence_for_lead` (branchement sur `metadata.website_booking`).
+- **Edge function** : `supabase/functions/landing-book/index.ts` (poser le flag metadata).
+- **Frontend** :
+  - `src/hooks/useSequenceSteps.ts` (filtres kind + offer)
+  - `src/components/automation/SequenceEditor.tsx` (props kind/offer)
+  - `src/components/automation/OfferSequenceSwitcher.tsx` (switch kind + picker offre)
+  - `src/pages/SettingsAutomationPage.tsx` (nouvel onglet contexte)
