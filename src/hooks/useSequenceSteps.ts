@@ -3,6 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useCurrentWorkspaceId } from '@/hooks/useWorkspaces';
 
+export type SequenceKind = 'qualification' | 'website_booking';
+
 export type SequenceStep = {
   id: string;
   owner_id: string;
@@ -14,17 +16,25 @@ export type SequenceStep = {
   label: string;
   is_enabled: boolean;
   offer_id: string | null;
+  sequence_kind: SequenceKind;
 };
 
-/** Fetch steps. offerId === undefined → all steps (for indicators). offerId === null → default sequence only. offerId === string → only that offer. */
-export function useSequenceSteps(offerId?: string | null) {
+/**
+ * Fetch steps.
+ * offerId === undefined → all steps (for indicators).
+ * offerId === null → default sequence only.
+ * offerId === string → only that offer.
+ * kind defaults to 'qualification' to preserve existing behaviour.
+ */
+export function useSequenceSteps(offerId?: string | null, kind: SequenceKind = 'qualification') {
   const workspaceId = useCurrentWorkspaceId();
   return useQuery({
-    queryKey: ['sequence-steps', workspaceId, offerId === undefined ? 'all' : offerId ?? 'default'],
+    queryKey: ['sequence-steps', workspaceId, kind, offerId === undefined ? 'all' : offerId ?? 'default'],
     queryFn: async () => {
       let query = supabase
         .from('followup_sequence_steps')
         .select('*')
+        .eq('sequence_kind' as any, kind)
         .order('step_order', { ascending: true });
       if (workspaceId) {
         query = query.eq('workspace_id', workspaceId);
@@ -104,10 +114,10 @@ export function useDuplicateSequence() {
   const qc = useQueryClient();
   const workspaceId = useCurrentWorkspaceId();
   return useMutation({
-    mutationFn: async ({ sourceOfferId, destOfferId }: { sourceOfferId: string | null; destOfferId: string }) => {
+    mutationFn: async ({ sourceOfferId, destOfferId, kind = 'qualification' }: { sourceOfferId: string | null; destOfferId: string; kind?: SequenceKind }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Non authentifié');
-      let q = supabase.from('followup_sequence_steps').select('*').order('step_order', { ascending: true });
+      let q = supabase.from('followup_sequence_steps').select('*').eq('sequence_kind' as any, kind).order('step_order', { ascending: true });
       if (workspaceId) q = q.eq('workspace_id', workspaceId);
       else q = q.eq('owner_id', user.id).is('workspace_id', null);
       q = sourceOfferId === null ? q.is('offer_id', null) : q.eq('offer_id', sourceOfferId);
@@ -118,6 +128,7 @@ export function useDuplicateSequence() {
         owner_id: user.id,
         workspace_id: workspaceId ?? null,
         offer_id: destOfferId,
+        sequence_kind: kind,
         step_order: s.step_order,
         task_type: s.task_type,
         delay_value: s.delay_value,
@@ -142,10 +153,10 @@ export function useDeleteOfferSequence() {
   const qc = useQueryClient();
   const workspaceId = useCurrentWorkspaceId();
   return useMutation({
-    mutationFn: async (offerId: string) => {
+    mutationFn: async ({ offerId, kind = 'qualification' }: { offerId: string; kind?: SequenceKind }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Non authentifié');
-      let q = supabase.from('followup_sequence_steps').delete().eq('offer_id', offerId);
+      let q = supabase.from('followup_sequence_steps').delete().eq('offer_id', offerId).eq('sequence_kind' as any, kind);
       if (workspaceId) q = q.eq('workspace_id', workspaceId);
       else q = q.eq('owner_id', user.id).is('workspace_id', null);
       const { error } = await q;
@@ -159,13 +170,13 @@ export function useDeleteOfferSequence() {
   });
 }
 
-/** Returns map of offerId -> count of enabled steps (excludes default null). */
-export function useOfferSequenceCounts() {
+/** Returns map of offerId -> count of enabled steps (excludes default null) for a given kind. */
+export function useOfferSequenceCounts(kind: SequenceKind = 'qualification') {
   const workspaceId = useCurrentWorkspaceId();
   return useQuery({
-    queryKey: ['sequence-offer-counts', workspaceId],
+    queryKey: ['sequence-offer-counts', workspaceId, kind],
     queryFn: async () => {
-      let q = supabase.from('followup_sequence_steps').select('offer_id').not('offer_id', 'is', null);
+      let q = supabase.from('followup_sequence_steps').select('offer_id').eq('sequence_kind' as any, kind).not('offer_id', 'is', null);
       if (workspaceId) q = q.eq('workspace_id', workspaceId);
       else {
         const { data: { user } } = await supabase.auth.getUser();
