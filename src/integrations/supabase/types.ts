@@ -1287,6 +1287,7 @@ export type Database = {
           label: string
           offer_id: string | null
           owner_id: string
+          sequence_kind: string
           step_order: number
           task_type: Database["public"]["Enums"]["followup_task_type"]
           template_id: string | null
@@ -1302,6 +1303,7 @@ export type Database = {
           label?: string
           offer_id?: string | null
           owner_id?: string
+          sequence_kind?: string
           step_order: number
           task_type?: Database["public"]["Enums"]["followup_task_type"]
           template_id?: string | null
@@ -1317,6 +1319,7 @@ export type Database = {
           label?: string
           offer_id?: string | null
           owner_id?: string
+          sequence_kind?: string
           step_order?: number
           task_type?: Database["public"]["Enums"]["followup_task_type"]
           template_id?: string | null

@@ -114,6 +114,67 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Enqueue "website_booking" sequence for the lead (skip if none defined).
+    // handle-booking already cancels the standard qualification tasks.
+    try {
+      const leadId: string | undefined = (hb as any)?.lead_id;
+      if (leadId) {
+        const { data: lead } = await supabase
+          .from("leads")
+          .select("id, owner_id, workspace_id, offer_id")
+          .eq("id", leadId)
+          .maybeSingle();
+
+        if (lead) {
+          // Resolve steps: offer-specific first, workspace default as fallback
+          let steps: any[] = [];
+          if (lead.offer_id) {
+            const { data } = await supabase
+              .from("followup_sequence_steps")
+              .select("*")
+              .eq("workspace_id", lead.workspace_id)
+              .eq("sequence_kind", "website_booking")
+              .eq("offer_id", lead.offer_id)
+              .eq("is_enabled", true)
+              .order("step_order", { ascending: true });
+            steps = data || [];
+          }
+          if (steps.length === 0) {
+            const { data } = await supabase
+              .from("followup_sequence_steps")
+              .select("*")
+              .eq("workspace_id", lead.workspace_id)
+              .eq("sequence_kind", "website_booking")
+              .is("offer_id", null)
+              .eq("is_enabled", true)
+              .order("step_order", { ascending: true });
+            steps = data || [];
+          }
+
+          if (steps.length > 0) {
+            let cursor = Date.now();
+            const rows = steps.map((s: any) => {
+              const mult = s.delay_unit === "days" ? 86400000 : s.delay_unit === "hours" ? 3600000 : 60000;
+              cursor += (s.delay_value || 0) * mult;
+              return {
+                lead_id: leadId,
+                owner_id: lead.owner_id,
+                workspace_id: lead.workspace_id,
+                task_type: s.task_type,
+                status: "scheduled",
+                scheduled_at: new Date(cursor).toISOString(),
+                step_order: s.step_order,
+              };
+            });
+            const { error: insErr } = await supabase.from("lead_followup_tasks").insert(rows as any);
+            if (insErr) console.error("website_booking enqueue failed", insErr);
+          }
+        }
+      }
+    } catch (seqErr) {
+      console.error("website_booking sequence error (non-fatal)", seqErr);
+    }
+
     await supabase
       .from("workspace_api_keys")
       .update({ last_used_at: new Date().toISOString() })
