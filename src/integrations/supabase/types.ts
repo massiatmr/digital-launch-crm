@@ -2852,6 +2852,7 @@ export type Database = {
       user_workspace_notification_prefs: {
         Row: {
           created_at: string
+          email_booking_enabled: boolean
           email_enabled: boolean
           push_enabled: boolean
           updated_at: string
@@ -2861,6 +2862,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          email_booking_enabled?: boolean
           email_enabled?: boolean
           push_enabled?: boolean
           updated_at?: string
@@ -2870,6 +2872,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          email_booking_enabled?: boolean
           email_enabled?: boolean
           push_enabled?: boolean
           updated_at?: string
