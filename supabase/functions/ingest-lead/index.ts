@@ -51,6 +51,17 @@ Deno.serve(async (req) => {
     const companyName = String(body.company_name || '').trim().slice(0, 200);
     const phone = normalizePhone(phoneRaw);
 
+    // ---- Meta attribution signals (CAPI matching) ----
+    const pageUrl = String(body.page_url || '').trim().slice(0, 500);
+    const fbclid = String(body.fbclid || '').trim().slice(0, 200);
+    let fbc = String(body.fbc || '').trim().slice(0, 200);
+    const fbp = String(body.fbp || '').trim().slice(0, 200);
+    // Reconstruct fbc from fbclid if the cookie wasn't available client-side
+    if (!fbc && fbclid) fbc = `fb.1.${Date.now()}.${fbclid}`;
+    const clientUserAgent = (req.headers.get('user-agent') || '').slice(0, 500);
+    const xff = req.headers.get('x-forwarded-for') || '';
+    const clientIp = xff.split(',')[0].trim() || req.headers.get('cf-connecting-ip') || '';
+
     if (!name && !email && !phone) {
       return new Response(JSON.stringify({ error: 'missing_contact', detail: 'name, email or phone required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
