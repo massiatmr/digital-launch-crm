@@ -54,6 +54,23 @@ Deno.serve(async (req) => {
     const offer_slug = String(body.offer_slug || "").trim();
     const client_timezone = String(body.client_timezone || "").trim().slice(0, 80) || null;
 
+    // ---- Meta attribution signals (CAPI matching) ----
+    const pageUrl = String(body.page_url || "").trim().slice(0, 500);
+    const fbclid = String(body.fbclid || "").trim().slice(0, 200);
+    let fbc = String(body.fbc || "").trim().slice(0, 200);
+    const fbp = String(body.fbp || "").trim().slice(0, 200);
+    if (!fbc && fbclid) fbc = `fb.1.${Date.now()}.${fbclid}`;
+    const clientUserAgent = (req.headers.get("user-agent") || "").slice(0, 500);
+    const xff = req.headers.get("x-forwarded-for") || "";
+    const clientIp = xff.split(",")[0].trim() || req.headers.get("cf-connecting-ip") || "";
+    const attributionMeta: Record<string, any> = {};
+    if (fbc) attributionMeta.fbc = fbc;
+    if (fbp) attributionMeta.fbp = fbp;
+    if (fbclid) attributionMeta.fbclid = fbclid;
+    if (pageUrl) attributionMeta.event_source_url = pageUrl;
+    if (clientUserAgent) attributionMeta.client_user_agent = clientUserAgent;
+    if (clientIp) attributionMeta.client_ip_address = clientIp;
+
     if (!name || !email || !phone) {
       return new Response(JSON.stringify({ error: "missing_contact", detail: "name, email, phone required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
