@@ -173,7 +173,7 @@ export function MetaCapiSection() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between pt-2">
+        <div className="flex items-center justify-between pt-2 gap-2 flex-wrap">
           <a
             href="https://business.facebook.com/events_manager2/list/dataset"
             target="_blank"
@@ -182,14 +182,21 @@ export function MetaCapiSection() {
           >
             Ouvrir Gestionnaire d'événements <ExternalLink className="h-3 w-3" />
           </a>
-          <Button onClick={save} disabled={saving}>
-            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Enregistrer
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={runBackfill} disabled={backfilling || !cfg.id}>
+              {backfilling && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Rattraper 7 derniers jours
+            </Button>
+            <Button onClick={save} disabled={saving}>
+              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Enregistrer
+            </Button>
+          </div>
         </div>
 
         <p className="text-xs text-muted-foreground">
           Données envoyées (hashées SHA-256) : email, téléphone, prénom/nom, ville, et le <code>lead_id</code> Meta s'il est disponible (capté via le webhook Lead Ads).
+          Pour les leads du site web/landing, on envoie aussi <code>fbc</code>, <code>fbp</code>, IP et User-Agent pour ré-attribuer précisément à ta campagne Meta.
         </p>
       </CardContent>
     </Card>
