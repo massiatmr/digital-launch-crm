@@ -197,7 +197,13 @@ const bookRes = await fetch("${BOOK_URL}", {
     booking_date: "2026-07-05",         // YYYY-MM-DD
     time_slot: "11:00",                 // HH:MM (heure locale du workspace)
     client_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, // optionnel
-    notes: "Déménagement Paris -> Lyon" // optionnel
+    notes: "Déménagement Paris -> Lyon", // optionnel
+
+    // === Signaux Meta CAPI (attribution campagne) — mêmes helpers que plus haut ===
+    page_url: window.location.href,
+    fbclid: new URLSearchParams(location.search).get("fbclid"),
+    fbc: document.cookie.split("; ").find(r => r.startsWith("_fbc="))?.split("=")[1],
+    fbp: document.cookie.split("; ").find(r => r.startsWith("_fbp="))?.split("=")[1]
   })
 });
 const booking = await bookRes.json();
