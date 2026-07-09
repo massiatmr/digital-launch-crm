@@ -280,7 +280,7 @@ Deno.serve(async (req) => {
 
       const { data: cur } = await supabase
         .from('leads')
-        .select('email, phone, company_name, offer_id, message, notes')
+        .select('email, phone, company_name, offer_id, message, notes, metadata')
         .eq('id', existingLeadId)
         .maybeSingle();
 
@@ -288,6 +288,16 @@ Deno.serve(async (req) => {
       if (phone && !cur?.phone) enrich.phone = phone;
       if (companyName && !cur?.company_name) enrich.company_name = companyName;
       if (offerId && !cur?.offer_id) enrich.offer_id = offerId;
+
+      // Fusionne les signaux Meta reçus dans metadata, sans écraser les valeurs déjà présentes.
+      const curMeta = (cur?.metadata || {}) as Record<string, any>;
+      const mergedMeta: Record<string, any> = { ...curMeta };
+      for (const [k, v] of Object.entries(attributionMeta)) {
+        if (v && !mergedMeta[k]) mergedMeta[k] = v;
+      }
+      if (Object.keys(mergedMeta).length !== Object.keys(curMeta).length) {
+        enrich.metadata = mergedMeta;
+      }
 
       // Ne garder dans le bonus que les lignes qui ne sont PAS déjà présentes
       // dans le message d'origine OU les notes existantes.
