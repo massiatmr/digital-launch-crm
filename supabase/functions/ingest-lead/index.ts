@@ -365,6 +365,19 @@ Deno.serve(async (req) => {
       } catch (notifyErr) {
         console.error('notify-new-lead invocation failed', notifyErr);
       }
+
+      // Fire Meta CAPI "Lead" event for attribution (fire-and-forget).
+      try {
+        await supabase.functions.invoke('meta-capi-send', {
+          body: {
+            workspace_id: keyRow.workspace_id,
+            lead_id: lead.id,
+            event_name: 'Lead',
+          },
+        });
+      } catch (capiErr) {
+        console.error('meta-capi-send Lead invocation failed', capiErr);
+      }
     }
 
     return new Response(JSON.stringify({ ok: true, lead_id: lead.id }), {
