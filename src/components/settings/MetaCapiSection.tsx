@@ -140,6 +140,10 @@ export function MetaCapiSection() {
             <Switch checked={cfg.enabled} onCheckedChange={(v) => setCfg({ ...cfg, enabled: v })} />
           </div>
           <div className="flex items-center justify-between">
+            <Label className="text-sm font-normal">Nouveau lead (site + landing) → <span className="font-mono text-xs">Lead</span></Label>
+            <Switch checked={cfg.send_lead} onCheckedChange={(v) => setCfg({ ...cfg, send_lead: v })} />
+          </div>
+          <div className="flex items-center justify-between">
             <Label className="text-sm font-normal">Lead qualifié → <span className="font-mono text-xs">QualifiedLead</span></Label>
             <Switch checked={cfg.send_qualified} onCheckedChange={(v) => setCfg({ ...cfg, send_qualified: v })} />
           </div>
