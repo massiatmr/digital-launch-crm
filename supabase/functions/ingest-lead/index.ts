@@ -200,6 +200,14 @@ Deno.serve(async (req) => {
 
     const finalMessage = sections.join('\n\n').slice(0, 8000);
 
+    const attributionMeta: Record<string, any> = {};
+    if (fbc) attributionMeta.fbc = fbc;
+    if (fbp) attributionMeta.fbp = fbp;
+    if (fbclid) attributionMeta.fbclid = fbclid;
+    if (pageUrl) attributionMeta.event_source_url = pageUrl;
+    if (clientUserAgent) attributionMeta.client_user_agent = clientUserAgent;
+    if (clientIp) attributionMeta.client_ip_address = clientIp;
+
     const leadPayload: Record<string, any> = {
       name: name || email || phone,
       email,
@@ -212,6 +220,7 @@ Deno.serve(async (req) => {
       workspace_id: keyRow.workspace_id,
       notes: '',
       company_name: companyName,
+      metadata: attributionMeta,
     };
     if (offerId) leadPayload.offer_id = offerId;
 
