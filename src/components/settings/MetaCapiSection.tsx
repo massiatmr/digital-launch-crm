@@ -40,6 +40,22 @@ export function MetaCapiSection() {
   const [cfg, setCfg] = useState<Cfg | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
+
+  const runBackfill = async () => {
+    if (!workspaceId) return;
+    setBackfilling(true);
+    const { data, error } = await supabase.functions.invoke("meta-capi-send", {
+      body: { backfill: true, workspace_id: workspaceId, days: 7 },
+    });
+    setBackfilling(false);
+    if (error) {
+      toast.error("Rattrapage échoué : " + error.message);
+    } else {
+      const d = (data ?? {}) as { sent?: number; skipped?: number; failed?: number };
+      toast.success(`Rattrapage terminé — envoyés: ${d.sent ?? 0}, déjà envoyés: ${d.skipped ?? 0}, erreurs: ${d.failed ?? 0}`);
+    }
+  };
 
   useEffect(() => {
     if (!workspaceId) return;
