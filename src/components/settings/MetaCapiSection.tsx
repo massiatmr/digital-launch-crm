@@ -17,6 +17,7 @@ type Cfg = {
   access_token: string;
   test_event_code: string | null;
   enabled: boolean;
+  send_lead: boolean;
   send_qualified: boolean;
   send_won: boolean;
   send_booking: boolean;
@@ -28,6 +29,7 @@ const empty = (ws: string): Cfg => ({
   access_token: "",
   test_event_code: "",
   enabled: true,
+  send_lead: true,
   send_qualified: true,
   send_won: true,
   send_booking: true,
@@ -38,6 +40,22 @@ export function MetaCapiSection() {
   const [cfg, setCfg] = useState<Cfg | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
+
+  const runBackfill = async () => {
+    if (!workspaceId) return;
+    setBackfilling(true);
+    const { data, error } = await supabase.functions.invoke("meta-capi-send", {
+      body: { backfill: true, workspace_id: workspaceId, days: 7 },
+    });
+    setBackfilling(false);
+    if (error) {
+      toast.error("Rattrapage échoué : " + error.message);
+    } else {
+      const d = (data ?? {}) as { sent?: number; skipped?: number; failed?: number };
+      toast.success(`Rattrapage terminé — envoyés: ${d.sent ?? 0}, déjà envoyés: ${d.skipped ?? 0}, erreurs: ${d.failed ?? 0}`);
+    }
+  };
 
   useEffect(() => {
     if (!workspaceId) return;
@@ -138,6 +156,10 @@ export function MetaCapiSection() {
             <Switch checked={cfg.enabled} onCheckedChange={(v) => setCfg({ ...cfg, enabled: v })} />
           </div>
           <div className="flex items-center justify-between">
+            <Label className="text-sm font-normal">Nouveau lead (site + landing) → <span className="font-mono text-xs">Lead</span></Label>
+            <Switch checked={cfg.send_lead} onCheckedChange={(v) => setCfg({ ...cfg, send_lead: v })} />
+          </div>
+          <div className="flex items-center justify-between">
             <Label className="text-sm font-normal">Lead qualifié → <span className="font-mono text-xs">QualifiedLead</span></Label>
             <Switch checked={cfg.send_qualified} onCheckedChange={(v) => setCfg({ ...cfg, send_qualified: v })} />
           </div>
@@ -151,7 +173,7 @@ export function MetaCapiSection() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between pt-2">
+        <div className="flex items-center justify-between pt-2 gap-2 flex-wrap">
           <a
             href="https://business.facebook.com/events_manager2/list/dataset"
             target="_blank"
@@ -160,14 +182,21 @@ export function MetaCapiSection() {
           >
             Ouvrir Gestionnaire d'événements <ExternalLink className="h-3 w-3" />
           </a>
-          <Button onClick={save} disabled={saving}>
-            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Enregistrer
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={runBackfill} disabled={backfilling || !cfg.id}>
+              {backfilling && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Rattraper 7 derniers jours
+            </Button>
+            <Button onClick={save} disabled={saving}>
+              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Enregistrer
+            </Button>
+          </div>
         </div>
 
         <p className="text-xs text-muted-foreground">
           Données envoyées (hashées SHA-256) : email, téléphone, prénom/nom, ville, et le <code>lead_id</code> Meta s'il est disponible (capté via le webhook Lead Ads).
+          Pour les leads du site web/landing, on envoie aussi <code>fbc</code>, <code>fbp</code>, IP et User-Agent pour ré-attribuer précisément à ta campagne Meta.
         </p>
       </CardContent>
     </Card>

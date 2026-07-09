@@ -108,6 +108,10 @@ export function LandingApiKeysSection() {
   };
 
   const sampleCode = (key: string) => `// Sur ta landing page (form submit)
+// Helper : lit un cookie par nom (utilisé pour _fbc / _fbp posés par le Pixel Meta)
+const getCookie = (n) => document.cookie.split("; ").find(r => r.startsWith(n + "="))?.split("=")[1];
+const params = new URLSearchParams(location.search);
+
 await fetch("${INGEST_URL}", {
   method: "POST",
   headers: {
@@ -116,36 +120,39 @@ await fetch("${INGEST_URL}", {
   },
   body: JSON.stringify({
     // === Contact (au moins 1 requis : name, email ou phone) ===
-    name: "Jean Dupont",                // Nom complet du lead
-    email: "jean@exemple.com",          // Email
-    phone: "+33612345678",              // Téléphone (0X... FR auto-converti en +33)
-    company_name: "Acme SARL",          // Entreprise (optionnel)
+    name: "Jean Dupont",
+    email: "jean@exemple.com",
+    phone: "+33612345678",
+    company_name: "Acme SARL",
 
     // === Message / contexte ===
     message: "Je suis intéressé par vos services",
 
     // === Source du lead ===
-    // Valeurs valides : "website" | "facebook" | "google_my_business"
-    //                  | "organic_social" | "recommendation" | "whatsapp"
-    //                  | "google_sheets" | "manual" | "other"
     source: "website",
-    source_label: "landing-demenageur", // Libellé libre (nom de la page/campagne)
+    source_label: "landing-demenageur",
 
     // === Liens ===
-    offer_slug: "demenageur",           // Slug de l'offre CRM (optionnel)
-    page_url: window.location.href,     // URL de la landing
+    offer_slug: "demenageur",
+    page_url: window.location.href,
 
-    // === UTM tracking (optionnel) ===
+    // === UTM tracking ===
     utm: {
-      utm_source: "facebook",
-      utm_medium: "cpc",
-      utm_campaign: "promo_oct",
-      utm_content: "ad_variant_a",
-      utm_term: "demenagement paris"
+      utm_source: params.get("utm_source"),
+      utm_medium: params.get("utm_medium"),
+      utm_campaign: params.get("utm_campaign"),
+      utm_content: params.get("utm_content"),
+      utm_term: params.get("utm_term")
     },
 
+    // === Signaux Meta CAPI (attribution campagne) ===
+    // fbclid vient du clic pub, _fbc/_fbp sont posés par le Pixel Meta.
+    // Envoyer ces 3 valeurs améliore fortement l'attribution des leads à ta campagne.
+    fbclid: params.get("fbclid"),
+    fbc: getCookie("_fbc"),
+    fbp: getCookie("_fbp"),
+
     // === Champs personnalisés (optionnel) ===
-    // Tout ce que tu mets ici sera ajouté aux notes du lead sous forme "Clé : valeur"
     fields: {
       budget: "5000 EUR",
       date_souhaitee: "15/11/2026",
@@ -190,7 +197,13 @@ const bookRes = await fetch("${BOOK_URL}", {
     booking_date: "2026-07-05",         // YYYY-MM-DD
     time_slot: "11:00",                 // HH:MM (heure locale du workspace)
     client_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, // optionnel
-    notes: "Déménagement Paris -> Lyon" // optionnel
+    notes: "Déménagement Paris -> Lyon", // optionnel
+
+    // === Signaux Meta CAPI (attribution campagne) — mêmes helpers que plus haut ===
+    page_url: window.location.href,
+    fbclid: new URLSearchParams(location.search).get("fbclid"),
+    fbc: document.cookie.split("; ").find(r => r.startsWith("_fbc="))?.split("=")[1],
+    fbp: document.cookie.split("; ").find(r => r.startsWith("_fbp="))?.split("=")[1]
   })
 });
 const booking = await bookRes.json();

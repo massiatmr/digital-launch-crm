@@ -2068,6 +2068,7 @@ export type Database = {
           enabled: boolean
           id: string
           send_booking: boolean
+          send_lead: boolean
           send_qualified: boolean
           send_won: boolean
           test_event_code: string | null
@@ -2081,6 +2082,7 @@ export type Database = {
           enabled?: boolean
           id?: string
           send_booking?: boolean
+          send_lead?: boolean
           send_qualified?: boolean
           send_won?: boolean
           test_event_code?: string | null
@@ -2094,6 +2096,7 @@ export type Database = {
           enabled?: boolean
           id?: string
           send_booking?: boolean
+          send_lead?: boolean
           send_qualified?: boolean
           send_won?: boolean
           test_event_code?: string | null

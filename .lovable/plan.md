@@ -1,99 +1,51 @@
 ## Objectif
 
-Quand un lead arrive via une landing page externe **avec un RDV pris immédiatement** ou meme quelques minutes apres le premier signal (endpoint `landing-book`), déclencher une **séquence WhatsApp différente** de celle utilisée pour les leads Meta/IA — configurable **par offre**, et **sans la phase de qualification IA** (le RDV est déjà pris).
+Meta ne "voit" que 2 leads sur ta campagne Landing alors que le CRM en a 4 : Meta ne sait pas relier les soumissions du site à la pub qui les a générées. On va envoyer un événement **Lead** via l'API Conversions (CAPI) à chaque nouveau lead site + landing, avec les paramètres de matching Meta (fbc / fbp / fbclid, URL, IP, User-Agent) pour ré-attribuer proprement.
 
-## Comportement fonctionnel
+Aujourd'hui `meta-capi-send` n'envoie que `QualifiedLead`, `Schedule`, `Purchase`. Rien au moment de la capture → Meta rate l'attribution du signal le plus important.
 
-- **Déclencheur unique** : appel réussi à `landing-book` → lead créé/rattaché + booking créé (laisser quelques minutes le temps que le lead choissise un creneau).
-- **Sur ce chemin uniquement** :
-  - La séquence de qualification IA standard est **désactivée** pour ce lead (aucune tâche `qualification`, `followup_1/2`, `last_followup` créée).
-  - Une **nouvelle séquence "RDV direct site"** attachée à l'offre est déclenchée à la place.
-  - Les rappels avant RDV (24h/12h/1h) existants continuent de fonctionner normalement (ils sont liés au booking, pas à la séquence lead).
-- Les leads Meta/formulaire IA gardent exactement le flux actuel.
+## Ce qui change
 
-## Portée : "par offre"
+### 1. Config CAPI par workspace
+Ajouter un toggle **"Nouveau lead → `Lead`"** dans `meta_capi_configs` (colonne `send_lead boolean default true`) et dans l'écran `MetaCapiSection`. Actif par défaut.
 
-Chaque offre peut définir sa propre séquence "RDV direct site", indépendante de la séquence globale de qualification. Fallback : si l'offre n'a rien défini, on utilise une séquence par défaut au niveau workspace ; si rien non plus, aucun message auto n'est envoyé (les rappels de booking suffisent).
+### 2. Capture des cookies Meta côté site (landing + form)
+Pour que Meta ré-attribue au bon clic pub, on stocke sur chaque lead les identifiants de matching :
 
-## Modèle de données
+- `fbc` (cookie `_fbc`) ou reconstruit depuis `fbclid` en URL
+- `fbp` (cookie `_fbp`)
+- `page_url`, `user_agent`, `client_ip` (côté edge function)
 
-Réutilise `followup_sequence_steps` en ajoutant deux colonnes de scoping :
+Ces valeurs arrivent déjà partiellement via `ingest-lead` (payload `utm`, `page_url`). On étend :
 
-```
-followup_sequence_steps
-  + sequence_kind text NOT NULL DEFAULT 'qualification'
-      -- 'qualification' (existant) | 'website_booking' (nouveau)
-  + offer_id uuid NULL REFERENCES offers(id) ON DELETE CASCADE
-```
+- **`ingest-lead`** : lit `body.fbc`, `body.fbp`, `body.fbclid`, `body.page_url`, `req.headers['user-agent']`, `x-forwarded-for` → stocke dans `leads.metadata` (`fbc`, `fbp`, `event_source_url`, `client_user_agent`, `client_ip_address`).
+- **`landing-book`** : idem sur la création du lead depuis la landing.
+- **Snippet client** à coller sur les landings externes (fourni dans `LandingApiKeysSection` en plus du code d'ingestion existant) : lit `document.cookie` pour `_fbc`/`_fbp`, prend `fbclid` de `location.search`, `location.href` en `page_url`, et pousse dans le POST vers `/ingest-lead` et `/landing-book`.
 
-Résolution à l'exécution (ordre) :
+### 3. Envoi de l'événement `Lead` à la création
+Dans `ingest-lead` (branche "nouveau lead" uniquement, jamais sur dédup) et dans `landing-book`, on invoque `meta-capi-send` en fire-and-forget avec `event_name = "Lead"` juste après l'insert.
 
-1. `sequence_kind = 'website_booking'` + `offer_id = <offre du lead>`
-2. `sequence_kind = 'website_booking'` + `offer_id IS NULL` + `workspace_id = <ws>` (fallback workspace)
-3. rien → pas de séquence auto (les rappels de booking restent actifs)
+Dans `meta-capi-send` :
 
-Aucune migration destructive : toutes les lignes existantes deviennent `sequence_kind = 'qualification'` avec `offer_id = NULL` (comportement actuel préservé).
+- accepter la nouvelle constante `Lead` et respecter `cfg.send_lead`.
+- passer `action_source = "website"` quand l'événement vient d'une page (Lead / Schedule côté site), garder `system_generated` pour QualifiedLead/Purchase.
+- ajouter au `user_data` les champs de matching s'ils sont présents dans `lead.metadata` : `fbc`, `fbp`, `client_ip_address`, `client_user_agent`.
+- ajouter `event_source_url` dans le payload racine (obligatoire pour `action_source=website`).
+- générer un `event_id` déterministe (`lead:<lead_id>:Lead`) pour dédupliquer si un pixel côté client envoie aussi le même event.
 
-## Backend
+### 4. Rétro-attribution des leads existants
+Un bouton "Renvoyer les événements Lead à Meta" dans `MetaCapiSection` qui appelle une nouvelle route de `meta-capi-send` (`{ backfill: true, workspace_id }`) : itère les leads du workspace créés dans les 7 derniers jours qui n'ont pas encore de flag `metadata.capi_lead_sent`, envoie `Lead`, et marque le lead. Permet de rattraper les 2 leads manquants de la campagne actuelle.
 
-### 1. Migration
+## Fichiers touchés
 
-- Ajouter `sequence_kind` + `offer_id` à `followup_sequence_steps`.
-- Index sur `(workspace_id, sequence_kind, offer_id, step_order)`.
-- Politiques RLS existantes conservées (déjà scoping owner/workspace).
+- Migration SQL : `ALTER TABLE meta_capi_configs ADD COLUMN send_lead boolean NOT NULL DEFAULT true;`
+- `supabase/functions/meta-capi-send/index.ts` — support event `Lead`, `action_source=website`, fbc/fbp/ip/UA/event_source_url, `event_id`, mode `backfill`.
+- `supabase/functions/ingest-lead/index.ts` — capture fbc/fbp/fbclid/UA/IP/URL dans `metadata`, invoke CAPI `Lead` sur insert.
+- `supabase/functions/landing-book/index.ts` — même capture + invoke CAPI `Lead` sur création du lead.
+- `src/components/settings/MetaCapiSection.tsx` — nouveau toggle "Nouveau lead → Lead" et bouton "Rattraper les 7 derniers jours".
+- `src/components/settings/LandingApiKeysSection.tsx` — enrichir le snippet fourni à l'utilisateur pour inclure `_fbc`/`_fbp`/`fbclid`/`page_url` dans le POST.
 
-### 2. Trigger `create_followup_sequence_for_lead`
+## Hors périmètre
 
-Adapter pour :
-
-- Si le lead vient de `landing-book` (marqueur : `lead.source = 'website'` **ET** un booking existe pour ce lead créé dans les 60s) → **ne PAS créer** les étapes `sequence_kind='qualification'`. À la place, itérer les étapes `sequence_kind='website_booking'` résolues selon l'ordre ci-dessus.
-- Sinon : comportement actuel inchangé.
-
-Alternative plus propre côté code : la fonction `landing-book` passe un flag `skip_qualification=true` lors de l'insert lead (via `metadata.website_booking = true`), et le trigger lit ce flag. C'est la voie retenue → pas d'ambiguïté temporelle.
-
-### 3. `supabase/functions/landing-book`
-
-- Après création du lead + booking, marquer `leads.metadata.website_booking = true` et `booking_context = 'direct_site'`.
-- Le trigger SQL lit ce flag pour choisir la séquence.
-
-### 4. `supabase/functions/execute-followup-task` / `process-followup-tasks`
-
-Aucun changement de logique — les tâches créées avec les steps de la nouvelle séquence sont traitées comme les autres (même moteur d'envoi, même throttle, même annulation sur réponse inbound).
-
-## Frontend
-
-### `/settings/automation` → onglet "Séquence"
-
-- Ajouter un **switcher de contexte** en haut : `Qualification IA` | `RDV direct site (landing)`.
-- Quand on est sur "RDV direct site" : ajouter un sélecteur d'offre (`Toutes les offres (défaut workspace)` ou une offre précise).
-- Le composant `SequenceEditor` existant est réutilisé, avec `sequence_kind` et `offer_id` passés en props.
-- Hooks `useSequenceSteps` / `useUpsertSequenceStep` étendus pour accepter ces deux filtres.
-
-### `OfferSequenceSwitcher` (déjà présent)
-
-- Étendre pour montrer les 2 dimensions : `kind` et `offer`.
-
-Aucune modification du reste de l'UI (Pipeline, Conversations, Bookings).
-
-## Garde-fous
-
-- Si un lead website avec RDV répond en WhatsApp avant la fin de la séquence, `handle_inbound_whatsapp` annule les tâches en attente (comportement déjà en place, aucun changement).
-- Si l'offre est modifiée après création du lead, on ne rebascule pas de séquence (idempotence).
-- Test rapide accessible via `/settings/tests` : bouton "Simuler booking landing" qui appelle `landing-book` en dry-run.
-
-## Ce qui **ne change pas**
-
-- Flux Meta/lead form → séquence qualification IA identique.
-- Rappels booking 24h/12h/1h (email + WhatsApp) → identiques.
-- Détection RDV depuis conversation → identique.
-- Landing API keys / endpoints publics → identiques.
-
-## Résumé des fichiers touchés
-
-- **Migration SQL** : `followup_sequence_steps` (2 colonnes + index), fonction `create_followup_sequence_for_lead` (branchement sur `metadata.website_booking`).
-- **Edge function** : `supabase/functions/landing-book/index.ts` (poser le flag metadata).
-- **Frontend** :
-  - `src/hooks/useSequenceSteps.ts` (filtres kind + offer)
-  - `src/components/automation/SequenceEditor.tsx` (props kind/offer)
-  - `src/components/automation/OfferSequenceSwitcher.tsx` (switch kind + picker offre)
-  - `src/pages/SettingsAutomationPage.tsx` (nouvel onglet contexte)
+- Leads Facebook Lead Ads : Meta attribue déjà via `lead_id` capté par le webhook, on ne change rien.
+- Pixel client (fbq) : reste indépendant ; l'`event_id` déterministe permettra à Meta de dédupliquer si un pixel Lead est aussi tiré côté navigateur.

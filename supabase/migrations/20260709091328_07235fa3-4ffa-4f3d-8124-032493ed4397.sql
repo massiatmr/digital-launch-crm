@@ -1,0 +1,1 @@
+ALTER TABLE public.meta_capi_configs ADD COLUMN IF NOT EXISTS send_lead boolean NOT NULL DEFAULT true;

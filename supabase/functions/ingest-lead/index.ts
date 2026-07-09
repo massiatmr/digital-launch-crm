@@ -51,6 +51,17 @@ Deno.serve(async (req) => {
     const companyName = String(body.company_name || '').trim().slice(0, 200);
     const phone = normalizePhone(phoneRaw);
 
+    // ---- Meta attribution signals (CAPI matching) ----
+    const pageUrl = String(body.page_url || '').trim().slice(0, 500);
+    const fbclid = String(body.fbclid || '').trim().slice(0, 200);
+    let fbc = String(body.fbc || '').trim().slice(0, 200);
+    const fbp = String(body.fbp || '').trim().slice(0, 200);
+    // Reconstruct fbc from fbclid if the cookie wasn't available client-side
+    if (!fbc && fbclid) fbc = `fb.1.${Date.now()}.${fbclid}`;
+    const clientUserAgent = (req.headers.get('user-agent') || '').slice(0, 500);
+    const xff = req.headers.get('x-forwarded-for') || '';
+    const clientIp = xff.split(',')[0].trim() || req.headers.get('cf-connecting-ip') || '';
+
     if (!name && !email && !phone) {
       return new Response(JSON.stringify({ error: 'missing_contact', detail: 'name, email or phone required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
@@ -189,6 +200,14 @@ Deno.serve(async (req) => {
 
     const finalMessage = sections.join('\n\n').slice(0, 8000);
 
+    const attributionMeta: Record<string, any> = {};
+    if (fbc) attributionMeta.fbc = fbc;
+    if (fbp) attributionMeta.fbp = fbp;
+    if (fbclid) attributionMeta.fbclid = fbclid;
+    if (pageUrl) attributionMeta.event_source_url = pageUrl;
+    if (clientUserAgent) attributionMeta.client_user_agent = clientUserAgent;
+    if (clientIp) attributionMeta.client_ip_address = clientIp;
+
     const leadPayload: Record<string, any> = {
       name: name || email || phone,
       email,
@@ -201,6 +220,7 @@ Deno.serve(async (req) => {
       workspace_id: keyRow.workspace_id,
       notes: '',
       company_name: companyName,
+      metadata: attributionMeta,
     };
     if (offerId) leadPayload.offer_id = offerId;
 
@@ -260,7 +280,7 @@ Deno.serve(async (req) => {
 
       const { data: cur } = await supabase
         .from('leads')
-        .select('email, phone, company_name, offer_id, message, notes')
+        .select('email, phone, company_name, offer_id, message, notes, metadata')
         .eq('id', existingLeadId)
         .maybeSingle();
 
@@ -268,6 +288,16 @@ Deno.serve(async (req) => {
       if (phone && !cur?.phone) enrich.phone = phone;
       if (companyName && !cur?.company_name) enrich.company_name = companyName;
       if (offerId && !cur?.offer_id) enrich.offer_id = offerId;
+
+      // Fusionne les signaux Meta reçus dans metadata, sans écraser les valeurs déjà présentes.
+      const curMeta = (cur?.metadata || {}) as Record<string, any>;
+      const mergedMeta: Record<string, any> = { ...curMeta };
+      for (const [k, v] of Object.entries(attributionMeta)) {
+        if (v && !mergedMeta[k]) mergedMeta[k] = v;
+      }
+      if (Object.keys(mergedMeta).length !== Object.keys(curMeta).length) {
+        enrich.metadata = mergedMeta;
+      }
 
       // Ne garder dans le bonus que les lignes qui ne sont PAS déjà présentes
       // dans le message d'origine OU les notes existantes.
@@ -334,6 +364,19 @@ Deno.serve(async (req) => {
         });
       } catch (notifyErr) {
         console.error('notify-new-lead invocation failed', notifyErr);
+      }
+
+      // Fire Meta CAPI "Lead" event for attribution (fire-and-forget).
+      try {
+        await supabase.functions.invoke('meta-capi-send', {
+          body: {
+            workspace_id: keyRow.workspace_id,
+            lead_id: lead.id,
+            event_name: 'Lead',
+          },
+        });
+      } catch (capiErr) {
+        console.error('meta-capi-send Lead invocation failed', capiErr);
       }
     }
 
