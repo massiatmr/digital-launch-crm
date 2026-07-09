@@ -192,6 +192,35 @@ Deno.serve(async (req) => {
       console.error("website_booking sequence error (non-fatal)", seqErr);
     }
 
+    // Merge Meta attribution signals onto the lead + fire CAPI "Lead" event.
+    try {
+      const leadId: string | undefined = (hb as any)?.lead_id;
+      if (leadId && Object.keys(attributionMeta).length > 0) {
+        const { data: cur } = await supabase
+          .from("leads")
+          .select("metadata")
+          .eq("id", leadId)
+          .maybeSingle();
+        const curMeta = (cur?.metadata || {}) as Record<string, any>;
+        const merged: Record<string, any> = { ...curMeta };
+        let changed = false;
+        for (const [k, v] of Object.entries(attributionMeta)) {
+          if (v && !merged[k]) { merged[k] = v; changed = true; }
+        }
+        if (changed) {
+          await supabase.from("leads").update({ metadata: merged } as any).eq("id", leadId);
+        }
+      }
+      if (leadId && !(hb as any)?.deduplicated) {
+        // Fire-and-forget: only send Lead once per lead (backend flags via metadata.capi_lead_sent_at)
+        supabase.functions.invoke("meta-capi-send", {
+          body: { workspace_id: keyRow.workspace_id, lead_id: leadId, event_name: "Lead" },
+        }).catch((e) => console.error("meta-capi-send Lead failed", e));
+      }
+    } catch (capiErr) {
+      console.error("meta attribution enrich error (non-fatal)", capiErr);
+    }
+
     await supabase
       .from("workspace_api_keys")
       .update({ last_used_at: new Date().toISOString() })
