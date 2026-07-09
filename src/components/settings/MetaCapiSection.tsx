@@ -17,6 +17,7 @@ type Cfg = {
   access_token: string;
   test_event_code: string | null;
   enabled: boolean;
+  send_lead: boolean;
   send_qualified: boolean;
   send_won: boolean;
   send_booking: boolean;
@@ -28,6 +29,7 @@ const empty = (ws: string): Cfg => ({
   access_token: "",
   test_event_code: "",
   enabled: true,
+  send_lead: true,
   send_qualified: true,
   send_won: true,
   send_booking: true,
