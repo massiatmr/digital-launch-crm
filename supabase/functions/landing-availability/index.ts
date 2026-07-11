@@ -199,15 +199,23 @@ Deno.serve(async (req) => {
       const candidates = generateHourlySlots(dStart, dEnd, slotMin, slotIntervalMin)
         .filter((slot) => zonedToUtc(date, slot, tz).getTime() >= minStartMs);
 
-      const takenSet = takenByDate.get(date) ?? new Set<string>();
+      const takenSlots = takenByDate.get(date) ?? new Set<string>();
+      // Convert existing bookings to busy intervals (in case Google Calendar is not synced,
+      // so a 45-min booking at 11:00 correctly blocks 11:15/11:30 when interval < duration).
+      const bookingBusy = Array.from(takenSlots).map((slot) => {
+        const bs = zonedToUtc(date, slot, tz);
+        return { start: bs, end: new Date(bs.getTime() + meetingMs) };
+      });
 
       const available = candidates.flatMap((slot) => {
-        if (takenSet.has(slot)) return [];
         const s = zonedToUtc(date, slot, tz);
         const e = new Date(s.getTime() + meetingMs);
         for (const b of busy) {
           const bs = new Date(b.start); const be = new Date(b.end);
           if (s < be && e > bs) return [];
+        }
+        for (const b of bookingBusy) {
+          if (s < b.end && e > b.start) return [];
         }
         if (fmtDateTz(s, tz) !== date) return [];
         return [fmtTimeTz(s, tz)];
