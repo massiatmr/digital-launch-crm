@@ -132,7 +132,7 @@ export function AvailabilityPanel() {
     toggleBlackout.mutate({ date: key, existingId: blackoutById.get(key) });
   };
 
-  // Aperçu des créneaux générés
+  // Aperçu des créneaux générés — utilise l'espacement configuré
   const previewSlots: string[] = (() => {
     if (!/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end) || start >= end) return [];
     const out: string[] = [];
@@ -140,7 +140,8 @@ export function AvailabilityPanel() {
     const [eh, em] = end.split(':').map(Number);
     const startMin = sh * 60 + sm;
     const endMin = eh * 60 + em;
-    for (let t = startMin; t + duration <= endMin; t += 60) {
+    const step = interval > 0 ? interval : 60;
+    for (let t = startMin; t + duration <= endMin; t += step) {
       const h = Math.floor(t / 60);
       const m = t % 60;
       out.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
