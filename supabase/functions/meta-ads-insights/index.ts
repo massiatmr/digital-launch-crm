@@ -433,19 +433,49 @@ Deno.serve(async (req) => {
       }
     }
 
-    // CRM leads count by campaign in the period
+    // CRM leads count by campaign in the period (+ funnel stages)
     const leadsQ = workspace_id
-      ? admin.from("leads").select("meta_campaign_id").eq("workspace_id", workspace_id)
-      : admin.from("leads").select("meta_campaign_id").eq("owner_id", user.id).is("workspace_id", null);
+      ? admin.from("leads").select("id, meta_campaign_id, status, show_status").eq("workspace_id", workspace_id)
+      : admin.from("leads").select("id, meta_campaign_id, status, show_status").eq("owner_id", user.id).is("workspace_id", null);
     const { data: leadsRows } = await leadsQ
       .not("meta_campaign_id", "is", null)
       .gte("created_at", `${date_from}T00:00:00Z`)
       .lte("created_at", `${date_to}T23:59:59Z`);
 
     const crmLeadsByCampaign = new Map<string, number>();
+    const showedByCampaign = new Map<string, number>();
+    const signedByCampaign = new Map<string, number>();
+    const leadIdToCampaign = new Map<string, string>();
     for (const r of leadsRows ?? []) {
       if (!r.meta_campaign_id) continue;
       crmLeadsByCampaign.set(r.meta_campaign_id, (crmLeadsByCampaign.get(r.meta_campaign_id) ?? 0) + 1);
+      leadIdToCampaign.set(r.id, r.meta_campaign_id);
+      if (r.show_status === "show") {
+        showedByCampaign.set(r.meta_campaign_id, (showedByCampaign.get(r.meta_campaign_id) ?? 0) + 1);
+      }
+      if (r.status === "won") {
+        signedByCampaign.set(r.meta_campaign_id, (signedByCampaign.get(r.meta_campaign_id) ?? 0) + 1);
+      }
+    }
+
+    // Bookings for those leads (any booking counts as "booked", period-scoped by creation)
+    const bookedByCampaign = new Map<string, number>();
+    if (leadIdToCampaign.size > 0) {
+      const leadIds = Array.from(leadIdToCampaign.keys());
+      const { data: bookingRows } = await admin
+        .from("bookings")
+        .select("lead_id")
+        .in("lead_id", leadIds)
+        .is("deleted_at", null)
+        .neq("status", "cancelled");
+      const seenLeadForBooking = new Set<string>();
+      for (const b of bookingRows ?? []) {
+        if (!b.lead_id || seenLeadForBooking.has(b.lead_id)) continue;
+        seenLeadForBooking.add(b.lead_id);
+        const cid = leadIdToCampaign.get(b.lead_id);
+        if (!cid) continue;
+        bookedByCampaign.set(cid, (bookedByCampaign.get(cid) ?? 0) + 1);
+      }
     }
 
     // Surface CRM-tagged campaigns that weren't returned by the campaign listing
