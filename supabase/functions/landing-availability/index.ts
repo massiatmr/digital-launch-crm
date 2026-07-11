@@ -16,13 +16,14 @@ async function sha256Hex(input: string): Promise<string> {
   return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function generateHourlySlots(startTime: string, endTime: string, durationMin: number): string[] {
+function generateHourlySlots(startTime: string, endTime: string, durationMin: number, stepMin: number = 60): string[] {
   const [sh, sm] = startTime.split(":").map(Number);
   const [eh, em] = endTime.split(":").map(Number);
   const startMin = sh * 60 + sm;
   const endMin = eh * 60 + em;
   const out: string[] = [];
-  for (let t = startMin; t + durationMin <= endMin; t += 60) {
+  const step = stepMin > 0 ? stepMin : 60;
+  for (let t = startMin; t + durationMin <= endMin; t += step) {
     out.push(`${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`);
   }
   return out;
