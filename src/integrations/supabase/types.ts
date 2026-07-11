@@ -87,6 +87,7 @@ export type Database = {
           morning_slot: string
           owner_id: string
           slot_duration_minutes: number
+          slot_interval_minutes: number
           timezone: string
           updated_at: string
           working_days: number[]
@@ -104,6 +105,7 @@ export type Database = {
           morning_slot?: string
           owner_id?: string
           slot_duration_minutes?: number
+          slot_interval_minutes?: number
           timezone?: string
           updated_at?: string
           working_days?: number[]
@@ -121,6 +123,7 @@ export type Database = {
           morning_slot?: string
           owner_id?: string
           slot_duration_minutes?: number
+          slot_interval_minutes?: number
           timezone?: string
           updated_at?: string
           working_days?: number[]
