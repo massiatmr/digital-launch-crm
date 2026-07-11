@@ -7,13 +7,14 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-function generateHourlySlots(startTime: string, endTime: string, durationMin: number): string[] {
+function generateHourlySlots(startTime: string, endTime: string, durationMin: number, stepMin: number = 60): string[] {
   const [sh, sm] = startTime.split(":").map(Number);
   const [eh, em] = endTime.split(":").map(Number);
   const startMin = sh * 60 + sm;
   const endMin = eh * 60 + em;
   const out: string[] = [];
-  for (let t = startMin; t + durationMin <= endMin; t += 60) {
+  const step = stepMin > 0 ? stepMin : 60;
+  for (let t = startMin; t + durationMin <= endMin; t += step) {
     out.push(`${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`);
   }
   return out;
