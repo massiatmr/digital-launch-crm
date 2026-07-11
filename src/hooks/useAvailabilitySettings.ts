@@ -10,6 +10,7 @@ export interface AvailabilitySettings {
   day_start_time: string;
   day_end_time: string;
   slot_duration_minutes: number;
+  slot_interval_minutes: number;
   max_future_days: number;
   min_lead_time_hours: number;
   timezone: string;
@@ -31,6 +32,7 @@ const DEFAULT: Omit<AvailabilitySettings, 'owner_id'> = {
   day_start_time: '11:00',
   day_end_time: '15:00',
   slot_duration_minutes: 45,
+  slot_interval_minutes: 60,
   max_future_days: 14,
   min_lead_time_hours: 2,
   timezone: 'Europe/Paris',
