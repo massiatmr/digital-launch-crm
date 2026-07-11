@@ -196,6 +196,46 @@ export function MetaCampaignsSection({ workspaceId, dateFrom, dateTo }: Props) {
           </Table>
         </div>
       )}
+
+      {campaigns.length > 0 && (
+        <div className="mt-6 space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="h-px flex-1 bg-white/5" />
+            <h3 className="text-xs uppercase tracking-wider text-muted-foreground">
+              Coûts par étape du funnel
+            </h3>
+            <div className="h-px flex-1 bg-white/5" />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {campaigns.map((c) => {
+              const leads = c.leads_crm || c.leads_meta;
+              const cpl = c.cpl_crm ?? c.cpl_meta;
+              const stages = [
+                { label: "Lead", count: leads, cost: cpl, color: "from-primary/20 to-primary/5", text: "text-primary" },
+                { label: "RDV booké", count: c.booked_count ?? 0, cost: c.cost_per_booking ?? null, color: "from-blue-500/20 to-blue-500/5", text: "text-blue-400" },
+                { label: "RDV fait", count: c.showed_count ?? 0, cost: c.cost_per_show ?? null, color: "from-amber-500/20 to-amber-500/5", text: "text-amber-400" },
+                { label: "Client signé", count: c.signed_count ?? 0, cost: c.cost_per_signed ?? null, color: "from-green-500/20 to-green-500/5", text: "text-green-400" },
+              ];
+              return (
+                <div key={c.campaign_id} className="rounded-md border border-white/5 bg-white/[0.02] p-3">
+                  <div className="text-xs text-foreground font-medium truncate mb-2">{c.campaign_name}</div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {stages.map((s) => (
+                      <div key={s.label} className={cn("rounded-md bg-gradient-to-br border border-white/5 p-2 text-center", s.color)}>
+                        <div className="text-[9px] uppercase tracking-wide text-muted-foreground">{s.label}</div>
+                        <div className={cn("text-[10px] font-mono", s.text)}>{s.count}</div>
+                        <div className={cn("text-sm font-mono font-bold mt-0.5", s.text)}>
+                          {s.cost != null ? formatMoney(s.cost, c.currency) : "—"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }
