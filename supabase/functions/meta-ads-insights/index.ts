@@ -560,8 +560,14 @@ Deno.serve(async (req) => {
       const spend = ins?.spend ?? 0;
       const leads_crm = crmLeadsByCampaign.get(c.campaign_id) ?? 0;
       const leads_meta = ins?.leads_meta ?? 0;
+      const booked = bookedByCampaign.get(c.campaign_id) ?? 0;
+      const showed = showedByCampaign.get(c.campaign_id) ?? 0;
+      const signed = signedByCampaign.get(c.campaign_id) ?? 0;
       const cpl_crm = leads_crm > 0 ? spend / leads_crm : null;
       const cpl_meta = leads_meta > 0 ? spend / leads_meta : null;
+      const cost_per_booking = booked > 0 ? spend / booked : null;
+      const cost_per_show = showed > 0 ? spend / showed : null;
+      const cost_per_signed = signed > 0 ? spend / signed : null;
       return {
         campaign_id: c.campaign_id,
         campaign_name: c.campaign_name,
@@ -577,6 +583,12 @@ Deno.serve(async (req) => {
         leads_meta,
         cpl_crm,
         cpl_meta,
+        booked_count: booked,
+        showed_count: showed,
+        signed_count: signed,
+        cost_per_booking,
+        cost_per_show,
+        cost_per_signed,
       };
     });
 
