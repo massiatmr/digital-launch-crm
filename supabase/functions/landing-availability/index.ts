@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
 
     const { data: avail } = await supabase
       .from("availability_settings")
-      .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone, day_hours")
+      .select("working_days, day_start_time, day_end_time, slot_duration_minutes, slot_interval_minutes, max_future_days, min_lead_time_hours, timezone, day_hours")
       .eq("workspace_id", keyRow.workspace_id)
       .maybeSingle();
 
@@ -140,6 +140,7 @@ Deno.serve(async (req) => {
     const defEnd: string = avail?.day_end_time ?? "15:00";
     const dayHours: Record<string, { start?: string; end?: string }> = (avail?.day_hours as any) ?? {};
     const slotMin: number = avail?.slot_duration_minutes ?? 45;
+    const slotIntervalMin: number = avail?.slot_interval_minutes ?? 60;
     const maxDays: number = avail?.max_future_days ?? 14;
     const minLeadH: number = avail?.min_lead_time_hours ?? 2;
     const meetingMs = slotMin * 60 * 1000;
