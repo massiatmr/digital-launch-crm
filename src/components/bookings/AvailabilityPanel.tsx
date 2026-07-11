@@ -118,6 +118,7 @@ export function AvailabilityPanel() {
       day_start_time: start,
       day_end_time: end,
       slot_duration_minutes: duration,
+      slot_interval_minutes: interval,
       max_future_days: maxDays,
       min_lead_time_hours: minLeadHours,
       day_hours: cleaned as any,
