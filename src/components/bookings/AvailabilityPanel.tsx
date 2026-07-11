@@ -49,6 +49,7 @@ export function AvailabilityPanel() {
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
   const [duration, setDuration] = useState<number>(45);
+  const [interval, setInterval] = useState<number>(60);
   const [maxDays, setMaxDays] = useState<number>(14);
   const [minLeadHours, setMinLeadHours] = useState<number>(2);
   const [dayHours, setDayHours] = useState<Record<string, { start: string; end: string }>>({});
@@ -58,11 +59,12 @@ export function AvailabilityPanel() {
       setStart(settings.day_start_time);
       setEnd(settings.day_end_time);
       setDuration(settings.slot_duration_minutes);
+      setInterval(settings.slot_interval_minutes ?? 60);
       setMaxDays(settings.max_future_days);
       setMinLeadHours(settings.min_lead_time_hours ?? 2);
       setDayHours((settings.day_hours as any) ?? {});
     }
-  }, [settings?.workspace_id, settings?.owner_id, settings?.day_start_time, settings?.day_end_time, settings?.slot_duration_minutes, settings?.max_future_days, settings?.min_lead_time_hours]);
+  }, [settings?.workspace_id, settings?.owner_id, settings?.day_start_time, settings?.day_end_time, settings?.slot_duration_minutes, settings?.slot_interval_minutes, settings?.max_future_days, settings?.min_lead_time_hours]);
 
   if (isLoading || !settings) {
     return <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>;
