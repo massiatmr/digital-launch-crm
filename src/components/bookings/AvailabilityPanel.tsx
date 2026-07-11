@@ -49,6 +49,7 @@ export function AvailabilityPanel() {
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
   const [duration, setDuration] = useState<number>(45);
+  const [interval, setInterval] = useState<number>(60);
   const [maxDays, setMaxDays] = useState<number>(14);
   const [minLeadHours, setMinLeadHours] = useState<number>(2);
   const [dayHours, setDayHours] = useState<Record<string, { start: string; end: string }>>({});
@@ -58,11 +59,12 @@ export function AvailabilityPanel() {
       setStart(settings.day_start_time);
       setEnd(settings.day_end_time);
       setDuration(settings.slot_duration_minutes);
+      setInterval(settings.slot_interval_minutes ?? 60);
       setMaxDays(settings.max_future_days);
       setMinLeadHours(settings.min_lead_time_hours ?? 2);
       setDayHours((settings.day_hours as any) ?? {});
     }
-  }, [settings?.workspace_id, settings?.owner_id, settings?.day_start_time, settings?.day_end_time, settings?.slot_duration_minutes, settings?.max_future_days, settings?.min_lead_time_hours]);
+  }, [settings?.workspace_id, settings?.owner_id, settings?.day_start_time, settings?.day_end_time, settings?.slot_duration_minutes, settings?.slot_interval_minutes, settings?.max_future_days, settings?.min_lead_time_hours]);
 
   if (isLoading || !settings) {
     return <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>;
@@ -116,6 +118,7 @@ export function AvailabilityPanel() {
       day_start_time: start,
       day_end_time: end,
       slot_duration_minutes: duration,
+      slot_interval_minutes: interval,
       max_future_days: maxDays,
       min_lead_time_hours: minLeadHours,
       day_hours: cleaned as any,
@@ -129,7 +132,7 @@ export function AvailabilityPanel() {
     toggleBlackout.mutate({ date: key, existingId: blackoutById.get(key) });
   };
 
-  // Aperçu des créneaux générés
+  // Aperçu des créneaux générés — utilise l'espacement configuré
   const previewSlots: string[] = (() => {
     if (!/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end) || start >= end) return [];
     const out: string[] = [];
@@ -137,7 +140,8 @@ export function AvailabilityPanel() {
     const [eh, em] = end.split(':').map(Number);
     const startMin = sh * 60 + sm;
     const endMin = eh * 60 + em;
-    for (let t = startMin; t + duration <= endMin; t += 60) {
+    const step = interval > 0 ? interval : 60;
+    for (let t = startMin; t + duration <= endMin; t += step) {
       const h = Math.floor(t / 60);
       const m = t % 60;
       out.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
@@ -197,7 +201,7 @@ export function AvailabilityPanel() {
         </div>
 
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground uppercase tracking-wider">Plage horaire par défaut (créneaux toutes les heures)</Label>
+          <Label className="text-xs text-muted-foreground uppercase tracking-wider">Plage horaire par défaut</Label>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label className="text-[11px] text-muted-foreground">Début</Label>
@@ -214,17 +218,31 @@ export function AvailabilityPanel() {
               <Input type="number" min={15} max={240} step={5} value={duration} onChange={e => setDuration(Number(e.target.value))} />
             </div>
             <div>
+              <Label className="text-[11px] text-muted-foreground">Espacement des créneaux</Label>
+              <Select value={String(interval)} onValueChange={(v) => setInterval(Number(v))}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="15">Toutes les 15 min</SelectItem>
+                  <SelectItem value="30">Toutes les 30 min</SelectItem>
+                  <SelectItem value="45">Toutes les 45 min</SelectItem>
+                  <SelectItem value="60">Toutes les heures</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
               <Label className="text-[11px] text-muted-foreground">Max jours futurs</Label>
               <Input type="number" min={1} max={90} value={maxDays} onChange={e => setMaxDays(Number(e.target.value))} />
             </div>
+            <div>
+              <Label className="text-[11px] text-muted-foreground">Délai minimum avant un RDV (h)</Label>
+              <Input type="number" min={0} max={168} value={minLeadHours} onChange={e => setMinLeadHours(Number(e.target.value))} />
+            </div>
           </div>
-          <div>
-            <Label className="text-[11px] text-muted-foreground">Délai minimum avant un RDV (heures)</Label>
-            <Input type="number" min={0} max={168} value={minLeadHours} onChange={e => setMinLeadHours(Number(e.target.value))} />
-            <p className="text-[10px] text-muted-foreground mt-1">
-              Empêche la réservation d'un créneau qui commence dans moins de {minLeadHours}h.
-            </p>
-          </div>
+          <p className="text-[10px] text-muted-foreground">
+            Un RDV pris bloque automatiquement la plage correspondant à sa durée ({duration} min). Les créneaux qui se chevauchent avec un RDV existant sont masqués.
+          </p>
 
           <div className="space-y-2 pt-1">
             <Label className="text-xs text-muted-foreground uppercase tracking-wider">Horaires personnalisés par jour (optionnel)</Label>
@@ -280,7 +298,7 @@ export function AvailabilityPanel() {
                 </Badge>
               ))}
               <span className="text-[10px] text-muted-foreground self-center ml-1">
-                · {duration} min · jusqu'à {maxDays}j
+                · durée {duration} min · toutes les {interval} min · jusqu'à {maxDays}j
               </span>
             </div>
           )}

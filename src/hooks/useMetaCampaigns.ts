@@ -16,6 +16,12 @@ export type MetaCampaignRow = {
   leads_meta: number;
   cpl_crm: number | null;
   cpl_meta: number | null;
+  booked_count?: number;
+  showed_count?: number;
+  signed_count?: number;
+  cost_per_booking?: number | null;
+  cost_per_show?: number | null;
+  cost_per_signed?: number | null;
 };
 
 export type MetaCampaignsResponse = {

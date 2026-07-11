@@ -50,9 +50,27 @@ export function MetaCapiSection() {
     });
     setBackfilling(false);
     if (error) {
-      toast.error("Rattrapage échoué : " + error.message);
+      // Read the real error body — Supabase wraps every non-2xx as "non-2xx status code"
+      let details = error.message;
+      try {
+        const ctx: any = (error as any).context;
+        if (ctx?.text) {
+          const raw = await ctx.text();
+          try {
+            const parsed = JSON.parse(raw);
+            details = parsed.hint || parsed.error || parsed.details || raw;
+          } catch {
+            details = raw;
+          }
+        }
+      } catch { /* ignore */ }
+      toast.error("Rattrapage échoué : " + details);
+      return;
+    }
+    const d = (data ?? {}) as { sent?: number; skipped?: number; failed?: number; errors?: Array<{ message: string }> };
+    if ((d.sent ?? 0) === 0 && (d.failed ?? 0) > 0 && d.errors?.length) {
+      toast.error(`Rattrapage : 0 envoyé, ${d.failed} en erreur — ${d.errors[0].message}`);
     } else {
-      const d = (data ?? {}) as { sent?: number; skipped?: number; failed?: number };
       toast.success(`Rattrapage terminé — envoyés: ${d.sent ?? 0}, déjà envoyés: ${d.skipped ?? 0}, erreurs: ${d.failed ?? 0}`);
     }
   };

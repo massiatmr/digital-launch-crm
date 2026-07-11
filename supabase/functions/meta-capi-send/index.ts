@@ -157,12 +157,34 @@ Deno.serve(async (req) => {
       const days: number = Math.min(Math.max(Number(bodyReq.days) || 7, 1), 30);
       const since = new Date(Date.now() - days * 86400_000).toISOString();
 
-      const { data: cfg } = await admin.from('meta_capi_configs').select('*').eq('workspace_id', workspace_id).maybeSingle();
-      if (!cfg || !cfg.enabled || cfg.send_lead === false) {
-        return new Response(JSON.stringify({ skipped: 'capi disabled' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const { data: cfg, error: cfgErr } = await admin.from('meta_capi_configs').select('*').eq('workspace_id', workspace_id).maybeSingle();
+      if (cfgErr) {
+        return new Response(JSON.stringify({ error: 'config_read_failed', details: cfgErr.message }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (!cfg) {
+        return new Response(JSON.stringify({ error: 'no_capi_config', hint: 'Enregistrez d\'abord Dataset ID et Access Token dans Réglages → Meta CAPI.' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (!cfg.enabled) {
+        return new Response(JSON.stringify({ error: 'capi_disabled', hint: 'Activez Meta CAPI dans Réglages avant de rattraper.' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (cfg.send_lead === false) {
+        return new Response(JSON.stringify({ error: 'send_lead_disabled', hint: 'Activez le toggle « Nouveau lead → Lead » avant de rattraper.' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (!cfg.dataset_id || !cfg.access_token) {
+        return new Response(JSON.stringify({ error: 'missing_credentials', hint: 'Dataset ID et Access Token requis.' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
 
-      const { data: leads } = await admin
+      const { data: leads, error: leadsErr } = await admin
         .from('leads')
         .select('id, name, email, phone, city, metadata, created_at')
         .eq('workspace_id', workspace_id)
@@ -170,20 +192,37 @@ Deno.serve(async (req) => {
         .is('deleted_at', null)
         .order('created_at', { ascending: true })
         .limit(500);
+      if (leadsErr) {
+        return new Response(JSON.stringify({ error: 'leads_read_failed', details: leadsErr.message }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
 
       let sent = 0, skipped = 0, failed = 0;
+      const errors: Array<{ lead_id: string; status: number; message: string }> = [];
       for (const lead of leads || []) {
         const meta = (lead.metadata || {}) as Record<string, any>;
         if (meta.capi_lead_sent_at) { skipped++; continue; }
         try {
           const r = await sendEventForLead(admin, cfg, lead, 'Lead');
-          if (r.ok) sent++; else failed++;
-        } catch (e) {
+          if (r.ok) {
+            sent++;
+          } else {
+            failed++;
+            if (errors.length < 5) {
+              const msg = r.meta?.error?.message || r.meta?.error?.error_user_msg || JSON.stringify(r.meta).slice(0, 200);
+              errors.push({ lead_id: lead.id, status: r.status, message: msg });
+            }
+          }
+        } catch (e: any) {
           console.error('backfill lead error', lead.id, e);
           failed++;
+          if (errors.length < 5) {
+            errors.push({ lead_id: lead.id, status: 0, message: e?.message || String(e) });
+          }
         }
       }
-      return new Response(JSON.stringify({ ok: true, sent, skipped, failed, total: (leads || []).length }), {
+      return new Response(JSON.stringify({ ok: true, sent, skipped, failed, total: (leads || []).length, errors }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }

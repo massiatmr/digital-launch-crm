@@ -7,13 +7,14 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-function generateHourlySlots(startTime: string, endTime: string, durationMin: number): string[] {
+function generateHourlySlots(startTime: string, endTime: string, durationMin: number, stepMin: number = 60): string[] {
   const [sh, sm] = startTime.split(":").map(Number);
   const [eh, em] = endTime.split(":").map(Number);
   const startMin = sh * 60 + sm;
   const endMin = eh * 60 + em;
   const out: string[] = [];
-  for (let t = startMin; t + durationMin <= endMin; t += 60) {
+  const step = stepMin > 0 ? stepMin : 60;
+  for (let t = startMin; t + durationMin <= endMin; t += step) {
     out.push(`${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`);
   }
   return out;
@@ -126,14 +127,14 @@ Deno.serve(async (req) => {
     if (workspace_id) {
       const { data } = await supabase
         .from("availability_settings")
-        .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
+        .select("working_days, day_start_time, day_end_time, slot_duration_minutes, slot_interval_minutes, max_future_days, min_lead_time_hours, timezone, day_hours")
         .eq("workspace_id", workspace_id)
         .maybeSingle();
       avail = data;
     } else {
       const { data } = await supabase
         .from("availability_settings")
-        .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
+        .select("working_days, day_start_time, day_end_time, slot_duration_minutes, slot_interval_minutes, max_future_days, min_lead_time_hours, timezone, day_hours")
         .eq("owner_id", owner_id)
         .is("workspace_id", null)
         .maybeSingle();
@@ -146,6 +147,7 @@ Deno.serve(async (req) => {
     const defaultEnd: string = avail?.day_end_time ?? "15:00";
     const dayHours: Record<string, { start?: string; end?: string }> = (avail?.day_hours as any) ?? {};
     const slotDurationMin: number = avail?.slot_duration_minutes ?? 45;
+    const slotIntervalMin: number = avail?.slot_interval_minutes ?? 60;
     const maxFutureDays: number = avail?.max_future_days ?? 14;
     const minLeadHours: number = avail?.min_lead_time_hours ?? 2;
     const meetingDurationMs = slotDurationMin * 60 * 1000;
@@ -185,7 +187,7 @@ Deno.serve(async (req) => {
     const dayOverride = dayHours?.[String(dow)] ?? {};
     const dayStart = (dayOverride.start && /^\d{2}:\d{2}$/.test(dayOverride.start)) ? dayOverride.start : defaultStart;
     const dayEnd = (dayOverride.end && /^\d{2}:\d{2}$/.test(dayOverride.end)) ? dayOverride.end : defaultEnd;
-    const ownerSlots = generateHourlySlots(dayStart, dayEnd, slotDurationMin).filter((slot) => {
+    const ownerSlots = generateHourlySlots(dayStart, dayEnd, slotDurationMin, slotIntervalMin).filter((slot) => {
       return zonedDateTimeToUtc(date, slot, ownerTimeZone).getTime() >= minStartMs;
     });
     const timeMin = zonedDateTimeToUtc(date, "00:00", ownerTimeZone).toISOString();

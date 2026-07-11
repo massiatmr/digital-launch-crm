@@ -13,13 +13,14 @@ function addDays(d: string, n: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
-function generateHourlySlots(startTime: string, endTime: string, durationMin: number): string[] {
+function generateHourlySlots(startTime: string, endTime: string, durationMin: number, stepMin: number = 60): string[] {
   const [sh, sm] = startTime.split(":").map(Number);
   const [eh, em] = endTime.split(":").map(Number);
   const startMin = sh * 60 + sm;
   const endMin = eh * 60 + em;
   const out: string[] = [];
-  for (let t = startMin; t + durationMin <= endMin; t += 60) {
+  const step = stepMin > 0 ? stepMin : 60;
+  for (let t = startMin; t + durationMin <= endMin; t += step) {
     out.push(`${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`);
   }
   return out;
@@ -126,12 +127,12 @@ Deno.serve(async (req) => {
     let avail: any = null;
     if (workspaceId) {
       const { data } = await admin.from("availability_settings")
-        .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
+        .select("working_days, day_start_time, day_end_time, slot_duration_minutes, slot_interval_minutes, max_future_days, min_lead_time_hours, timezone")
         .eq("workspace_id", workspaceId).maybeSingle();
       avail = data;
     } else {
       const { data } = await admin.from("availability_settings")
-        .select("working_days, day_start_time, day_end_time, slot_duration_minutes, max_future_days, min_lead_time_hours, timezone")
+        .select("working_days, day_start_time, day_end_time, slot_duration_minutes, slot_interval_minutes, max_future_days, min_lead_time_hours, timezone")
         .eq("owner_id", ownerId).is("workspace_id", null).maybeSingle();
       avail = data;
     }
@@ -140,11 +141,12 @@ Deno.serve(async (req) => {
     const dayStart: string = avail?.day_start_time ?? "11:00";
     const dayEnd: string = avail?.day_end_time ?? "15:00";
     const slotDurationMin: number = avail?.slot_duration_minutes ?? 45;
+    const slotIntervalMin: number = avail?.slot_interval_minutes ?? 60;
     const maxFutureDays: number = avail?.max_future_days ?? 14;
     const minLeadHours: number = avail?.min_lead_time_hours ?? 2;
     const slotDurationMs = slotDurationMin * 60 * 1000;
     const minLeadMs = minLeadHours * 60 * 60 * 1000;
-    const baseSlots = generateHourlySlots(dayStart, dayEnd, slotDurationMin);
+    const baseSlots = generateHourlySlots(dayStart, dayEnd, slotDurationMin, slotIntervalMin);
 
     const dateTo = addDays(date_from, 6);
     const today = formatDateInTimeZone(new Date(), ownerTimeZone);
