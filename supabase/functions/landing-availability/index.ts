@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
       const dStart = (dayOverride.start && /^\d{2}:\d{2}$/.test(dayOverride.start)) ? dayOverride.start : defStart;
       const dEnd = (dayOverride.end && /^\d{2}:\d{2}$/.test(dayOverride.end)) ? dayOverride.end : defEnd;
 
-      const candidates = generateHourlySlots(dStart, dEnd, slotMin)
+      const candidates = generateHourlySlots(dStart, dEnd, slotMin, slotIntervalMin)
         .filter((slot) => zonedToUtc(date, slot, tz).getTime() >= minStartMs);
 
       const takenSet = takenByDate.get(date) ?? new Set<string>();
