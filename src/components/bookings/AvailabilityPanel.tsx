@@ -298,7 +298,7 @@ export function AvailabilityPanel() {
                 </Badge>
               ))}
               <span className="text-[10px] text-muted-foreground self-center ml-1">
-                · {duration} min · jusqu'à {maxDays}j
+                · durée {duration} min · toutes les {interval} min · jusqu'à {maxDays}j
               </span>
             </div>
           )}
