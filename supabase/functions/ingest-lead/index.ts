@@ -183,7 +183,16 @@ Deno.serve(async (req) => {
       : '';
 
     // ---- UTM / tracking block ----
-    const utm = body.utm || {};
+    const utm: Record<string, any> = { ...(body.utm || {}) };
+    // Parse UTMs from page_url as a fallback (landings often forget to forward them)
+    if (body.page_url) {
+      try {
+        const u = new URL(String(body.page_url));
+        for (const k of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'utm_id']) {
+          if (!utm[k] && u.searchParams.get(k)) utm[k] = u.searchParams.get(k);
+        }
+      } catch { /* ignore */ }
+    }
     const trackingLines: string[] = [];
     if (sourceLabel) trackingLines.push(`Site: ${sourceLabel}`);
     for (const k of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term']) {
@@ -208,6 +217,41 @@ Deno.serve(async (req) => {
     if (clientUserAgent) attributionMeta.client_user_agent = clientUserAgent;
     if (clientIp) attributionMeta.client_ip_address = clientIp;
 
+    // ---- Resolve Meta campaign attribution from landing signals ----
+    // Priority: explicit body fields > utm_id (numeric) > utm_campaign name lookup in cache
+    const isNumericId = (v: any) => typeof v === 'string' && /^\d{6,}$/.test(v.trim());
+    let metaCampaignId: string | null = null;
+    let metaAdsetId: string | null = null;
+    let metaAdId: string | null = null;
+
+    const explicitCampaign = String(body.meta_campaign_id || '').trim();
+    const explicitAdset = String(body.meta_adset_id || '').trim();
+    const explicitAd = String(body.meta_ad_id || '').trim();
+    if (isNumericId(explicitCampaign)) metaCampaignId = explicitCampaign;
+    if (isNumericId(explicitAdset)) metaAdsetId = explicitAdset;
+    if (isNumericId(explicitAd)) metaAdId = explicitAd;
+
+    const utmId = String((utm as any)?.utm_id ?? body.utm_id ?? '').trim();
+    if (!metaCampaignId && isNumericId(utmId)) metaCampaignId = utmId;
+
+    if (!metaCampaignId) {
+      const utmCampaign = String((utm as any)?.utm_campaign ?? body.utm_campaign ?? '').trim();
+      if (utmCampaign) {
+        if (isNumericId(utmCampaign)) {
+          metaCampaignId = utmCampaign;
+        } else {
+          const { data: byName } = await supabase
+            .from('meta_campaigns_cache')
+            .select('campaign_id')
+            .eq('workspace_id', keyRow.workspace_id)
+            .ilike('campaign_name', utmCampaign)
+            .limit(1)
+            .maybeSingle();
+          if (byName?.campaign_id) metaCampaignId = byName.campaign_id;
+        }
+      }
+    }
+
     const leadPayload: Record<string, any> = {
       name: name || email || phone,
       email,
@@ -223,6 +267,9 @@ Deno.serve(async (req) => {
       metadata: attributionMeta,
     };
     if (offerId) leadPayload.offer_id = offerId;
+    if (metaCampaignId) leadPayload.meta_campaign_id = metaCampaignId;
+    if (metaAdsetId) leadPayload.meta_adset_id = metaAdsetId;
+    if (metaAdId) leadPayload.meta_ad_id = metaAdId;
 
 
     // ---- Dédup : email exact, puis téléphone (9 derniers chiffres), puis nom récent (24h) ----
@@ -280,7 +327,7 @@ Deno.serve(async (req) => {
 
       const { data: cur } = await supabase
         .from('leads')
-        .select('email, phone, company_name, offer_id, message, notes, metadata')
+        .select('email, phone, company_name, offer_id, message, notes, metadata, meta_campaign_id, meta_adset_id, meta_ad_id')
         .eq('id', existingLeadId)
         .maybeSingle();
 
@@ -288,6 +335,9 @@ Deno.serve(async (req) => {
       if (phone && !cur?.phone) enrich.phone = phone;
       if (companyName && !cur?.company_name) enrich.company_name = companyName;
       if (offerId && !cur?.offer_id) enrich.offer_id = offerId;
+      if (metaCampaignId && !cur?.meta_campaign_id) enrich.meta_campaign_id = metaCampaignId;
+      if (metaAdsetId && !cur?.meta_adset_id) enrich.meta_adset_id = metaAdsetId;
+      if (metaAdId && !cur?.meta_ad_id) enrich.meta_ad_id = metaAdId;
 
       // Fusionne les signaux Meta reçus dans metadata, sans écraser les valeurs déjà présentes.
       const curMeta = (cur?.metadata || {}) as Record<string, any>;
