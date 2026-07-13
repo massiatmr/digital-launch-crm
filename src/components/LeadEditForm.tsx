@@ -240,6 +240,17 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
             </SelectContent>
           </Select>
         </div>
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label>Campagne Meta (attribution funnel)</Label>
+          <Select value={form.meta_campaign_id} onValueChange={v => update('meta_campaign_id', v)}>
+            <SelectTrigger className="h-11 text-base sm:h-10 sm:text-sm"><SelectValue placeholder="Aucune campagne" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Aucune campagne</SelectItem>
+              {campaigns.map(c => <SelectItem key={c.campaign_id} value={c.campaign_id}>{c.campaign_name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <p className="text-[10px] text-muted-foreground">Lie ce lead à une campagne Meta pour l'inclure dans les stats coût par étape du dashboard.</p>
+        </div>
       </div>
 
       <div className="space-y-1.5">
