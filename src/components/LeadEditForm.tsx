@@ -117,7 +117,12 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
       return;
     }
     try {
-      const payload: any = { id: lead.id, ...form, offer_id: form.offer_id === 'none' ? null : form.offer_id };
+      const payload: any = {
+        id: lead.id,
+        ...form,
+        offer_id: form.offer_id === 'none' ? null : form.offer_id,
+        meta_campaign_id: form.meta_campaign_id === 'none' ? null : form.meta_campaign_id,
+      };
       await updateLead.mutateAsync(payload);
       toast.success('Lead mis à jour !');
       onClose?.();
