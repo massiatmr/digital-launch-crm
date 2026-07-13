@@ -183,7 +183,16 @@ Deno.serve(async (req) => {
       : '';
 
     // ---- UTM / tracking block ----
-    const utm = body.utm || {};
+    const utm: Record<string, any> = { ...(body.utm || {}) };
+    // Parse UTMs from page_url as a fallback (landings often forget to forward them)
+    if (body.page_url) {
+      try {
+        const u = new URL(String(body.page_url));
+        for (const k of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'utm_id']) {
+          if (!utm[k] && u.searchParams.get(k)) utm[k] = u.searchParams.get(k);
+        }
+      } catch { /* ignore */ }
+    }
     const trackingLines: string[] = [];
     if (sourceLabel) trackingLines.push(`Site: ${sourceLabel}`);
     for (const k of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term']) {
