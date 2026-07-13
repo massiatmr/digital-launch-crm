@@ -208,6 +208,41 @@ Deno.serve(async (req) => {
     if (clientUserAgent) attributionMeta.client_user_agent = clientUserAgent;
     if (clientIp) attributionMeta.client_ip_address = clientIp;
 
+    // ---- Resolve Meta campaign attribution from landing signals ----
+    // Priority: explicit body fields > utm_id (numeric) > utm_campaign name lookup in cache
+    const isNumericId = (v: any) => typeof v === 'string' && /^\d{6,}$/.test(v.trim());
+    let metaCampaignId: string | null = null;
+    let metaAdsetId: string | null = null;
+    let metaAdId: string | null = null;
+
+    const explicitCampaign = String(body.meta_campaign_id || '').trim();
+    const explicitAdset = String(body.meta_adset_id || '').trim();
+    const explicitAd = String(body.meta_ad_id || '').trim();
+    if (isNumericId(explicitCampaign)) metaCampaignId = explicitCampaign;
+    if (isNumericId(explicitAdset)) metaAdsetId = explicitAdset;
+    if (isNumericId(explicitAd)) metaAdId = explicitAd;
+
+    const utmId = String((utm as any)?.utm_id ?? body.utm_id ?? '').trim();
+    if (!metaCampaignId && isNumericId(utmId)) metaCampaignId = utmId;
+
+    if (!metaCampaignId) {
+      const utmCampaign = String((utm as any)?.utm_campaign ?? body.utm_campaign ?? '').trim();
+      if (utmCampaign) {
+        if (isNumericId(utmCampaign)) {
+          metaCampaignId = utmCampaign;
+        } else {
+          const { data: byName } = await supabase
+            .from('meta_campaigns_cache')
+            .select('campaign_id')
+            .eq('workspace_id', keyRow.workspace_id)
+            .ilike('campaign_name', utmCampaign)
+            .limit(1)
+            .maybeSingle();
+          if (byName?.campaign_id) metaCampaignId = byName.campaign_id;
+        }
+      }
+    }
+
     const leadPayload: Record<string, any> = {
       name: name || email || phone,
       email,
@@ -223,6 +258,9 @@ Deno.serve(async (req) => {
       metadata: attributionMeta,
     };
     if (offerId) leadPayload.offer_id = offerId;
+    if (metaCampaignId) leadPayload.meta_campaign_id = metaCampaignId;
+    if (metaAdsetId) leadPayload.meta_adset_id = metaAdsetId;
+    if (metaAdId) leadPayload.meta_ad_id = metaAdId;
 
 
     // ---- Dédup : email exact, puis téléphone (9 derniers chiffres), puis nom récent (24h) ----
