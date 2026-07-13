@@ -1816,6 +1816,7 @@ export type Database = {
           meta_campaign_id: string | null
           meta_form_id: string | null
           meta_page_id: string | null
+          metadata: Json
           name: string
           next_action: string | null
           next_action_date: string | null
@@ -1848,6 +1849,7 @@ export type Database = {
           meta_campaign_id?: string | null
           meta_form_id?: string | null
           meta_page_id?: string | null
+          metadata?: Json
           name: string
           next_action?: string | null
           next_action_date?: string | null
@@ -1880,6 +1882,7 @@ export type Database = {
           meta_campaign_id?: string | null
           meta_form_id?: string | null
           meta_page_id?: string | null
+          metadata?: Json
           name?: string
           next_action?: string | null
           next_action_date?: string | null
