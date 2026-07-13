@@ -318,7 +318,7 @@ Deno.serve(async (req) => {
 
       const { data: cur } = await supabase
         .from('leads')
-        .select('email, phone, company_name, offer_id, message, notes, metadata')
+        .select('email, phone, company_name, offer_id, message, notes, metadata, meta_campaign_id, meta_adset_id, meta_ad_id')
         .eq('id', existingLeadId)
         .maybeSingle();
 
@@ -326,6 +326,9 @@ Deno.serve(async (req) => {
       if (phone && !cur?.phone) enrich.phone = phone;
       if (companyName && !cur?.company_name) enrich.company_name = companyName;
       if (offerId && !cur?.offer_id) enrich.offer_id = offerId;
+      if (metaCampaignId && !cur?.meta_campaign_id) enrich.meta_campaign_id = metaCampaignId;
+      if (metaAdsetId && !cur?.meta_adset_id) enrich.meta_adset_id = metaAdsetId;
+      if (metaAdId && !cur?.meta_ad_id) enrich.meta_ad_id = metaAdId;
 
       // Fusionne les signaux Meta reçus dans metadata, sans écraser les valeurs déjà présentes.
       const curMeta = (cur?.metadata || {}) as Record<string, any>;
