@@ -346,7 +346,12 @@ Deno.serve(async (req) => {
 
       if (insertErr) {
         console.error('insert lead error', insertErr);
-        return new Response(JSON.stringify({ error: 'insert_failed' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({
+          error: 'insert_failed',
+          code: (insertErr as any).code,
+          details: insertErr.message,
+          hint: (insertErr as any).hint,
+        }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       lead = created;
     }
