@@ -204,6 +204,7 @@ export function useUpdateLead() {
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['leads', vars.id] });
+      queryClient.invalidateQueries({ queryKey: ['meta-campaigns'] });
     },
   });
 }

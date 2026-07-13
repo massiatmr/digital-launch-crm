@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { DbLead, useUpdateLead } from '@/hooks/useLeadData';
 import { useOffers } from '@/hooks/useOfferData';
+import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -59,6 +60,7 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
   const updateLead = useUpdateLead();
   const { data: offers = [] } = useOffers();
   const [showLostDialog, setShowLostDialog] = useState(false);
+  const [campaigns, setCampaigns] = useState<{ campaign_id: string; campaign_name: string }[]>([]);
   const [form, setForm] = useState({
     name: lead.name,
     email: lead.email || '',
@@ -73,7 +75,24 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
     created_at: lead.created_at,
     lost_reason: lead.lost_reason || '',
     offer_id: lead.offer_id || 'none',
+    meta_campaign_id: (lead as any).meta_campaign_id || 'none',
   });
+
+  useEffect(() => {
+    (async () => {
+      let q = supabase.from('meta_campaigns_cache').select('campaign_id, campaign_name').order('campaign_name');
+      if ((lead as any).workspace_id) q = q.eq('workspace_id', (lead as any).workspace_id);
+      const { data } = await q;
+      // dedupe by campaign_id (cache can hold multiple rows per campaign across ad accounts)
+      const seen = new Set<string>();
+      const uniq = (data || []).filter((r: any) => {
+        if (seen.has(r.campaign_id)) return false;
+        seen.add(r.campaign_id);
+        return true;
+      });
+      setCampaigns(uniq as any);
+    })();
+  }, [lead]);
 
   const update = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
 
@@ -98,7 +117,12 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
       return;
     }
     try {
-      const payload: any = { id: lead.id, ...form, offer_id: form.offer_id === 'none' ? null : form.offer_id };
+      const payload: any = {
+        id: lead.id,
+        ...form,
+        offer_id: form.offer_id === 'none' ? null : form.offer_id,
+        meta_campaign_id: form.meta_campaign_id === 'none' ? null : form.meta_campaign_id,
+      };
       await updateLead.mutateAsync(payload);
       toast.success('Lead mis à jour !');
       onClose?.();
@@ -215,6 +239,17 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
               {showStatuses.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
             </SelectContent>
           </Select>
+        </div>
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label>Campagne Meta (attribution funnel)</Label>
+          <Select value={form.meta_campaign_id} onValueChange={v => update('meta_campaign_id', v)}>
+            <SelectTrigger className="h-11 text-base sm:h-10 sm:text-sm"><SelectValue placeholder="Aucune campagne" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Aucune campagne</SelectItem>
+              {campaigns.map(c => <SelectItem key={c.campaign_id} value={c.campaign_id}>{c.campaign_name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <p className="text-[10px] text-muted-foreground">Lie ce lead à une campagne Meta pour l'inclure dans les stats coût par étape du dashboard.</p>
         </div>
       </div>
 
