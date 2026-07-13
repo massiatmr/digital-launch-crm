@@ -133,8 +133,8 @@ Deno.serve(async (req) => {
         Deno.env.get('SUPABASE_ANON_KEY')!,
         { global: { headers: { Authorization: `Bearer ${auth}` } } },
       );
-      const { data: claims } = await supa.auth.getClaims(auth);
-      if (claims?.claims?.sub) authorized = true;
+      const { data: userData } = await supa.auth.getUser(auth);
+      if (userData?.user?.id) authorized = true;
     } catch { /* ignore */ }
   }
   if (!authorized) {
