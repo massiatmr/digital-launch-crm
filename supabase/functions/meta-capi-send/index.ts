@@ -55,7 +55,7 @@ async function sendEventForLead(
     hashIfPresent(normalizePhone(lead.phone)),
     hashIfPresent(normalizeName((lead.name || '').split(' ')[0] || null)),
     hashIfPresent(normalizeName((lead.name || '').split(' ').slice(1).join(' ') || null)),
-    hashIfPresent(normalizeName(lead.city || null)),
+    Promise.resolve(undefined),
   ]);
 
   const user_data: Record<string, any> = {};
