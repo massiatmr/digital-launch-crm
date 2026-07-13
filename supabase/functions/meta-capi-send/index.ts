@@ -186,7 +186,7 @@ Deno.serve(async (req) => {
 
       const { data: leads, error: leadsErr } = await admin
         .from('leads')
-        .select('id, name, email, phone, city, metadata, created_at')
+        .select('id, name, email, phone, metadata, created_at')
         .eq('workspace_id', workspace_id)
         .gte('created_at', since)
         .is('deleted_at', null)
