@@ -60,6 +60,7 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
   const updateLead = useUpdateLead();
   const { data: offers = [] } = useOffers();
   const [showLostDialog, setShowLostDialog] = useState(false);
+  const [campaigns, setCampaigns] = useState<{ campaign_id: string; campaign_name: string }[]>([]);
   const [form, setForm] = useState({
     name: lead.name,
     email: lead.email || '',
@@ -74,7 +75,24 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
     created_at: lead.created_at,
     lost_reason: lead.lost_reason || '',
     offer_id: lead.offer_id || 'none',
+    meta_campaign_id: (lead as any).meta_campaign_id || 'none',
   });
+
+  useEffect(() => {
+    (async () => {
+      let q = supabase.from('meta_campaigns_cache').select('campaign_id, campaign_name').order('campaign_name');
+      if ((lead as any).workspace_id) q = q.eq('workspace_id', (lead as any).workspace_id);
+      const { data } = await q;
+      // dedupe by campaign_id (cache can hold multiple rows per campaign across ad accounts)
+      const seen = new Set<string>();
+      const uniq = (data || []).filter((r: any) => {
+        if (seen.has(r.campaign_id)) return false;
+        seen.add(r.campaign_id);
+        return true;
+      });
+      setCampaigns(uniq as any);
+    })();
+  }, [lead]);
 
   const update = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
 
