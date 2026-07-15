@@ -19,6 +19,7 @@ export const BOOKING_WA_TYPES: { type: BookingEmailType; label: string; descript
   { type: "24h_before", label: "24h avant", description: "1 jour avant le RDV" },
   { type: "12h_before", label: "12h avant", description: "12 heures avant" },
   { type: "1h_before", label: "1h avant", description: "1 heure avant" },
+  { type: "5min_before", label: "5 min avant", description: "Dernier rappel avec le lien Meet" },
 ];
 
 export function useWorkspaceBookingWaTemplates(workspaceId: string | null) {
