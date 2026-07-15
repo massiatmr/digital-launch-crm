@@ -3663,6 +3663,7 @@ export type Database = {
         | "24h_before"
         | "12h_before"
         | "1h_before"
+        | "5min_before"
       booking_status: "pending" | "confirmed" | "cancelled" | "completed"
       calendar_provider: "google" | "microsoft" | "caldav" | "ical"
       campaign_recipient_status:
@@ -3889,6 +3890,7 @@ export const Constants = {
         "24h_before",
         "12h_before",
         "1h_before",
+        "5min_before",
       ],
       booking_status: ["pending", "confirmed", "cancelled", "completed"],
       calendar_provider: ["google", "microsoft", "caldav", "ical"],
