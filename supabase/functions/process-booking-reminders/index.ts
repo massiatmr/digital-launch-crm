@@ -10,7 +10,7 @@ const corsHeaders = {
 const ADMIN_NOTIFY_EMAIL = "contact@digitallaunch-llc.com";
 const APP_BASE_URL = "https://digital-launch-crm.lovable.app";
 
-type BookingEmailType = "confirmation" | "24h_before" | "12h_before" | "1h_before";
+type BookingEmailType = "confirmation" | "24h_before" | "12h_before" | "1h_before" | "5min_before";
 
 const DEFAULT_TEMPLATES: Record<BookingEmailType, { subject: string; body_html: string }> = {
   confirmation: {
@@ -28,6 +28,10 @@ const DEFAULT_TEMPLATES: Record<BookingEmailType, { subject: string; body_html: 
   "1h_before": {
     subject: "🚀 RDV dans 1h — {{time}}",
     body_html: `<p>Bonjour {{name}},</p><p>On se retrouve dans <strong>1h, à {{time}}</strong>.</p><p>Installez-vous au calme, prenez de quoi noter, et on fait le point ensemble sur ce qui compte vraiment pour vous.</p><p>{{meet_block}}</p><p>À tout de suite,</p>`,
+  },
+  "5min_before": {
+    subject: "🔔 On se retrouve dans 5 min — {{time}}",
+    body_html: `<p>Bonjour {{name}},</p><p>C'est le moment : on se retrouve dans <strong>5 minutes</strong> pour notre échange de {{time}}.</p><p>{{meet_block}}</p><p>Si le lien ne fonctionne pas, réponds à cet email et je te recontacte immédiatement.</p><p>À tout de suite,</p>`,
   },
 };
 
