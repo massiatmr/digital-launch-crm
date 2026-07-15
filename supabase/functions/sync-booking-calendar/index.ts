@@ -135,6 +135,7 @@ Deno.serve(async (req) => {
         "24h_before": 24 * 60 * 60 * 1000,
         "12h_before": 12 * 60 * 60 * 1000,
         "1h_before": 1 * 60 * 60 * 1000,
+        "5min_before": 5 * 60 * 1000,
       };
       // Fetch pending reminders and reschedule per type.
       const { data: pendingEmails } = await supabase
