@@ -118,12 +118,16 @@ Deno.serve(async (req) => {
         .update({ status: "skipped", error_message: "booking cancelled", sent_at: nowIso } as any)
         .eq("booking_id", booking.id)
         .eq("status", "pending");
-      // Cancel local reminders too (owner nudges)
-      await supabase
-        .from("reminders")
-        .update({ done: true } as any)
-        .eq("lead_id", (booking as any).lead_id ?? "00000000-0000-0000-0000-000000000000")
-        .eq("done", false);
+      // Cancel owner nudge reminders (RDV Xh avant …) still pending for this lead.
+      if ((booking as any).lead_id) {
+        await supabase
+          .from("reminders")
+          .update({ done: true } as any)
+          .eq("lead_id", (booking as any).lead_id)
+          .eq("done", false)
+          .gte("due_date", nowIso)
+          .ilike("action", "RDV %");
+      }
     } else if (action === "update") {
       const bookingDateTime = localToUtc(booking.booking_date, booking.time_slot, calendarTimeZone);
       const offsetsMs: Record<string, number | null> = {
