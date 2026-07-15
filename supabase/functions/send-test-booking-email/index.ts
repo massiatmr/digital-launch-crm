@@ -34,6 +34,12 @@ const DEFAULT_TEMPLATES: Record<string, { subject: string; body_html: string }> 
 <p>{{meet_block}}</p>
 <p>À tout de suite !</p>`,
   },
+  "5min_before": {
+    subject: "🔔 On se retrouve dans 5 min — {{time}}",
+    body_html: `<p>Bonjour {{name}},</p>
+<p>C'est le moment : on se retrouve dans <strong>5 minutes</strong>.</p>
+<p>{{meet_block}}</p>`,
+  },
 };
 
 function render(tpl: string, vars: Record<string, string>): string {

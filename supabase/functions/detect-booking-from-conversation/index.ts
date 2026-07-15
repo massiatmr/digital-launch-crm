@@ -410,6 +410,7 @@ ${transcript}`;
         { type: "24h_before", scheduled_at: new Date(bookingDateTime.getTime() - 24 * 3600 * 1000).toISOString() },
         { type: "12h_before", scheduled_at: new Date(bookingDateTime.getTime() - 12 * 3600 * 1000).toISOString() },
         { type: "1h_before", scheduled_at: new Date(bookingDateTime.getTime() - 1 * 3600 * 1000).toISOString() },
+        { type: "5min_before", scheduled_at: new Date(bookingDateTime.getTime() - 5 * 60 * 1000).toISOString() },
       ];
 
       // Send confirmation email to the prospect via SMTP (transactional gateway blocked by DNS)

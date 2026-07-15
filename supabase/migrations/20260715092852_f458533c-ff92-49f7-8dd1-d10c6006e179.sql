@@ -1,0 +1,1 @@
+ALTER TYPE public.booking_email_type ADD VALUE IF NOT EXISTS '5min_before';

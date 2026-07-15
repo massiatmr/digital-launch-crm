@@ -54,7 +54,7 @@ export type DbBooking = {
 export type DbBookingEmail = {
   id: string;
   booking_id: string;
-  type: 'confirmation' | '24h_before' | '12h_before' | '1h_before';
+  type: 'confirmation' | '24h_before' | '12h_before' | '1h_before' | '5min_before';
   scheduled_at: string;
   sent_at: string | null;
   status: string;

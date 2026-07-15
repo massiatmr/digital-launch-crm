@@ -233,13 +233,14 @@ Deno.serve(async (req) => {
     );
 
     const emailSchedules: Array<{
-      type: "confirmation" | "24h_before" | "12h_before" | "1h_before";
+      type: "confirmation" | "24h_before" | "12h_before" | "1h_before" | "5min_before";
       scheduled_at: string;
     }> = [
       { type: "confirmation", scheduled_at: new Date().toISOString() },
       { type: "24h_before", scheduled_at: new Date(bookingDateTime.getTime() - 24 * 60 * 60 * 1000).toISOString() },
       { type: "12h_before", scheduled_at: new Date(bookingDateTime.getTime() - 12 * 60 * 60 * 1000).toISOString() },
       { type: "1h_before", scheduled_at: new Date(bookingDateTime.getTime() - 1 * 60 * 60 * 1000).toISOString() },
+      { type: "5min_before", scheduled_at: new Date(bookingDateTime.getTime() - 5 * 60 * 1000).toISOString() },
     ];
 
     // Charge les overrides offre + workspace pour respecter les toggles enabled

@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-export type BookingEmailType = "confirmation" | "24h_before" | "12h_before" | "1h_before";
+export type BookingEmailType = "confirmation" | "24h_before" | "12h_before" | "1h_before" | "5min_before";
 
 export interface OfferBookingEmailTemplate {
   id: string;
@@ -30,6 +30,7 @@ export const BOOKING_EMAIL_TYPES: { type: BookingEmailType; label: string; descr
   { type: "24h_before", label: "Rappel 24h avant", description: "Envoyé 24 heures avant le RDV" },
   { type: "12h_before", label: "Rappel 12h avant", description: "Envoyé 12 heures avant le RDV" },
   { type: "1h_before", label: "Rappel 1h avant", description: "Envoyé 1 heure avant le RDV" },
+  { type: "5min_before", label: "Rappel 5 min avant", description: "Dernier rappel avec le lien Meet" },
 ];
 
 export const DEFAULT_TEMPLATES: Record<BookingEmailType, { subject: string; body_html: string }> = {
@@ -64,6 +65,14 @@ export const DEFAULT_TEMPLATES: Record<BookingEmailType, { subject: string; body
 <p>On se retrouve dans <strong>1h, à {{time}}</strong>.</p>
 <p>Installez-vous au calme, prenez de quoi noter, et on fait le point ensemble sur ce qui compte vraiment pour vous.</p>
 <p>{{meet_block}}</p>
+<p>À tout de suite,</p>`,
+  },
+  "5min_before": {
+    subject: "🔔 On se retrouve dans 5 min — {{time}}",
+    body_html: `<p>Bonjour {{name}},</p>
+<p>C'est le moment : on se retrouve dans <strong>5 minutes</strong> pour notre échange de {{time}}.</p>
+<p>{{meet_block}}</p>
+<p>Si le lien ne fonctionne pas, réponds à cet email et je te recontacte immédiatement.</p>
 <p>À tout de suite,</p>`,
   },
 };
