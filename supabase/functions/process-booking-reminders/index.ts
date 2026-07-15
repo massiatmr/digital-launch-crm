@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
       .from("booking_emails")
       .select("id, booking_id, type")
       .eq("status", "pending")
-      .in("type", ["24h_before", "12h_before", "1h_before"])
+      .in("type", ["24h_before", "12h_before", "1h_before", "5min_before"])
       .lte("scheduled_at", nowIso)
       .gte("scheduled_at", sixHoursAgoIso)
       .limit(50);
