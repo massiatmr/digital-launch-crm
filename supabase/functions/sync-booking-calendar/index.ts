@@ -15,6 +15,20 @@ function addMinutesToTimeSlot(timeSlot: string, minutesToAdd: number): string {
   return `${String(nh).padStart(2, "0")}:${String(nm).padStart(2, "0")}`;
 }
 
+// Compute UTC Date for a local (booking_date + time_slot) in a given IANA tz.
+function localToUtc(dateStr: string, timeSlot: string, timeZone: string): Date {
+  const [hh, mm] = timeSlot.split(":").map(Number);
+  const probe = new Date(`${dateStr}T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00Z`);
+  const tzHour = Number(
+    new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric", hour12: false }).format(probe),
+  );
+  const utcHour = probe.getUTCHours();
+  let diff = tzHour - utcHour;
+  if (diff > 12) diff -= 24;
+  if (diff < -12) diff += 24;
+  return new Date(`${dateStr}T${String(hh - diff).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00Z`);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -51,7 +65,7 @@ Deno.serve(async (req) => {
 
     const { data: booking, error: bErr } = await supabase
       .from("bookings")
-      .select("id, owner_id, workspace_id, name, email, booking_date, time_slot, google_event_id, offer_id, offers(name)")
+      .select("id, owner_id, workspace_id, lead_id, name, email, booking_date, time_slot, google_event_id, offer_id, offers(name)")
       .eq("id", booking_id)
       .maybeSingle();
 
@@ -77,31 +91,94 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Availability settings (timezone/duration) — used for both GCal sync and reminder reschedule.
+    let calendarTimeZone = "Europe/Paris";
+    let durationMinutes = 60;
+    if (booking.workspace_id) {
+      const { data: availability } = await supabase
+        .from("availability_settings")
+        .select("timezone, slot_duration_minutes")
+        .eq("workspace_id", booking.workspace_id)
+        .maybeSingle();
+      calendarTimeZone = availability?.timezone || "Europe/Paris";
+      durationMinutes = availability?.slot_duration_minutes || 60;
+    }
+
+    // === 1. Reminders sync (booking_emails + booking_wa_reminders) ===
+    // Only affect rows still pending — never touch already-sent messages.
+    if (action === "cancel") {
+      const nowIso = new Date().toISOString();
+      await supabase
+        .from("booking_emails")
+        .update({ status: "skipped", sent_at: nowIso } as any)
+        .eq("booking_id", booking.id)
+        .eq("status", "pending");
+      await supabase
+        .from("booking_wa_reminders")
+        .update({ status: "skipped", error_message: "booking cancelled", sent_at: nowIso } as any)
+        .eq("booking_id", booking.id)
+        .eq("status", "pending");
+      // Cancel owner nudge reminders (RDV Xh avant …) still pending for this lead.
+      if ((booking as any).lead_id) {
+        await supabase
+          .from("reminders")
+          .update({ done: true } as any)
+          .eq("lead_id", (booking as any).lead_id)
+          .eq("done", false)
+          .gte("due_date", nowIso)
+          .ilike("action", "RDV %");
+      }
+    } else if (action === "update") {
+      const bookingDateTime = localToUtc(booking.booking_date, booking.time_slot, calendarTimeZone);
+      const offsetsMs: Record<string, number | null> = {
+        confirmation: null, // do not reschedule confirmation email
+        "24h_before": 24 * 60 * 60 * 1000,
+        "12h_before": 12 * 60 * 60 * 1000,
+        "1h_before": 1 * 60 * 60 * 1000,
+      };
+      // Fetch pending reminders and reschedule per type.
+      const { data: pendingEmails } = await supabase
+        .from("booking_emails")
+        .select("id, type")
+        .eq("booking_id", booking.id)
+        .eq("status", "pending");
+      for (const row of pendingEmails || []) {
+        const off = offsetsMs[(row as any).type];
+        if (off == null) continue;
+        const newAt = new Date(bookingDateTime.getTime() - off).toISOString();
+        await supabase.from("booking_emails").update({ scheduled_at: newAt } as any).eq("id", (row as any).id);
+      }
+      const { data: pendingWa } = await supabase
+        .from("booking_wa_reminders")
+        .select("id, type")
+        .eq("booking_id", booking.id)
+        .eq("status", "pending");
+      for (const row of pendingWa || []) {
+        const off = offsetsMs[(row as any).type];
+        if (off == null) continue;
+        const newAt = new Date(bookingDateTime.getTime() - off).toISOString();
+        await supabase.from("booking_wa_reminders").update({ scheduled_at: newAt } as any).eq("id", (row as any).id);
+      }
+    }
+
+    // === 2. Google Calendar sync ===
     if (!booking.google_event_id) {
-      return new Response(JSON.stringify({ ok: true, skipped: "no_event" }), {
+      return new Response(JSON.stringify({ ok: true, skipped: "no_event", action }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
     if (!booking.workspace_id) {
-      return new Response(JSON.stringify({ ok: false, error: "No workspace calendar" }), {
+      return new Response(JSON.stringify({ ok: true, skipped: "no_workspace_calendar", action }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     const primary = await getPrimaryAccount(booking.workspace_id);
     if (!primary) {
-      return new Response(JSON.stringify({ ok: false, error: "No primary calendar account" }), {
+      return new Response(JSON.stringify({ ok: true, skipped: "no_primary_calendar", action }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     const adapter = adapterFor(primary.provider);
-    const { data: availability } = await supabase
-      .from("availability_settings")
-      .select("timezone, slot_duration_minutes")
-      .eq("workspace_id", booking.workspace_id)
-      .maybeSingle();
-    const calendarTimeZone = availability?.timezone || "Europe/Paris";
-    const durationMinutes = availability?.slot_duration_minutes || 60;
 
     if (action === "cancel") {
       await adapter.deleteEvent(primary, booking.google_event_id);
@@ -111,11 +188,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    // action === "update" → patch start/end with current booking values
     const endTimeSlot = addMinutesToTimeSlot(booking.time_slot, durationMinutes);
     const startLocal = `${booking.booking_date}T${booking.time_slot}:00`;
     const endLocal = `${booking.booking_date}T${endTimeSlot}:00`;
-
     await adapter.updateEvent(primary, booking.google_event_id, {
       startISO: startLocal,
       endISO: endLocal,
