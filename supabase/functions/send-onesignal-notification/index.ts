@@ -84,9 +84,16 @@ function hasAcceptedNotification(json: any) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  // Auth: accept service role OR a valid authenticated user JWT
+  // Auth: accept service role env value, any JWT with role=service_role,
+  // OR a valid authenticated user JWT.
   const auth = req.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
-  const isServiceRole = Boolean(auth) && auth === SUPABASE_SERVICE_ROLE_KEY;
+  let isServiceRole = Boolean(auth) && auth === SUPABASE_SERVICE_ROLE_KEY;
+  if (!isServiceRole && auth) {
+    try {
+      const payload = JSON.parse(atob(auth.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+      if (payload?.role === "service_role") isServiceRole = true;
+    } catch { /* ignore */ }
+  }
   let callerUserId: string | null = null;
   let authorized = isServiceRole;
   if (!authorized && auth) {
