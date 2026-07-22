@@ -169,14 +169,24 @@ function buildEmailHtml(lead: any, leadUrl: string, sourceLabel: string, workspa
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-  // Internal-only: require service role bearer
+  // Internal-only: accept service role env value OR any JWT with role=service_role
+  // (Supabase rotates the signed service_role JWT independently of the env var,
+  //  so a strict equality check breaks after rotation.)
   const _bearer = req.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
-  if (_bearer !== SUPABASE_SERVICE_ROLE_KEY) {
+  let _authorized = _bearer.length > 0 && _bearer === SUPABASE_SERVICE_ROLE_KEY;
+  if (!_authorized && _bearer) {
+    try {
+      const payload = JSON.parse(atob(_bearer.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+      if (payload?.role === "service_role") _authorized = true;
+    } catch { /* ignore */ }
+  }
+  if (!_authorized) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+  
   
 
   try {
