@@ -13,7 +13,13 @@ Deno.serve(async (req) => {
   }
 
   const bearer = req.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
-  const isServiceRole = bearer.length > 0 && (bearer === SUPABASE_SERVICE_ROLE_KEY);
+  let isServiceRole = bearer.length > 0 && (bearer === SUPABASE_SERVICE_ROLE_KEY);
+  if (!isServiceRole && bearer) {
+    try {
+      const payload = JSON.parse(atob(bearer.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+      if (payload?.role === "service_role") isServiceRole = true;
+    } catch { /* ignore */ }
+  }
   if (!isServiceRole) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
