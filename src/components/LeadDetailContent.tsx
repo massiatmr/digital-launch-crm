@@ -5,6 +5,7 @@ import { LeadStatusBadge } from '@/components/LeadStatusBadge';
 import { NaturalLanguageInput } from '@/components/NaturalLanguageInput';
 import { LeadActivityTimeline } from '@/components/LeadActivityTimeline';
 import { LeadTasksSection } from '@/components/LeadTasksSection';
+import { LeadBookingsSection } from '@/components/LeadBookingsSection';
 import { LeadEditForm } from '@/components/LeadEditForm';
 import { FollowupTimeline } from '@/components/FollowupTimeline';
 import { LeadQualificationCard } from '@/components/LeadQualificationCard';
@@ -349,7 +350,9 @@ export function LeadDetailContent({
 
             <TabsContent value="activities" className="mt-0 space-y-4">
               <LeadTasksSection leadId={lead.id} leadName={lead.name} />
+              <LeadBookingsSection leadId={lead.id} />
               <LeadActivityTimeline leadId={lead.id} />
+
             </TabsContent>
           </div>
         </ScrollArea>

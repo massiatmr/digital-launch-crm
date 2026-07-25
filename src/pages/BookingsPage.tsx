@@ -44,7 +44,7 @@ export default function BookingsPage() {
   const workspaceId = useCurrentWorkspaceId();
   const [offerFilter, setOfferFilter] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [googleConnected, setGoogleConnected] = useState(false);
   const [checkingGoogle, setCheckingGoogle] = useState(true);
   const [tab, setTab] = useState('appointments');
@@ -53,6 +53,17 @@ export default function BookingsPage() {
   useEffect(() => {
     if (searchParams.get('google') === 'connected') toast.success('Google Calendar connecté !');
   }, [searchParams]);
+
+  // Deep link: /bookings?booking=<id> ouvre le détail du RDV
+  useEffect(() => {
+    const bId = searchParams.get('booking');
+    if (!bId) return;
+    setTab('appointments');
+    setSelectedBookingId(bId);
+    const b = bookings?.find(x => x.id === bId);
+    if (b) setSelectedDate(parseISO(b.booking_date));
+  }, [searchParams, bookings]);
+
 
   useEffect(() => {
     (async () => {
@@ -287,7 +298,17 @@ export default function BookingsPage() {
 
       <BookingDetailSheet
         bookingId={selectedBookingId}
-        onOpenChange={(open) => { if (!open) setSelectedBookingId(null); }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedBookingId(null);
+            if (searchParams.get('booking')) {
+              const next = new URLSearchParams(searchParams);
+              next.delete('booking');
+              setSearchParams(next, { replace: true });
+            }
+          }
+        }}
+
       />
     </div>
   );
