@@ -298,7 +298,17 @@ export default function BookingsPage() {
 
       <BookingDetailSheet
         bookingId={selectedBookingId}
-        onOpenChange={(open) => { if (!open) setSelectedBookingId(null); }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedBookingId(null);
+            if (searchParams.get('booking')) {
+              const next = new URLSearchParams(searchParams);
+              next.delete('booking');
+              setSearchParams(next, { replace: true });
+            }
+          }
+        }}
+
       />
     </div>
   );
