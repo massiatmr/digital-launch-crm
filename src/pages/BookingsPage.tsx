@@ -44,7 +44,7 @@ export default function BookingsPage() {
   const workspaceId = useCurrentWorkspaceId();
   const [offerFilter, setOfferFilter] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [googleConnected, setGoogleConnected] = useState(false);
   const [checkingGoogle, setCheckingGoogle] = useState(true);
   const [tab, setTab] = useState('appointments');
