@@ -350,7 +350,9 @@ export function LeadDetailContent({
 
             <TabsContent value="activities" className="mt-0 space-y-4">
               <LeadTasksSection leadId={lead.id} leadName={lead.name} />
+              <LeadBookingsSection leadId={lead.id} />
               <LeadActivityTimeline leadId={lead.id} />
+
             </TabsContent>
           </div>
         </ScrollArea>
