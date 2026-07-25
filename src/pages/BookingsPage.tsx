@@ -54,6 +54,17 @@ export default function BookingsPage() {
     if (searchParams.get('google') === 'connected') toast.success('Google Calendar connecté !');
   }, [searchParams]);
 
+  // Deep link: /bookings?booking=<id> ouvre le détail du RDV
+  useEffect(() => {
+    const bId = searchParams.get('booking');
+    if (!bId) return;
+    setTab('appointments');
+    setSelectedBookingId(bId);
+    const b = bookings?.find(x => x.id === bId);
+    if (b) setSelectedDate(parseISO(b.booking_date));
+  }, [searchParams, bookings]);
+
+
   useEffect(() => {
     (async () => {
       if (!workspaceId) { setGoogleConnected(false); setCheckingGoogle(false); return; }
