@@ -414,12 +414,18 @@ Deno.serve(async (req) => {
     // Fire push + email notification UNIQUEMENT pour les nouveaux leads (pas les dédup).
     if (!existingLeadId) {
       try {
-        await supabase.functions.invoke('notify-new-lead', {
+        const notifyRes = await supabase.functions.invoke('notify-new-lead', {
           body: { lead_id: lead.id },
         });
+        console.log('notify-new-lead result', JSON.stringify({
+          lead_id: lead.id,
+          error: notifyRes.error?.message ?? null,
+          data: notifyRes.data ?? null,
+        }));
       } catch (notifyErr) {
         console.error('notify-new-lead invocation failed', notifyErr);
       }
+
 
       // Fire Meta CAPI "Lead" event for attribution (fire-and-forget).
       try {
