@@ -162,37 +162,71 @@ Deno.serve(async (req) => {
     if (absoluteUrl) basePayload.web_url = absoluteUrl;
     if (tag) basePayload.web_push_topic = tag;
 
-    // Préférer subscription_ids quand on les a (ciblage exact, pas de doublon).
-    // Fallback sur external_id seulement si on n'a aucun device en base.
-    const attempts: Array<{ method: "external_id" | "subscription_ids"; payload: Record<string, unknown> }> =
-      subscriptionIds.length > 0
-        ? [{ method: "subscription_ids", payload: { ...basePayload, include_subscription_ids: subscriptionIds } }]
-        : [{ method: "external_id", payload: { ...basePayload, include_aliases: { external_id: [user_id] } } }];
+    const diagBase = { final_url: absoluteUrl, subscription_count: subscriptionIds.length };
 
-    let lastJson: unknown = null;
-    let lastStatus = 0;
-    let lastMethod: "external_id" | "subscription_ids" = subscriptionIds.length > 0 ? "subscription_ids" : "external_id";
+    // 1) Ciblage exact par subscription_ids quand on en a.
+    if (subscriptionIds.length > 0) {
+      const { res, json } = await sendToOneSignal({
+        ...basePayload,
+        include_subscription_ids: subscriptionIds,
+      });
+      console.log("OneSignal response (subscription_ids):", res.status, JSON.stringify(json));
 
-    for (const attempt of attempts) {
-      const { res, json } = await sendToOneSignal(attempt.payload);
-      console.log(`OneSignal response (${attempt.method}):`, res.status, JSON.stringify(json));
-      lastJson = json;
-      lastStatus = res.status;
-      lastMethod = attempt.method;
+      const invalid: string[] = Array.isArray((json as any)?.errors?.invalid_player_ids)
+        ? (json as any).errors.invalid_player_ids
+        : [];
 
-      if (res.ok && hasAcceptedNotification(json)) {
+      // Nettoyage : les appareils refusés par OneSignal passent en inactive
+      // (sinon ils polluent chaque envoi et masquent les vrais succès).
+      if (invalid.length > 0) {
+        try {
+          const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+          await admin
+            .from("push_subscriptions")
+            .update({ status: "inactive" })
+            .eq("user_id", user_id)
+            .in("endpoint", invalid.map((id) => `onesignal:${id}`));
+          console.log("Marked inactive OneSignal subscriptions:", invalid.length);
+        } catch (e) {
+          console.error("failed to deactivate stale subscriptions", e);
+        }
+      }
+
+      const validCount = subscriptionIds.length - invalid.length;
+      // Succès partiel = succès : au moins un appareil a reçu la notif.
+      if (res.ok && (json as any)?.id && validCount > 0) {
         return respond({
           ok: true,
           result: json,
           diagnostics: {
-            final_url: absoluteUrl,
+            ...diagBase,
             provider_status: res.status,
-            targeting_method: attempt.method,
-            subscription_count: subscriptionIds.length,
+            targeting_method: "subscription_ids",
           },
         });
       }
+      // Sinon : tous les appareils listés sont morts → on retente via external_id.
     }
+
+    // 2) Fallback external_id (appareils enregistrés côté OneSignal mais pas/plus en base).
+    const { res: res2, json: json2 } = await sendToOneSignal({
+      ...basePayload,
+      include_aliases: { external_id: [user_id] },
+    });
+    console.log("OneSignal response (external_id):", res2.status, JSON.stringify(json2));
+
+    if (res2.ok && hasAcceptedNotification(json2)) {
+      return respond({
+        ok: true,
+        result: json2,
+        diagnostics: { ...diagBase, provider_status: res2.status, targeting_method: "external_id" },
+      });
+    }
+
+    const lastJson: unknown = json2;
+    const lastStatus = res2.status;
+    const lastMethod: "external_id" | "subscription_ids" = "external_id";
+
 
     return respond({
       ok: false,
