@@ -133,25 +133,21 @@ export function NotificationsTab({ workspaceId }: { workspaceId: string | null }
         </CardContent>
       </Card>
 
-      <Card className="border-white/5 bg-card/50 backdrop-blur opacity-60 relative">
-        <div className="absolute top-3 right-3 z-10">
-          <span className="text-[10px] uppercase tracking-wide px-2 py-1 rounded-md bg-muted/40 text-muted-foreground border border-white/10">
-            Désactivé temporairement
-          </span>
-        </div>
+      <Card className="border-white/5 bg-card/50 backdrop-blur">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Mail className="h-4 w-4 text-primary" /> Personnalisation par offre
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Surchargez les emails (confirmation, 24h, 12h, 1h) pour une offre spécifique.
-            Seuls les modèles par défaut du workspace sont utilisés pour le moment.
+            Surchargez les emails (confirmation, 24h, 12h, 1h, 5 min) pour une offre spécifique.
+            Ces modèles remplacent ceux par défaut du workspace pour les leads de cette offre.
           </p>
         </CardHeader>
-        <CardContent className="pointer-events-none select-none" aria-hidden="true">
+        <CardContent>
           <OfferEmailTemplatesEditor workspaceId={workspaceId} />
         </CardContent>
       </Card>
+
 
       <SendBookingEmailToLeadDialog
         open={manualSendOpen}
