@@ -514,33 +514,51 @@ Deno.serve(async (req) => {
     // PRIORITÉ 2 : followup_automation_settings.template_xxx_id (legacy)
     let tplId: string | null = null;
 
-    // Lookup séquence dynamique : par workspace si dispo, sinon par owner
-    let stepQuery = admin
-      .from("followup_sequence_steps")
-      .select("template_id")
-      .eq("task_type", task.task_type)
-      .eq("step_order", task.step_order)
-      .eq("is_enabled", true);
-    if (lead.workspace_id) {
-      stepQuery = stepQuery.eq("workspace_id", lead.workspace_id);
-    } else {
-      stepQuery = stepQuery.eq("owner_id", ownerId).is("workspace_id", null);
+    // Scope offre : si l'owner a configuré une séquence spécifique à l'offre du lead,
+    // on l'utilise en priorité (templates inclus). Sinon on retombe sur la séquence par défaut (offer_id IS NULL).
+    const leadOfferId: string | null = (lead as any)?.offer_id ?? null;
+    const scopeOwner = (q: any) =>
+      lead.workspace_id
+        ? q.eq("workspace_id", lead.workspace_id)
+        : q.eq("owner_id", ownerId).is("workspace_id", null);
+
+    let useOfferSpecific = false;
+    if (leadOfferId) {
+      const { data: offerSteps } = await scopeOwner(
+        admin.from("followup_sequence_steps").select("id").eq("is_enabled", true).eq("offer_id", leadOfferId)
+      ).limit(1);
+      useOfferSpecific = Array.isArray(offerSteps) && offerSteps.length > 0;
     }
-    const { data: stepRow } = await stepQuery.maybeSingle();
+    const scopeOffer = (q: any) => (useOfferSpecific ? q.eq("offer_id", leadOfferId) : q.is("offer_id", null));
+
+    // Lookup séquence dynamique : par workspace si dispo, sinon par owner, dans le bon scope d'offre
+    const { data: stepRows } = await scopeOffer(
+      scopeOwner(
+        admin
+          .from("followup_sequence_steps")
+          .select("template_id")
+          .eq("task_type", task.task_type)
+          .eq("step_order", task.step_order)
+          .eq("is_enabled", true)
+      )
+    ).limit(1);
+    const stepRow = stepRows?.[0];
     if (stepRow?.template_id) {
       tplId = stepRow.template_id;
     } else {
-      // Fallback legacy : si task_type matche un step_order différent, on tente sans step_order
-      let fallbackStep = admin
-        .from("followup_sequence_steps")
-        .select("template_id")
-        .eq("task_type", task.task_type)
-        .eq("is_enabled", true);
-      if (lead.workspace_id) fallbackStep = fallbackStep.eq("workspace_id", lead.workspace_id);
-      else fallbackStep = fallbackStep.eq("owner_id", ownerId).is("workspace_id", null);
-      const { data: fb } = await fallbackStep.order("step_order", { ascending: true }).limit(1).maybeSingle();
-      if (fb?.template_id) tplId = fb.template_id;
+      // Fallback : même task_type dans le même scope, peu importe le step_order
+      const { data: fbRows } = await scopeOffer(
+        scopeOwner(
+          admin
+            .from("followup_sequence_steps")
+            .select("template_id")
+            .eq("task_type", task.task_type)
+            .eq("is_enabled", true)
+        )
+      ).order("step_order", { ascending: true }).limit(1);
+      if (fbRows?.[0]?.template_id) tplId = fbRows[0].template_id;
     }
+
 
     // Fallback final : champs legacy dans followup_automation_settings
     if (!tplId) {
