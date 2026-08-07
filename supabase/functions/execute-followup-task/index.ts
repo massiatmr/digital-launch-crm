@@ -840,15 +840,18 @@ Deno.serve(async (req) => {
           .order("step_order", { ascending: true });
 
         for (const nextTask of overdueNextTasks ?? []) {
-          let stepQuery = admin
-            .from("followup_sequence_steps")
-            .select("delay_value, delay_unit")
-            .eq("task_type", (nextTask as any).task_type)
-            .eq("step_order", (nextTask as any).step_order)
-            .eq("is_enabled", true);
-          if (lead.workspace_id) stepQuery = stepQuery.eq("workspace_id", lead.workspace_id);
-          else stepQuery = stepQuery.eq("owner_id", ownerId).is("workspace_id", null);
-          const { data: stepCfg } = await stepQuery.maybeSingle();
+          const { data: stepCfgRows } = await scopeOffer(
+            scopeOwner(
+              admin
+                .from("followup_sequence_steps")
+                .select("delay_value, delay_unit")
+                .eq("task_type", (nextTask as any).task_type)
+                .eq("step_order", (nextTask as any).step_order)
+                .eq("is_enabled", true)
+            )
+          ).limit(1);
+          const stepCfg = stepCfgRows?.[0];
+
           const nextScheduledAt = new Date(Date.now() + intervalMs((stepCfg as any)?.delay_value, (stepCfg as any)?.delay_unit)).toISOString();
           await admin.from("lead_followup_tasks").update({
             scheduled_at: nextScheduledAt,
