@@ -10,6 +10,9 @@ import { LeadEditForm } from '@/components/LeadEditForm';
 import { FollowupTimeline } from '@/components/FollowupTimeline';
 import { LeadQualificationCard } from '@/components/LeadQualificationCard';
 import { CreateTaskForLeadDialog } from '@/components/CreateTaskForLeadDialog';
+import { LeadSummaryCard } from '@/components/LeadSummaryCard';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   Mail,
   Phone,
@@ -21,6 +24,8 @@ import {
   LayoutGrid,
   Save,
   Merge,
+  ChevronDown,
+  Pencil,
 } from 'lucide-react';
 import { MergeLeadDialog } from '@/components/MergeLeadDialog';
 import { ShowStatusToggle } from '@/components/ShowStatusToggle';
