@@ -122,7 +122,7 @@ export function LeadDetailContent({
               <h2 className="font-heading truncate text-base sm:text-lg">{lead.name}</h2>
               <LeadScoreBadge score={lead.score} />
               <LeadStatusBadge status={lead.status} />
-              <ShowStatusToggle leadId={lead.id} currentStatus={lead.show_status} size="sm" showHelper />
+              <ShowStatusToggle leadId={lead.id} currentStatus={lead.show_status} size="sm" showHelper={!isMobile} />
             </div>
 
             {lead.company_name && (
