@@ -174,22 +174,23 @@ export function LeadDetailContent({
       </AlertDialog>
 
       <Tabs defaultValue="overview" className="mt-3 flex min-h-0 flex-1 flex-col">
-        <TabsList className={cn('grid w-full gap-1', whatsappEnabled ? 'grid-cols-3' : 'grid-cols-2')}>
-          <TabsTrigger value="overview" className="gap-1 text-[11px] sm:text-xs">
-            <LayoutGrid className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Détails</span>
+        <TabsList className={cn('grid h-auto w-full gap-1', whatsappEnabled ? 'grid-cols-3' : 'grid-cols-2')}>
+          <TabsTrigger value="overview" className="min-h-11 flex-col gap-0.5 text-[11px] sm:flex-row sm:gap-1 sm:text-xs">
+            <LayoutGrid className="h-4 w-4" />
+            <span>Fiche</span>
           </TabsTrigger>
           {whatsappEnabled && (
-            <TabsTrigger value="followup" className="gap-1 text-[11px] sm:text-xs">
-              <Smartphone className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">WhatsApp</span>
+            <TabsTrigger value="followup" className="min-h-11 flex-col gap-0.5 text-[11px] sm:flex-row sm:gap-1 sm:text-xs">
+              <Smartphone className="h-4 w-4" />
+              <span>WhatsApp</span>
             </TabsTrigger>
           )}
-          <TabsTrigger value="activities" className="gap-1 text-[11px] sm:text-xs">
-            <Activity className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Activité & tâches</span>
+          <TabsTrigger value="activities" className="min-h-11 flex-col gap-0.5 text-[11px] sm:flex-row sm:gap-1 sm:text-xs">
+            <Activity className="h-4 w-4" />
+            <span>Suivi</span>
           </TabsTrigger>
         </TabsList>
+
 
 
         <ScrollArea className="mt-3 flex-1">
