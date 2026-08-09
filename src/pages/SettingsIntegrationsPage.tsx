@@ -377,7 +377,9 @@ export default function SettingsIntegrationsPage() {
           if (fb === "pick") {
             const session = url.searchParams.get("session");
             if (session) {
+              picked = true;
               setPickerSession(session);
+
               toast.info("Choisis quoi connecter", {
                 description: `${url.searchParams.get("pages") || 0} page(s) · ${url.searchParams.get("ads") || 0} compte(s) pub · ${url.searchParams.get("wa") || 0} numéro(s) WhatsApp détectés.`,
               });
