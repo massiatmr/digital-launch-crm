@@ -345,14 +345,28 @@ export default function SettingsIntegrationsPage() {
       toast.error("Popup bloquée", { description: "Autorisez les popups pour ce site puis réessayez." });
       return;
     }
+    let picked = false;
     const timer = setInterval(() => {
       try {
         if (popup.closed) {
           clearInterval(timer);
           loadPages();
           loadWaNumbers();
+          if (!picked) {
+            // Le postMessage a pu être perdu : on récupère la dernière session en attente
+            setTimeout(async () => {
+              const { data } = await supabase.functions.invoke("meta-oauth-finalize", {
+                body: { action: "latest" },
+              });
+              if (data?.session_id) {
+                setPickerSession(data.session_id);
+                toast.info("Choisis quoi connecter");
+              }
+            }, 400);
+          }
           return;
         }
+
         // Une fois le callback redirige sur notre origine, on peut lire l'URL
         const href = popup.location.href;
         if (href.includes(window.location.origin) && href.includes("fb=")) {
