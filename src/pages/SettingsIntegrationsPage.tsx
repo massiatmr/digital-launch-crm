@@ -297,9 +297,10 @@ export default function SettingsIntegrationsPage() {
   }, [workspaceId]);
 
   useEffect(() => {
-    const allowedOrigin = new URL(SUPABASE_URL).origin;
+    const allowedOrigins = new Set([window.location.origin, new URL(SUPABASE_URL).origin]);
     const onMessage = (event: MessageEvent) => {
-      if (event.origin !== allowedOrigin || event.data?.type !== "meta-oauth-result") return;
+      if (!allowedOrigins.has(event.origin) || event.data?.type !== "meta-oauth-result") return;
+
       const payload = event.data as Record<string, string>;
       if (payload.fb === "pick" && payload.session) {
         setPickerSession(payload.session);
@@ -344,14 +345,28 @@ export default function SettingsIntegrationsPage() {
       toast.error("Popup bloquée", { description: "Autorisez les popups pour ce site puis réessayez." });
       return;
     }
+    let picked = false;
     const timer = setInterval(() => {
       try {
         if (popup.closed) {
           clearInterval(timer);
           loadPages();
           loadWaNumbers();
+          if (!picked) {
+            // Le postMessage a pu être perdu : on récupère la dernière session en attente
+            setTimeout(async () => {
+              const { data } = await supabase.functions.invoke("meta-oauth-finalize", {
+                body: { action: "latest" },
+              });
+              if (data?.session_id) {
+                setPickerSession(data.session_id);
+                toast.info("Choisis quoi connecter");
+              }
+            }, 400);
+          }
           return;
         }
+
         // Une fois le callback redirige sur notre origine, on peut lire l'URL
         const href = popup.location.href;
         if (href.includes(window.location.origin) && href.includes("fb=")) {
@@ -362,7 +377,9 @@ export default function SettingsIntegrationsPage() {
           if (fb === "pick") {
             const session = url.searchParams.get("session");
             if (session) {
+              picked = true;
               setPickerSession(session);
+
               toast.info("Choisis quoi connecter", {
                 description: `${url.searchParams.get("pages") || 0} page(s) · ${url.searchParams.get("ads") || 0} compte(s) pub · ${url.searchParams.get("wa") || 0} numéro(s) WhatsApp détectés.`,
               });
