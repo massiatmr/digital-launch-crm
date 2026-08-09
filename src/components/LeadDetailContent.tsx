@@ -181,117 +181,45 @@ export function LeadDetailContent({
         <ScrollArea className="mt-3 flex-1">
           <div className="space-y-4 pb-40 sm:pb-6 pr-2 sm:pr-3 pl-px" style={{ paddingBottom: 'max(10rem, calc(env(safe-area-inset-bottom) + 8rem))' }}>
             <TabsContent value="overview" className="mt-0 space-y-4">
-              <div className="space-y-2 rounded-xl border border-border/60 bg-card p-3">
-                <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
-                  {lead.phone && whatsappEnabled && (
-                    <Button asChild variant="outline" size="sm" className="min-h-10 w-full justify-center gap-1.5 sm:w-auto">
-                      <a href={toWhatsAppUrl(lead.phone, cc)} target="_blank" rel="noopener noreferrer">
-                        <Smartphone className="h-3.5 w-3.5" />
-                        WhatsApp
-                      </a>
-                    </Button>
-                  )}
-
-                  {lead.phone && (
-                    <Button asChild variant="outline" size="sm" className="min-h-10 w-full justify-center gap-1.5 sm:w-auto">
-                      <a href={`tel:${lead.phone}`}>
-                        <Phone className="h-3.5 w-3.5" />
-                        {formatPhoneDisplay(lead.phone, cc)}
-                      </a>
-                    </Button>
-                  )}
-
-                  {lead.email && (
-                    <Button asChild variant="outline" size="sm" className="min-h-10 w-full max-w-full justify-center gap-1.5 sm:w-auto">
-                      <a href={`mailto:${lead.email}`} className="min-w-0 truncate">
-                        <Mail className="h-3.5 w-3.5 shrink-0" />
-                        <span className="truncate">{lead.email}</span>
-                      </a>
-                    </Button>
-                  )}
-                </div>
-
-                <div className="flex flex-wrap gap-2 border-t border-border/50 pt-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={() => setMergeOpen(true)}
-                  >
-                    <Merge className="h-3.5 w-3.5" />
-                    Fusionner
+              <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
+                {lead.phone && whatsappEnabled && (
+                  <Button asChild size="lg" className="min-h-12 w-full justify-center gap-2 text-base sm:h-10 sm:w-auto sm:text-sm">
+                    <a href={toWhatsAppUrl(lead.phone, cc)} target="_blank" rel="noopener noreferrer">
+                      <Smartphone className="h-4 w-4" />
+                      WhatsApp
+                    </a>
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => setConfirmDelete(true)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Supprimer
+                )}
+
+                {lead.phone && (
+                  <Button asChild variant="outline" size="lg" className="min-h-12 w-full justify-center gap-2 text-base sm:h-10 sm:w-auto sm:text-sm">
+                    <a href={`tel:${lead.phone}`}>
+                      <Phone className="h-4 w-4" />
+                      Appeler
+                    </a>
                   </Button>
-                </div>
+                )}
+
+                {lead.email && (
+                  <Button asChild variant="outline" size="lg" className="min-h-12 w-full max-w-full justify-center gap-2 text-base sm:h-10 sm:w-auto sm:text-sm">
+                    <a href={`mailto:${lead.email}`} className="min-w-0 truncate">
+                      <Mail className="h-4 w-4 shrink-0" />
+                      <span className="truncate">Email</span>
+                    </a>
+                  </Button>
+                )}
               </div>
 
-
-              <MergeLeadDialog
-                open={mergeOpen}
-                onOpenChange={setMergeOpen}
-                currentLeadId={lead.id}
-                currentLeadName={lead.name}
-                workspaceId={(lead as any).workspace_id ?? null}
-                onMerged={(keptId) => {
-                  if (keptId !== lead.id) onDeleted?.();
-                }}
-              />
-
-              <LeadEditForm lead={lead} inline />
+              <LeadSummaryCard lead={lead} />
 
               {lead.message && (
                 <div className="w-full min-w-0 max-w-full overflow-hidden rounded-lg border-l-2 border-primary/40 bg-muted/50 p-3">
                   <p className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">
-                    Message initial du lead
+                    Ce qu'il a écrit (formulaire)
                   </p>
                   <pre className="w-full min-w-0 max-w-full overflow-x-auto whitespace-pre-wrap [overflow-wrap:anywhere] break-words font-sans text-xs sm:text-sm italic">"{lead.message}"</pre>
                 </div>
               )}
-
-
-              {(lead.ai_summary || lead.sales_angle || lead.next_action) && (
-                <div className="space-y-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
-                  <h3 className="flex items-center gap-2 text-sm font-medium">
-                    <Sparkles className="h-4 w-4 text-primary" /> Analyse IA
-                  </h3>
-
-                  {lead.ai_summary && (
-                    <div>
-                      <p className="text-xs uppercase tracking-wider text-muted-foreground">Résumé</p>
-                      <p className="mt-0.5 text-sm">{lead.ai_summary}</p>
-                    </div>
-                  )}
-
-                  {lead.sales_angle && (
-                    <div>
-                      <p className="text-xs uppercase tracking-wider text-muted-foreground">Angle de vente</p>
-                      <p className="mt-0.5 text-sm">{lead.sales_angle}</p>
-                    </div>
-                  )}
-
-                  {lead.next_action && (
-                    <div>
-                      <p className="text-xs uppercase tracking-wider text-muted-foreground">Prochaine action</p>
-                      <p className="mt-0.5 text-sm">{lead.next_action}</p>
-                      {lead.next_action_date && (
-                        <p className="text-xs text-muted-foreground">
-                          {format(new Date(lead.next_action_date), 'dd MMM yyyy à HH:mm', { locale: fr })}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <LeadQualificationCard leadId={lead.id} />
 
               <div className="space-y-3 rounded-xl border border-border bg-card p-4">
                 <div className="flex items-center justify-between">
@@ -334,13 +262,104 @@ export function LeadDetailContent({
                     }}
                     placeholder="Ajoute tes notes sur ce lead..."
                     rows={5}
-                    className="resize-none"
+                    className="resize-none text-base sm:text-sm"
                   />
                 </div>
               </div>
 
+              {(lead.ai_summary || lead.sales_angle || lead.next_action) && (
+                <Collapsible open={aiOpen} onOpenChange={setAiOpen}>
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+                    <CollapsibleTrigger asChild>
+                      <button type="button" className="flex w-full items-center justify-between gap-2 text-left">
+                        <span className="flex items-center gap-2 text-sm font-medium">
+                          <Sparkles className="h-4 w-4 text-primary" /> Analyse IA
+                        </span>
+                        <ChevronDown className={cn('h-4 w-4 shrink-0 transition-transform', aiOpen && 'rotate-180')} />
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-3 pt-3">
+                      {lead.ai_summary && (
+                        <div>
+                          <p className="text-xs uppercase tracking-wider text-muted-foreground">Résumé</p>
+                          <p className="mt-0.5 text-sm">{lead.ai_summary}</p>
+                        </div>
+                      )}
+
+                      {lead.sales_angle && (
+                        <div>
+                          <p className="text-xs uppercase tracking-wider text-muted-foreground">Angle de vente</p>
+                          <p className="mt-0.5 text-sm">{lead.sales_angle}</p>
+                        </div>
+                      )}
+
+                      {lead.next_action && (
+                        <div>
+                          <p className="text-xs uppercase tracking-wider text-muted-foreground">Prochaine action</p>
+                          <p className="mt-0.5 text-sm">{lead.next_action}</p>
+                          {lead.next_action_date && (
+                            <p className="text-xs text-muted-foreground">
+                              {format(new Date(lead.next_action_date), 'dd MMM yyyy à HH:mm', { locale: fr })}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </CollapsibleContent>
+                  </div>
+                </Collapsible>
+              )}
+
+              <LeadQualificationCard leadId={lead.id} />
+
+              <Collapsible open={editOpen} onOpenChange={setEditOpen}>
+                {!editOpen && (
+                  <CollapsibleTrigger asChild>
+                    <Button variant="outline" className="min-h-12 w-full justify-center gap-2 text-base sm:text-sm">
+                      <Pencil className="h-4 w-4" />
+                      Modifier ce lead
+                    </Button>
+                  </CollapsibleTrigger>
+                )}
+                <CollapsibleContent>
+                  <LeadEditForm lead={lead} inline />
+                </CollapsibleContent>
+              </Collapsible>
+
               <NaturalLanguageInput leadId={lead.id} lead={lead} />
+
+              <div className="flex flex-wrap gap-2 border-t border-border/50 pt-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="min-h-10 gap-1.5"
+                  onClick={() => setMergeOpen(true)}
+                >
+                  <Merge className="h-3.5 w-3.5" />
+                  Fusionner
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="min-h-10 gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Supprimer
+                </Button>
+              </div>
+
+              <MergeLeadDialog
+                open={mergeOpen}
+                onOpenChange={setMergeOpen}
+                currentLeadId={lead.id}
+                currentLeadName={lead.name}
+                workspaceId={(lead as any).workspace_id ?? null}
+                onMerged={(keptId) => {
+                  if (keptId !== lead.id) onDeleted?.();
+                }}
+              />
             </TabsContent>
+
 
             {whatsappEnabled && (
               <TabsContent value="followup" className="mt-0">
