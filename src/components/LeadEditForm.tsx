@@ -11,8 +11,9 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
-import { CalendarIcon, Loader2, Save, X } from 'lucide-react';
+import { CalendarIcon, ChevronDown, Loader2, Save, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { LostReasonDialog } from '@/components/LostReasonDialog';
@@ -60,6 +61,7 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
   const updateLead = useUpdateLead();
   const { data: offers = [] } = useOffers();
   const [showLostDialog, setShowLostDialog] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [campaigns, setCampaigns] = useState<{ campaign_id: string; campaign_name: string }[]>([]);
   const [form, setForm] = useState({
     name: lead.name,
@@ -123,6 +125,8 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
         offer_id: form.offer_id === 'none' ? null : form.offer_id,
         meta_campaign_id: form.meta_campaign_id === 'none' ? null : form.meta_campaign_id,
       };
+      delete payload.notes; // les notes sont gérées par la carte Notes dédiée
+
       await updateLead.mutateAsync(payload);
       toast.success('Lead mis à jour !');
       onClose?.();
@@ -201,27 +205,6 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
           <Input id="edit-action" className="h-11 text-base sm:h-10 sm:text-sm" value={form.next_action} onChange={e => update('next_action', e.target.value)} />
         </div>
         <div className="space-y-1.5">
-          <Label>Date de création</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("h-11 sm:h-10 text-base sm:text-sm w-full justify-start text-left font-normal")}>
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {format(new Date(form.created_at), 'dd MMM yyyy', { locale: fr })}
-              </Button>
-
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={new Date(form.created_at)}
-                onSelect={(date) => date && setForm(prev => ({ ...prev, created_at: date.toISOString() }))}
-                initialFocus
-                className={cn("p-3 pointer-events-auto")}
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-        <div className="space-y-1.5">
           <Label>Offre</Label>
           <Select value={form.offer_id} onValueChange={v => update('offer_id', v)}>
             <SelectTrigger className="h-11 text-base sm:h-10 sm:text-sm"><SelectValue placeholder="Aucune offre" /></SelectTrigger>
@@ -231,32 +214,61 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-1.5">
-          <Label>Présence au RDV</Label>
-          <Select value={form.show_status} onValueChange={v => update('show_status', v)}>
-            <SelectTrigger className="h-11 text-base sm:h-10 sm:text-sm"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {showStatuses.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5 sm:col-span-2">
-          <Label>Campagne Meta (attribution funnel)</Label>
-          <Select value={form.meta_campaign_id} onValueChange={v => update('meta_campaign_id', v)}>
-            <SelectTrigger className="h-11 text-base sm:h-10 sm:text-sm"><SelectValue placeholder="Aucune campagne" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Aucune campagne</SelectItem>
-              {campaigns.map(c => <SelectItem key={c.campaign_id} value={c.campaign_id}>{c.campaign_name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <p className="text-[10px] text-muted-foreground">Lie ce lead à une campagne Meta pour l'inclure dans les stats coût par étape du dashboard.</p>
-        </div>
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="edit-notes">Notes</Label>
-        <Textarea id="edit-notes" className="text-base sm:text-sm" value={form.notes} onChange={e => update('notes', e.target.value)} rows={3} />
-      </div>
+      <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+        <CollapsibleTrigger asChild>
+          <Button type="button" variant="ghost" size="sm" className="w-full justify-between min-h-11 px-2">
+            <span className="text-sm text-muted-foreground">Champs avancés</span>
+            <ChevronDown className={cn('h-4 w-4 transition-transform', advancedOpen && 'rotate-180')} />
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="space-y-1.5">
+              <Label>Date de création</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("h-11 sm:h-10 text-base sm:text-sm w-full justify-start text-left font-normal")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(new Date(form.created_at), 'dd MMM yyyy', { locale: fr })}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={new Date(form.created_at)}
+                    onSelect={(date) => date && setForm(prev => ({ ...prev, created_at: date.toISOString() }))}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Présence au RDV</Label>
+              <Select value={form.show_status} onValueChange={v => update('show_status', v)}>
+                <SelectTrigger className="h-11 text-base sm:h-10 sm:text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {showStatuses.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Campagne Meta (attribution funnel)</Label>
+              <Select value={form.meta_campaign_id} onValueChange={v => update('meta_campaign_id', v)}>
+                <SelectTrigger className="h-11 text-base sm:h-10 sm:text-sm"><SelectValue placeholder="Aucune campagne" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Aucune campagne</SelectItem>
+                  {campaigns.map(c => <SelectItem key={c.campaign_id} value={c.campaign_id}>{c.campaign_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">Lie ce lead à une campagne Meta pour l'inclure dans les stats coût par étape du dashboard.</p>
+            </div>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+
 
       <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 border-t border-border/60 pt-3">
         {onClose && !inline && (
