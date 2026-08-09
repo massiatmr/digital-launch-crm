@@ -193,8 +193,9 @@ export function LeadDetailContent({
 
 
 
-        <ScrollArea className="mt-3 flex-1 [&>div]:!block [&>div]:w-full">
-          <div className="space-y-4 pb-40 sm:pb-6 pr-2 sm:pr-3 pl-px" style={{ paddingBottom: 'max(10rem, calc(env(safe-area-inset-bottom) + 8rem))' }}>
+        <div className="mt-3 min-h-0 w-full min-w-0 max-w-full flex-1 overflow-y-auto overflow-x-hidden">
+          <div className="w-full min-w-0 max-w-full space-y-4 pb-40 sm:pb-6 pr-1 sm:pr-2" style={{ paddingBottom: 'max(10rem, calc(env(safe-area-inset-bottom) + 8rem))' }}>
+
             <TabsContent value="overview" className="mt-0 space-y-4">
               <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
                 {lead.phone && whatsappEnabled && (
