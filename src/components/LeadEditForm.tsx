@@ -61,6 +61,7 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
   const updateLead = useUpdateLead();
   const { data: offers = [] } = useOffers();
   const [showLostDialog, setShowLostDialog] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [campaigns, setCampaigns] = useState<{ campaign_id: string; campaign_name: string }[]>([]);
   const [form, setForm] = useState({
     name: lead.name,
