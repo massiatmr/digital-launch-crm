@@ -297,9 +297,10 @@ export default function SettingsIntegrationsPage() {
   }, [workspaceId]);
 
   useEffect(() => {
-    const allowedOrigin = new URL(SUPABASE_URL).origin;
+    const allowedOrigins = new Set([window.location.origin, new URL(SUPABASE_URL).origin]);
     const onMessage = (event: MessageEvent) => {
-      if (event.origin !== allowedOrigin || event.data?.type !== "meta-oauth-result") return;
+      if (!allowedOrigins.has(event.origin) || event.data?.type !== "meta-oauth-result") return;
+
       const payload = event.data as Record<string, string>;
       if (payload.fb === "pick" && payload.session) {
         setPickerSession(payload.session);
