@@ -390,7 +390,7 @@ export function LeadDetailContent({
 
             </TabsContent>
           </div>
-        </ScrollArea>
+        </div>
       </Tabs>
     </div>
   );
