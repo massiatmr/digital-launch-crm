@@ -85,6 +85,12 @@ export function LeadDetailContent({
     if (lead && !notesDirty) setNotesDraft(manualNotes);
   }, [lead, manualNotes, notesDirty]);
 
+  // Sur mobile : lecture d'abord, édition et analyse IA repliées
+  useEffect(() => {
+    setEditOpen(!isMobile);
+    setAiOpen(!isMobile);
+  }, [isMobile]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
