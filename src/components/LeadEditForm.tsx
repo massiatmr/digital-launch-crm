@@ -125,6 +125,8 @@ export function LeadEditForm({ lead, onClose, inline = false }: LeadEditFormProp
         offer_id: form.offer_id === 'none' ? null : form.offer_id,
         meta_campaign_id: form.meta_campaign_id === 'none' ? null : form.meta_campaign_id,
       };
+      delete payload.notes; // les notes sont gérées par la carte Notes dédiée
+
       await updateLead.mutateAsync(payload);
       toast.success('Lead mis à jour !');
       onClose?.();
