@@ -193,7 +193,7 @@ export function LeadDetailContent({
 
 
 
-        <ScrollArea className="mt-3 flex-1">
+        <ScrollArea className="mt-3 flex-1 [&>div]:!block [&>div]:w-full">
           <div className="space-y-4 pb-40 sm:pb-6 pr-2 sm:pr-3 pl-px" style={{ paddingBottom: 'max(10rem, calc(env(safe-area-inset-bottom) + 8rem))' }}>
             <TabsContent value="overview" className="mt-0 space-y-4">
               <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
