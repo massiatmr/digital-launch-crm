@@ -31,8 +31,25 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const action = body.action as string;
-    const session_id = body.session_id as string;
+    let session_id = body.session_id as string;
+
+    // Fallback: retrouver la dernière session OAuth en attente (si le postMessage
+    // de la popup a été perdu, ex. popup fermée trop vite / navigateur strict).
+    if (!session_id && action === "latest") {
+      const { data: last } = await admin
+        .from("meta_oauth_pending")
+        .select("id, workspace_id, expires_at")
+        .eq("owner_id", user.id)
+        .gt("expires_at", new Date().toISOString())
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!last) return json({ error: "no_pending_session" }, 404);
+      return json({ session_id: last.id, workspace_id: last.workspace_id });
+    }
+
     if (!session_id) return json({ error: "session_id required" }, 400);
+
 
     const { data: pending, error: pErr } = await admin
       .from("meta_oauth_pending")
