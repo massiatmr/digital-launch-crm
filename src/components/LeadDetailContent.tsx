@@ -64,6 +64,9 @@ export function LeadDetailContent({
   const [mergeOpen, setMergeOpen] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
   const [notesDirty, setNotesDirty] = useState(false);
+  const isMobile = useIsMobile();
+  const [editOpen, setEditOpen] = useState(!isMobile);
+  const [aiOpen, setAiOpen] = useState(!isMobile);
 
   const { data: lead, isLoading } = useLead(leadId);
   const deleteLead = useDeleteLead();
