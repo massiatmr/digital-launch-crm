@@ -90,7 +90,21 @@ export default function BookingsPage() {
     window.location.href = data.url;
   };
 
+  const handleCancel = async (bookingId: string) => {
+    try {
+      await updateBooking.mutateAsync({ id: bookingId, status: 'cancelled' } as any);
+      const { error } = await supabase.functions.invoke('sync-booking-calendar', {
+        body: { booking_id: bookingId, action: 'cancel' },
+      });
+      if (error) throw error;
+      toast.success('RDV annulé — rappels et agenda annulés');
+    } catch (e: any) {
+      toast.error("RDV annulé, mais l'annulation des rappels a échoué");
+    }
+  };
+
   const filtered = bookings?.filter(b => offerFilter === 'all' || b.offer_id === offerFilter) || [];
+
 
   const bookingsByDate = useMemo(() => {
     const map = new Map<string, typeof filtered>();
