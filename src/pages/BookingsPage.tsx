@@ -272,8 +272,9 @@ export default function BookingsPage() {
                         <Button size="sm" onClick={() => updateBooking.mutate({ id: b.id, status: 'confirmed' })}>Confirmer</Button>
                       )}
                       {(b.status === 'pending' || b.status === 'confirmed') && (
-                        <Button size="sm" variant="outline" onClick={() => updateBooking.mutate({ id: b.id, status: 'cancelled' })}>Annuler</Button>
+                        <Button size="sm" variant="outline" onClick={() => handleCancel(b.id)}>Annuler</Button>
                       )}
+
                       {b.status === 'confirmed' && (
                         <Button size="sm" variant="secondary" onClick={() => updateBooking.mutate({ id: b.id, status: 'completed' })}>Terminé</Button>
                       )}
