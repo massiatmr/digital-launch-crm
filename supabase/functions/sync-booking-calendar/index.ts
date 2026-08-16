@@ -127,7 +127,15 @@ Deno.serve(async (req) => {
           .eq("done", false)
           .gte("due_date", nowIso)
           .ilike("action", "RDV %");
+        // Cancel scheduled follow-up tasks tied to the appointment (reminders / meeting proposals).
+        await supabase
+          .from("lead_followup_tasks")
+          .update({ status: "cancelled" } as any)
+          .eq("lead_id", (booking as any).lead_id)
+          .in("status", ["pending", "scheduled"])
+          .in("type", ["template_24h", "propose_meeting"]);
       }
+
     } else if (action === "update") {
       const bookingDateTime = localToUtc(booking.booking_date, booking.time_slot, calendarTimeZone);
       const offsetsMs: Record<string, number | null> = {
