@@ -171,24 +171,8 @@ function PipelineCard({
           )}
         </div>
 
-        <div className="mt-2.5 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5">
-            <LeadScoreBadge score={lead.score} className="text-[10px] px-1.5 py-0" />
-          </div>
-          <div className="flex items-center gap-1.5">
-            {lead.last_contacted_at && (
-              <span className="text-[10px] text-muted-foreground font-mono">
-                {(() => {
-                  const days = Math.floor((Date.now() - new Date(lead.last_contacted_at).getTime()) / 86400000);
-                  if (days === 0) return 'Auj.';
-                  return `${days}j`;
-                })()}
-              </span>
-            )}
-            <span className="text-[10px] text-muted-foreground font-mono">
-              {format(new Date(lead.created_at), 'dd MMM', { locale: fr })}
-            </span>
-          </div>
+        <div className="mt-2.5 flex items-center gap-1.5">
+          <LeadScoreBadge score={lead.score} className="text-[10px] px-1.5 py-0" />
         </div>
 
         {(lead.email || lead.phone) && (
