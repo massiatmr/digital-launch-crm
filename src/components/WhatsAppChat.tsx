@@ -508,7 +508,7 @@ export function WhatsAppChat({ leadId, leadName, leadPhone, className }: { leadI
           )}
           <SuggestedReplies
             leadId={leadId}
-            enabled={isWithin24h && lastIsInbound}
+            enabled={(isMeta || isWithin24h) && lastIsInbound}
             onPick={(t) => setInput((cur) => (cur ? `${cur} ${t}` : t))}
           />
           <input
