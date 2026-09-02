@@ -571,10 +571,10 @@ export function WhatsAppChat({ leadId, leadName, leadPhone, className }: { leadI
               }}
               placeholder={
                 isMeta
-                  ? (isWithin24h ? `Réponds via ${channel === 'instagram' ? 'Instagram' : 'Messenger'}…` : 'Hors fenêtre 24h — attends une réponse du lead')
+                  ? `Réponds via ${channel === 'instagram' ? 'Instagram' : 'Messenger'}…`
                   : (isWithin24h ? 'Écris un message' : 'Hors fenêtre 24h — utilise un template')
               }
-              disabled={isMeta && !isWithin24h}
+
               rows={1}
               className="flex-1 min-w-0 min-h-[40px] max-h-40 resize-none border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-2 py-2 text-base leading-[1.35] overflow-y-auto break-words"
             />
