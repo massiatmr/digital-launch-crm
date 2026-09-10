@@ -901,7 +901,7 @@ export default function SettingsIntegrationsPage() {
                     {/* ============== WHATSAPP NUMBERS ============== */}
                     <Card>
                       <CardHeader>
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-3">
                           <div className="h-10 w-10 rounded-lg bg-[#25D366]/10 flex items-center justify-center">
                             <MessageCircle className="h-5 w-5 text-[#25D366]" />
                           </div>
