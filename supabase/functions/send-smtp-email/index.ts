@@ -21,6 +21,8 @@ interface Payload {
   text?: string;
   replyTo?: string;
   attachments?: Attachment[];
+  /** When set, the workspace's own SMTP settings are used if enabled & complete. */
+  workspaceId?: string | null;
 }
 
 Deno.serve(async (req) => {
@@ -35,12 +37,53 @@ Deno.serve(async (req) => {
     });
   }
 
-  const SMTP_HOST = Deno.env.get("SMTP_HOST");
-  const SMTP_PORT = Number(Deno.env.get("SMTP_PORT") || "587");
-  const SMTP_USER = Deno.env.get("SMTP_USER");
-  const SMTP_PASSWORD = Deno.env.get("SMTP_PASSWORD");
-  const SMTP_FROM_EMAIL = Deno.env.get("SMTP_FROM") || SMTP_USER;
-  const SMTP_FROM_NAME = Deno.env.get("SMTP_FROM_NAME") || "Digital Launch Agency";
+  let payload: Payload;
+  try {
+    payload = await req.json();
+  } catch {
+    return new Response(JSON.stringify({ error: "invalid json" }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const { to, subject, html, text, replyTo, attachments, workspaceId } = payload;
+
+  // ---- Resolve SMTP config: workspace override first, then global env defaults
+  let SMTP_HOST = Deno.env.get("SMTP_HOST");
+  let SMTP_PORT = Number(Deno.env.get("SMTP_PORT") || "587");
+  let SMTP_USER = Deno.env.get("SMTP_USER");
+  let SMTP_PASSWORD = Deno.env.get("SMTP_PASSWORD");
+  let SMTP_FROM_EMAIL = Deno.env.get("SMTP_FROM") || SMTP_USER;
+  let SMTP_FROM_NAME = Deno.env.get("SMTP_FROM_NAME") || "Digital Launch Agency";
+  let usedWorkspaceSmtp = false;
+
+  if (workspaceId) {
+    try {
+      const admin = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      );
+      const { data: cfg } = await admin
+        .from("workspace_smtp_settings")
+        .select("enabled, host, port, username, password, from_email, from_name")
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      const c = cfg as any;
+      if (c?.enabled && c.host && c.username && c.password) {
+        SMTP_HOST = c.host;
+        SMTP_PORT = Number(c.port || 587);
+        SMTP_USER = c.username;
+        SMTP_PASSWORD = c.password;
+        SMTP_FROM_EMAIL = c.from_email || c.username;
+        SMTP_FROM_NAME = c.from_name || SMTP_FROM_NAME;
+        usedWorkspaceSmtp = true;
+      }
+    } catch (e) {
+      console.error("workspace smtp lookup failed, falling back to default:", e);
+    }
+  }
+
   const SMTP_FROM = SMTP_FROM_EMAIL?.includes("<")
     ? SMTP_FROM_EMAIL
     : `"${SMTP_FROM_NAME}" <${SMTP_FROM_EMAIL}>`;
@@ -52,17 +95,6 @@ Deno.serve(async (req) => {
     });
   }
 
-  let payload: Payload;
-  try {
-    payload = await req.json();
-  } catch {
-    return new Response(JSON.stringify({ error: "invalid json" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  const { to, subject, html, text, replyTo, attachments } = payload;
   if (!to || !subject || (!html && !text)) {
     return new Response(JSON.stringify({ error: "to, subject and html/text required" }), {
       status: 400,
