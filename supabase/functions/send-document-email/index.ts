@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { recipientEmail, subject, documentBase64, documentName, message } = await req.json();
+    const { recipientEmail, subject, documentBase64, documentName, message, workspaceId } = await req.json();
     if (!recipientEmail || !subject) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -53,6 +53,7 @@ Deno.serve(async (req) => {
       to: recipientEmail,
       subject,
       html: emailHtml,
+      workspaceId: workspaceId ?? null,
     };
     if (documentBase64 && documentName) {
       body.attachments = [{
