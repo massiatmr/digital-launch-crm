@@ -905,7 +905,7 @@ export default function SettingsIntegrationsPage() {
                           <div className="h-10 w-10 rounded-lg bg-[#25D366]/10 flex items-center justify-center">
                             <MessageCircle className="h-5 w-5 text-[#25D366]" />
                           </div>
-                          <div className="flex-1">
+                          <div className="flex-1 min-w-[220px]">
                             <CardTitle className="flex items-center gap-2">
                               Numéros WhatsApp Business
                               <Button
