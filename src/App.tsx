@@ -79,6 +79,7 @@ const App = () => (
                 <Route path="/import" element={<ImportPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/settings/:tab" element={<SettingsPage />} />
+                <Route path="/settings/:tab/:sub" element={<SettingsPage />} />
                 </Route>
               </Route>
               </Route>
