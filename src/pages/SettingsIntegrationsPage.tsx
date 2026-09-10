@@ -284,6 +284,7 @@ export default function SettingsIntegrationsPage() {
     loadOffers();
     loadWaNumbers();
     const fb = params.get("fb");
+    if (fb) navigate("/settings/integrations/facebook", { replace: true });
     if (fb === "pick") {
       const session = params.get("session");
       if (session) {
@@ -311,6 +312,7 @@ export default function SettingsIntegrationsPage() {
 
       const payload = event.data as Record<string, string>;
       if (payload.fb === "pick" && payload.session) {
+        navigate("/settings/integrations/facebook");
         setPickerSession(payload.session);
         toast.info("Choisis quoi connecter", {
           description: `${payload.pages || 0} page(s) · ${payload.ads || 0} compte(s) pub · ${payload.wa || 0} numéro(s) WhatsApp détectés.`,
