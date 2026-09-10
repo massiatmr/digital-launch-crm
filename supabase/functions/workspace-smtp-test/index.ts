@@ -40,14 +40,17 @@ Deno.serve(async (req) => {
       .eq("workspace_id", workspaceId)
       .maybeSingle();
     const c = cfg as any;
-    if (!c || !c.enabled || !c.host || !c.username || !c.password) {
-      return json({ error: "Configuration SMTP du workspace incomplète ou désactivée" }, 400);
-    }
+    const usesWorkspace = !!(c && c.enabled && c.host && c.username && c.password);
 
-    const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#111827">
+    const html = usesWorkspace
+      ? `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#111827">
       <h2 style="margin:0 0 12px">Test d'envoi réussi ✅</h2>
       <p style="font-size:14px;line-height:1.6">Cet email a été envoyé avec les réglages SMTP de ce workspace.</p>
       <p style="font-size:13px;color:#6b7280">Serveur : ${c.host}:${c.port} — Expéditeur : ${c.from_email || c.username}</p>
+    </div>`
+      : `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#111827">
+      <h2 style="margin:0 0 12px">Test d'envoi réussi ✅</h2>
+      <p style="font-size:14px;line-height:1.6">Cet email a été envoyé avec l'expéditeur par défaut (aucun réglage propre à cet espace).</p>
     </div>`;
 
     const { data, error } = await admin.functions.invoke("send-smtp-email", {
