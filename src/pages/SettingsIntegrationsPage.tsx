@@ -533,18 +533,32 @@ export default function SettingsIntegrationsPage() {
 
   return (
     <div className="container mx-auto p-3 sm:p-6 max-w-5xl space-y-5">
-              <div>
-                <h1 className="text-3xl font-bold">Intégrations</h1>
-                <p className="text-muted-foreground mt-1">
-                  Connectez votre compte Meta en 1 clic — pages Facebook + WhatsApp détectés automatiquement.
-                </p>
-                {currentWorkspace && (
-                  <div className="mt-3 inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm">
-                    <span className="text-muted-foreground">Espace configuré :</span>
-                    <span className="font-semibold">{currentWorkspace.company_name}</span>
-                  </div>
-                )}
-              </div>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        {current ? (
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className="h-10 w-10 rounded-lg flex items-center justify-center shrink-0"
+              style={{ backgroundColor: `${current.color}1A` }}
+            >
+              <current.icon className="h-5 w-5" style={{ color: current.color }} />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold truncate">{current.label}</h2>
+              <p className="text-xs text-muted-foreground truncate">{current.description}</p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Choisis une intégration à configurer — une seule à la fois, rien d'autre à l'écran.
+          </p>
+        )}
+        {currentWorkspace && (
+          <div className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-xs">
+            <span className="text-muted-foreground">Espace :</span>
+            <span className="font-semibold">{currentWorkspace.company_name}</span>
+          </div>
+        )}
+      </div>
 
       {!current && (
         <>
