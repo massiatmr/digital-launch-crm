@@ -1,6 +1,7 @@
 // Generic SMTP sender. Uses nodemailer (battle-tested MIME/QP encoder) to
 // avoid the quoted-printable bugs in denomailer that corrupted subjects and HTML.
 import nodemailer from "npm:nodemailer@6.9.16";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.99.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
