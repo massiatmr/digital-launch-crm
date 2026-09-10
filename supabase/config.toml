@@ -66,3 +66,5 @@ project_id = "rvangzupebrajhhhvewu"
   [functions.landing-book]
     verify_jwt = false
 
+  [functions.workspace-smtp-test]
+    verify_jwt = false

@@ -29,6 +29,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MetaCapiSection } from "@/components/settings/MetaCapiSection";
 import { LandingApiKeysSection } from "@/components/settings/LandingApiKeysSection";
+import { WorkspaceSmtpSection } from "@/components/settings/WorkspaceSmtpSection";
 import { IntegrationStatusOverview } from "@/components/settings/IntegrationStatusOverview";
 import { MetaOAuthPicker } from "@/components/settings/MetaOAuthPicker";
 import { WhatsAppHelpDialog } from "@/components/settings/WhatsAppHelpDialog";
@@ -1097,6 +1098,7 @@ export default function SettingsIntegrationsPage() {
 
       <MetaCapiSection />
 
+      <WorkspaceSmtpSection />
       <LandingApiKeysSection />
 
       <MetaOAuthPicker

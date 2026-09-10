@@ -476,7 +476,7 @@ ${transcript}`;
   <div style="max-width:560px;margin:0 auto;padding:28px 24px;font-size:14px;line-height:1.6">${render(tplBody)}</div>
 </body></html>`;
             await admin.functions.invoke("send-smtp-email", {
-              body: { to: [lead.email], subject, html },
+              body: { to: [lead.email], subject, html, workspaceId: lead.workspace_id ?? null },
             });
             await admin.from("email_send_log").insert({
               template_name: "booking-confirmation",
@@ -574,7 +574,7 @@ ${transcript}`;
   </div>
 </body></html>`;
           await admin.functions.invoke("send-smtp-email", {
-            body: { to: recipients, subject, html, replyTo: lead.email || undefined },
+            body: { to: recipients, subject, html, replyTo: lead.email || undefined, workspaceId: lead.workspace_id ?? null },
           });
           await admin.from("email_send_log").insert({
             template_name: "booking-admin-notify",

@@ -392,7 +392,7 @@ Deno.serve(async (req) => {
         const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         const msgId = `booking-confirmation-${bookingId}`;
         const { error: sendErr } = await supabase.functions.invoke("send-smtp-email", {
-          body: { to: [email], subject, html },
+          body: { to: [email], subject, html, workspaceId: offer_workspace_id },
           headers: { Authorization: `Bearer ${SERVICE_KEY}` },
         });
         if (sendErr) throw sendErr;
@@ -603,6 +603,7 @@ Deno.serve(async (req) => {
             subject: `📅 ${wsPrefix}Nouveau RDV — ${name} (${booking_date} ${time_slot})`,
             html,
             replyTo: email,
+            workspaceId: offer_workspace_id,
           },
         });
         await supabase.from("email_send_log").insert({
