@@ -158,7 +158,7 @@ export function WorkspaceSmtpSection() {
           <>
             <div className="flex items-center justify-between gap-3 rounded-lg border border-white/5 p-3">
               <div>
-                <p className="text-sm font-medium">Utiliser cette adresse pour {currentWorkspace?.name || "cet espace"}</p>
+                <p className="text-sm font-medium">Utiliser cette adresse pour {currentWorkspace?.company_name || "cet espace"}</p>
                 <p className="text-xs text-muted-foreground">Désactive pour repasser à l'expéditeur par défaut.</p>
               </div>
               <Switch
