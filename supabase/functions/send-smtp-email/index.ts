@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
       })),
     });
 
-    return new Response(JSON.stringify({ ok: true }), {
+    return new Response(JSON.stringify({ ok: true, sender: SMTP_FROM, workspaceSmtp: usedWorkspaceSmtp }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
