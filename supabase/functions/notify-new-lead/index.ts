@@ -307,6 +307,7 @@ Deno.serve(async (req) => {
           subject: `${wsPrefix}Nouveau lead — ${lead.name}${titleSuffix}`,
           html: buildEmailHtml(lead, leadUrl, sourceLabel, workspaceName),
           replyTo: lead.email || undefined,
+          workspaceId: lead.workspace_id ?? null,
         },
       });
       results.email = { recipients, ...(emailRes.data ?? { error: emailRes.error?.message }) };

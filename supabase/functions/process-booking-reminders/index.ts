@@ -214,7 +214,7 @@ Deno.serve(async (req) => {
           const clientMsgId = `booking-reminder-${row.id}`;
           try {
             await supabase.functions.invoke("send-smtp-email", {
-              body: { to: [booking.email], subject, html },
+              body: { to: [booking.email], subject, html, workspaceId: booking.workspace_id || offerWorkspaceId || null },
             });
             await supabase.from("email_send_log").insert({
               template_name: `booking-${row.type}`,
@@ -266,6 +266,7 @@ Deno.serve(async (req) => {
                   subject: `⏰ ${wsPrefix}RDV dans 1h — ${booking.name} (${booking.time_slot})`,
                   html: adminHtml,
                   replyTo: booking.email || undefined,
+                  workspaceId: booking.workspace_id || offerWorkspaceId || null,
                 },
               });
               await supabase.from("email_send_log").insert({

@@ -156,7 +156,7 @@ Deno.serve(async (req) => {
 </html>`;
 
         const { error: smtpErr } = await admin.functions.invoke("send-smtp-email", {
-          body: { to: email, subject, html },
+          body: { to: email, subject, html, workspaceId: invite.workspace_id ?? null },
         });
         if (smtpErr) console.error("[send-invitation] smtp error", smtpErr);
       } catch (mailErr) {

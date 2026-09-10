@@ -174,7 +174,7 @@ Deno.serve(async (req) => {
       });
 
       const { error: sendErr } = await supabase.functions.invoke("send-smtp-email", {
-        body: { to: [to], subject: renderedSubject, html: renderedHtml },
+        body: { to: [to], subject: renderedSubject, html: renderedHtml, workspaceId: booking.workspace_id || (booking as any).offers?.workspace_id || null },
         headers: { Authorization: `Bearer ${SERVICE_KEY}` },
       });
 
@@ -259,7 +259,7 @@ Deno.serve(async (req) => {
     });
 
     const { error: sendErr } = await supabase.functions.invoke("send-smtp-email", {
-      body: { to: [to], subject: renderedSubject, html: renderedHtml },
+      body: { to: [to], subject: renderedSubject, html: renderedHtml, workspaceId: body.workspace_id ?? null },
       headers: { Authorization: `Bearer ${SERVICE_KEY}` },
     });
 
