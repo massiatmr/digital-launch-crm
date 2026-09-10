@@ -3429,6 +3429,56 @@ export type Database = {
           },
         ]
       }
+      workspace_smtp_settings: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          from_email: string | null
+          from_name: string | null
+          host: string | null
+          password: string | null
+          port: number
+          updated_at: string
+          updated_by: string | null
+          username: string | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          from_email?: string | null
+          from_name?: string | null
+          host?: string | null
+          password?: string | null
+          port?: number
+          updated_at?: string
+          updated_by?: string | null
+          username?: string | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          from_email?: string | null
+          from_name?: string | null
+          host?: string | null
+          password?: string | null
+          port?: number
+          updated_at?: string
+          updated_by?: string | null
+          username?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_smtp_settings_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspaces: {
         Row: {
           address: string | null
@@ -3527,6 +3577,10 @@ export type Database = {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
       }
+      delete_workspace_smtp: {
+        Args: { _workspace_id: string }
+        Returns: undefined
+      }
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
         Returns: number
@@ -3537,6 +3591,7 @@ export type Database = {
       get_lead_ai_status: { Args: { p_lead_id: string }; Returns: Json }
       get_offer_branding: { Args: { p_slug: string }; Returns: Json }
       get_onboarding_by_token: { Args: { p_token: string }; Returns: Json }
+      get_workspace_smtp: { Args: { _workspace_id: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -3614,6 +3669,19 @@ export type Database = {
       save_onboarding_by_token: {
         Args: { p_completed?: boolean; p_responses: Json; p_token: string }
         Returns: undefined
+      }
+      save_workspace_smtp: {
+        Args: {
+          _enabled: boolean
+          _from_email: string
+          _from_name: string
+          _host: string
+          _password?: string
+          _port: number
+          _username: string
+          _workspace_id: string
+        }
+        Returns: Json
       }
       search_wa_messages: {
         Args: { p_lead_id: string; p_query: string }
