@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { CalendarPlus, Clock, Loader2 } from 'lucide-react';
-import { format } from 'date-fns';
+import { addDays, format, startOfDay } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 import type { DbLead } from '@/hooks/useLeadData';
@@ -9,6 +10,7 @@ import { useOffers } from '@/hooks/useOfferData';
 import { useAvailabilitySettings } from '@/hooks/useAvailabilitySettings';
 import { getViewerTz } from '@/lib/bookingTime';
 import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -30,6 +32,24 @@ type Props = {
   lead: DbLead;
 };
 
+type DayAvailability = { slots: string[]; reason?: string; error?: boolean };
+
+const unavailableLabels: Record<string, string> = {
+  non_working_day: 'Ce jour est fermé.',
+  blackout: 'Ce jour est indisponible.',
+  out_of_range: 'Cette date dépasse la période de réservation.',
+};
+
+function dateInTimeZone(timeZone: string) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-GB', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+    const value = (type: string) => parts.find(part => part.type === type)?.value ?? '';
+    return `${value('year')}-${value('month')}-${value('day')}`;
+  } catch {
+    return format(new Date(), 'yyyy-MM-dd');
+  }
+}
+
 export function CreateBookingForLeadDialog({ lead }: Props) {
   const [open, setOpen] = useState(false);
   const [offerId, setOfferId] = useState(lead.offer_id ?? '');
@@ -41,12 +61,17 @@ export function CreateBookingForLeadDialog({ lead }: Props) {
   const [notes, setNotes] = useState('');
   const [slots, setSlots] = useState<string[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [days, setDays] = useState<Record<string, DayAvailability>>({});
+  const [loadingDays, setLoadingDays] = useState(false);
+  const [calendarError, setCalendarError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const { data: offers = [], isLoading: offersLoading } = useOffers();
   const { data: availability } = useAvailabilitySettings();
   const queryClient = useQueryClient();
   const activeOffers = useMemo(() => offers.filter((offer) => offer.is_active), [offers]);
-  const minDate = format(new Date(), 'yyyy-MM-dd');
+  const today = dateInTimeZone(availability?.timezone ?? 'Europe/Paris');
+  const maxFutureDays = availability?.max_future_days ?? 14;
+  const maxDate = addDays(new Date(`${today}T12:00:00`), maxFutureDays);
 
   useEffect(() => {
     if (!open) return;
@@ -59,32 +84,63 @@ export function CreateBookingForLeadDialog({ lead }: Props) {
     setOfferId(preferred);
   }, [activeOffers, lead, open]);
 
-  const loadSlots = useCallback(async (nextOfferId: string, nextDate: string) => {
-    setSlot('');
-    setSlots([]);
-    if (!nextOfferId || !nextDate) return;
-    setLoadingSlots(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('check-availability', {
-        body: { offer_id: nextOfferId, date: nextDate },
-      });
-      if (error) throw error;
-      setSlots(Array.isArray(data?.slots) ? data.slots : []);
-    } catch {
-      toast.error('Impossible de charger les créneaux disponibles');
-    } finally {
-      setLoadingSlots(false);
+  // The month uses the same endpoint as the selected day, so its available-day markers
+  // cannot disagree with the actual bookable slots (including Google Calendar conflicts).
+  useEffect(() => {
+    if (!open || !offerId || !availability) return;
+    let cancelled = false;
+    setDays({});
+    setLoadingDays(true);
+    setCalendarError(false);
+    const dates = Array.from({ length: maxFutureDays + 1 }, (_, index) => addDays(new Date(`${today}T12:00:00`), index))
+      .filter(day => availability.working_days.includes(day.getDay()))
+      .map(day => format(day, 'yyyy-MM-dd'));
+
+    async function fetchDays() {
+      const results: Record<string, DayAvailability> = {};
+      for (let i = 0; i < dates.length; i += 5) {
+        const batch = await Promise.all(dates.slice(i, i + 5).map(async day => {
+          try {
+            const { data, error } = await supabase.functions.invoke('check-availability', { body: { offer_id: offerId, date: day } });
+            if (error || data?.error || !Array.isArray(data?.slots)) throw error ?? new Error(data?.error ?? 'Invalid availability');
+            return [day, { slots: data.slots as string[], reason: data.reason } as DayAvailability] as const;
+          } catch {
+            return [day, { slots: [], error: true } as DayAvailability] as const;
+          }
+        }));
+        if (cancelled) return;
+        for (const [day, value] of batch) results[day] = value;
+        setDays({ ...results });
+      }
+      if (!cancelled) {
+        setCalendarError(Object.values(results).some(result => result.error));
+        setLoadingDays(false);
+      }
     }
-  }, []);
+    void fetchDays();
+    return () => { cancelled = true; };
+  }, [open, offerId, availability, today, maxFutureDays]);
+
+  useEffect(() => {
+    const day = days[date];
+    if (!day || !date) return;
+    setSlots(day.slots);
+    setLoadingSlots(false);
+  }, [days, date]);
 
   const selectOffer = (value: string) => {
     setOfferId(value);
-    void loadSlots(value, date);
+    setDate('');
+    setSlot('');
+    setSlots([]);
   };
 
-  const selectDate = (value: string) => {
-    setDate(value);
-    void loadSlots(offerId, value);
+  const selectDate = (value: Date | undefined) => {
+    const nextDate = value ? format(value, 'yyyy-MM-dd') : '';
+    setDate(nextDate);
+    setSlot('');
+    setSlots(days[nextDate]?.slots ?? []);
+    setLoadingSlots(!!nextDate && !days[nextDate]);
   };
 
   const submit = async () => {
@@ -155,24 +211,36 @@ export function CreateBookingForLeadDialog({ lead }: Props) {
             {!offersLoading && activeOffers.length === 0 && <p className="text-sm text-destructive">Aucune offre active dans cet espace.</p>}
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="booking-date">Date</Label>
-              <Input id="booking-date" type="date" min={minDate} value={date} onChange={(event) => selectDate(event.target.value)} className="h-11 text-base sm:text-sm" />
+          <div className="grid gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <Label>Choisir une date</Label>
+              <span className="flex items-center gap-1 text-xs text-muted-foreground"><Clock className="h-3.5 w-3.5" /> {availability?.slot_duration_minutes ?? 45} min</span>
             </div>
-            <div className="grid gap-2">
-              <Label>Durée</Label>
-              <div className="flex h-11 items-center gap-2 rounded-md border border-input bg-muted/30 px-3 text-sm text-muted-foreground">
-                <Clock className="h-4 w-4" /> {availability?.slot_duration_minutes ?? 60} min
-              </div>
-            </div>
+            <Calendar
+              mode="single"
+              locale={fr}
+              selected={date ? new Date(`${date}T12:00:00`) : undefined}
+              onSelect={selectDate}
+              disabled={(day) => {
+                const key = format(day, 'yyyy-MM-dd');
+                return key < today || day > maxDate || !availability?.working_days.includes(day.getDay()) || (!loadingDays && !!days[key] && days[key].slots.length === 0 && !days[key].error);
+              }}
+              modifiers={{ available: (day) => (days[format(day, 'yyyy-MM-dd')]?.slots.length ?? 0) > 0 }}
+              modifiersClassNames={{ available: 'font-semibold text-emerald-400 ring-1 ring-emerald-500/40 rounded-md' }}
+              className="mx-auto max-w-full p-1 sm:p-3"
+            />
+            <p className="text-xs text-muted-foreground">
+              {loadingDays ? 'Recherche des disponibilités…' : calendarError ? 'Certaines dates n’ont pas pu être vérifiées. Réessaie plus tard.' : 'Les dates marquées en vert ont des créneaux libres.'}
+            </p>
           </div>
 
           {date && (
             <div className="grid gap-2">
-              <Label>Créneau disponible</Label>
+              <Label>Créneaux — {format(new Date(`${date}T12:00:00`), 'd MMMM yyyy', { locale: fr })}</Label>
               {loadingSlots ? (
                 <div className="flex min-h-16 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
+              ) : days[date]?.error ? (
+                <p className="text-sm text-destructive">Impossible de vérifier cette date. Réessaie plus tard.</p>
               ) : slots.length > 0 ? (
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                   {slots.map((time) => (
@@ -182,7 +250,7 @@ export function CreateBookingForLeadDialog({ lead }: Props) {
                   ))}
                 </div>
               ) : (
-                <p className="rounded-md border border-border bg-muted/30 p-3 text-sm text-muted-foreground">Aucun créneau disponible ce jour.</p>
+                <p className="rounded-md border border-border bg-muted/30 p-3 text-sm text-muted-foreground">{unavailableLabels[days[date]?.reason ?? ''] ?? 'Aucun créneau libre ce jour pour cette offre.'}</p>
               )}
             </div>
           )}
