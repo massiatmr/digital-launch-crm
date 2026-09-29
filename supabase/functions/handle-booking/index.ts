@@ -1,12 +1,25 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createEventOnPrimary } from "../_shared/calendar/index.ts";
 import { getMutedUserIds } from "../_shared/notificationPrefs.ts";
+import { z } from "npm:zod@3.25.76";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+const BookingBodySchema = z.object({
+  lead_id: z.string().uuid().optional(),
+  name: z.string().trim().min(1).max(100),
+  email: z.string().trim().email().max(255),
+  phone: z.string().trim().min(6).max(30),
+  booking_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  time_slot: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  offer_id: z.string().uuid(),
+  notes: z.string().trim().max(2000).optional(),
+  client_timezone: z.string().trim().max(100).optional(),
+});
 
 async function markLeadBookedAndStopAutomations(supabase: any, leadId: string, ownerId: string) {
   const { data: lead } = await supabase
@@ -47,14 +60,14 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { name, email, phone, booking_date, time_slot, offer_id, notes, client_timezone } = await req.json();
-
-    if (!name || !email || !phone || !booking_date || !time_slot || !offer_id) {
+    const parsedBody = BookingBodySchema.safeParse(await req.json());
+    if (!parsedBody.success) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields" }),
+        JSON.stringify({ error: "Invalid booking details", fields: parsedBody.error.flatten().fieldErrors }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    const { lead_id: requestedLeadId, name, email, phone, booking_date, time_slot, offer_id, notes, client_timezone } = parsedBody.data;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -78,6 +91,48 @@ Deno.serve(async (req) => {
     const owner_id = offer.owner_id;
     const offer_workspace_id = (offer as any).workspace_id || null;
     const offerName = offer.name || "Consultation";
+
+    let explicitLead: any = null;
+    if (requestedLeadId) {
+      const authHeader = req.headers.get("Authorization") || "";
+      const token = authHeader.replace(/^Bearer\s+/i, "");
+      const { data: authData, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !authData.user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: leadRow } = await supabase
+        .from("leads")
+        .select("id, owner_id, workspace_id, email, phone")
+        .eq("id", requestedLeadId)
+        .is("deleted_at", null)
+        .maybeSingle();
+      const sameScope = leadRow && (
+        offer_workspace_id
+          ? leadRow.workspace_id === offer_workspace_id
+          : leadRow.owner_id === owner_id
+      );
+      let canManage = leadRow?.owner_id === authData.user.id;
+      if (!canManage && offer_workspace_id) {
+        const { data: membership } = await supabase
+          .from("workspace_members")
+          .select("user_id")
+          .eq("workspace_id", offer_workspace_id)
+          .eq("user_id", authData.user.id)
+          .maybeSingle();
+        canManage = !!membership;
+      }
+      if (!sameScope || !canManage) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      explicitLead = leadRow;
+    }
     let calendarTimeZone = "Europe/Paris";
     let calendarDurationMinutes = 60;
     if (offer_workspace_id) {
@@ -134,6 +189,7 @@ Deno.serve(async (req) => {
       google_event_id: googleEventId,
       meet_link: meetLink,
       client_timezone: client_timezone || null,
+      lead_id: explicitLead?.id || null,
     });
 
     if (bookingError) {
@@ -164,7 +220,7 @@ Deno.serve(async (req) => {
     if (normPhone) orParts.push(`phone.eq.${normPhone}`);
     if (orParts.length) leadQuery = leadQuery.or(orParts.join(","));
     const { data: candidates } = orParts.length ? await leadQuery : { data: [] as any[] };
-    const existingLead = (candidates && candidates.length > 0) ? candidates[0] : null;
+    const existingLead = explicitLead || ((candidates && candidates.length > 0) ? candidates[0] : null);
 
     let leadId: string;
 
