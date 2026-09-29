@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { CalendarPlus, Clock, Loader2 } from 'lucide-react';
-import { addDays, format, startOfDay } from 'date-fns';
+import { CalendarPlus, Clock, Globe, Loader2 } from 'lucide-react';
+import { addDays, format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 import type { DbLead } from '@/hooks/useLeadData';
 import { useOffers } from '@/hooks/useOfferData';
 import { useAvailabilitySettings } from '@/hooks/useAvailabilitySettings';
-import { getViewerTz } from '@/lib/bookingTime';
+import { formatTimeInTz, getViewerTz, tzShortLabel, wallTimeToUtc } from '@/lib/bookingTime';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -40,6 +40,12 @@ const unavailableLabels: Record<string, string> = {
   out_of_range: 'Cette date dépasse la période de réservation.',
 };
 
+const TIME_ZONES = [
+  'Europe/Paris', 'Africa/Algiers', 'Africa/Casablanca', 'Europe/London',
+  'Europe/Brussels', 'Europe/Madrid', 'Africa/Tunis', 'America/New_York',
+  'America/Los_Angeles', 'UTC',
+];
+
 function dateInTimeZone(timeZone: string) {
   try {
     const parts = new Intl.DateTimeFormat('en-GB', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
@@ -64,11 +70,15 @@ export function CreateBookingForLeadDialog({ lead }: Props) {
   const [days, setDays] = useState<Record<string, DayAvailability>>({});
   const [loadingDays, setLoadingDays] = useState(false);
   const [calendarError, setCalendarError] = useState(false);
+  const [displayTimeZone, setDisplayTimeZone] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { data: offers = [], isLoading: offersLoading } = useOffers();
   const { data: availability } = useAvailabilitySettings();
   const queryClient = useQueryClient();
   const activeOffers = useMemo(() => offers.filter((offer) => offer.is_active), [offers]);
+  const ownerTimeZone = availability?.timezone ?? 'Europe/Paris';
+  const chosenTimeZone = displayTimeZone || ownerTimeZone;
+  const timeZones = useMemo(() => Array.from(new Set([ownerTimeZone, getViewerTz(), ...TIME_ZONES])), [ownerTimeZone]);
   const today = dateInTimeZone(availability?.timezone ?? 'Europe/Paris');
   const maxFutureDays = availability?.max_future_days ?? 14;
   const maxDate = addDays(new Date(`${today}T12:00:00`), maxFutureDays);
@@ -143,6 +153,14 @@ export function CreateBookingForLeadDialog({ lead }: Props) {
     setLoadingSlots(!!nextDate && !days[nextDate]);
   };
 
+  const displaySlot = (time: string) => {
+    if (chosenTimeZone === ownerTimeZone) return time;
+    const instant = wallTimeToUtc(date, time, ownerTimeZone);
+    const localDate = dateInTimeZoneAt(instant, chosenTimeZone);
+    const dayHint = localDate < date ? ' · veille' : localDate > date ? ' · lendemain' : '';
+    return `${formatTimeInTz(instant, chosenTimeZone)}${dayHint}`;
+  };
+
   const submit = async () => {
     const parsed = bookingSchema.safeParse({ name, email, phone, offerId, date, slot, notes });
     if (!parsed.success) {
@@ -162,7 +180,7 @@ export function CreateBookingForLeadDialog({ lead }: Props) {
           booking_date: parsed.data.date,
           time_slot: parsed.data.slot,
           notes: parsed.data.notes,
-          client_timezone: getViewerTz(),
+          client_timezone: chosenTimeZone,
         },
       });
       if (error) throw error;
@@ -212,6 +230,19 @@ export function CreateBookingForLeadDialog({ lead }: Props) {
           </div>
 
           <div className="grid gap-2">
+            <Label htmlFor="booking-timezone" className="flex items-center gap-2"><Globe className="h-4 w-4" /> Fuseau horaire</Label>
+            <Select value={chosenTimeZone} onValueChange={(value) => { setDisplayTimeZone(value); setSlot(''); }} disabled={submitting}>
+              <SelectTrigger id="booking-timezone" className="h-11 text-base sm:text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {timeZones.map((timeZone) => (
+                  <SelectItem key={timeZone} value={timeZone}>{tzShortLabel(timeZone)} ({timeZone}){timeZone === ownerTimeZone ? ' · espace' : ''}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {chosenTimeZone !== ownerTimeZone && <p className="text-xs text-muted-foreground">Les dates suivent l’agenda de {tzShortLabel(ownerTimeZone)} ; les heures ci-dessous sont en heure de {tzShortLabel(chosenTimeZone)}.</p>}
+          </div>
+
+          <div className="grid gap-2">
             <div className="flex items-center justify-between gap-2">
               <Label>Choisir une date</Label>
               <span className="flex items-center gap-1 text-xs text-muted-foreground"><Clock className="h-3.5 w-3.5" /> {availability?.slot_duration_minutes ?? 45} min</span>
@@ -227,7 +258,7 @@ export function CreateBookingForLeadDialog({ lead }: Props) {
               }}
               modifiers={{ available: (day) => (days[format(day, 'yyyy-MM-dd')]?.slots.length ?? 0) > 0 }}
               modifiersClassNames={{ available: 'font-semibold text-emerald-400 ring-1 ring-emerald-500/40 rounded-md' }}
-              className="mx-auto max-w-full p-1 sm:p-3"
+              className="pointer-events-auto mx-auto max-w-full p-1 sm:p-3"
             />
             <p className="text-xs text-muted-foreground">
               {loadingDays ? 'Recherche des disponibilités…' : calendarError ? 'Certaines dates n’ont pas pu être vérifiées. Réessaie plus tard.' : 'Les dates marquées en vert ont des créneaux libres.'}
@@ -244,8 +275,9 @@ export function CreateBookingForLeadDialog({ lead }: Props) {
               ) : slots.length > 0 ? (
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                   {slots.map((time) => (
-                    <Button key={time} type="button" size="sm" variant={slot === time ? 'default' : 'outline'} onClick={() => setSlot(time)} className="h-10 font-mono">
-                      {time}
+                    <Button key={time} type="button" size="sm" variant={slot === time ? 'default' : 'outline'} onClick={() => setSlot(time)} title={chosenTimeZone === ownerTimeZone ? time : `${time} · ${tzShortLabel(ownerTimeZone)}`} className="h-auto min-h-10 flex-col gap-0.5 py-1 font-mono text-xs sm:text-sm">
+                      <span>{displaySlot(time)}</span>
+                      {chosenTimeZone !== ownerTimeZone && <span className="text-[10px] opacity-70">{time} {tzShortLabel(ownerTimeZone)}</span>}
                     </Button>
                   ))}
                 </div>
