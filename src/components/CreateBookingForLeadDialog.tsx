@@ -46,13 +46,13 @@ const TIME_ZONES = [
   'America/Los_Angeles', 'UTC',
 ];
 
-function dateInTimeZone(timeZone: string) {
+function dateInTimeZone(timeZone: string, instant: Date = new Date()) {
   try {
-    const parts = new Intl.DateTimeFormat('en-GB', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+    const parts = new Intl.DateTimeFormat('en-GB', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(instant);
     const value = (type: string) => parts.find(part => part.type === type)?.value ?? '';
     return `${value('year')}-${value('month')}-${value('day')}`;
   } catch {
-    return format(new Date(), 'yyyy-MM-dd');
+    return format(instant, 'yyyy-MM-dd');
   }
 }
 
@@ -156,7 +156,7 @@ export function CreateBookingForLeadDialog({ lead }: Props) {
   const displaySlot = (time: string) => {
     if (chosenTimeZone === ownerTimeZone) return time;
     const instant = wallTimeToUtc(date, time, ownerTimeZone);
-    const localDate = dateInTimeZoneAt(instant, chosenTimeZone);
+    const localDate = dateInTimeZone(chosenTimeZone, instant);
     const dayHint = localDate < date ? ' · veille' : localDate > date ? ' · lendemain' : '';
     return `${formatTimeInTz(instant, chosenTimeZone)}${dayHint}`;
   };
