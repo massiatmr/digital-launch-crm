@@ -11,6 +11,7 @@ import { FollowupTimeline } from '@/components/FollowupTimeline';
 import { LeadQualificationCard } from '@/components/LeadQualificationCard';
 import { CreateTaskForLeadDialog } from '@/components/CreateTaskForLeadDialog';
 import { LeadSummaryCard } from '@/components/LeadSummaryCard';
+import { CreateBookingForLeadDialog } from '@/components/CreateBookingForLeadDialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
@@ -129,7 +130,10 @@ export function LeadDetailContent({
               <p className="truncate text-sm text-muted-foreground">{lead.company_name}</p>
             )}
           </div>
-          <CreateTaskForLeadDialog leadId={lead.id} leadName={lead.name} />
+          <div className="hidden items-center gap-2 sm:flex">
+            <CreateBookingForLeadDialog lead={lead} />
+            <CreateTaskForLeadDialog leadId={lead.id} leadName={lead.name} />
+          </div>
         </div>
       </div>
 
@@ -198,6 +202,9 @@ export function LeadDetailContent({
 
             <TabsContent value="overview" className="mt-0 space-y-4">
               <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
+                <div className="sm:hidden">
+                  <CreateBookingForLeadDialog lead={lead} />
+                </div>
                 {lead.phone && whatsappEnabled && (
                   <Button asChild size="lg" className="min-h-12 w-full justify-center gap-2 text-base sm:h-10 sm:w-auto sm:text-sm">
                     <a href={toWhatsAppUrl(lead.phone, cc)} target="_blank" rel="noopener noreferrer">
