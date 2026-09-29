@@ -103,9 +103,9 @@ export function CreateBookingForLeadDialog({ lead }: Props) {
           try {
             const { data, error } = await supabase.functions.invoke('check-availability', { body: { offer_id: offerId, date: day } });
             if (error || data?.error || !Array.isArray(data?.slots)) throw error ?? new Error(data?.error ?? 'Invalid availability');
-            return [day, { slots: data.slots, reason: data.reason }] as const;
+            return [day, { slots: data.slots as string[], reason: data.reason } as DayAvailability] as const;
           } catch {
-            return [day, { slots: [], error: true }] as const;
+            return [day, { slots: [], error: true } as DayAvailability] as const;
           }
         }));
         if (cancelled) return;
