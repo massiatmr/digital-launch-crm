@@ -113,7 +113,7 @@ export function CreateBookingForLeadDialog({ lead }: Props) {
       if (data?.error) throw new Error(data.error);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['lead-bookings', lead.id] }),
-        queryClient.invalidateQueries({ queryKey: ['lead-activities', lead.id] }),
+        queryClient.invalidateQueries({ queryKey: ['activities'] }),
         queryClient.invalidateQueries({ queryKey: ['bookings'] }),
       ]);
       toast.success('Rendez-vous créé');
