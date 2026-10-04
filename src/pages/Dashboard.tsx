@@ -129,10 +129,21 @@ export default function Dashboard() {
   // — KPI 1: New leads in period
   const newLeads30dAlert = leads.length < 5;
 
-  // — KPI 2: Avg time New → First contact (seconds, displayed in s/min/h/j)
-  const contactedLeads = leads.filter(l => (l as any).first_contacted_at && l.status !== 'new');
-  const avgResponseSeconds = contactedLeads.length > 0
-    ? Math.round(contactedLeads.reduce((sum, l) => sum + differenceInSeconds(new Date((l as any).first_contacted_at), new Date(l.created_at)), 0) / contactedLeads.length)
+  // — KPI 2: Avg time New → First contact. Leads still waiting in "Nouveau"
+  // contribute their current waiting time so the KPI reflects the real backlog.
+  const now = new Date();
+  const measurableResponseTimes = leads.flatMap(l => {
+    const firstContactedAt = (l as any).first_contacted_at;
+    if (firstContactedAt) {
+      return [Math.max(0, differenceInSeconds(new Date(firstContactedAt), new Date(l.created_at)))];
+    }
+    if (l.status === 'new') {
+      return [Math.max(0, differenceInSeconds(now, new Date(l.created_at)))];
+    }
+    return [];
+  });
+  const avgResponseSeconds = measurableResponseTimes.length > 0
+    ? Math.round(measurableResponseTimes.reduce((sum, seconds) => sum + seconds, 0) / measurableResponseTimes.length)
     : -1;
   const hasResponseData = avgResponseSeconds >= 0;
   const responseDisplay = !hasResponseData
@@ -376,7 +387,7 @@ export default function Dashboard() {
           label="Temps de réponse"
           value={responseDisplay.value}
           suffix={responseDisplay.suffix}
-          subtitle={!hasResponseData ? 'Aucun lead contacté' : responseTooSlow ? '⚠ Trop lent, visez < 24h' : '✓ Bon tempo'}
+          subtitle={!hasResponseData ? 'Aucun lead à mesurer' : responseTooSlow ? '⚠ Trop lent, visez < 24h' : '✓ Bon tempo'}
           subtitleColor={!hasResponseData ? undefined : responseTooSlow ? 'text-amber-400' : 'text-emerald-400'}
           icon={Clock}
           gradient="from-amber-500/20 to-amber-600/5"
