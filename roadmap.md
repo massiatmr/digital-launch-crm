@@ -6,3 +6,4 @@
 - [x] Corriger la récupération des créneaux du rendez-vous manuel
 - [x] Ajouter un sélecteur mensuel avec jours disponibles
 - [x] Vérifier la sélection sur ordinateur et mobile
+- [x] Inclure les leads encore « Nouveau » dans le temps de réponse moyen
