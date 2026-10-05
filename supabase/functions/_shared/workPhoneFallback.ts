@@ -57,7 +57,7 @@ export async function requeueTask(admin: any, taskId: string): Promise<boolean> 
   const { id: _id, created_at: _c, updated_at: _u, executed_at: _e, error_message: _m, message_content: _mc, ai_generated: _ai, ...rest } = t;
   const { error } = await admin.from("lead_followup_tasks").insert({
     ...rest,
-    status: "pending",
+    status: "scheduled",
     scheduled_at: new Date().toISOString(),
     error_message: "Renvoi automatique sur le numéro de travail",
   } as any);
