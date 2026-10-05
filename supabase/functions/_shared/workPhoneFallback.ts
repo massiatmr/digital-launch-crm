@@ -43,7 +43,7 @@ export async function trySwitchToWorkPhone(admin: any, leadId: string, reason: s
     owner_id: lead.owner_id,
     workspace_id: lead.workspace_id ?? null,
     activity_type: "note",
-    content: `📞 Échec WhatsApp sur ${lead.phone ?? "—"} → bascule automatique sur le numéro de travail ${work}. (${reason.slice(0, 160)})`,
+    description: `📞 Échec WhatsApp sur ${lead.phone ?? "—"} → bascule automatique sur le numéro de travail ${work}. (${reason.slice(0, 160)})`,
   } as any).then(() => {}, (e: any) => console.error("work phone activity log failed", e));
 
   console.log("work_phone_fallback", { lead_id: leadId, switched: true });
@@ -54,7 +54,7 @@ export async function trySwitchToWorkPhone(admin: any, leadId: string, reason: s
 export async function requeueTask(admin: any, taskId: string): Promise<boolean> {
   const { data: t } = await admin.from("lead_followup_tasks").select("*").eq("id", taskId).maybeSingle();
   if (!t) return false;
-  const { id: _id, created_at: _c, updated_at: _u, executed_at: _e, error_message: _m, message_content: _mc, ...rest } = t;
+  const { id: _id, created_at: _c, updated_at: _u, executed_at: _e, error_message: _m, message_content: _mc, ai_generated: _ai, ...rest } = t;
   const { error } = await admin.from("lead_followup_tasks").insert({
     ...rest,
     status: "pending",

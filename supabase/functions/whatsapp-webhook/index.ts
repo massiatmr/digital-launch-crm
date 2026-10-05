@@ -2,6 +2,7 @@
 // GET = handshake (verify_token lookup in DB)
 // POST = inbound message → insert into whatsapp_messages + push notif owner
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { trySwitchToWorkPhone, requeueTask } from "../_shared/workPhoneFallback.ts";
 import { getMutedUserIds } from "../_shared/notificationPrefs.ts";
 
 const corsHeaders = {
@@ -155,7 +156,18 @@ Deno.serve(async (req) => {
               // Meta peut accepter l'envoi puis renvoyer ensuite "failed/undeliverable".
               // Avant, la tâche restait marquée envoyée: l'automatisation croyait avoir
               // contacté le lead alors qu'aucun message n'était arrivé.
-              if (status === "failed" && (existingMsg as any)?.task_id) {
+              let switchedToWork = false;
+              if (status === "failed" && (existingMsg as any)?.lead_id) {
+                const errText0 = JSON.stringify(st.errors || st);
+                const newPhone = await trySwitchToWorkPhone(admin, (existingMsg as any).lead_id, errText0);
+                if (newPhone && (existingMsg as any)?.task_id) {
+                  await admin.from("lead_followup_tasks").update({
+                    status: "failed", error_message: `Échec sur numéro principal, renvoi sur Work Phone`, updated_at: new Date().toISOString(),
+                  } as any).eq("id", (existingMsg as any).task_id);
+                  switchedToWork = await requeueTask(admin, (existingMsg as any).task_id);
+                }
+              }
+              if (status === "failed" && (existingMsg as any)?.task_id && !switchedToWork) {
                 const errorText = JSON.stringify(st.errors || st).slice(0, 1000);
                 await admin.from("lead_followup_tasks").update({
                   status: "failed",

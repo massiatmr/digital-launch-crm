@@ -1,5 +1,6 @@
 // Exécute une tâche de suivi WhatsApp avec mode dry-run et support templates Meta
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { trySwitchToWorkPhone, requeueTask } from "../_shared/workPhoneFallback.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -792,6 +793,20 @@ Deno.serve(async (req) => {
       ai_generated: aiGenerated,
       error_message: errorMessage,
     } as any).eq("id", task_id);
+
+    if (newStatus === "failed" && waMessageId === null && errorMessage && errorMessage.startsWith("{") && leadChannel === "whatsapp") {
+      const newPhone = await trySwitchToWorkPhone(admin, task.lead_id, errorMessage);
+      if (newPhone && await requeueTask(admin, task_id)) {
+        await logAutomationEvent(admin, {
+          lead_id: task.lead_id, task_id, owner_id: ownerId, workspace_id: lead.workspace_id ?? null,
+          event_type: "work_phone_fallback", level: "warning",
+          message: "Échec WhatsApp sur le numéro principal, nouvel essai sur le Work Phone",
+        } as any);
+        return new Response(JSON.stringify({ ok: false, requeued_on_work_phone: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     if (newStatus === "failed" || newStatus === "skipped") {
       const reason = errorMessage || `status=${logStatus}`;
