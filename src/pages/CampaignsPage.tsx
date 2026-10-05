@@ -141,6 +141,12 @@ function CampaignBuilder({ open, onOpenChange }: { open: boolean; onOpenChange: 
   const [scheduledAt, setScheduledAt] = useState<string>("");
 
   const selectedTemplate = templates.find((t) => t.id === templateId);
+  const [offers, setOffers] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    if (!open || !workspaceId) return;
+    supabase.from("offers").select("id, name").eq("workspace_id", workspaceId).is("deleted_at", null).order("name")
+      .then(({ data }) => setOffers((data as any) || []));
+  }, [open, workspaceId]);
 
   useEffect(() => {
     setFilter((f: any) => ({ ...f, workspace_id: workspaceId }));
@@ -304,6 +310,9 @@ function CampaignBuilder({ open, onOpenChange }: { open: boolean; onOpenChange: 
                   {(filter.entity === "leads" || filter.entity === "both" || !filter.entity) && (
                     <>
                       <ChipMulti label="Statut lead" options={LEAD_STATUSES} value={filter.lead_statuses || []} onChange={(v) => setFilter({ ...filter, lead_statuses: v })} />
+                      {offers.length > 0 && (
+                        <ChipMulti label="Offre" options={offers.map((o) => o.id)} labels={Object.fromEntries(offers.map((o) => [o.id, o.name]))} value={filter.offer_ids || []} onChange={(v) => setFilter({ ...filter, offer_ids: v })} />
+                      )}
                       <ChipMulti label="Score" options={SCORES} value={filter.scores || []} onChange={(v) => setFilter({ ...filter, scores: v })} />
                       <ChipMulti label="Source" options={SOURCES} value={filter.sources || []} onChange={(v) => setFilter({ ...filter, sources: v })} />
                       <label className="flex items-center gap-2 text-sm">
@@ -436,7 +445,7 @@ function Row({ k, v }: { k: string; v: any }) {
   return <div className="flex justify-between text-sm"><span className="text-muted-foreground">{k}</span><span className="font-medium text-right">{v}</span></div>;
 }
 
-function ChipMulti({ label, options, value, onChange }: { label: string; options: string[]; value: string[]; onChange: (v: string[]) => void }) {
+function ChipMulti({ label, options, value, onChange, labels }: { label: string; options: string[]; value: string[]; onChange: (v: string[]) => void; labels?: Record<string, string> }) {
   const toggle = (o: string) => {
     if (value.includes(o)) onChange(value.filter((x) => x !== o));
     else onChange([...value, o]);
@@ -454,7 +463,7 @@ function ChipMulti({ label, options, value, onChange }: { label: string; options
               value.includes(o) ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-accent"
             }`}
           >
-            {o}
+            {labels?.[o] ?? o}
           </button>
         ))}
       </div>
