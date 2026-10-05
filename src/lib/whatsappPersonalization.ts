@@ -1,0 +1,1 @@
+export { resolveGreetingName, renderNameTemplate, templateGreetingName } from '../../supabase/functions/_shared/whatsappPersonalization';
