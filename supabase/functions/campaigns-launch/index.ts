@@ -1,5 +1,6 @@
 // Matérialise les destinataires d'une campagne WhatsApp et la passe en running/scheduled.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { templateGreetingName } from "../_shared/whatsappPersonalization.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,8 +23,9 @@ function resolveVars(mapping: Record<string, string>, source: any): Record<strin
   for (const [idx, field] of Object.entries(mapping || {})) {
     let val = "";
     if (field?.startsWith("static:")) val = field.slice(7);
+    else if (field === "name") val = templateGreetingName(source?.name, source?.company_name);
     else val = String(source?.[field] ?? "").trim();
-    if (!val) val = source?.name || "";
+    if (!val) val = templateGreetingName(source?.name, source?.company_name);
     out[idx] = val;
   }
   return out;

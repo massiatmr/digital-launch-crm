@@ -12,6 +12,7 @@ import {
   FollowupScriptPhase,
 } from '@/hooks/useFollowupScripts';
 import { cn } from '@/lib/utils';
+import { renderNameTemplate } from '@/lib/whatsappPersonalization';
 
 interface Props {
   leadName?: string;
@@ -19,8 +20,7 @@ interface Props {
 }
 
 function renderTemplate(content: string, leadName?: string) {
-  const first = (leadName || '').trim().split(/\s+/)[0] || '';
-  return content.replace(/\{\{\s*name\s*\}\}/gi, first);
+  return renderNameTemplate(content, leadName);
 }
 
 export function FollowupScriptsPicker({ leadName, onInsert }: Props) {
