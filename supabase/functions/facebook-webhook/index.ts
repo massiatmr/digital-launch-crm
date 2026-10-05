@@ -974,7 +974,8 @@ async function processMessagingEvents(body: any, requestId: string) {
           try {
             const binRes = await fetch(att.payload.url);
             if (binRes.ok) {
-              const mime = (binRes.headers.get("content-type") || (att.type === "audio" ? "audio/mp4" : "application/octet-stream")).split(";")[0];
+              let mime = (binRes.headers.get("content-type") || "application/octet-stream").split(";")[0];
+              if (att.type === "audio" && !mime.startsWith("audio")) mime = "audio/mp4";
               const buf = new Uint8Array(await binRes.arrayBuffer());
               const ext = mime.split("/")[1]?.replace("mpeg", "mp3").replace("x-m4a", "m4a") || "bin";
               const isAudio = att.type === "audio";
