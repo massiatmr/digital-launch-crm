@@ -217,9 +217,9 @@ async function getNextAvailableSlots(
       const slotEnd = new Date(slotStart.getTime() + slotDurationMs);
       const overlaps = gBusy.some((b) => slotStart < b.end && slotEnd > b.start);
       if (overlaps) continue;
-      const displayDate = formatDateInTimeZone(slotStart, DISPLAY_TIME_ZONE);
+      const displayDate = formatDateInTimeZone(slotStart, ownerTimeZone);
       if (displayDate !== dateStr) continue;
-      freeSlots.push(formatTimeInTimeZone(slotStart, DISPLAY_TIME_ZONE));
+      freeSlots.push(formatTimeInTimeZone(slotStart, ownerTimeZone));
     }
     if (freeSlots.length === 0) continue;
 
@@ -353,8 +353,8 @@ async function getAvailableSlotsForDate(
     if (slotStart.getTime() < now.getTime() + minLeadMs) return [];
     const slotEnd = new Date(slotStart.getTime() + slotDurationMs);
     if (gBusy.some((b) => slotStart < b.end && slotEnd > b.start)) return [];
-    if (formatDateInTimeZone(slotStart, DISPLAY_TIME_ZONE) !== requestedDate) return [];
-    return [formatTimeInTimeZone(slotStart, DISPLAY_TIME_ZONE)];
+    if (formatDateInTimeZone(slotStart, ownerTimeZone) !== requestedDate) return [];
+    return [formatTimeInTimeZone(slotStart, ownerTimeZone)];
   });
 
   return { date: requestedDate, slots: freeSlots, label, duration: slotDurationMin, reason: freeSlots.length ? undefined : "aucun créneau libre" };
@@ -677,7 +677,9 @@ Génère UNIQUEMENT le texte du message WhatsApp (français, max ${isSlotConfirm
     // On découpe en phrases, on garde toutes les phrases jusqu'à la N-ième question incluse,
     // puis on stoppe. Détecte aussi les questions implicites de type "A ou B." (sans "?").
     if (!isSlotConfirmation) {
-      const sentences = message.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [message];
+      const urls: string[] = [];
+      const masked = message.replace(/https?:\/\/\S+/g, (u) => { urls.push(u); return `__URL${urls.length - 1}__`; });
+      const sentences = masked.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [masked];
       const looksLikeImplicitQuestion = (s: string) =>
         /\b(ou|vs)\b/i.test(s) && /\b(tu|vous|t'?es|vous êtes|préfères|préférez|veux|voulez|travailles|bosses|aimerais|aimeriez)\b/i.test(s);
       const kept: string[] = [];
@@ -692,7 +694,7 @@ Génère UNIQUEMENT le texte du message WhatsApp (français, max ${isSlotConfirm
         }
         kept.push(s);
       }
-      const rebuilt = kept.join(" ").replace(/ {2,}/g, " ").trim();
+      const rebuilt = kept.join(" ").replace(/ {2,}/g, " ").trim().replace(/__URL(\d+)__/g, (_, i) => urls[Number(i)]);
       if (rebuilt) message = rebuilt;
     }
 
