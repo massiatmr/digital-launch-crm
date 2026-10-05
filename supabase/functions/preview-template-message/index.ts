@@ -1,5 +1,6 @@
 // Génère un aperçu d'un message template avec variables remplies via IA pour un lead donné
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { greetingInstructions, normalizeTemplateNameVariables } from "../_shared/whatsappPersonalization.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,7 +49,8 @@ Lead:
 - Message: ${lead.message || "-"}
 - Notes: ${lead.notes || "-"}
 
-Réponds UNIQUEMENT avec JSON: {"variables": ["v1", "v2", ...]} (court, naturel, français).`;
+${greetingInstructions(lead.name, lead.company_name)}
+Réponds UNIQUEMENT avec JSON: {"variables": ["v1", "v2", ...]} (court, naturel). Conserve l'écriture du nom autorisé, même en arabe.`;
 
       const resp = await fetch(LOVABLE_AI, {
         method: "POST",
@@ -62,7 +64,7 @@ Réponds UNIQUEMENT avec JSON: {"variables": ["v1", "v2", ...]} (court, naturel,
       if (!resp.ok) throw new Error(`AI failed: ${await resp.text()}`);
       const data = await resp.json();
       const parsed = JSON.parse(data.choices[0].message.content);
-      const vars = parsed.variables || [];
+      const vars = normalizeTemplateNameVariables(tpl.body_text, parsed.variables || [], lead.name, lead.company_name);
       vars.forEach((v: string, i: number) => {
         preview = preview.replace(new RegExp(`\\{\\{${i + 1}\\}\\}`, "g"), v);
       });

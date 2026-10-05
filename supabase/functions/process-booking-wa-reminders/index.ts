@@ -1,5 +1,6 @@
 // Cron: process booking_wa_reminders due → send template HSM via WhatsApp Cloud API.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { templateGreetingName } from "../_shared/whatsappPersonalization.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -127,7 +128,7 @@ Deno.serve(async (req) => {
       }
 
       // Template Meta
-      const { data: tpl } = await supabase.from("whatsapp_templates").select("name, language").eq("id", cfg.template_id).maybeSingle();
+      const { data: tpl } = await supabase.from("whatsapp_templates").select("name, language, body_text").eq("id", cfg.template_id).maybeSingle();
       if (!tpl) {
         await supabase.from("booking_wa_reminders").update({ status: "failed", error_message: "template missing", sent_at: nowIso }).eq("id", row.id);
         continue;
@@ -146,8 +147,11 @@ Deno.serve(async (req) => {
       }
 
       const { date: dateStr, time: timeStr } = fmtParis(booking.booking_date, booking.time_slot);
+      const contact = booking.lead_id
+        ? (await supabase.from("leads").select("name, company_name").eq("id", booking.lead_id).maybeSingle()).data
+        : null;
       const renderVars: Record<string, string> = {
-        name: booking.name || "",
+        name: templateGreetingName(contact?.name || booking.name, contact?.company_name, tpl.body_text || ""),
         date: dateStr,
         time: timeStr,
         offer_name: offerName,

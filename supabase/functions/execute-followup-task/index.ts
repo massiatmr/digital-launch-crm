@@ -1,6 +1,7 @@
 // Exécute une tâche de suivi WhatsApp avec mode dry-run et support templates Meta
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { trySwitchToWorkPhone, requeueTask } from "../_shared/workPhoneFallback.ts";
+import { greetingInstructions, normalizeTemplateNameVariables } from "../_shared/whatsappPersonalization.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -102,7 +103,8 @@ Lead:
 - Notes: ${lead.notes || "-"}
 
 Réponds UNIQUEMENT avec un JSON: {"variables": ["valeur1", "valeur2", ...]}
-Les valeurs doivent être courtes (1-3 mots), en français, naturelles.`;
+${greetingInstructions(lead.name, lead.company_name)}
+Les valeurs doivent être courtes (1-3 mots), naturelles. L'écriture du nom autorisé doit rester inchangée, même en arabe.`;
 
   const resp = await fetch(LOVABLE_AI, {
     method: "POST",
@@ -116,7 +118,7 @@ Les valeurs doivent être courtes (1-3 mots), en français, naturelles.`;
   if (!resp.ok) throw new Error(`AI variables gen failed: ${await resp.text()}`);
   const data = await resp.json();
   const parsed = JSON.parse(data.choices[0].message.content);
-  return parsed.variables || [];
+  return normalizeTemplateNameVariables(template.body_text, parsed.variables || [], lead.name, lead.company_name);
 }
 
 Deno.serve(async (req) => {

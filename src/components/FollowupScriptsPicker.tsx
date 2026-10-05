@@ -12,22 +12,31 @@ import {
   FollowupScriptPhase,
 } from '@/hooks/useFollowupScripts';
 import { cn } from '@/lib/utils';
+import { renderNameTemplate } from '@/lib/whatsappPersonalization';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Props {
+  leadId?: string;
   leadName?: string;
   onInsert?: (text: string) => void;
 }
 
-function renderTemplate(content: string, leadName?: string) {
-  const first = (leadName || '').trim().split(/\s+/)[0] || '';
-  return content.replace(/\{\{\s*name\s*\}\}/gi, first);
-}
-
-export function FollowupScriptsPicker({ leadName, onInsert }: Props) {
+export function FollowupScriptsPicker({ leadId, leadName, onInsert }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [openPhase, setOpenPhase] = useState<FollowupScriptPhase | null>(null);
   const { data: scripts = [], isLoading } = useFollowupScripts();
+  const { data: contact } = useQuery({
+    queryKey: ['whatsapp-greeting-contact', leadId],
+    enabled: open && !!leadId,
+    queryFn: async () => {
+      if (!leadId) return null;
+      const { data, error } = await supabase.from('leads').select('name, company_name').eq('id', leadId).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -93,7 +102,7 @@ export function FollowupScriptsPicker({ leadName, onInsert }: Props) {
                     {isOpen && (
                       <div className="border-t border-border divide-y divide-border">
                         {g.items.map((s) => {
-                          const rendered = renderTemplate(s.content, leadName);
+                           const rendered = renderNameTemplate(s.content, contact?.name || leadName, contact?.company_name);
                           return (
                             <div key={s.id} className="p-3 space-y-2">
                               <p className="text-sm font-medium">{s.title}</p>
