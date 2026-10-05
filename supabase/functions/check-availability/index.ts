@@ -204,16 +204,20 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (!workspace_id || !synced) {
-      const displaySlots = ownerSlots
-        .map((slot) => formatTimeInTimeZone(zonedDateTimeToUtc(date, slot, ownerTimeZone), ownerTimeZone))
-        .filter((slotDate, index, arr) => arr.indexOf(slotDate) === index)
-        .sort();
-
-      return new Response(
-        JSON.stringify({ slots: displaySlots, synced: false, owner_timezone: ownerTimeZone }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // Always block existing CRM bookings (even without calendar sync), using the meeting duration.
+    let bookingsQuery = supabase
+      .from("bookings")
+      .select("time_slot")
+      .eq("booking_date", date)
+      .in("status", ["pending", "confirmed"]);
+    bookingsQuery = workspace_id
+      ? bookingsQuery.eq("workspace_id", workspace_id)
+      : bookingsQuery.eq("owner_id", owner_id);
+    const { data: existingBookings } = await bookingsQuery;
+    for (const b of existingBookings || []) {
+      if (!b.time_slot || !/^\d{2}:\d{2}/.test(b.time_slot)) continue;
+      const bs = zonedDateTimeToUtc(date, String(b.time_slot).slice(0, 5), ownerTimeZone);
+      busyPeriods.push({ start: bs.toISOString(), end: new Date(bs.getTime() + meetingDurationMs).toISOString() });
     }
 
     const availableSlots = ownerSlots.flatMap((slot) => {
@@ -231,7 +235,7 @@ Deno.serve(async (req) => {
     });
 
     return new Response(
-      JSON.stringify({ slots: [...new Set(availableSlots)].sort(), synced: true, owner_timezone: ownerTimeZone }),
+      JSON.stringify({ slots: [...new Set(availableSlots)].sort(), synced, owner_timezone: ownerTimeZone }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {

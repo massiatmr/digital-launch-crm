@@ -414,13 +414,28 @@ Deno.serve(async (req) => {
     // Fire push + email notification UNIQUEMENT pour les nouveaux leads (pas les dédup).
     if (!existingLeadId) {
       try {
-        const notifyRes = await supabase.functions.invoke('notify-new-lead', {
-          body: { lead_id: lead.id },
-        });
+        let notifyRes: any = null;
+        let status: number | null = null;
+        let body: string | null = null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          notifyRes = await supabase.functions.invoke('notify-new-lead', {
+            body: { lead_id: lead.id },
+          });
+          if (!notifyRes.error) break;
+          const ctx = (notifyRes.error as any)?.context;
+          status = ctx?.status ?? null;
+          try { body = ctx ? await ctx.text() : null; } catch { body = null; }
+          console.warn('notify-new-lead attempt failed', JSON.stringify({ lead_id: lead.id, attempt, status, body }));
+          // 4xx other than 404 (lead not yet visible) won't succeed on retry
+          if (status && status >= 400 && status < 500 && status !== 404) break;
+          await new Promise((r) => setTimeout(r, 700 * attempt));
+        }
         console.log('notify-new-lead result', JSON.stringify({
           lead_id: lead.id,
-          error: notifyRes.error?.message ?? null,
-          data: notifyRes.data ?? null,
+          error: notifyRes?.error?.message ?? null,
+          status,
+          body,
+          data: notifyRes?.data ?? null,
         }));
       } catch (notifyErr) {
         console.error('notify-new-lead invocation failed', notifyErr);
