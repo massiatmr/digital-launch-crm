@@ -121,11 +121,25 @@ function naturalDayLabel(dateStr: string, todayStr: string, fallback: string): s
  * (durée = paramétrée, plage = day_start_time → day_end_time, incrément = 1h).
  * Saute les jours déjà proposés dans l'historique. Limité à max_future_days.
  */
+
+// Fuseau du lead déduit de l'indicatif de son numéro (priorité sur le fuseau agenda).
+function leadTimeZoneFromPhone(phone: string | null | undefined): string | null {
+  const d = String(phone ?? "").replace(/\D/g, "").replace(/^00/, "");
+  if (d.startsWith("213")) return "Africa/Algiers";
+  if (d.startsWith("33")) return "Europe/Paris";
+  if (d.startsWith("212")) return "Africa/Casablanca";
+  if (d.startsWith("216")) return "Africa/Tunis";
+  if (d.startsWith("32")) return "Europe/Brussels";
+  if (d.startsWith("41")) return "Europe/Zurich";
+  return null;
+}
+
 async function getNextAvailableSlots(
   admin: any,
   ownerId: string,
   workspaceId: string | null,
   alreadyProposedDates: Set<string>,
+  leadTimeZone: string | null = null,
 ): Promise<{ date: string; slots: string[]; label: string; duration: number } | null> {
   const now = new Date();
 
@@ -219,7 +233,7 @@ async function getNextAvailableSlots(
       if (overlaps) continue;
       const displayDate = formatDateInTimeZone(slotStart, ownerTimeZone);
       if (displayDate !== dateStr) continue;
-      freeSlots.push(formatTimeInTimeZone(slotStart, ownerTimeZone));
+      freeSlots.push(formatTimeInTimeZone(slotStart, leadTimeZone || ownerTimeZone));
     }
     if (freeSlots.length === 0) continue;
 
@@ -274,6 +288,7 @@ async function getAvailableSlotsForDate(
   ownerId: string,
   workspaceId: string | null,
   requestedDate: string,
+  leadTimeZone: string | null = null,
 ): Promise<{ date: string; slots: string[]; label: string; duration: number; reason?: string }> {
   const now = new Date();
   let settings: any = null;
@@ -354,7 +369,7 @@ async function getAvailableSlotsForDate(
     const slotEnd = new Date(slotStart.getTime() + slotDurationMs);
     if (gBusy.some((b) => slotStart < b.end && slotEnd > b.start)) return [];
     if (formatDateInTimeZone(slotStart, ownerTimeZone) !== requestedDate) return [];
-    return [formatTimeInTimeZone(slotStart, ownerTimeZone)];
+    return [formatTimeInTimeZone(slotStart, leadTimeZone || ownerTimeZone)];
   });
 
   return { date: requestedDate, slots: freeSlots, label, duration: slotDurationMin, reason: freeSlots.length ? undefined : "aucun créneau libre" };
@@ -468,7 +483,7 @@ Deno.serve(async (req) => {
 
     // Détecte les jours déjà proposés dans l'historique pour les éviter
     const proposedDates = extractProposedDates(history ?? []);
-    const nextSlot = await getNextAvailableSlots(admin, ownerId!, lead.workspace_id, proposedDates);
+    const nextSlot = await getNextAvailableSlots(admin, ownerId!, lead.workspace_id, proposedDates, leadTimeZoneFromPhone(lead.phone));
 
     const offerData = (offer as any)?.offers;
     let offerInfo = "Aucune offre liée à ce lead.";
@@ -527,15 +542,15 @@ Deno.serve(async (req) => {
     const lastInboundText = inboundMessages.slice(-1)[0]?.content ?? "";
     const requestedDate = resolveRequestedDateFromText(lastInboundText, DISPLAY_TIME_ZONE);
     const requestedDateAvailability = requestedDate
-      ? await getAvailableSlotsForDate(admin, ownerId!, lead.workspace_id, requestedDate.date)
+      ? await getAvailableSlotsForDate(admin, ownerId!, lead.workspace_id, requestedDate.date, leadTimeZoneFromPhone(lead.phone))
       : null;
 
     const slotsBlock = requestedDateAvailability
       ? requestedDateAvailability.slots.length > 0
-        ? `\nJOUR DEMANDÉ PAR LE LEAD : **${requestedDateAvailability.label}**\nCréneaux libres ce jour-là (durée ${requestedDateAvailability.duration} min) : ${requestedDateAvailability.slots.join(" / ")}\n⚠️ Le lead a demandé ce jour. Réponds d'abord à cette demande et propose 1 ou 2 créneaux de CE jour uniquement. N'ajoute pas d'autre jour tant qu'il reste des créneaux libres sur ce jour.`
+        ? `\nJOUR DEMANDÉ PAR LE LEAD : **${requestedDateAvailability.label}**\nCréneaux libres ce jour-là (durée ${requestedDateAvailability.duration} min) : ${requestedDateAvailability.slots.join(" / ")} (heure locale du lead)\n⚠️ Le lead a demandé ce jour. Réponds d'abord à cette demande et propose 1 ou 2 créneaux de CE jour uniquement. N'ajoute pas d'autre jour tant qu'il reste des créneaux libres sur ce jour.`
         : `\nJOUR DEMANDÉ PAR LE LEAD : **${requestedDateAvailability.label}**\nAucun créneau libre ce jour-là (${requestedDateAvailability.reason ?? "indisponible"}).\n${nextSlot ? `Alternative réellement libre : **${nextSlot.label}** à ${nextSlot.slots.slice(0, 2).join(" ou ")}.` : "Aucune alternative libre dans la fenêtre autorisée."}\n⚠️ Dis clairement que le jour demandé n'est pas disponible avant de proposer l'alternative. N'invente JAMAIS d'autre horaire/jour.`
       : nextSlot
-        ? `\nPROCHAIN JOUR DISPONIBLE (calendrier + Google sync) : **${nextSlot.label}**\nCréneaux libres ce jour-là (durée ${nextSlot.duration} min) : ${nextSlot.slots.join(" / ")}\n⚠️ Si tu proposes un RDV : propose 2 créneaux MAX du même jour parmi cette liste (idéalement un tôt + un plus tard). N'invente JAMAIS d'autre horaire/jour.\n⚠️ Les jours déjà proposés dans l'historique ont été automatiquement évités, ce jour est NOUVEAU.`
+        ? `\nPROCHAIN JOUR DISPONIBLE (calendrier + Google sync) : **${nextSlot.label}**\nCréneaux libres ce jour-là (durée ${nextSlot.duration} min) : ${nextSlot.slots.join(" / ")} (heure locale du lead)\n⚠️ Si tu proposes un RDV : propose 2 créneaux MAX du même jour parmi cette liste (idéalement un tôt + un plus tard). N'invente JAMAIS d'autre horaire/jour.\n⚠️ Les jours déjà proposés dans l'historique ont été automatiquement évités, ce jour est NOUVEAU.`
         : "\n⚠️ Aucun créneau disponible dans la fenêtre de réservation autorisée. Propose au lead de te recontacter plus tard.";
 
     const dateDisambiguationBlock = `\nDISTINCTION DES DATES (IMPORTANT) :
