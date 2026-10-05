@@ -18,14 +18,14 @@ function normalizePhone(raw: string | null | undefined): string | null {
   return p.replace(/^\+/, "");
 }
 
-function resolveVars(mapping: Record<string, string>, source: any): Record<string, string> {
+function resolveVars(mapping: Record<string, string>, source: any, body = ""): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [idx, field] of Object.entries(mapping || {})) {
     let val = "";
     if (field?.startsWith("static:")) val = field.slice(7);
-    else if (field === "name") val = templateGreetingName(source?.name, source?.company_name);
+    else if (field === "name") val = templateGreetingName(source?.name, source?.company_name, body);
     else val = String(source?.[field] ?? "").trim();
-    if (!val) val = templateGreetingName(source?.name, source?.company_name);
+    if (!val) val = templateGreetingName(source?.name, source?.company_name, body);
     out[idx] = val;
   }
   return out;
@@ -137,13 +137,15 @@ Deno.serve(async (req) => {
     }
 
     // Insert recipients en chunks
+    const { data: campaignTemplate } = await supabase.from("whatsapp_templates")
+      .select("body_text").eq("name", campaign.template_name).eq("language", campaign.template_language || "fr").limit(1).maybeSingle();
     const rows = contacts.map((c) => ({
       campaign_id,
       lead_id: c.lead_id ?? null,
       client_id: c.client_id ?? null,
       phone: c.phone,
       contact_name: c.name,
-      resolved_variables: resolveVars(campaign.template_variables_mapping || {}, c.source),
+      resolved_variables: resolveVars(campaign.template_variables_mapping || {}, c.source, campaignTemplate?.body_text || ""),
       status: "pending" as const,
     }));
     for (let i = 0; i < rows.length; i += 500) {

@@ -549,6 +549,7 @@ export function WhatsAppChat({ leadId, leadName, leadPhone, className }: { leadI
           )}
           <div className="border-t border-border p-2 flex items-end gap-1.5 sm:gap-2">
             <FollowupScriptsPicker
+              leadId={leadId}
               leadName={leadName}
               onInsert={(text) => setInput((cur) => cur ? `${cur}\n\n${text}` : text)}
             />

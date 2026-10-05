@@ -8,6 +8,7 @@ import { useWhatsAppTemplates, useActiveWhatsAppBusinessAccountId } from '@/hook
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { templateGreetingName } from '@/lib/whatsappPersonalization';
 
 export function TemplatePickerDialog({
   open,
@@ -38,8 +39,18 @@ export function TemplatePickerDialog({
   }, [open]);
 
   useEffect(() => {
-    if (selected) setVars(Array.from({ length: selected.variables_count || 0 }, () => ''));
-  }, [selected?.id]);
+    if (!selected || !open) return;
+    let cancelled = false;
+    setVars(Array.from({ length: selected.variables_count || 0 }, () => ''));
+    void supabase.from('leads').select('name, company_name').eq('id', leadId).maybeSingle().then(({ data }) => {
+      if (cancelled || !data) return;
+      setVars((current) => current.map((value, i) => {
+        const slot = new RegExp(`(?:bonjour|bonsoir|salut|hello|cher|chère|مرحبا|السلام عليكم)\\s*[,،]?\\s*\\{\\{\\s*${i + 1}\\s*\\}\\}`, 'iu');
+        return value || (slot.test(selected.body_text) ? templateGreetingName(data.name, data.company_name, selected.body_text) : '');
+      }));
+    });
+    return () => { cancelled = true; };
+  }, [selected?.id, leadId, open]);
 
   const preview = useMemo(() => {
     if (!selected) return '';
