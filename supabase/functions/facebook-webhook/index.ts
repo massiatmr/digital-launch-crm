@@ -966,13 +966,55 @@ async function processMessagingEvents(body: any, requestId: string) {
         }
 
 
+        // === Médias entrants (vocaux, images…) : téléchargement + transcription ===
+        let mediaFields: Record<string, unknown> = {};
+        let finalContent = content;
+        const att = attachments[0];
+        if (att?.payload?.url && (att.type === "audio" || att.type === "image" || att.type === "video" || att.type === "file")) {
+          try {
+            const binRes = await fetch(att.payload.url);
+            if (binRes.ok) {
+              const mime = (binRes.headers.get("content-type") || (att.type === "audio" ? "audio/mp4" : "application/octet-stream")).split(";")[0];
+              const buf = new Uint8Array(await binRes.arrayBuffer());
+              const ext = mime.split("/")[1]?.replace("mpeg", "mp3").replace("x-m4a", "m4a") || "bin";
+              const isAudio = att.type === "audio";
+              const bucket = isAudio ? "wa-audio" : "wa-media";
+              const path = isAudio
+                ? `inbound/${identity.owner_id}/${externalMsgId ?? Date.now()}.${ext}`
+                : `${identity.owner_id}/inbound-${Date.now()}-${externalMsgId ?? "m"}.${ext}`;
+              const { error: upErr } = await supabase.storage.from(bucket).upload(path, buf, { contentType: mime, upsert: true });
+              if (!upErr) {
+                mediaFields = { media_storage_path: path, media_type: mime, media_size_bytes: buf.byteLength, message_type: isAudio ? "audio" : att.type };
+              } else logError(requestId, "media upload failed", { err: upErr.message });
+              if (isAudio && direction === "inbound") {
+                const key = Deno.env.get("LOVABLE_API_KEY");
+                if (key) {
+                  const fd = new FormData();
+                  fd.append("model", "openai/gpt-transcribe");
+                  fd.append("file", new Blob([buf], { type: mime }), `voice.${ext}`);
+                  const tr = await fetch("https://ai.gateway.lovable.dev/v1/audio/transcriptions", {
+                    method: "POST", headers: { Authorization: `Bearer ${key}` }, body: fd,
+                  });
+                  if (tr.ok) {
+                    const tj = await tr.json();
+                    const t = String(tj?.text ?? "").trim();
+                    if (t) { mediaFields.transcript = t; finalContent = t; }
+                  } else logError(requestId, "transcription failed", { status: tr.status, body: (await tr.text()).slice(0, 300) });
+                }
+                if (!mediaFields.transcript) finalContent = "[Vocal]";
+              }
+            } else logError(requestId, "attachment download failed", { status: binRes.status });
+          } catch (e) { logError(requestId, "attachment handling error", { e: String(e) }); }
+        }
+
         // Insérer le message
         await supabase.from("whatsapp_messages").insert({
+          ...mediaFields,
           lead_id: leadId,
           owner_id: identity.owner_id,
           workspace_id: identity.workspace_id,
           direction: direction as any,
-          content,
+          content: finalContent,
           channel: channel as any,
           external_thread_id: externalThreadId,
           wa_message_id: externalMsgId,
