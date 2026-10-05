@@ -235,7 +235,7 @@ Deno.serve(async (req) => {
     });
 
     return new Response(
-      JSON.stringify({ slots: [...new Set(availableSlots)].sort(), synced: true, owner_timezone: ownerTimeZone }),
+      JSON.stringify({ slots: [...new Set(availableSlots)].sort(), synced, owner_timezone: ownerTimeZone }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
