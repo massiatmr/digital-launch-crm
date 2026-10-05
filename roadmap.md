@@ -7,3 +7,5 @@
 - [x] Ajouter un sélecteur mensuel avec jours disponibles
 - [x] Vérifier la sélection sur ordinateur et mobile
 - [x] Inclure les leads encore « Nouveau » dans le temps de réponse moyen
+- [ ] Adapter les noms WhatsApp dans les modèles, campagnes, rappels, scripts et génération IA
+- [ ] Tester les noms français, arabes, mixtes et professionnels et déployer sans envoyer de messages
