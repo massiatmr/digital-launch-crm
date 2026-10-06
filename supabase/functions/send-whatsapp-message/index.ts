@@ -183,8 +183,9 @@ Deno.serve(async (req) => {
       metadata: { sent_by_user: true, ...(templateMeta ? { template: templateMeta } : {}) },
     } as any);
 
-    // Au premier outbound réussi, basculer le lead "new" → "contacted"
-    if (logStatus === "sent" && lead.status === "new") {
+    // Le passage "new" → "contacted" se fait seulement quand WhatsApp confirme la
+    // livraison (webhook delivered/read) : un message accepté peut encore échouer.
+    if (logStatus === "dry_run" && lead.status === "new") {
       await admin.from("leads").update({ status: "contacted", last_contacted_at: new Date().toISOString() } as any).eq("id", lead_id);
     }
 

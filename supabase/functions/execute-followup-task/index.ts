@@ -391,6 +391,7 @@ Deno.serve(async (req) => {
       .eq("direction", "outbound")
       .gt("sent_at", cutoff)
       .neq("task_id", task_id)
+      .neq("status", "failed") // un envoi échoué ne doit pas bloquer le renvoi (Work Phone)
       .limit(1);
     if (recentOutbound && recentOutbound.length > 0) {
       await admin.from("lead_followup_tasks").update({
@@ -603,14 +604,15 @@ Deno.serve(async (req) => {
       const since = new Date(Date.now() - 20 * 1000).toISOString();
       const { data: recentMsgs } = await admin
         .from("whatsapp_messages")
-        .select("id, direction, task_id, sent_at")
+        .select("id, direction, task_id, sent_at, status")
         .eq("lead_id", task.lead_id)
         .gt("sent_at", since)
         .order("sent_at", { ascending: false })
         .limit(5);
       const hasInbound = (recentMsgs ?? []).some((m: any) => m.direction === "inbound");
+      // Un message échoué (ex. mauvais numéro avant bascule Work Phone) n'est pas un doublon.
       const hasOtherOutbound = (recentMsgs ?? []).some(
-        (m: any) => m.direction === "outbound" && m.task_id !== task_id,
+        (m: any) => m.direction === "outbound" && m.task_id !== task_id && m.status !== "failed",
       );
       if (hasInbound || hasOtherOutbound) {
         await admin.from("lead_followup_tasks").update({
@@ -835,8 +837,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Au premier outbound réussi (sent ou dry_run), basculer le lead "new" → "contacted"
-    if ((logStatus === "sent" || logStatus === "dry_run") && lead.status === "new") {
+    // "new" → "contacted" : sur WhatsApp, on attend la confirmation de livraison
+    // (webhook delivered/read). Meta peut accepter puis échouer ensuite.
+    if (lead.status === "new" && (logStatus === "dry_run" || (logStatus === "sent" && leadChannel !== "whatsapp"))) {
       await admin.from("leads").update({ status: "contacted" } as any).eq("id", task.lead_id);
     }
 
