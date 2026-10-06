@@ -43,7 +43,17 @@ async function processCampaign(admin: any, campaign_id: string) {
 
   let sent = 0, failed = 0;
 
-  for (const r of recipients || []) {
+  for (const r0 of recipients || []) {
+    // Verrou atomique : un seul processus (lancement ou cron) peut réclamer ce destinataire.
+    const { data: claimed } = await admin
+      .from("campaign_recipients")
+      .update({ attempts: (r0.attempts || 0) + 1 } as any)
+      .eq("id", r0.id)
+      .eq("status", "pending")
+      .eq("attempts", r0.attempts || 0)
+      .select("id");
+    if (!claimed || claimed.length === 0) continue;
+    const r = { ...r0, attempts: r0.attempts || 0 };
     try {
       const vars = r.resolved_variables || {};
       const ordered = Object.keys(vars).sort((a, b) => Number(a) - Number(b)).map((k) => vars[k]);
