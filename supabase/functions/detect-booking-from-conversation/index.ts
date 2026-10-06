@@ -199,6 +199,14 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    // Garde-fou : un RDV n'est créé que lorsque le LEAD vient de répondre (validation).
+    // Une simple proposition de créneaux par nous ne doit jamais créer de RDV.
+    const lastMsg: any = messages[messages.length - 1];
+    if (lastMsg?.direction !== "inbound") {
+      return new Response(JSON.stringify({ ok: true, detected: false, reason: "awaiting_lead_validation" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const transcript = messages
       .map((m: any) => `[${m.direction === "inbound" ? "LEAD" : "MOI"} @ ${m.sent_at}] ${m.content}`)
