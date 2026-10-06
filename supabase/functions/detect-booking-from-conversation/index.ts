@@ -210,12 +210,14 @@ Deno.serve(async (req) => {
     const parisWeekday = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", weekday: "long" }).format(new Date());
     const detectionPrompt = `Tu analyses une conversation WhatsApp entre un commercial (MOI) et un prospect (LEAD).
 
-Détermine si un RENDEZ-VOUS a été CONFIRMÉ. Deux cas valides :
-  (A) Accord mutuel : proposition d'une partie + acceptation explicite de l'autre.
-  (B) Confirmation unilatérale du commercial : le DERNIER message MOI annonce explicitement un créneau précis avec une formule du type "c'est noté", "confirmé", "je te bloque", "à lundi 17h", etc., ET le LEAD n'a pas refusé ce créneau précis APRÈS ce message.
+Détermine si un RENDEZ-VOUS a été CONFIRMÉ PAR LE LEAD. Seul cas valide :
+  Le LEAD a explicitement accepté UN créneau précis (jour + heure) — soit en choisissant parmi les créneaux proposés ("va pour 17h", "ok demain 16h", "parfait"), soit en proposant lui-même un créneau que MOI a ensuite validé.
 
-Un simple "ok je vais y réfléchir", "peut-être", "je te rappelle" n'est PAS une confirmation.
-Si le LEAD a refusé un créneau MAIS que le commercial a ensuite "noté" un autre créneau (ou le même) sans réaction négative postérieure du LEAD, considère le rendez-vous comme confirmé (cas B).
+NE SONT PAS des confirmations (⇒ confirmed=false) :
+- MOI propose un ou plusieurs créneaux ("je peux te proposer 16h ou 17h", "demain ça te va ?") et le LEAD n'a pas encore répondu.
+- Le LEAD refuse le jour/l'heure, demande un autre jour ("plutôt jeudi ?", "demain possible ?") ou une autre heure : c'est une DEMANDE, pas une validation.
+- "ok je vais y réfléchir", "peut-être", "je te rappelle".
+- Le créneau retenu est TOUJOURS celui que le LEAD a choisi dans son DERNIER message d'acceptation (si MOI a proposé 16h ou 17h et le LEAD dit "17h", time_slot = 17:00).
 
 ⚠️ DISTINCTION CRITIQUE — date du RDV vs date de la prestation :
 - "booking_date" / "time_slot" = UNIQUEMENT la date/heure du RENDEZ-VOUS commercial (appel, visio, visite technique, estimation, devis…).
