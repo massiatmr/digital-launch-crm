@@ -153,6 +153,26 @@ Deno.serve(async (req) => {
                 .maybeSingle();
               await (admin.from("whatsapp_messages") as any).update(update).eq("wa_message_id", waId);
 
+              // Statut "Contacté" seulement quand le message est réellement arrivé.
+              const msgLeadId = (existingMsg as any)?.lead_id;
+              if (msgLeadId && (status === "delivered" || status === "read")) {
+                await admin.from("leads").update({ status: "contacted", last_contacted_at: ts } as any)
+                  .eq("id", msgLeadId).eq("status", "new");
+              } else if (msgLeadId && status === "failed") {
+                // Si le lead a été passé "Contacté" alors qu'aucun message n'est jamais arrivé
+                // et qu'il n'a jamais répondu, on le remet en "Nouveau".
+                const [{ count: deliveredCount }, { count: inboundCount }] = await Promise.all([
+                  admin.from("whatsapp_messages").select("id", { count: "exact", head: true })
+                    .eq("lead_id", msgLeadId).eq("direction", "outbound").not("delivered_at", "is", null),
+                  admin.from("whatsapp_messages").select("id", { count: "exact", head: true })
+                    .eq("lead_id", msgLeadId).eq("direction", "inbound"),
+                ]);
+                if (!deliveredCount && !inboundCount) {
+                  await admin.from("leads").update({ status: "new" } as any)
+                    .eq("id", msgLeadId).eq("status", "contacted");
+                }
+              }
+
               // Meta peut accepter l'envoi puis renvoyer ensuite "failed/undeliverable".
               // Avant, la tâche restait marquée envoyée: l'automatisation croyait avoir
               // contacté le lead alors qu'aucun message n'était arrivé.
