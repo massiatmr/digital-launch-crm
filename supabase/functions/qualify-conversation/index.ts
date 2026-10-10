@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { lead_id } = await req.json();
+    const { lead_id, relaunch } = await req.json();
     if (!lead_id) {
       return new Response(JSON.stringify({ error: "lead_id required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -78,6 +78,14 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Lead not found" }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Relance manuelle "Relancer avec Lia" : autorise l'IA sur une conversation ancienne (1h)
+    if (relaunch === true && !isServiceRole) {
+      await admin.from("lead_activities").insert({
+        lead_id, owner_id: lead.owner_id, activity_type: "lia_relaunch",
+        description: "Conversation relancée manuellement avec Lia",
+      } as any);
     }
 
     // Garde-fou : si la conversation est déjà BOOKED/CLOSED ou résolue, on n'enchaîne plus

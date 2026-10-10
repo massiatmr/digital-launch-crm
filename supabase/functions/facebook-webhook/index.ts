@@ -1023,13 +1023,39 @@ async function processMessagingEvents(body: any, requestId: string) {
           sent_at: new Date(sentAtMs).toISOString(),
         } as any);
 
-        // === IA Messenger/Instagram : DÉSACTIVÉE ===
-        // L'utilisateur a demandé de désactiver complètement l'IA sur Messenger/Instagram.
-        // On stocke les messages pour l'inbox, mais aucune action automatique : pas de
-        // demande de prénom, pas de qualification IA, pas de détection de RDV.
-        // La conversation reste 100% manuelle sur ces canaux.
-        if (direction === "inbound" && leadId) {
-          logInfo(requestId, "IA disabled for messenger/instagram channels, skipping automation", { leadId, channel });
+        // === IA Messenger/Instagram ===
+        // Uniquement pour un NOUVEAU message entrant, si le canal est coché dans
+        // les sources de l'automation du workspace.
+        if (direction === "inbound" && leadId && Date.now() - sentAtMs < 10 * 60 * 1000) {
+          try {
+            let st: any = null;
+            if (identity.workspace_id) {
+              const { data } = await supabase.from("followup_automation_settings")
+                .select("trigger_sources").eq("workspace_id", identity.workspace_id).maybeSingle();
+              st = data;
+            }
+            const sources: string[] = Array.isArray(st?.trigger_sources) ? st.trigger_sources : [];
+            let featOk = true;
+            if (identity.workspace_id) {
+              const { data: feat } = await supabase.from("workspace_features").select("enabled")
+                .eq("workspace_id", identity.workspace_id).eq("feature_key", "conversations").maybeSingle();
+              if (feat && feat.enabled === false) featOk = false;
+            }
+            if (sources.includes(channel) && featOk) {
+              const url = Deno.env.get("SUPABASE_URL")!;
+              const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+              for (const fn of ["qualify-conversation", "detect-booking-from-conversation"]) {
+                fetch(`${url}/functions/v1/${fn}`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+                  body: JSON.stringify({ lead_id: leadId }),
+                }).catch((e) => logError(requestId, `${fn} invoke failed`, { e: String(e) }));
+              }
+              logInfo(requestId, "Lia triggered for meta channel", { leadId, channel });
+            } else {
+              logInfo(requestId, "Lia not enabled for this meta channel", { leadId, channel });
+            }
+          } catch (e) { logError(requestId, "meta Lia trigger error", { e: String(e) }); }
         }
 
         logInfo(requestId, "Messaging event stored", {
