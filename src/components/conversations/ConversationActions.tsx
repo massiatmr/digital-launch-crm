@@ -4,7 +4,9 @@ import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import { Lock, LockOpen, Clock, CheckCircle2, Tag, MoreVertical } from 'lucide-react';
+import { Lock, LockOpen, Clock, CheckCircle2, Tag, MoreVertical, Sparkles } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import {
   useConvControls, useTogglePauseAutomation, useSnoozeConv, useResolveConv,
 } from '@/hooks/useConversationControls';
@@ -103,6 +105,18 @@ export function ConversationActions({ leadId }: { leadId: string }) {
             </DropdownMenuItem>
           )}
           <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={async () => {
+              if (!confirm('Relancer cette conversation avec Lia ? Elle va analyser et répondre maintenant.')) return;
+              const { error } = await supabase.functions.invoke('qualify-conversation', { body: { lead_id: leadId, relaunch: true } });
+              if (error) toast.error("Impossible de relancer Lia");
+              else toast.success('Lia relance la conversation');
+            }}
+            className="text-xs gap-2"
+          >
+            <Sparkles className="h-3 w-3" />
+            Relancer avec Lia
+          </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => resolve.mutate({ leadId, resolved: !resolved })}
             className="text-xs gap-2"

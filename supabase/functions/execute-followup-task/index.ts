@@ -449,17 +449,36 @@ Deno.serve(async (req) => {
     }
     const isMetaChannel = leadChannel !== "whatsapp";
 
-    // === IA DÉSACTIVÉE sur Messenger / Instagram ===
-    // L'utilisateur a demandé de désactiver complètement les envois automatiques sur
-    // ces canaux. On annule la tâche au lieu de l'exécuter.
+    // === IA Messenger / Instagram ===
+    // Autorisée seulement si le canal est coché dans les sources de l'automation ET
+    // (le lead a écrit sur ce canal il y a < 24h OU l'utilisateur a cliqué "Relancer avec Lia"
+    // il y a < 1h). Les anciennes conversations ne sont donc jamais relancées seules.
     if (isMetaChannel) {
-      await admin
-        .from("lead_followup_tasks")
-        .update({ status: "cancelled", updated_at: new Date().toISOString(), error_message: "IA désactivée sur Messenger/Instagram" } as any)
-        .eq("id", task.id);
-      return new Response(JSON.stringify({ skipped: true, reason: "ai_disabled_on_meta_channel", channel: leadChannel }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      const sources: string[] = Array.isArray(settings?.trigger_sources) ? settings.trigger_sources : [];
+      let reason: string | null = null;
+      if (!sources.includes(leadChannel)) reason = "meta_channel_not_enabled";
+      else {
+        const since24h = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+        const { data: recentIn } = await admin.from("whatsapp_messages").select("id")
+          .eq("lead_id", task.lead_id).eq("channel", leadChannel).eq("direction", "inbound")
+          .gte("sent_at", since24h).limit(1);
+        if (!recentIn?.length) {
+          const since1h = new Date(Date.now() - 3600 * 1000).toISOString();
+          const { data: relaunch } = await admin.from("lead_activities").select("id")
+            .eq("lead_id", task.lead_id).eq("activity_type", "lia_relaunch")
+            .gte("created_at", since1h).limit(1);
+          if (!relaunch?.length) reason = "meta_conversation_too_old";
+        }
+      }
+      if (reason) {
+        await admin
+          .from("lead_followup_tasks")
+          .update({ status: "cancelled", updated_at: new Date().toISOString(), error_message: `IA Messenger/Instagram: ${reason}` } as any)
+          .eq("id", task.id);
+        return new Response(JSON.stringify({ skipped: true, reason, channel: leadChannel }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // Helper : envoi via Messenger/IG Graph en utilisant meta_channel_identities du lead
