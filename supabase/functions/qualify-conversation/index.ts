@@ -82,10 +82,16 @@ Deno.serve(async (req) => {
 
     // Relance manuelle "Relancer avec Lia" : autorise l'IA sur une conversation ancienne (1h)
     if (relaunch === true && !isServiceRole) {
-      await admin.from("lead_activities").insert({
-        lead_id, owner_id: lead.owner_id, activity_type: "lia_relaunch",
+      const { error: relErr } = await admin.from("lead_activities").insert({
+        lead_id, owner_id: lead.owner_id, activity_type: "relance",
         description: "Conversation relancée manuellement avec Lia",
       } as any);
+      if (relErr) {
+        console.error("lia relaunch marker insert failed", relErr.message);
+        return new Response(JSON.stringify({ error: "relaunch_failed" }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // Garde-fou : si la conversation est déjà BOOKED/CLOSED ou résolue, on n'enchaîne plus

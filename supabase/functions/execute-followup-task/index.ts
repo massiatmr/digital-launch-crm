@@ -465,7 +465,7 @@ Deno.serve(async (req) => {
         if (!recentIn?.length) {
           const since1h = new Date(Date.now() - 3600 * 1000).toISOString();
           const { data: relaunch } = await admin.from("lead_activities").select("id")
-            .eq("lead_id", task.lead_id).eq("activity_type", "lia_relaunch")
+            .eq("lead_id", task.lead_id).eq("activity_type", "relance").eq("description", "Conversation relancée manuellement avec Lia")
             .gte("created_at", since1h).limit(1);
           if (!relaunch?.length) reason = "meta_conversation_too_old";
         }
