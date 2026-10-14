@@ -284,6 +284,36 @@ ${transcript}`;
       );
     }
 
+    // Le créneau accepté est exprimé dans l'heure locale du lead (déduite du téléphone,
+    // comme dans generate-followup-message). On le reconvertit dans le fuseau de l'agenda.
+    {
+      const d = String(lead.phone ?? "").replace(/\D/g, "").replace(/^00/, "");
+      const leadTz = d.startsWith("213") ? "Africa/Algiers" : d.startsWith("33") ? "Europe/Paris"
+        : d.startsWith("212") ? "Africa/Casablanca" : d.startsWith("216") ? "Africa/Tunis"
+        : d.startsWith("32") ? "Europe/Brussels" : d.startsWith("41") ? "Europe/Zurich" : null;
+      let calTz = "Europe/Paris";
+      if (lead.workspace_id) {
+        const { data: av } = await admin.from("availability_settings").select("timezone")
+          .eq("workspace_id", lead.workspace_id).maybeSingle();
+        calTz = av?.timezone || calTz;
+      }
+      if (leadTz && leadTz !== calTz) {
+        const off = (tz: string, at: Date) => {
+          const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: tz, hour12: false,
+            year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
+            .formatToParts(at).filter((x) => x.type !== "literal").map((x) => [x.type, x.value]));
+          return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second) - at.getTime();
+        };
+        const [y, m, dd] = parsed.booking_date.split("-").map(Number);
+        const [h, mi] = parsed.time_slot.split(":").map(Number);
+        const base = Date.UTC(y, m - 1, dd, h, mi);
+        let utc = base; for (let i = 0; i < 2; i++) utc = base - off(leadTz, new Date(utc));
+        const local = new Date(utc + off(calTz, new Date(utc)));
+        parsed.booking_date = local.toISOString().slice(0, 10);
+        parsed.time_slot = local.toISOString().slice(11, 16);
+      }
+    }
+
     // Vérifier qu'un booking pour ce lead/créneau n'existe pas déjà (idempotence)
     const { data: existing } = await admin
       .from("bookings")
