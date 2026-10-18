@@ -1,5 +1,5 @@
-// @vitest-environment node
 import { readFileSync } from 'node:fs';
+import { webcrypto } from 'node:crypto';
 import ts from 'typescript';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -33,7 +33,7 @@ async function submitLead(validKey: boolean) {
   const compiled = ts.transpileModule(source.replace(/^import .*;\s*/m, ''), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
   }).outputText;
-  new Function('createClient', 'Deno', compiled)(() => client, deno);
+  new Function('createClient', 'Deno', 'crypto', compiled)(() => client, deno, webcrypto);
   if (!handler) throw new Error('Handler was not registered');
   const response = await handler(new Request('https://example.invalid/ingest-lead', {
     method: 'POST',
