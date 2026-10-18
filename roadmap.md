@@ -10,3 +10,4 @@
 - [x] Adapter les noms WhatsApp dans les modèles, campagnes, rappels, scripts et génération IA
 - [x] Tester les noms français, arabes, mixtes et professionnels et déployer sans envoyer de messages
 - [x] Corriger et vérifier l’authentification des alertes des nouveaux leads API sans envoi réel
+- [x] Corriger le faux succès lors de la création d’un compte invité déjà existant et vérifier l’accès à la récupération (sans modifier le compte réel)

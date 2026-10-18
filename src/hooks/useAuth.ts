@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import type { AuthError, Session, User } from '@supabase/supabase-js';
+import type { AuthError, AuthResponse, Session, User } from '@supabase/supabase-js';
 
 const AUTH_REQUEST_TIMEOUT_MS = 8000;
 const AUTH_STORAGE_KEY = 'sb-rvangzupebrajhhhvewu-auth-token';
@@ -23,7 +23,7 @@ type AuthContextValue = {
   loading: boolean;
   authStatus: AuthStatus;
   authError: string | null;
-  signUp: (email: string, password: string, extra?: { data?: Record<string, any> }) => Promise<{ error: AuthError | null }>;
+  signUp: (email: string, password: string, extra?: { data?: Record<string, any> }) => Promise<{ error: AuthError | null; data?: AuthResponse['data'] }>;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
   clearAuthError: () => void;
@@ -202,8 +202,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthError(null);
 
     try {
-      const { error } = await withTimeout(supabase.auth.signUp({
-        email,
+      const { data, error } = await withTimeout(supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
         password,
         options: {
           emailRedirectTo: window.location.origin,
@@ -221,7 +221,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: normalized };
       }
 
-      return { error: null };
+      return { error: null, data };
     } catch (error) {
       const normalized = logAuthError('sign up failed', error);
 
@@ -248,7 +248,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthError(null);
 
     try {
-      const { error } = await withTimeout(supabase.auth.signInWithPassword({ email, password }));
+      const { error } = await withTimeout(supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password }));
 
       if (error) {
         const normalized = logAuthError('sign in failed', error);
