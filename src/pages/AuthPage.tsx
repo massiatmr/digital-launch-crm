@@ -3,6 +3,7 @@ import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { useWorkspaces } from '@/hooks/useWorkspaces';
 import { supabase } from '@/integrations/supabase/client';
 import logo from '@/assets/logo.webp';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,7 @@ const testimonials = [
 
 export default function AuthPage() {
   const { user, loading, authStatus, authError, clearAuthError, signIn, signUp } = useAuth();
+  const { refetch: refetchWorkspaces, switchWorkspace } = useWorkspaces();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -93,18 +95,19 @@ export default function AuthPage() {
         'consume_workspace_invitation',
         { p_token: inviteToken, p_user_id: user.id }
       );
-      try { localStorage.removeItem(INVITE_STORAGE_KEY); } catch {}
       if (error || !data?.success) {
-        toast.error("Invitation invalide ou expirée");
+        toast.error(data?.error === 'email_mismatch'
+          ? "Connecte-toi avec l'adresse email de l'invitation."
+          : "Impossible de rejoindre cet espace. Vérifie l'invitation et réessaie.");
       } else {
+        try { localStorage.removeItem(INVITE_STORAGE_KEY); } catch {}
         toast.success("Tu as rejoint l'espace avec succès");
-        if (data.workspace_id) {
-          try { localStorage.setItem('current_workspace_id', data.workspace_id); } catch {}
-        }
+        await refetchWorkspaces();
+        if (data.workspace_id) switchWorkspace(data.workspace_id);
       }
       navigate('/', { replace: true });
     })();
-  }, [user, inviteToken, navigate]);
+  }, [user, inviteToken, navigate, refetchWorkspaces, switchWorkspace]);
 
   if (loading && authStatus === 'loading') {
     return (

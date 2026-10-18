@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, ReactNode, createElement } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { loadWorkspaceAccess } from '@/lib/workspaceAccess';
+import { toast } from 'sonner';
 import { useAuth } from './useAuth';
 import { applyBrandToElement } from '@/lib/brandColor';
 
@@ -52,26 +53,18 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     try { return localStorage.getItem(STORAGE_KEY); } catch { return null; }
   });
 
-  const { data: workspaces = [], isLoading, refetch } = useQuery({
+  const { data: workspaces = [], isLoading, refetch, error } = useQuery({
     queryKey: ['workspaces', user?.id],
     enabled: !!user?.id,
     queryFn: async (): Promise<Workspace[]> => {
-      const { data: memberships, error: mErr } = await supabase
-        .from('workspace_members' as any)
-        .select('workspace_id, role')
-        .eq('user_id', user!.id);
-      if (mErr) throw mErr;
-      const ids = (memberships || []).map((m: any) => m.workspace_id);
-      if (ids.length === 0) return [];
-      const { data: ws, error } = await supabase
-        .from('workspaces' as any)
-        .select('*')
-        .in('id', ids);
-      if (error) throw error;
-      const roleMap = new Map((memberships as any[]).map((m) => [m.workspace_id, m.role]));
-      return (ws as any[]).map((w) => ({ ...w, role: roleMap.get(w.id) }));
+      if (!user?.id) return [];
+      return loadWorkspaceAccess(user.id);
     },
   });
+
+  useEffect(() => {
+    if (error) toast.error("Impossible de charger tes espaces et invitations. Réessaie en rechargeant la page.");
+  }, [error]);
 
   // Auto-select first workspace if none selected or invalid
   useEffect(() => {
