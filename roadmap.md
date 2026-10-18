@@ -1,5 +1,7 @@
 # Roadmap
 
+- [x] Rattacher automatiquement les invitations valides au compte connecté et vérifier l'accès multi-workspace
+
 - [x] Ajouter le formulaire de création manuelle de rendez-vous sur la fiche lead
 - [x] Sécuriser le rattachement explicite au lead existant
 - [x] Vérifier agenda, rappels, affichage et mobile
