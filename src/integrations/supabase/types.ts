@@ -3565,6 +3565,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_pending_workspace_invitations: { Args: never; Returns: Json }
       consume_invitation: {
         Args: { p_token: string; p_user_id: string }
         Returns: boolean
