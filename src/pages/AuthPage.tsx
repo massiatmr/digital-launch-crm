@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import logo from '@/assets/logo.webp';
 import { Button } from '@/components/ui/button';
+import type { AuthError, AuthResponse } from '@supabase/supabase-js';
 
 const INVITE_STORAGE_KEY = 'pending_invite_token';
 
@@ -130,7 +131,7 @@ export default function AuthPage() {
       // Pour les signups, attache le token invite dans les metadata
       // → trigger DB auto-confirme l'email + auto-consume après confirmation
       const signUpExtra = inviteToken ? { data: { invite_token: inviteToken } } : undefined;
-      const result = isLogin
+      const result: { error: AuthError | null; data?: AuthResponse['data'] } = isLogin
         ? await signIn(email, password)
         : await signUp(email, password, signUpExtra);
       const { error } = result;
@@ -142,7 +143,7 @@ export default function AuthPage() {
           toast.error(error.message);
         }
       } else if (!isLogin) {
-        const signupData = 'data' in result ? result.data : undefined;
+        const signupData = result.data;
         if (signupData?.user?.identities?.length === 0) {
           setIsLogin(true);
           setPassword('');
