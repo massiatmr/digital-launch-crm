@@ -419,6 +419,8 @@ Deno.serve(async (req) => {
         let body: string | null = null;
         for (let attempt = 1; attempt <= 3; attempt++) {
           notifyRes = await supabase.functions.invoke('notify-new-lead', {
+            // Explicit internal credentials: newer SDKs may move secret keys to apikey only.
+            headers: { Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
             body: { lead_id: lead.id },
           });
           if (!notifyRes.error) break;

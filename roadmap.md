@@ -9,3 +9,4 @@
 - [x] Inclure les leads encore « Nouveau » dans le temps de réponse moyen
 - [x] Adapter les noms WhatsApp dans les modèles, campagnes, rappels, scripts et génération IA
 - [x] Tester les noms français, arabes, mixtes et professionnels et déployer sans envoyer de messages
+- [x] Corriger et vérifier l’authentification des alertes des nouveaux leads API sans envoi réel
