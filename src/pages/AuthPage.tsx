@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import logo from '@/assets/logo.webp';
+import { Button } from '@/components/ui/button';
 
 const INVITE_STORAGE_KEY = 'pending_invite_token';
 
@@ -54,6 +55,7 @@ export default function AuthPage() {
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [resetSubmitting, setResetSubmitting] = useState(false);
+  const [accountNotice, setAccountNotice] = useState<string | null>(null);
   const lastAuthErrorRef = useRef<string | null>(null);
   const consumedRef = useRef(false);
 
@@ -71,7 +73,8 @@ export default function AuthPage() {
       if (info?.valid && info.email) {
         setInviteValid(true);
         setInviteEmail(info.email);
-        setEmail((prev) => prev || info.email!);
+        const invitedAddress = info.email;
+        setEmail((prev) => prev || invitedAddress);
         setIsLogin(false);
       } else {
         setInviteValid(false);
@@ -127,9 +130,10 @@ export default function AuthPage() {
       // Pour les signups, attache le token invite dans les metadata
       // → trigger DB auto-confirme l'email + auto-consume après confirmation
       const signUpExtra = inviteToken ? { data: { invite_token: inviteToken } } : undefined;
-      const { error } = isLogin
+      const result = isLogin
         ? await signIn(email, password)
-        : await (signUp as any)(email, password, signUpExtra);
+        : await signUp(email, password, signUpExtra);
+      const { error } = result;
 
       if (error) {
         if (error.message === 'Invalid login credentials') {
@@ -138,20 +142,28 @@ export default function AuthPage() {
           toast.error(error.message);
         }
       } else if (!isLogin) {
+        const signupData = 'data' in result ? result.data : undefined;
+        if (signupData?.user?.identities?.length === 0) {
+          setIsLogin(true);
+          setPassword('');
+          setAccountNotice('Cette adresse possède déjà un compte. Utilise ton mot de passe habituel ou réinitialise-le. Le mot de passe saisi ici ne remplace pas l’ancien.');
+          return;
+        }
+        if (!signupData?.session && !signupData?.user?.email_confirmed_at) {
+          setIsLogin(true);
+          setPassword('');
+          setAccountNotice('Vérifie ton email pour confirmer ton compte avant de te connecter. Ton invitation est conservée.');
+          return;
+        }
         if (inviteToken) {
           // Invité : email auto-confirmé par trigger DB → on peut connecter direct
-          const { error: signInErr } = await signIn(email, password);
+          const signInErr = signupData?.session ? null : (await signIn(email, password)).error;
           if (signInErr) {
-            toast.error("Compte créé, mais connexion impossible. Réessaye de te connecter.");
+            setIsLogin(true);
+            setAccountNotice('Connexion impossible. Utilise ton mot de passe habituel ou réinitialise-le pour rejoindre cet espace.');
+            toast.error(signInErr.message === 'Invalid login credentials' ? 'Email ou mot de passe incorrect' : signInErr.message);
           } else {
-            const { data: { user: newUser } } = await supabase.auth.getUser();
-            if (newUser) {
-              await (supabase.rpc as any)('consume_workspace_invitation', {
-                p_token: inviteToken,
-                p_user_id: newUser.id,
-              });
-              try { localStorage.removeItem(INVITE_STORAGE_KEY); } catch {}
-            }
+            // The authenticated effect consumes the invitation once.
             toast.success("Compte créé. Tu rejoins l'espace…");
           }
         } else {
@@ -218,7 +230,16 @@ export default function AuthPage() {
           {inviteToken && inviteValid && (
             <div className="mb-4 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-sm">
               Invitation valide pour <span className="font-semibold">{inviteEmail}</span>.
-              {' '}Crée ton mot de passe pour activer ton compte (accès immédiat, sans confirmation email).
+              {' '}{isLogin ? 'Connecte-toi avec ton compte pour rejoindre cet espace.' : 'Crée ton compte, ou connecte-toi si tu en as déjà un.'}
+            </div>
+          )}
+
+          {accountNotice && (
+            <div role="status" className="mb-4 rounded-md border border-border bg-card p-4 text-sm text-foreground">
+              <p>{accountNotice}</p>
+              <Button type="button" variant="link" className="mt-2 h-auto whitespace-normal px-0" onClick={() => { setResetEmail(email); setResetOpen(true); }}>
+                Réinitialiser mon mot de passe
+              </Button>
             </div>
           )}
 
