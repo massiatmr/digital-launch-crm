@@ -7,7 +7,7 @@ import { QuickActionsMenu } from '@/components/QuickActionsMenu';
 import { LostReasonDialog } from '@/components/LostReasonDialog';
 
 import { useState, useRef, useMemo, useEffect } from 'react';
-import { Loader2, GripVertical, User, ArrowRight, Search, Package, CalendarDays, CheckSquare, X, Trash2, MoveRight } from 'lucide-react';
+import { Loader2, GripVertical, User, ArrowRight, Search, Package, CalendarDays, CheckSquare, X, Trash2, MoveRight, Filter } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
 import { useDefaultCountryCode } from '@/hooks/useWorkspaces';
