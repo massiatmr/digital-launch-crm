@@ -553,25 +553,53 @@ export default function PipelinePage() {
             </SelectContent>
           </Select>
         )}
-        <div className="flex items-center gap-1">
-          {([['hot', '🔥 Chaud'], ['warm', '🌤 Tiède'], ['cold', '❄️ Froid']] as const).map(([s, label]) => {
-            const on = scoreFilter.includes(s);
-            return (
-              <button
-                key={s}
-                type="button"
-                aria-pressed={on}
-                onClick={() => setScoreFilter(prev => on ? prev.filter(x => x !== s) : [...prev, s])}
-                className={cn(
-                  'h-9 rounded-lg border px-2.5 text-xs font-medium transition-colors',
-                  on ? 'border-primary bg-primary/15 text-primary' : 'border-border/50 bg-card/80 text-muted-foreground hover:text-foreground'
-                )}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                'h-9 rounded-lg border px-2.5 text-xs font-medium transition-colors flex items-center gap-1.5',
+                scoreFilter.length > 0
+                  ? 'border-primary bg-primary/15 text-primary'
+                  : 'border-border/50 bg-card/80 text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Filter className="h-3.5 w-3.5" />
+              Score
+              {scoreFilter.length > 0 && (
+                <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+                  {scoreFilter.length}
+                </span>
+              )}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-44">
+            <DropdownMenuLabel className="text-xs text-muted-foreground">Score du prospect</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {([['hot', '🔥 Chaud'], ['warm', '🌤 Tiède'], ['cold', '❄️ Froid']] as const).map(([s, label]) => {
+              const on = scoreFilter.includes(s);
+              return (
+                <DropdownMenuItem
+                  key={s}
+                  onSelect={(e) => e.preventDefault()}
+                  onClick={() => setScoreFilter(prev => on ? prev.filter(x => x !== s) : [...prev, s])}
+                  className="text-xs"
+                >
+                  <Checkbox checked={on} className="mr-2" />
+                  {label}
+                </DropdownMenuItem>
+              );
+            })}
+            {scoreFilter.length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setScoreFilter([])} className="text-xs text-muted-foreground">
+                  <X className="h-3.5 w-3.5 mr-2" />Tout afficher
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Select value={period} onValueChange={(v) => setPeriod(v as PeriodKey)}>
           <SelectTrigger className="w-[170px] h-9 text-xs border-border/50 bg-card/80">
             <CalendarDays className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
