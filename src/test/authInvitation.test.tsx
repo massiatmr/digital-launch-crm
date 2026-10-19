@@ -43,11 +43,17 @@ describe('invited account signup', () => {
       redirectTo: `${window.location.origin}/reset-password`,
     }));
   });
-  it('waits for email confirmation rather than signing in an unconfirmed account', async () => {
+  it('signs an invited user in directly even when the signup response looks unconfirmed', async () => {
     mocks.signUp.mockResolvedValue({ error: null, data: { user: { identities: [{}], email_confirmed_at: null }, session: null } });
+    mocks.signIn.mockResolvedValue({ error: null });
     await submit();
-    await screen.findByText(/Vérifie ton email pour confirmer ton compte/);
-    expect(mocks.signIn).not.toHaveBeenCalled();
-    expect(localStorage.getItem('pending_invite_token')).toBe('test-invitation');
+    await waitFor(() => expect(mocks.signIn).toHaveBeenCalledWith('invitee@example.test', 'test-only-password'));
+    expect(mocks.success).toHaveBeenCalled();
+  });
+  it('shows the reset notice when the invited sign-in fails', async () => {
+    mocks.signUp.mockResolvedValue({ error: null, data: { user: { identities: [{}], email_confirmed_at: null }, session: null } });
+    mocks.signIn.mockResolvedValue({ error: { message: 'Invalid login credentials' } });
+    await submit();
+    await screen.findByText(/Connexion impossible/);
   });
 });
