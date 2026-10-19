@@ -78,6 +78,7 @@ type PeriodKey = '7d' | '30d' | '90d' | 'year' | 'since_anchor' | 'all' | 'custo
 type PersistedFilters = {
   period: PeriodKey;
   offerFilter: string;
+  scoreFilter?: string[];
   customFrom?: string;
   customTo?: string;
 };
@@ -297,6 +298,7 @@ export default function PipelinePage() {
   const initial = useMemo(() => loadFilters(), []);
   const [period, setPeriod] = useState<PeriodKey>(initial.period);
   const [offerFilter, setOfferFilter] = useState<string>(initial.offerFilter);
+  const [scoreFilter, setScoreFilter] = useState<string[]>(Array.isArray(initial.scoreFilter) ? initial.scoreFilter : []);
   const [customFrom, setCustomFrom] = useState<Date | undefined>(initial.customFrom ? new Date(initial.customFrom) : undefined);
   const [customTo, setCustomTo] = useState<Date | undefined>(initial.customTo ? new Date(initial.customTo) : undefined);
 
@@ -305,11 +307,12 @@ export default function PipelinePage() {
       localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify({
         period,
         offerFilter,
+        scoreFilter,
         customFrom: customFrom?.toISOString(),
         customTo: customTo?.toISOString(),
       }));
     } catch {}
-  }, [period, offerFilter, customFrom, customTo]);
+  }, [period, offerFilter, scoreFilter, customFrom, customTo]);
 
   const ANCHOR_STORAGE_KEY = 'dashboard_anchor_date';
   const DEFAULT_ANCHOR = new Date(2026, 3, 14);
@@ -360,6 +363,7 @@ export default function PipelinePage() {
 
   const filteredLeads = leads.filter(l => {
     if (offerFilter !== 'all' && l.offer_id !== offerFilter) return false;
+    if (scoreFilter.length > 0 && !scoreFilter.includes(l.score)) return false;
     if (search) {
       const q = search.toLowerCase().trim();
       const qDigits = q.replace(/\D/g, '');
@@ -549,6 +553,25 @@ export default function PipelinePage() {
             </SelectContent>
           </Select>
         )}
+        <div className="flex items-center gap-1">
+          {([['hot', '🔥 Chaud'], ['warm', '🌤 Tiède'], ['cold', '❄️ Froid']] as const).map(([s, label]) => {
+            const on = scoreFilter.includes(s);
+            return (
+              <button
+                key={s}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setScoreFilter(prev => on ? prev.filter(x => x !== s) : [...prev, s])}
+                className={cn(
+                  'h-9 rounded-lg border px-2.5 text-xs font-medium transition-colors',
+                  on ? 'border-primary bg-primary/15 text-primary' : 'border-border/50 bg-card/80 text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
         <Select value={period} onValueChange={(v) => setPeriod(v as PeriodKey)}>
           <SelectTrigger className="w-[170px] h-9 text-xs border-border/50 bg-card/80">
             <CalendarDays className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
