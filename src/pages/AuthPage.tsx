@@ -153,10 +153,10 @@ export default function AuthPage() {
           setAccountNotice('Cette adresse possède déjà un compte. Utilise ton mot de passe habituel ou réinitialise-le. Le mot de passe saisi ici ne remplace pas l’ancien.');
           return;
         }
-        if (!signupData?.session && !signupData?.user?.email_confirmed_at) {
+        if (!inviteToken && !signupData?.session && !signupData?.user?.email_confirmed_at) {
           setIsLogin(true);
           setPassword('');
-          setAccountNotice('Vérifie ton email pour confirmer ton compte avant de te connecter. Ton invitation est conservée.');
+          setAccountNotice('Vérifie ton email pour confirmer ton compte avant de te connecter.');
           return;
         }
         if (inviteToken) {
