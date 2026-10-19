@@ -195,7 +195,11 @@ Deno.serve(async (req) => {
         owner_id: booking.owner_id,
         workspace_id: booking.workspace_id,
         direction: "outbound",
-        content: `[Template: ${(tpl as any).name}]${variables.length ? ` ${variables.join(" | ")}` : ""}`,
+        content: (() => {
+          let out = String((tpl as any).body_text || "");
+          variables.forEach((v: any, i: number) => { out = out.split(`{{${i + 1}}}`).join(String(v ?? "")); });
+          return out || `[Template: ${(tpl as any).name}]${variables.length ? ` ${variables.join(" | ")}` : ""}`;
+        })(),
         message_type: "template",
         status: "sent",
         wa_message_id: waMsgId,

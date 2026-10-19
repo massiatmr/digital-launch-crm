@@ -156,7 +156,12 @@ Deno.serve(async (req) => {
           .eq("name", template.name)
           .eq("language", template.language || "fr");
         if (lead.workspace_id) tplQuery = tplQuery.eq("workspace_id", lead.workspace_id);
-        const { data: tpl } = await tplQuery.maybeSingle();
+        let { data: tpl } = await tplQuery.limit(1).maybeSingle();
+        if (!tpl?.body_text) {
+          const { data: anyTpl } = await admin.from("whatsapp_templates").select("body_text")
+            .eq("name", template.name).limit(1).maybeSingle();
+          tpl = anyTpl as any;
+        }
         if (tpl?.body_text) {
           rendered = tpl.body_text;
           vars.forEach((v: string, i: number) => {
