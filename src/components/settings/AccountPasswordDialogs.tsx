@@ -62,27 +62,27 @@ export function CreateAccountDialog({ workspaceId, workspaceName }: { workspaceI
   const [password, setPassword] = useState(generatePassword());
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [existing, setExisting] = useState(false);
 
-  const reset = () => { setName(''); setEmail(''); setRole('member'); setPassword(generatePassword()); setDone(false); };
+  const reset = () => { setName(''); setEmail(''); setRole('member'); setPassword(generatePassword()); setDone(false); setExisting(false); };
 
   const submit = async () => {
     setBusy(true);
     try {
-      await callFn({ action: 'create', workspace_id: workspaceId, email: email.trim(), name: name.trim(), role, password });
+      const res: any = await callFn({ action: 'create', workspace_id: workspaceId, email: email.trim(), name: name.trim(), role, password });
+      setExisting(!!res?.existing);
       setDone(true);
       qc.invalidateQueries({ queryKey: ['workspace-members'] });
-      toast.success('Compte créé');
+      toast.success(res?.existing ? 'Compte existant rattaché' : 'Compte créé');
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
   };
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline" className="gap-2"><UserPlus className="h-4 w-4" /> Créer un compte</Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader><DialogTitle>Créer un compte dans « {workspaceName} »</DialogTitle></DialogHeader>
-        {done ? (
+...
+        {done && existing ? (
+          <div className="space-y-2 py-2 text-sm text-muted-foreground">
+            <p>Cet email a déjà un compte. Il aura accès à « {workspaceName} » automatiquement à sa prochaine connexion, avec son mot de passe actuel.</p>
+            <p>S'il a oublié son mot de passe, change-le avec l'icône clé 🔑 dans la liste des membres une fois qu'il apparaît.</p>
+          </div>
+        ) : done ? (
           <div className="space-y-2 py-2">
             <p className="text-sm text-muted-foreground">Le compte est prêt. Envoie ces identifiants à la personne : elle peut se connecter tout de suite.</p>
             <CredentialsBox email={email.trim().toLowerCase()} password={password} />

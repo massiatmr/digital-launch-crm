@@ -44,7 +44,13 @@ Deno.serve(async (req) => {
       });
       if (error || !created?.user) {
         const exists = /already|registered|exists/i.test(error?.message || "");
-        return json({ error: exists ? "Un compte existe déjà avec cet email. Utilise l'invitation ou change son mot de passe depuis la liste des membres." : "Création impossible" }, exists ? 409 : 500);
+        if (!exists) return json({ error: "Création impossible" }, 500);
+        // Existing account: queue an invitation; it auto-links to this workspace at next sign-in.
+        const { error: invErr } = await admin.from("invitations").insert({
+          email, invited_by: user.id, workspace_id: workspaceId, workspace_role: role,
+        });
+        if (invErr) return json({ error: "Rattachement impossible" }, 500);
+        return json({ success: true, existing: true, email });
       }
       const uid = created.user.id;
       await admin.from("user_roles").upsert({ user_id: uid, role: "user" }, { onConflict: "user_id,role", ignoreDuplicates: true });
