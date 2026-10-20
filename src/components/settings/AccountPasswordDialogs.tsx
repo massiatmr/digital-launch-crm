@@ -76,7 +76,14 @@ export function CreateAccountDialog({ workspaceId, workspaceName }: { workspaceI
       toast.success(res?.existing ? 'Compte existant rattaché' : 'Compte créé');
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
   };
-...
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="gap-2"><UserPlus className="h-4 w-4" /> Créer un compte</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Créer un compte dans « {workspaceName} »</DialogTitle></DialogHeader>
         {done && existing ? (
           <div className="space-y-2 py-2 text-sm text-muted-foreground">
             <p>Cet email a déjà un compte. Il aura accès à « {workspaceName} » automatiquement à sa prochaine connexion, avec son mot de passe actuel.</p>
