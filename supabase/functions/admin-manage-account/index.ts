@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
       const { error: mErr } = await admin.from("workspace_members")
         .upsert({ workspace_id: workspaceId, user_id: uid, role }, { onConflict: "workspace_id,user_id", ignoreDuplicates: true });
       if (mErr) return json({ error: "Compte créé mais rattachement échoué" }, 500);
-      return json({ success: true, user_id: uid, email });
+      return json({ success: true, user_id: uid, email, existing });
     }
 
     if (action === "set_password") {
