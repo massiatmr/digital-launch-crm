@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Building2, Plus, Check, Users, UserPlus, Trash2, ShieldCheck, MessageCircle, CalendarCheck, Package, Facebook, UserCheck, AlertTriangle, Upload, Loader2, X, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { InviteMemberDialog } from '@/components/InviteMemberDialog';
+import { CreateAccountDialog, ResetPasswordDialog } from '@/components/settings/AccountPasswordDialogs';
 import { MemberNotificationControls } from '@/components/settings/MemberNotificationControls';
 
 const slugify = (s: string) =>
@@ -451,6 +452,7 @@ function MembersList({ workspaceId, currentUserId, canManage }: { workspaceId: s
                         <SelectItem value="member">Member</SelectItem>
                       </SelectContent>
                     </Select>
+                    <ResetPasswordDialog workspaceId={workspaceId} userId={m.user_id} email={m.email} />
                     <Button
                       size="icon" variant="ghost" className="h-7 w-7 text-destructive"
                       onClick={() => {
@@ -602,6 +604,7 @@ export default function SettingsWorkspacesPage() {
                       trigger={<Button size="sm" variant="outline" className="gap-1.5"><UserPlus className="h-3.5 w-3.5" />Inviter</Button>}
                     />
                   )}
+                  {canManage && <CreateAccountDialog workspaceId={w.id} workspaceName={w.company_name || 'Espace'} />}
                   {(isAdmin || w.role === 'owner') && (
                     <Button
                       size="sm"
