@@ -84,14 +84,13 @@ export function CreateAccountDialog({ workspaceId, workspaceName }: { workspaceI
       </DialogTrigger>
       <DialogContent>
         <DialogHeader><DialogTitle>Créer un compte dans « {workspaceName} »</DialogTitle></DialogHeader>
-        {done && existing ? (
-          <div className="space-y-2 py-2 text-sm text-muted-foreground">
-            <p>Cet email a déjà un compte. Il aura accès à « {workspaceName} » automatiquement à sa prochaine connexion, avec son mot de passe actuel.</p>
-            <p>S'il a oublié son mot de passe, change-le avec l'icône clé 🔑 dans la liste des membres une fois qu'il apparaît.</p>
-          </div>
-        ) : done ? (
+        {done ? (
           <div className="space-y-2 py-2">
-            <p className="text-sm text-muted-foreground">Le compte est prêt. Envoie ces identifiants à la personne : elle peut se connecter tout de suite.</p>
+            <p className="text-sm text-muted-foreground">
+              {existing
+                ? "Ce compte existait déjà : son mot de passe a été remplacé et il est rattaché à l'espace. L'ancien mot de passe ne marche plus."
+                : 'Le compte est prêt. Envoie ces identifiants à la personne : elle peut se connecter tout de suite.'}
+            </p>
             <CredentialsBox email={email.trim().toLowerCase()} password={password} />
           </div>
         ) : (
