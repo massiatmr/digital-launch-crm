@@ -42,17 +42,42 @@ Deno.serve(async (req) => {
       const { data: created, error } = await admin.auth.admin.createUser({
         email, password, email_confirm: true, user_metadata: name ? { full_name: name } : {},
       });
+      let uid: string;
+      let existing = false;
       if (error || !created?.user) {
         const exists = /already|registered|exists/i.test(error?.message || "");
         if (!exists) return json({ error: "Création impossible" }, 500);
-        // Existing account: queue an invitation; it auto-links to this workspace at next sign-in.
-        const { error: invErr } = await admin.from("invitations").insert({
-          email, invited_by: user.id, workspace_id: workspaceId, workspace_role: role,
+        // Existing account: find it and overwrite its password/name.
+        let found: any = null;
+        for (let page = 1; page <= 50 && !found; page++) {
+          const { data: list, error: lErr } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+          if (lErr) return json({ error: "Recherche du compte impossible" }, 500);
+          found = list.users.find((u) => (u.email || "").toLowerCase() === email);
+          if (list.users.length < 1000) break;
+        }
+        if (!found) return json({ error: "Compte introuvable" }, 404);
+        if (found.id === user.id) return json({ error: "Change ton propre mot de passe depuis ton compte" }, 400);
+        if (!isAdmin) {
+          const { data: targetAdmin } = await admin.from("user_roles").select("role")
+            .eq("user_id", found.id).eq("role", "admin").maybeSingle();
+          if (targetAdmin) return json({ error: "Accès refusé" }, 403);
+          const { data: owned } = await admin.from("workspace_members").select("workspace_id")
+            .eq("user_id", found.id).eq("role", "owner");
+          for (const w of owned || []) {
+            const { data: ok } = await admin.rpc("is_workspace_owner", { _workspace_id: (w as any).workspace_id, _user_id: user.id });
+            if (ok !== true) return json({ error: "Accès refusé : ce compte gère un autre espace" }, 403);
+          }
+        }
+        const { error: uErr } = await admin.auth.admin.updateUserById(found.id, {
+          password, email_confirm: true,
+          user_metadata: name ? { ...(found.user_metadata || {}), full_name: name } : found.user_metadata,
         });
-        if (invErr) return json({ error: "Rattachement impossible" }, 500);
-        return json({ success: true, existing: true, email });
+        if (uErr) return json({ error: "Mise à jour du compte impossible" }, 500);
+        uid = found.id;
+        existing = true;
+      } else {
+        uid = created.user.id;
       }
-      const uid = created.user.id;
       await admin.from("user_roles").upsert({ user_id: uid, role: "user" }, { onConflict: "user_id,role", ignoreDuplicates: true });
       const { error: mErr } = await admin.from("workspace_members")
         .upsert({ workspace_id: workspaceId, user_id: uid, role }, { onConflict: "workspace_id,user_id", ignoreDuplicates: true });
