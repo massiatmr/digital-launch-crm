@@ -24,8 +24,53 @@ Deno.serve(async (req) => {
     const action = String(body.action || "");
     const workspaceId = String(body.workspace_id || "");
     const password = String(body.password || "");
-    if (!workspaceId) return json({ error: "Espace manquant" }, 400);
     if (password.length < 8) return json({ error: "Mot de passe : 8 caractères minimum" }, 400);
+
+    if (action === "accept_invitation") {
+      const { data: adminOnly } = await admin.from("user_roles").select("role")
+        .eq("user_id", user.id).eq("role", "admin").maybeSingle();
+      if (!adminOnly) return json({ error: "Accès réservé aux administrateurs" }, 403);
+      const invId = String(body.invitation_id || "");
+      const { data: inv } = await admin.from("invitations").select("*").eq("id", invId).maybeSingle();
+      if (!inv) return json({ error: "Invitation introuvable" }, 404);
+      if ((inv as any).used_at) return json({ error: "Invitation déjà acceptée" }, 400);
+      const email = String((inv as any).email || "").trim().toLowerCase();
+      const name = body.name ? String(body.name).trim() : null;
+      const { data: created, error } = await admin.auth.admin.createUser({
+        email, password, email_confirm: true, user_metadata: name ? { full_name: name } : {},
+      });
+      let uid: string; let existing = false;
+      if (error || !created?.user) {
+        if (!/already|registered|exists/i.test(error?.message || "")) return json({ error: "Création impossible" }, 500);
+        let found: any = null;
+        for (let page = 1; page <= 50 && !found; page++) {
+          const { data: list, error: lErr } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+          if (lErr) return json({ error: "Recherche du compte impossible" }, 500);
+          found = list.users.find((u) => (u.email || "").toLowerCase() === email);
+          if (list.users.length < 1000) break;
+        }
+        if (!found) return json({ error: "Compte introuvable" }, 404);
+        if (found.id === user.id) return json({ error: "Change ton propre mot de passe depuis ton compte" }, 400);
+        const { error: uErr } = await admin.auth.admin.updateUserById(found.id, {
+          password, email_confirm: true,
+          user_metadata: name ? { ...(found.user_metadata || {}), full_name: name } : found.user_metadata,
+        });
+        if (uErr) return json({ error: "Mise à jour du compte impossible" }, 500);
+        uid = found.id; existing = true;
+      } else uid = created.user.id;
+      await admin.from("user_roles").upsert({ user_id: uid, role: "user" }, { onConflict: "user_id,role", ignoreDuplicates: true });
+      const wsId = (inv as any).workspace_id;
+      if (wsId) {
+        const { error: mErr } = await admin.from("workspace_members").upsert(
+          { workspace_id: wsId, user_id: uid, role: (inv as any).workspace_role === "owner" ? "owner" : "member" },
+          { onConflict: "workspace_id,user_id", ignoreDuplicates: true });
+        if (mErr) return json({ error: "Compte prêt mais rattachement à l'espace échoué" }, 500);
+      }
+      await admin.from("invitations").update({ used_at: new Date().toISOString(), used_by: uid }).eq("id", invId);
+      return json({ success: true, user_id: uid, email, existing });
+    }
+
+    if (!workspaceId) return json({ error: "Espace manquant" }, 400);
 
     const { data: adminRow } = await admin.from("user_roles").select("role")
       .eq("user_id", user.id).eq("role", "admin").maybeSingle();
