@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, KeyRound, UserPlus, Copy, Wand2 } from 'lucide-react';
+import { Loader2, KeyRound, UserPlus, Copy, Wand2, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -156,6 +156,53 @@ export function ResetPasswordDialog({ workspaceId, userId, email }: { workspaceI
           {done ? <Button onClick={() => setOpen(false)}>Fermer</Button> : (
             <Button onClick={submit} disabled={busy || password.length < 8} className="gap-2">
               {busy && <Loader2 className="h-4 w-4 animate-spin" />} Changer le mot de passe
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function AcceptInvitationDialog({ invitationId, email, onDone }: { invitationId: string; email: string; onDone?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [password, setPassword] = useState(generatePassword());
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      await callFn({ action: 'accept_invitation', invitation_id: invitationId, name: name.trim(), password });
+      setDone(true);
+      toast.success('Invitation validée');
+    } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { if (done) onDone?.(); setDone(false); setName(''); setPassword(generatePassword()); } }}>
+      <DialogTrigger asChild>
+        <Button size="sm" className="gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> Valider</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Valider l'invitation de {email}</DialogTitle></DialogHeader>
+        {done ? (
+          <div className="space-y-2 py-2">
+            <p className="text-sm text-muted-foreground">Le compte est prêt. Envoie ces identifiants à la personne : elle peut se connecter tout de suite.</p>
+            <CredentialsBox email={email.toLowerCase()} password={password} />
+          </div>
+        ) : (
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">Pas besoin d'email : le compte est activé tout de suite avec ce mot de passe. S'il existe déjà, son mot de passe est remplacé.</p>
+            <div><Label>Nom (facultatif)</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Jean Dupont" /></div>
+            <PasswordField value={password} onChange={setPassword} />
+          </div>
+        )}
+        <DialogFooter>
+          {done ? <Button onClick={() => setOpen(false)}>Fermer</Button> : (
+            <Button onClick={submit} disabled={busy || password.length < 8} className="gap-2">
+              {busy && <Loader2 className="h-4 w-4 animate-spin" />} Valider et activer
             </Button>
           )}
         </DialogFooter>
