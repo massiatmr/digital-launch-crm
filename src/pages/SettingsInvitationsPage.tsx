@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
+import { AcceptInvitationDialog } from '@/components/settings/AccountPasswordDialogs';
 
 interface Invitation {
   id: string;
@@ -228,6 +229,7 @@ export default function SettingsInvitationsPage() {
                 )}
                 {!used && !isExpired && (
                   <>
+                    <AcceptInvitationDialog invitationId={inv.id} email={inv.email} onDone={load} />
                     <Button
                       size="sm"
                       variant="outline"
