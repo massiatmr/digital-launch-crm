@@ -229,7 +229,7 @@ export default function SettingsInvitationsPage() {
                 )}
                 {!used && !isExpired && (
                   <>
-                    <AcceptInvitationDialog invitationId={inv.id} email={inv.email} onDone={load} />
+                    <AcceptInvitationDialog invitationId={inv.id} email={inv.email} workspaceId={(inv as any).workspace_id} onDone={load} />
                     <Button
                       size="sm"
                       variant="outline"

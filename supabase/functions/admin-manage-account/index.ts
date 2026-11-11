@@ -59,8 +59,9 @@ Deno.serve(async (req) => {
         uid = found.id; existing = true;
       } else uid = created.user.id;
       await admin.from("user_roles").upsert({ user_id: uid, role: "user" }, { onConflict: "user_id,role", ignoreDuplicates: true });
-      const wsId = (inv as any).workspace_id;
-      if (wsId) {
+      const wsId = (inv as any).workspace_id || workspaceId || null;
+      if (!wsId) return json({ error: "Choisis l'espace de travail de la personne" }, 400);
+      {
         const { error: mErr } = await admin.from("workspace_members").upsert(
           { workspace_id: wsId, user_id: uid, role: (inv as any).workspace_role === "owner" ? "owner" : "member" },
           { onConflict: "workspace_id,user_id", ignoreDuplicates: true });

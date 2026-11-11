@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Loader2, KeyRound, UserPlus, Copy, Wand2, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
@@ -164,8 +164,14 @@ export function ResetPasswordDialog({ workspaceId, userId, email }: { workspaceI
   );
 }
 
-export function AcceptInvitationDialog({ invitationId, email, onDone }: { invitationId: string; email: string; onDone?: () => void }) {
+export function AcceptInvitationDialog({ invitationId, email, workspaceId, onDone }: { invitationId: string; email: string; workspaceId?: string | null; onDone?: () => void }) {
   const [open, setOpen] = useState(false);
+  const [wsList, setWsList] = useState<{ id: string; name: string }[]>([]);
+  const [wsId, setWsId] = useState<string>(workspaceId || '');
+  useEffect(() => {
+    if (!open || workspaceId) return;
+    supabase.from('workspaces').select('id,name').order('name').then(({ data }) => setWsList((data as any) || []));
+  }, [open, workspaceId]);
   const [name, setName] = useState('');
   const [password, setPassword] = useState(generatePassword());
   const [busy, setBusy] = useState(false);
@@ -174,7 +180,7 @@ export function AcceptInvitationDialog({ invitationId, email, onDone }: { invita
   const submit = async () => {
     setBusy(true);
     try {
-      await callFn({ action: 'accept_invitation', invitation_id: invitationId, name: name.trim(), password });
+      await callFn({ action: 'accept_invitation', invitation_id: invitationId, workspace_id: wsId || undefined, name: name.trim(), password });
       setDone(true);
       toast.success('Invitation validée');
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
@@ -196,12 +202,22 @@ export function AcceptInvitationDialog({ invitationId, email, onDone }: { invita
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">Pas besoin d'email : le compte est activé tout de suite avec ce mot de passe. S'il existe déjà, son mot de passe est remplacé.</p>
             <div><Label>Nom (facultatif)</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Jean Dupont" /></div>
+            {!workspaceId && (
+              <div>
+                <Label>Espace de travail</Label>
+                <Select value={wsId} onValueChange={setWsId}>
+                  <SelectTrigger><SelectValue placeholder="Choisir l'espace" /></SelectTrigger>
+                  <SelectContent>{wsList.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent>
+                </Select>
+                <p className="mt-1 text-xs text-muted-foreground">Cette invitation n'a pas d'espace : choisis celui que la personne doit voir.</p>
+              </div>
+            )}
             <PasswordField value={password} onChange={setPassword} />
           </div>
         )}
         <DialogFooter>
           {done ? <Button onClick={() => setOpen(false)}>Fermer</Button> : (
-            <Button onClick={submit} disabled={busy || password.length < 8} className="gap-2">
+            <Button onClick={submit} disabled={busy || password.length < 8 || !wsId} className="gap-2">
               {busy && <Loader2 className="h-4 w-4 animate-spin" />} Valider et activer
             </Button>
           )}
