@@ -170,7 +170,7 @@ export function AcceptInvitationDialog({ invitationId, email, workspaceId, onDon
   const [wsId, setWsId] = useState<string>(workspaceId || '');
   useEffect(() => {
     if (!open || workspaceId) return;
-    supabase.from('workspaces').select('id,name').order('name').then(({ data }) => setWsList((data as any) || []));
+    supabase.from('workspaces').select('id,company_name').order('company_name').then(({ data }) => setWsList(((data as any) || []).map((w: any) => ({ id: w.id, name: w.company_name || 'Sans nom' }))));
   }, [open, workspaceId]);
   const [name, setName] = useState('');
   const [password, setPassword] = useState(generatePassword());
