@@ -1,3 +1,4 @@
+import { isServiceRoleToken } from "../_shared/internalAuth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.99.1";
 
 const corsHeaders = {
@@ -88,12 +89,7 @@ Deno.serve(async (req) => {
   // OR a valid authenticated user JWT.
   const auth = req.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
   let isServiceRole = Boolean(auth) && auth === SUPABASE_SERVICE_ROLE_KEY;
-  if (!isServiceRole && auth) {
-    try {
-      const payload = JSON.parse(atob(auth.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-      if (payload?.role === "service_role") isServiceRole = true;
-    } catch { /* ignore */ }
-  }
+  if (!isServiceRole && auth) isServiceRole = await isServiceRoleToken(auth);
   let callerUserId: string | null = null;
   let authorized = isServiceRole;
   if (!authorized && auth) {

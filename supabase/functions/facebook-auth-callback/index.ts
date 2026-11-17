@@ -1,3 +1,4 @@
+import { isAllowedAppOrigin } from "../_shared/internalAuth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 Deno.serve(async (req) => {
@@ -176,7 +177,7 @@ function sanitizeOrigin(origin?: string) {
   if (!origin) return "";
   try {
     const url = new URL(origin);
-    return url.protocol === "https:" || url.hostname === "localhost" ? url.origin : "";
+    return isAllowedAppOrigin(url.origin) ? url.origin : "";
   } catch {
     return "";
   }

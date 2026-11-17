@@ -1,3 +1,4 @@
+import { csvSafeText } from '@/lib/csvSafe';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -273,7 +274,7 @@ function ExportBackupCard() {
       );
       const escape = (v: any) => {
         if (v === null || v === undefined) return '';
-        let s = typeof v === 'object' ? JSON.stringify(v) : String(v);
+        let s = csvSafeText(v);
         if (/[",\n;]/.test(s)) s = `"${s.replace(/"/g, '""')}"`;
         return s;
       };

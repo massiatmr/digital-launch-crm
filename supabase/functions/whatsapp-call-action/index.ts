@@ -28,6 +28,15 @@ Deno.serve(async (req) => {
     if (!callRow) return new Response(JSON.stringify({ error: "Call not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const lead = (callRow as any).leads;
+    {
+      let allowed = lead?.owner_id === user.id && !lead?.workspace_id;
+      if (!allowed && lead?.workspace_id) {
+        const { data: m } = await admin.rpc("is_workspace_member", { _workspace_id: lead.workspace_id, _user_id: user.id });
+        allowed = !!m;
+      }
+      if (!allowed) { const { data: a } = await admin.rpc("has_role", { _user_id: user.id, _role: "admin" }); allowed = !!a; }
+      if (!allowed) return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
     let configQuery = admin.from("whatsapp_config").select("*").eq("is_active", true);
     if (lead?.workspace_id) configQuery = configQuery.eq("workspace_id", lead.workspace_id);
     else configQuery = configQuery.eq("owner_id", lead?.owner_id).is("workspace_id", null);

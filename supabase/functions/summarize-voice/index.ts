@@ -1,3 +1,4 @@
+import { isServiceRoleRequest } from "../_shared/internalAuth.ts";
 // Génère un résumé 1-ligne d'un transcript vocal — appelé après transcription du webhook
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -10,6 +11,9 @@ const LOVABLE_AI = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (!(await isServiceRoleRequest(req))) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
 
   try {
     const admin = createClient(

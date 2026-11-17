@@ -79,14 +79,18 @@ Deno.serve(async (req) => {
       const leadIds = list.filter((r: any) => r.kind === "lead").map((r: any) => r.id);
       const clientIds = list.filter((r: any) => r.kind === "client").map((r: any) => r.id);
       if (leadIds.length) {
-        const { data } = await admin.from("leads").select("*").in("id", leadIds);
+        let mq = admin.from("leads").select("*").in("id", leadIds).is("deleted_at", null);
+        mq = campaign.workspace_id ? mq.eq("workspace_id", campaign.workspace_id) : mq.eq("owner_id", campaign.owner_id).is("workspace_id", null);
+        const { data } = await mq;
         for (const l of data || []) {
           const ph = normalizePhone(l.phone);
           if (ph) contacts.push({ lead_id: l.id, phone: ph, name: l.name, source: l });
         }
       }
       if (clientIds.length) {
-        const { data } = await admin.from("clients").select("*").in("id", clientIds);
+        let mq = admin.from("clients").select("*").in("id", clientIds).is("deleted_at", null);
+        mq = campaign.workspace_id ? mq.eq("workspace_id", campaign.workspace_id) : mq.eq("owner_id", campaign.owner_id).is("workspace_id", null);
+        const { data } = await mq;
         for (const c of data || []) {
           const ph = normalizePhone(c.phone);
           if (ph) contacts.push({ client_id: c.id, phone: ph, name: c.name, source: c });

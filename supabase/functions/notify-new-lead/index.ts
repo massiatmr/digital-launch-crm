@@ -1,3 +1,4 @@
+import { isServiceRoleToken } from "../_shared/internalAuth.ts";
 // Sends push + email notification to the CRM owner when a new lead arrives.
 // Email goes through SMTP (send-smtp-email) — no DNS / Lovable Email needed.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.99.1";
@@ -174,12 +175,7 @@ Deno.serve(async (req) => {
   //  so a strict equality check breaks after rotation.)
   const _bearer = req.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
   let _authorized = _bearer.length > 0 && _bearer === SUPABASE_SERVICE_ROLE_KEY;
-  if (!_authorized && _bearer) {
-    try {
-      const payload = JSON.parse(atob(_bearer.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-      if (payload?.role === "service_role") _authorized = true;
-    } catch { /* ignore */ }
-  }
+  if (!_authorized && _bearer) _authorized = await isServiceRoleToken(_bearer);
   if (!_authorized) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,

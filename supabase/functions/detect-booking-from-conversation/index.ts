@@ -1,3 +1,5 @@
+import { escapeHtml } from "../_shared/internalAuth.ts";
+import { isServiceRoleRequest } from "../_shared/internalAuth.ts";
 // Analyse la conversation WhatsApp récente et détecte si un RDV a été confirmé.
 // Si oui : crée un booking + event Google Calendar + active une activity.
 // Appelée en fire-and-forget depuis whatsapp-webhook après chaque message inbound.
@@ -145,6 +147,9 @@ async function markLeadBookedAndStopAutomations(admin: any, lead: any, reason: s
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (!(await isServiceRoleRequest(req))) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
 
   try {
     const { lead_id } = await req.json();
@@ -498,14 +503,14 @@ ${transcript}`;
               day: "2-digit", month: "long", year: "numeric",
             });
             const meetBlock = meetLink
-              ? `<a href="${meetLink}" style="color:#7c3aed;font-weight:600">🔗 Rejoindre Google Meet</a>`
+              ? `<a href="${escapeHtml(meetLink)}" style="color:#7c3aed;font-weight:600">🔗 Rejoindre Google Meet</a>`
               : "";
             const vars: Record<string, string> = {
-              name: lead.name || "",
+              name: escapeHtml(lead.name || ""),
               date: dateStr,
               time: parsed.time_slot || "",
-              offer_name: offerName || "",
-              offer_suffix: offerName ? ` (${offerName})` : "",
+              offer_name: escapeHtml(offerName || ""),
+              offer_suffix: offerName ? ` (${escapeHtml(offerName)})` : "",
               meet_link: meetLink || "",
               meet_block: meetBlock,
             };
@@ -576,7 +581,7 @@ ${transcript}`;
           const wsPrefix = workspaceName ? `[${workspaceName}] ` : "";
           const subject = `📅 ${wsPrefix}Nouveau RDV (WhatsApp) — ${lead.name} (${parsed.booking_date} ${parsed.time_slot})`;
           const meetRow = meetLink
-            ? `<p style="margin:6px 0"><a href="${meetLink}" style="color:#7c3aed;font-weight:600">🔗 Google Meet</a></p>` : "";
+            ? `<p style="margin:6px 0"><a href="${escapeHtml(meetLink)}" style="color:#7c3aed;font-weight:600">🔗 Google Meet</a></p>` : "";
           const addressRow = parsed.address
             ? `<p style="margin:4px 0"><strong>📍 Adresse :</strong> ${String(parsed.address).replace(/[<>]/g, "")}</p>` : "";
           const escapeHtml = (s: string) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

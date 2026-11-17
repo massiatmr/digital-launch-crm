@@ -1,3 +1,4 @@
+import { csvSafeText } from '@/lib/csvSafe';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSalesReps, repLabel, repInitials } from '@/hooks/useSalesReps';
@@ -443,7 +444,7 @@ export default function PipelinePage() {
 
   const bulkExport = () => {
     const rows = allLeads.filter(l => selectedIds.has(l.id));
-    const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const esc = (v: any) => `"${csvSafeText(v).replace(/"/g, '""')}"`;
     const header = ['Nom', 'Entreprise', 'Téléphone', 'Email', 'Étape', 'Score', 'Commercial', 'Créé le'];
     const csv = [header.map(esc).join(';'), ...rows.map(l => [
       l.name, l.company_name, l.phone, l.email, STAGES.find(s => s.key === l.status)?.label || l.status, l.score,

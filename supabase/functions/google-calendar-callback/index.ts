@@ -1,3 +1,4 @@
+import { verifyState } from "../_shared/internalAuth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 Deno.serve(async (req) => {
@@ -11,16 +12,9 @@ Deno.serve(async (req) => {
     }
 
     // state is either a raw user_id (legacy) or a base64 JSON { u, w }
-    let userId: string | null = null;
-    let workspaceId: string | null = null;
-    try {
-      const decoded = JSON.parse(atob(state));
-      userId = decoded?.u ?? null;
-      workspaceId = decoded?.w ?? null;
-    } catch (_) {
-      // legacy: state is the user id
-      userId = state;
-    }
+    const verified = await verifyState(state);
+    const userId: string | null = verified?.u ?? null;
+    let workspaceId: string | null = verified?.w ?? null;
     if (!userId) return new Response("Invalid state", { status: 400 });
 
     const clientId = Deno.env.get("Google_Client_id")!;
@@ -67,6 +61,10 @@ Deno.serve(async (req) => {
     }
 
     if (!workspaceId) return new Response("No workspace available", { status: 400 });
+    {
+      const { data: isMember } = await supabase.rpc("is_workspace_member", { _workspace_id: workspaceId, _user_id: userId });
+      if (!isMember) return new Response("Forbidden", { status: 403 });
+    }
 
     const { data: membership } = await supabase
       .from("workspace_members")

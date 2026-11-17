@@ -1,3 +1,4 @@
+import { isServiceRoleRequest } from "../_shared/internalAuth.ts";
 // Processeur de campagnes WhatsApp : envoie les templates HSM aux destinataires pending.
 // Appelé soit en fire-and-forget par campaigns-launch, soit via cron chaque minute.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
@@ -145,6 +146,9 @@ async function processCampaign(admin: any, campaign_id: string) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (!(await isServiceRoleRequest(req))) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
   try {
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     let campaign_id: string | undefined;

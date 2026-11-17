@@ -1,3 +1,4 @@
+import { signState } from "../_shared/internalAuth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
@@ -51,7 +52,7 @@ Deno.serve(async (req) => {
     ];
 
     // Encode user + workspace in state (base64 JSON) so the callback knows where to store the tokens
-    const statePayload = btoa(JSON.stringify({ u: user.id, w: workspaceId }));
+    const statePayload = await signState({ u: user.id, w: workspaceId });
 
     const params = new URLSearchParams({
       client_id: clientId,

@@ -1,3 +1,4 @@
+import { escapeHtml } from "../_shared/internalAuth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -118,11 +119,11 @@ Deno.serve(async (req) => {
     // Envoi email via SMTP (best-effort, n'échoue pas l'invitation)
     if (sendEmail) {
       try {
-        const wsLabel = workspaceName || "un nouvel espace";
-        const greeting = recipientName ? `Bonjour ${recipientName},` : "Bonjour,";
-        const inviterLine = inviterName ? `${inviterName} vous a invité` : "Vous avez été invité";
+        const wsLabel = escapeHtml(workspaceName || "un nouvel espace");
+        const greeting = recipientName ? `Bonjour ${escapeHtml(recipientName)},` : "Bonjour,";
+        const inviterLine = inviterName ? `${escapeHtml(inviterName)} vous a invité` : "Vous avez été invité";
         const roleLabel = invite.workspace_role === "owner" ? "propriétaire" : "membre";
-        const subject = `Invitation à rejoindre ${wsLabel}`;
+        const subject = `Invitation à rejoindre ${workspaceName || "un nouvel espace"}`;
 
         const html = `<!DOCTYPE html>
 <html lang="fr">

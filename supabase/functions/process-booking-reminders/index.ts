@@ -1,3 +1,5 @@
+import { escapeHtml } from "../_shared/internalAuth.ts";
+import { isServiceRoleToken } from "../_shared/internalAuth.ts";
 // Process scheduled booking_emails (24h/12h/1h before reminder) — sends
 // client reminder + optional admin reminder. Runs every minute via pg_cron.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
@@ -52,12 +54,7 @@ Deno.serve(async (req) => {
   const bearer = req.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
   const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   let authorized = bearer.length > 0 && bearer === SERVICE_KEY;
-  if (!authorized && bearer) {
-    try {
-      const payload = JSON.parse(atob(bearer.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-      if (payload?.role === "service_role") authorized = true;
-    } catch { /* ignore */ }
-  }
+  if (!authorized && bearer) authorized = await isServiceRoleToken(bearer);
   if (!authorized) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
@@ -194,14 +191,14 @@ Deno.serve(async (req) => {
         }
 
         const meetBlock = booking.meet_link
-          ? `<a href="${booking.meet_link}" style="color:#7c3aed;font-weight:600">🔗 Rejoindre Google Meet</a>`
+          ? `<a href="${escapeHtml(booking.meet_link)}" style="color:#7c3aed;font-weight:600">🔗 Rejoindre Google Meet</a>`
           : "";
         const vars: Record<string, string> = {
-          name: booking.name,
+          name: escapeHtml(booking.name),
           date: booking.booking_date,
           time: booking.time_slot,
-          offer_name: offerName,
-          offer_suffix: offerName ? ` (${offerName})` : "",
+          offer_name: escapeHtml(offerName),
+          offer_suffix: offerName ? ` (${escapeHtml(offerName)})` : "",
           meet_link: booking.meet_link || "",
           meet_block: meetBlock,
         };
@@ -254,7 +251,7 @@ Deno.serve(async (req) => {
                 <p style="margin:2px 0 10px">${booking.booking_date} à ${booking.time_slot}${offerName ? ` — ${offerName}` : ""}</p>
                 ${booking.email ? `<p style="font-size:13px;color:#6b7280;margin:0">Email</p><p style="margin:2px 0 10px">${booking.email}</p>` : ""}
                 ${booking.phone ? `<p style="font-size:13px;color:#6b7280;margin:0">Téléphone</p><p style="margin:2px 0 10px">${booking.phone}</p>` : ""}
-                ${booking.meet_link ? `<p style="margin:8px 0"><a href="${booking.meet_link}" style="color:#7c3aed;font-weight:600">🔗 Rejoindre Google Meet</a></p>` : ""}
+                ${booking.meet_link ? `<p style="margin:8px 0"><a href="${escapeHtml(booking.meet_link)}" style="color:#7c3aed;font-weight:600">🔗 Rejoindre Google Meet</a></p>` : ""}
               </div>
               <a href="${leadUrl}" style="background:#7c3aed;color:#fff;padding:11px 22px;border-radius:6px;font-weight:600;text-decoration:none;display:inline-block">Ouvrir la fiche lead</a>
             `, "RDV dans 1h");

@@ -231,6 +231,21 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (body.workspace_id) {
+      const { data: isMember } = await supabase.rpc("is_workspace_member", { _workspace_id: body.workspace_id, _user_id: user.id });
+      if (!isMember) return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    if (to.toLowerCase() !== String(user.email || "").toLowerCase()) {
+      let ok = false;
+      for (const t of ["leads", "clients"]) {
+        let q = supabase.from(t).select("id").ilike("email", to).is("deleted_at", null).limit(1);
+        q = body.workspace_id ? q.eq("workspace_id", body.workspace_id) : q.eq("owner_id", user.id);
+        const { data } = await q;
+        if (data && data.length) { ok = true; break; }
+      }
+      if (!ok) return new Response(JSON.stringify({ error: "Recipient must be yourself or one of your leads/clients" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     const today = new Date();
     const dateStr = today.toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
     const sample = {

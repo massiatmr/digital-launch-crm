@@ -1,3 +1,4 @@
+import { escapeHtml, maskEmail } from "../_shared/internalAuth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createEventOnPrimary } from "../_shared/calendar/index.ts";
 import { getMutedUserIds } from "../_shared/notificationPrefs.ts";
@@ -226,7 +227,7 @@ Deno.serve(async (req) => {
 
     if (existingLead) {
       leadId = existingLead.id;
-      await supabase
+      if (explicitLead) await supabase
         .from("leads")
         .update({
           offer_id,
@@ -427,14 +428,14 @@ Deno.serve(async (req) => {
           day: "2-digit", month: "long", year: "numeric",
         });
         const meetBlock = meetLink
-          ? `<a href="${meetLink}" style="color:#7c3aed;font-weight:600">🔗 Rejoindre Google Meet</a>`
+          ? `<a href="${escapeHtml(meetLink)}" style="color:#7c3aed;font-weight:600">🔗 Rejoindre Google Meet</a>`
           : "";
         const vars: Record<string, string> = {
-          name: name || "",
+          name: escapeHtml(name || ""),
           date: dateStr,
           time: time_slot || "",
-          offer_name: offerName || "",
-          offer_suffix: offerName ? ` (${offerName})` : "",
+          offer_name: escapeHtml(offerName || ""),
+          offer_suffix: offerName ? ` (${escapeHtml(offerName)})` : "",
           meet_link: meetLink || "",
           meet_block: meetBlock,
         };
@@ -469,7 +470,7 @@ Deno.serve(async (req) => {
           .eq("type", "confirmation")
           .eq("status", "pending");
 
-        console.log("Booking confirmation email sent to:", email);
+        console.log("Booking confirmation email sent to:", maskEmail(email));
       }
     } catch (emailErr) {
       console.error("Failed to send booking confirmation email:", emailErr);
@@ -482,7 +483,7 @@ Deno.serve(async (req) => {
     const titleSuffix = offerName ? ` — ${offerName}` : "";
     const meetRow = meetLink
       ? `<p style="font-size:12px;color:#7c3aed;font-weight:600;margin:8px 0 2px;text-transform:uppercase;letter-spacing:0.5px">🔗 Google Meet</p>
-         <p style="font-size:14px;color:#1a1a2e;margin:0 0 8px"><a href="${meetLink}" style="color:#7c3aed">${meetLink}</a></p>`
+         <p style="font-size:14px;color:#1a1a2e;margin:0 0 8px"><a href="${escapeHtml(meetLink)}" style="color:#7c3aed">${meetLink}</a></p>`
       : "";
 
     // Fetch full lead context: lead row, qualification, activities, workspace
@@ -568,7 +569,6 @@ Deno.serve(async (req) => {
     }
 
     // Build rich email blocks
-    const escapeHtml = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
     const row = (label: string, value: string | null | undefined) =>
       value ? `<p style="font-size:12px;color:#6b7280;font-weight:500;margin:8px 0 2px">${label}</p>
               <p style="font-size:14px;color:#111827;margin:0 0 8px;white-space:pre-wrap">${escapeHtml(value)}</p>` : "";

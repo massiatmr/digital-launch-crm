@@ -363,10 +363,14 @@ Deno.serve(async (req) => {
               });
               const metaJson = await metaRes.json();
               const mediaUrl = metaJson?.url;
-              if (mediaUrl) {
+              const MAX_INBOUND_MEDIA = messageType === "audio" || messageType === "video" ? 16 * 1024 * 1024 : messageType === "image" || messageType === "sticker" ? 5 * 1024 * 1024 : 100 * 1024 * 1024;
+              const declaredSize = Number(metaJson?.file_size) || 0;
+              const declaredLen = Number((await fetch(mediaUrl || "about:blank", { method: "HEAD", headers: { Authorization: `Bearer ${accessToken}` } }).catch(() => null))?.headers.get("content-length")) || 0;
+              if (mediaUrl && declaredSize <= MAX_INBOUND_MEDIA && declaredLen <= MAX_INBOUND_MEDIA) {
                 const binRes = await fetch(mediaUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
                 const buf = new Uint8Array(await binRes.arrayBuffer());
                 mediaSize = buf.byteLength;
+                if (buf.byteLength > MAX_INBOUND_MEDIA) throw new Error("inbound media too large");
 
                 if (messageType === "audio") {
                   const ext = mediaType.includes("mpeg") ? "mp3" : mediaType.includes("wav") ? "wav" : "ogg";

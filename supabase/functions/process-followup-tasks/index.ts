@@ -1,3 +1,4 @@
+import { isServiceRoleToken } from "../_shared/internalAuth.ts";
 // Batch processor: trouve les tâches scheduled dues et invoque execute-followup-task pour chacune.
 // Appelé par pg_cron toutes les minutes OU manuellement depuis l'UI.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
@@ -43,8 +44,8 @@ Deno.serve(async (req) => {
     // still happen server-side through the service client and only for due tasks.
     const bearer = req.headers.get('Authorization')?.replace('Bearer ', '') ?? '';
     // Strict equality check against env service key — NEVER trust unverified JWT payloads.
-    const isServiceRole = bearer.length > 0 && bearer === SERVICE_KEY;
-    const isScheduledCron = req.headers.get('x-internal-cron') === '1' && bearer.length > 20;
+    const isServiceRole = await isServiceRoleToken(bearer);
+    const isScheduledCron = false;
 
 
     let callerUserId: string | null = null;

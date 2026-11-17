@@ -34,6 +34,26 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (typeof recipientEmail !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail) || String(subject).length > 200) {
+      return new Response(JSON.stringify({ error: 'Invalid fields' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    if (workspaceId) {
+      const { data: isMember } = await supabase.rpc('is_workspace_member', { _workspace_id: workspaceId, _user_id: user.id });
+      if (!isMember) return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    // Recipient must be a client or lead the caller can access
+    {
+      const em = recipientEmail.trim();
+      let found = false;
+      for (const t of ['clients', 'leads']) {
+        let q = supabase.from(t).select('id').ilike('email', em).is('deleted_at', null).limit(1);
+        q = workspaceId ? q.eq('workspace_id', workspaceId) : q.eq('owner_id', user.id);
+        const { data } = await q;
+        if (data && data.length) { found = true; break; }
+      }
+      if (!found) return new Response(JSON.stringify({ error: 'Recipient must be one of your clients or leads' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     const safeMsg = String(message || '').replace(/[&<>"']/g, (c) =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
     const emailHtml = `
@@ -51,7 +71,7 @@ Deno.serve(async (req) => {
 
     const body: Record<string, unknown> = {
       to: recipientEmail,
-      subject,
+      subject: String(subject).replace(/[\r\n]+/g, ' '),
       html: emailHtml,
       workspaceId: workspaceId ?? null,
     };

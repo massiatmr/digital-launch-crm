@@ -1,3 +1,4 @@
+import { bearerOf, isServiceRoleToken, maskEmail } from '../_shared/internalAuth.ts'
 import * as React from 'npm:react@18.3.1'
 import { renderAsync } from 'npm:@react-email/components@0.0.22'
 import { createClient } from 'npm:@supabase/supabase-js@2'
@@ -125,6 +126,34 @@ Deno.serve(async (req) => {
   // Create Supabase client with service role (bypasses RLS)
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+  // Caller authorization: internal service role, or a signed-in user sending
+  // to themselves or to one of their own leads/clients. Anonymous calls are refused.
+  {
+    const token = bearerOf(req)
+    if (!(await isServiceRoleToken(token))) {
+      const { data: u } = await supabase.auth.getUser(token)
+      const caller = u?.user
+      if (!caller) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      const rec = String(effectiveRecipient).trim().toLowerCase()
+      let allowed = !!template.to || rec === String(caller.email || '').toLowerCase()
+      if (!allowed) {
+        const { data: wsIds } = await supabase.rpc('user_workspace_ids', { _user_id: caller.id })
+        const ids = ((wsIds as any[]) || []).map((r: any) => (typeof r === 'string' ? r : r.user_workspace_ids)).filter(Boolean)
+        for (const t of ['leads', 'clients', 'bookings']) {
+          let q = supabase.from(t).select('id').ilike('email', rec).limit(1)
+          q = ids.length ? q.or(`owner_id.eq.${caller.id},workspace_id.in.(${ids.join(',')})`) : q.eq('owner_id', caller.id)
+          const { data } = await q
+          if (data && data.length) { allowed = true; break }
+        }
+      }
+      if (!allowed) {
+        return new Response(JSON.stringify({ error: 'Recipient not allowed' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+    }
+  }
+
   // 2. Check suppression list (fail-closed: if we can't verify, don't send)
   const { data: suppressed, error: suppressionError } = await supabase
     .from('suppressed_emails')
@@ -135,7 +164,7 @@ Deno.serve(async (req) => {
   if (suppressionError) {
     console.error('Suppression check failed — refusing to send', {
       error: suppressionError,
-      effectiveRecipient,
+      recipient: maskEmail(effectiveRecipient),
     })
     return new Response(
       JSON.stringify({ error: 'Failed to verify suppression status' }),
@@ -155,7 +184,7 @@ Deno.serve(async (req) => {
       status: 'suppressed',
     })
 
-    console.log('Email suppressed', { effectiveRecipient, templateName })
+    console.log('Email suppressed', { recipient: maskEmail(effectiveRecipient), templateName })
     return new Response(
       JSON.stringify({ success: false, reason: 'email_suppressed' }),
       {
@@ -330,7 +359,7 @@ Deno.serve(async (req) => {
     console.error('Failed to enqueue email', {
       error: enqueueError,
       templateName,
-      effectiveRecipient,
+      recipient: maskEmail(effectiveRecipient),
     })
 
     await supabase.from('email_send_log').insert({
@@ -347,7 +376,7 @@ Deno.serve(async (req) => {
     })
   }
 
-  console.log('Transactional email enqueued', { templateName, effectiveRecipient })
+  console.log('Transactional email enqueued', { templateName, recipient: maskEmail(effectiveRecipient) })
 
   return new Response(
     JSON.stringify({ success: true, queued: true }),

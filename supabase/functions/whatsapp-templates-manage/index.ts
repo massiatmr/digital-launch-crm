@@ -45,6 +45,15 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const action = body.action as string;
     const workspaceId: string | null = body.workspace_id ?? null;
+    if (workspaceId) {
+      const { data: isMember } = await admin.rpc("is_workspace_member", { _workspace_id: workspaceId, _user_id: user.id });
+      if (!isMember) return json({ error: "Forbidden" }, 403);
+      if (["create_local", "update", "delete", "sync"].includes(action)) {
+        const { data: isOwner } = await admin.rpc("is_workspace_owner", { _workspace_id: workspaceId, _user_id: user.id });
+        const { data: isAdmin } = await admin.rpc("has_role", { _user_id: user.id, _role: "admin" });
+        if (!isOwner && !isAdmin) return json({ error: "Forbidden" }, 403);
+      }
+    }
 
     // Helper : applique le scope workspace si fourni, sinon legacy owner
     const scopeQuery = (q: any) => {

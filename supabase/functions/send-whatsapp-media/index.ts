@@ -63,6 +63,14 @@ Deno.serve(async (req) => {
     const { data: lead } = await supabase.from("leads").select("*").eq("id", lead_id).maybeSingle();
     if (!lead) return new Response(JSON.stringify({ error: "Lead not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+    const MEDIA_LIMITS: Record<string, number> = { image: 5, video: 16, audio: 16, document: 100 };
+    const baseMediaMime = String(mime_type).split(";")[0].trim().toLowerCase();
+    const allowedMime = /^(image\/(jpeg|png|webp)|video\/(mp4|3gpp)|audio\/(ogg|mpeg|mp4|aac|amr)|application\/(pdf|msword|vnd\.openxmlformats-officedocument\.[a-z.]+|vnd\.ms-excel|vnd\.ms-powerpoint)|text\/plain)$/;
+    const limitMb = MEDIA_LIMITS[baseMediaMime.startsWith("image/") ? "image" : baseMediaMime.startsWith("video/") ? "video" : baseMediaMime.startsWith("audio/") ? "audio" : "document"];
+    if (typeof media_base64 !== "string" || !allowedMime.test(baseMediaMime) || media_base64.length > Math.ceil(limitMb * 1024 * 1024 * 4 / 3)) {
+      return new Response(JSON.stringify({ error: `Fichier refusé (type non supporté ou plus de ${limitMb} Mo)` }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     // Decode base64 → bytes
     const binary = atob(media_base64);
     const bytes = new Uint8Array(binary.length);

@@ -190,8 +190,10 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const messages: ChatMsg[] = Array.isArray(body?.messages) ? body.messages.slice(-10) : [];
-    const ctx = body?.context || {};
+    const messages: ChatMsg[] = (Array.isArray(body?.messages) ? body.messages.slice(-10) : [])
+      .filter((m: any) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+      .map((m: any) => ({ role: m.role, content: String(m.content).slice(0, 4000) }));
+    const ctx = (body?.context && typeof body.context === "object" && JSON.stringify(body.context).length <= 200_000) ? body.context : {};
 
     const today = new Date().toISOString().slice(0, 10);
     const contextPreamble = `Contexte CRM (date du jour: ${today}).

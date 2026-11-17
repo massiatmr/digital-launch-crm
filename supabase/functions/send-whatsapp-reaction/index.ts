@@ -89,6 +89,7 @@ Deno.serve(async (req) => {
     const { data: target } = await admin.from("whatsapp_messages")
       .select("id, reactions")
       .eq("wa_message_id", wa_message_id)
+      .eq("lead_id", lead.id)
       .maybeSingle();
     if (target) {
       const list = Array.isArray((target as any).reactions) ? [...(target as any).reactions] : [];

@@ -1,3 +1,4 @@
+import { isServiceRoleToken } from "../_shared/internalAuth.ts";
 // Cron: process booking_wa_reminders due → send template HSM via WhatsApp Cloud API.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { templateGreetingName } from "../_shared/whatsappPersonalization.ts";
@@ -40,12 +41,7 @@ Deno.serve(async (req) => {
   const bearer = req.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
   const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   let authorized = bearer.length > 0 && bearer === SERVICE_KEY;
-  if (!authorized && bearer) {
-    try {
-      const payload = JSON.parse(atob(bearer.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-      if (payload?.role === "service_role") authorized = true;
-    } catch { /* ignore */ }
-  }
+  if (!authorized && bearer) authorized = await isServiceRoleToken(bearer);
   if (!authorized) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },

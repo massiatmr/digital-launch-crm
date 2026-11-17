@@ -1,3 +1,4 @@
+import { isServiceRoleToken } from "../_shared/internalAuth.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -20,12 +21,7 @@ Deno.serve(async (req) => {
 
   const bearer = req.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
   let isServiceRole = bearer.length > 0 && (bearer === SUPABASE_SERVICE_ROLE_KEY);
-  if (!isServiceRole && bearer) {
-    try {
-      const payload = JSON.parse(atob(bearer.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-      if (payload?.role === "service_role") isServiceRole = true;
-    } catch { /* ignore */ }
-  }
+  if (!isServiceRole && bearer) isServiceRole = await isServiceRoleToken(bearer);
   if (!isServiceRole) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,

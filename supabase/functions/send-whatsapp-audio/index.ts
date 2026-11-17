@@ -54,6 +54,11 @@ Deno.serve(async (req) => {
       });
 
     const { lead_id, audio_base64, mime_type } = await req.json();
+    const ALLOWED_AUDIO = ["audio/ogg", "audio/mpeg", "audio/mp4", "audio/aac", "audio/amr", "audio/webm"];
+    const baseMime = String(mime_type || "audio/ogg").split(";")[0].trim().toLowerCase();
+    if (typeof audio_base64 !== "string" || audio_base64.length > Math.ceil(16 * 1024 * 1024 * 4 / 3) || !ALLOWED_AUDIO.includes(baseMime)) {
+      return new Response(JSON.stringify({ error: "Audio invalide (16 Mo max, format audio requis)" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
     if (!lead_id || !audio_base64) {
       return new Response(JSON.stringify({ error: "Missing lead_id or audio_base64" }), {
         status: 400,

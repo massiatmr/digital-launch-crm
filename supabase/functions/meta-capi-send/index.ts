@@ -125,6 +125,7 @@ Deno.serve(async (req) => {
   const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   const internalExpected = Deno.env.get('INTERNAL_FUNCTION_SECRET') ?? '';
   let authorized = auth === serviceRole;
+  let callerUserId: string | null = null;
   if (!authorized && internalExpected && internalSecret === internalExpected) authorized = true;
   if (!authorized && auth) {
     try {
@@ -134,7 +135,7 @@ Deno.serve(async (req) => {
         { global: { headers: { Authorization: `Bearer ${auth}` } } },
       );
       const { data: userData } = await supa.auth.getUser(auth);
-      if (userData?.user?.id) authorized = true;
+      if (userData?.user?.id) { authorized = true; callerUserId = userData.user.id; }
     } catch { /* ignore */ }
   }
   if (!authorized) {
@@ -150,6 +151,18 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
+
+    if (callerUserId) {
+      const wsId = bodyReq?.workspace_id;
+      if (!wsId) return new Response(JSON.stringify({ error: 'workspace_id required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const { data: isMember } = await admin.rpc('is_workspace_member', { _workspace_id: wsId, _user_id: callerUserId });
+      const { data: isAdmin } = await admin.rpc('has_role', { _user_id: callerUserId, _role: 'admin' });
+      if (!isMember && !isAdmin) return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      if (bodyReq?.lead_id) {
+        const { data: l } = await admin.from('leads').select('workspace_id').eq('id', bodyReq.lead_id).maybeSingle();
+        if (!l || (l as any).workspace_id !== wsId) return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    }
 
     // -------- Backfill mode --------
     if (bodyReq?.backfill && bodyReq.workspace_id) {
