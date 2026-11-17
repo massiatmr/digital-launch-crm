@@ -15,6 +15,13 @@
       "when": 1794931220682,
       "tag": "0001_lead_assignment_sales_reps",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794932025712,
+      "tag": "0002_harden_definer_functions_and_logo_reads",
+      "breakpoints": true
     }
   ]
 }
