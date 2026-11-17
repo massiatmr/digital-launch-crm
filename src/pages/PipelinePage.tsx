@@ -1,3 +1,6 @@
+import { useSalesReps, repLabel, repInitials } from '@/hooks/useSalesReps';
+import { useAuth } from '@/hooks/useAuth';
+import { useCurrentWorkspaceId } from '@/hooks/useWorkspaces';
 import { useLeads, useUpdateLead, useDeleteLead, type DbLead } from '@/hooks/useLeadData';
 import { useOffers } from '@/hooks/useOfferData';
 import { useCreateClient } from '@/hooks/useClientData';
@@ -108,6 +111,8 @@ function PipelineCard({
 }) {
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const isMobileDevice = useIsMobile();
+  const { data: cardReps = [] } = useSalesReps((lead as any).workspace_id);
+  const assignee = cardReps.length > 1 ? cardReps.find(r => r.user_id === (lead as any).assigned_to) : undefined;
   const cc = useDefaultCountryCode();
 
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -174,6 +179,11 @@ function PipelineCard({
 
         <div className="mt-2.5 flex items-center gap-1.5">
           <LeadScoreBadge score={lead.score} className="text-[10px] px-1.5 py-0" />
+          {assignee && (
+            <span title={repLabel(assignee.email)} className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-[9px] font-semibold text-primary">
+              {repInitials(assignee.email)}
+            </span>
+          )}
         </div>
 
         {(lead.email || lead.phone) && (
@@ -281,6 +291,11 @@ function PipelineColumn({
 }
 
 export default function PipelinePage() {
+  const { user: authUser } = useAuth();
+  const pipelineWsId = useCurrentWorkspaceId();
+  const { data: reps = [] } = useSalesReps(pipelineWsId);
+  const [assigneeFilter, setAssigneeFilter] = useState<string>(() => { try { return localStorage.getItem('pipeline_assignee_filter') || 'all'; } catch { return 'all'; } });
+  useEffect(() => { try { localStorage.setItem('pipeline_assignee_filter', assigneeFilter); } catch {} }, [assigneeFilter]);
   const { data: allLeads = [], isLoading, isError: isLeadsError, error: leadsError } = useLeads();
   const { data: offers = [], isError: isOffersError, error: offersError } = useOffers();
   const updateLead = useUpdateLead();
@@ -364,6 +379,10 @@ export default function PipelinePage() {
   const filteredLeads = leads.filter(l => {
     if (offerFilter !== 'all' && l.offer_id !== offerFilter) return false;
     if (scoreFilter.length > 0 && !scoreFilter.includes(l.score)) return false;
+    if (reps.length > 1 && assigneeFilter !== 'all') {
+      const a = (l as any).assigned_to || null;
+      if (assigneeFilter === 'mine' ? a !== authUser?.id : assigneeFilter === 'none' ? a !== null : a !== assigneeFilter) return false;
+    }
     if (search) {
       const q = search.toLowerCase().trim();
       const qDigits = q.replace(/\D/g, '');
@@ -600,6 +619,20 @@ export default function PipelinePage() {
             )}
           </DropdownMenuContent>
         </DropdownMenu>
+        {reps.length > 1 && (
+          <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+            <SelectTrigger className="w-[150px] h-9 text-xs border-border/50 bg-card/80">
+              <User className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les leads</SelectItem>
+              <SelectItem value="mine">Mes leads</SelectItem>
+              <SelectItem value="none">Non assignés</SelectItem>
+              {reps.map(r => <SelectItem key={r.user_id} value={r.user_id}>{repLabel(r.email)}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
         <Select value={period} onValueChange={(v) => setPeriod(v as PeriodKey)}>
           <SelectTrigger className="w-[170px] h-9 text-xs border-border/50 bg-card/80">
             <CalendarDays className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />

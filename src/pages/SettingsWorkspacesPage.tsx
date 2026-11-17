@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useWorkspaces } from '@/hooks/useWorkspaces';
 import { useWorkspaceFeatures, useIsAdmin, type FeatureKey } from '@/hooks/useWorkspaceFeatures';
+import { useSalesReps, useAssignmentMode, useSetAssignmentMode, useSetReceivesLeads } from '@/hooks/useSalesReps';
 import { useWorkspaceMembers, useRemoveMember, useUpdateMemberRole } from '@/hooks/useWorkspaceMembers';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -421,12 +422,31 @@ function MembersList({ workspaceId, currentUserId, canManage }: { workspaceId: s
   const { data: members, isLoading } = useWorkspaceMembers(workspaceId);
   const remove = useRemoveMember();
   const updateRole = useUpdateMemberRole();
+  const { data: reps = [] } = useSalesReps(workspaceId);
+  const { data: mode = 'manual' } = useAssignmentMode(workspaceId);
+  const setMode = useSetAssignmentMode();
+  const setReceives = useSetReceivesLeads();
 
   return (
     <div className="space-y-2 pt-3 border-t border-border/40">
       <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
         <Users className="h-3 w-3" /> Membres ({members?.length || 0})
       </div>
+      {canManage && (
+        <div className="rounded-md bg-muted/30 px-2 py-2 flex items-center justify-between gap-2">
+          <div className="text-xs">
+            <div className="font-medium">Répartir les nouveaux leads</div>
+            <div className="text-muted-foreground">{mode === 'round_robin' ? 'Chacun son tour entre les commerciaux cochés' : 'Tu choisis le commercial à la main'}</div>
+          </div>
+          <Select value={mode} onValueChange={(v) => setMode.mutate({ workspaceId, mode: v as any }, { onSuccess: () => toast.success('Répartition mise à jour'), onError: (e: any) => toast.error(e.message) })}>
+            <SelectTrigger className="h-8 w-[140px] text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="manual">À la main</SelectItem>
+              <SelectItem value="round_robin">Chacun son tour</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
       {isLoading && <div className="text-xs text-muted-foreground">Chargement…</div>}
       <div className="space-y-1.5">
         {members?.map((m) => {
@@ -437,6 +457,15 @@ function MembersList({ workspaceId, currentUserId, canManage }: { workspaceId: s
                 <div className="min-w-0 flex-1">
                   <div className="text-sm truncate">{m.email}{isSelf && <span className="text-xs text-muted-foreground"> (vous)</span>}</div>
                 </div>
+                {canManage && (
+                  <label className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0" title="Reçoit des leads">
+                    <Switch
+                      checked={reps.find(r => r.user_id === m.user_id)?.receives_leads ?? true}
+                      onCheckedChange={(v) => setReceives.mutate({ workspaceId, userId: m.user_id, value: v }, { onError: (e: any) => toast.error(e.message) })}
+                    />
+                    Leads
+                  </label>
+                )}
                 {canManage && !isSelf ? (
                   <>
                     <Select

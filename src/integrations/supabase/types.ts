@@ -1802,6 +1802,7 @@ export type Database = {
       leads: {
         Row: {
           ai_summary: string | null
+          assigned_to: string | null
           company_name: string | null
           created_at: string
           deleted_at: string | null
@@ -1835,6 +1836,7 @@ export type Database = {
         }
         Insert: {
           ai_summary?: string | null
+          assigned_to?: string | null
           company_name?: string | null
           created_at?: string
           deleted_at?: string | null
@@ -1868,6 +1870,7 @@ export type Database = {
         }
         Update: {
           ai_summary?: string | null
+          assigned_to?: string | null
           company_name?: string | null
           created_at?: string
           deleted_at?: string | null
@@ -3401,6 +3404,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          receives_leads: boolean
           role: Database["public"]["Enums"]["workspace_role"]
           user_id: string
           workspace_id: string
@@ -3408,6 +3412,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          receives_leads?: boolean
           role?: Database["public"]["Enums"]["workspace_role"]
           user_id: string
           workspace_id: string
@@ -3415,6 +3420,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          receives_leads?: boolean
           role?: Database["public"]["Enums"]["workspace_role"]
           user_id?: string
           workspace_id?: string
@@ -3493,6 +3499,8 @@ export type Database = {
           email_sender_name: string | null
           email_signature: string | null
           id: string
+          last_assigned_user_id: string | null
+          lead_assignment_mode: string
           legal_name: string | null
           logo_url: string | null
           logo_url_dark: string | null
@@ -3519,6 +3527,8 @@ export type Database = {
           email_sender_name?: string | null
           email_signature?: string | null
           id?: string
+          last_assigned_user_id?: string | null
+          lead_assignment_mode?: string
           legal_name?: string | null
           logo_url?: string | null
           logo_url_dark?: string | null
@@ -3545,6 +3555,8 @@ export type Database = {
           email_sender_name?: string | null
           email_signature?: string | null
           id?: string
+          last_assigned_user_id?: string | null
+          lead_assignment_mode?: string
           legal_name?: string | null
           logo_url?: string | null
           logo_url_dark?: string | null
@@ -3616,6 +3628,15 @@ export type Database = {
         Returns: {
           created_at: string
           email: string
+          role: Database["public"]["Enums"]["workspace_role"]
+          user_id: string
+        }[]
+      }
+      list_workspace_sales_reps: {
+        Args: { _workspace_id: string }
+        Returns: {
+          email: string
+          receives_leads: boolean
           role: Database["public"]["Enums"]["workspace_role"]
           user_id: string
         }[]
@@ -3706,6 +3727,14 @@ export type Database = {
           p_lead_id: string
           p_workspace_id: string
         }
+        Returns: undefined
+      }
+      set_lead_assignment_mode: {
+        Args: { _mode: string; _workspace_id: string }
+        Returns: undefined
+      }
+      set_member_receives_leads: {
+        Args: { _user_id: string; _value: boolean; _workspace_id: string }
         Returns: undefined
       }
       update_workspace_member_role: {

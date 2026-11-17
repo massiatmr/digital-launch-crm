@@ -11,6 +11,7 @@ import { FollowupTimeline } from '@/components/FollowupTimeline';
 import { LeadQualificationCard } from '@/components/LeadQualificationCard';
 import { CreateTaskForLeadDialog } from '@/components/CreateTaskForLeadDialog';
 import { LeadSummaryCard } from '@/components/LeadSummaryCard';
+import { LeadAssigneeSelect } from '@/components/LeadAssigneeSelect';
 import { CreateBookingForLeadDialog } from '@/components/CreateBookingForLeadDialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -234,6 +235,7 @@ export function LeadDetailContent({
               </div>
 
               <LeadSummaryCard lead={lead} />
+              <LeadAssigneeSelect leadId={lead.id} workspaceId={(lead as any).workspace_id} assignedTo={(lead as any).assigned_to} />
 
               {lead.message && (
                 <div className="w-full min-w-0 max-w-full overflow-hidden rounded-lg border-l-2 border-primary/40 bg-muted/50 p-3">
