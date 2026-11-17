@@ -9,7 +9,8 @@ import { format, subDays, subMonths, startOfYear, differenceInMinutes, differenc
 import { fr } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, CartesianGrid } from 'recharts';
 import { motion } from 'framer-motion';
-import CountUp from 'react-countup';
+import CountUpModule from 'react-countup';
+const CountUp: React.ComponentType<any> = ((CountUpModule as any)?.default ?? CountUpModule) as any;
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
