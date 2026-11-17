@@ -1,3 +1,5 @@
+import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSalesReps, repLabel, repInitials } from '@/hooks/useSalesReps';
 import { useAuth } from '@/hooks/useAuth';
 import { useCurrentWorkspaceId } from '@/hooks/useWorkspaces';
@@ -10,7 +12,7 @@ import { QuickActionsMenu } from '@/components/QuickActionsMenu';
 import { LostReasonDialog } from '@/components/LostReasonDialog';
 
 import { useState, useRef, useMemo, useEffect } from 'react';
-import { Loader2, GripVertical, User, ArrowRight, Search, Package, CalendarDays, CheckSquare, X, Trash2, MoveRight, Filter } from 'lucide-react';
+import { Loader2, GripVertical, User, ArrowRight, Search, Package, CalendarDays, CheckSquare, X, Trash2, MoveRight, Filter, UserPlus, Flame, Download } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toWhatsAppUrl, formatPhoneDisplay } from '@/lib/phone';
 import { useDefaultCountryCode } from '@/hooks/useWorkspaces';
@@ -428,6 +430,30 @@ export default function PipelinePage() {
     exitSelection();
   };
 
+  const queryClient = useQueryClient();
+  const bulkUpdate = async (patch: Record<string, any>, label: string) => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    const { error } = await supabase.from('leads').update(patch as any).in('id', ids);
+    if (error) { toast.error(`Échec : ${error.message}`); return; }
+    await queryClient.invalidateQueries({ queryKey: ['leads'] });
+    toast.success(`${ids.length} lead(s) ${label}`);
+    exitSelection();
+  };
+
+  const bulkExport = () => {
+    const rows = allLeads.filter(l => selectedIds.has(l.id));
+    const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const header = ['Nom', 'Entreprise', 'Téléphone', 'Email', 'Étape', 'Score', 'Commercial', 'Créé le'];
+    const csv = [header.map(esc).join(';'), ...rows.map(l => [
+      l.name, l.company_name, l.phone, l.email, STAGES.find(s => s.key === l.status)?.label || l.status, l.score,
+      repLabel(reps.find(r => r.user_id === (l as any).assigned_to)?.email), format(new Date(l.created_at), 'dd/MM/yyyy'),
+    ].map(esc).join(';'))].join('\n');
+    const url = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a'); a.href = url; a.download = `leads-${format(new Date(), 'yyyy-MM-dd')}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const bulkDelete = async () => {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
@@ -727,6 +753,62 @@ export default function PipelinePage() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          {reps.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" className="h-7 text-xs gap-1.5" disabled={selectedIds.size === 0}>
+                  <UserPlus className="h-3.5 w-3.5" />
+                  Assigner
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel className="text-xs">Assigner à</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {reps.map(r => (
+                  <DropdownMenuItem key={r.user_id} className="text-xs gap-2" onClick={() => bulkUpdate({ assigned_to: r.user_id }, `assigné(s) à ${repLabel(r.email)}`)}>
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-[9px] font-semibold text-primary">{repInitials(r.email)}</span>
+                    {repLabel(r.email)}{r.user_id === authUser?.id ? ' (moi)' : ''}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-xs" onClick={() => bulkUpdate({ assigned_to: null }, 'désassigné(s)')}>Retirer l'assignation</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" disabled={selectedIds.size === 0}>
+                <Flame className="h-3.5 w-3.5" />
+                Score
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem className="text-xs" onClick={() => bulkUpdate({ score: 'hot' }, '→ 🔥 Chaud')}>🔥 Chaud</DropdownMenuItem>
+              <DropdownMenuItem className="text-xs" onClick={() => bulkUpdate({ score: 'warm' }, '→ 🌤 Tiède')}>🌤 Tiède</DropdownMenuItem>
+              <DropdownMenuItem className="text-xs" onClick={() => bulkUpdate({ score: 'cold' }, '→ ❄️ Froid')}>❄️ Froid</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {offers.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" disabled={selectedIds.size === 0}>
+                  <Package className="h-3.5 w-3.5" />
+                  Offre
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {offers.map((o: any) => (
+                  <DropdownMenuItem key={o.id} className="text-xs" onClick={() => bulkUpdate({ offer_id: o.id }, `→ offre ${o.name}`)}>{o.name}</DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-xs" onClick={() => bulkUpdate({ offer_id: null }, 'sans offre')}>Aucune offre</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" disabled={selectedIds.size === 0} onClick={bulkExport}>
+            <Download className="h-3.5 w-3.5" />
+            Exporter
+          </Button>
           <Button
             variant="destructive"
             size="sm"
