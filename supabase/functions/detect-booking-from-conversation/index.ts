@@ -584,7 +584,6 @@ ${transcript}`;
             ? `<p style="margin:6px 0"><a href="${escapeHtml(meetLink)}" style="color:#7c3aed;font-weight:600">🔗 Google Meet</a></p>` : "";
           const addressRow = parsed.address
             ? `<p style="margin:4px 0"><strong>📍 Adresse :</strong> ${String(parsed.address).replace(/[<>]/g, "")}</p>` : "";
-          const escapeHtml = (s: string) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
           // Récap clair du formulaire initial (et notes) → bien plus lisible que la conversation complète
           const formText = String(lead.message || "").trim();
           const notesText = String(lead.notes || "").trim();
