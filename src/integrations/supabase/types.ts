@@ -352,6 +352,74 @@ export type Database = {
         }
         Relationships: []
       }
+      call_recordings: {
+        Row: {
+          activity_id: string | null
+          audio_expires_at: string | null
+          created_at: string
+          duration_speech_s: number
+          duration_total_s: number
+          error: string | null
+          id: string
+          language: string
+          lead_id: string
+          mime_type: string
+          size_bytes: number
+          status: string
+          storage_path: string | null
+          summary: Json | null
+          transcript: string | null
+          user_id: string
+          workspace_id: string | null
+        }
+        Insert: {
+          activity_id?: string | null
+          audio_expires_at?: string | null
+          created_at?: string
+          duration_speech_s?: number
+          duration_total_s?: number
+          error?: string | null
+          id?: string
+          language?: string
+          lead_id: string
+          mime_type?: string
+          size_bytes?: number
+          status?: string
+          storage_path?: string | null
+          summary?: Json | null
+          transcript?: string | null
+          user_id?: string
+          workspace_id?: string | null
+        }
+        Update: {
+          activity_id?: string | null
+          audio_expires_at?: string | null
+          created_at?: string
+          duration_speech_s?: number
+          duration_total_s?: number
+          error?: string | null
+          id?: string
+          language?: string
+          lead_id?: string
+          mime_type?: string
+          size_bytes?: number
+          status?: string
+          storage_path?: string | null
+          summary?: Json | null
+          transcript?: string | null
+          user_id?: string
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_recordings_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_recipients: {
         Row: {
           attempts: number
@@ -3490,6 +3558,7 @@ export type Database = {
           address: string | null
           booking_admin_reminders_enabled: boolean
           brand_color: string | null
+          call_audio_retention_days: number
           company_name: string
           created_at: string
           created_by: string | null
@@ -3518,6 +3587,7 @@ export type Database = {
           address?: string | null
           booking_admin_reminders_enabled?: boolean
           brand_color?: string | null
+          call_audio_retention_days?: number
           company_name?: string
           created_at?: string
           created_by?: string | null
@@ -3546,6 +3616,7 @@ export type Database = {
           address?: string | null
           booking_admin_reminders_enabled?: boolean
           brand_color?: string | null
+          call_audio_retention_days?: number
           company_name?: string
           created_at?: string
           created_by?: string | null

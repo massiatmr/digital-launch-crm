@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import { CallRecorderButton, CallRecordingsList } from '@/components/CallRecorder';
 
 const ACTIVITY_CONFIG: Record<DbActivity['activity_type'], { icon: typeof Phone; label: string; color: string }> = {
   call: { icon: Phone, label: 'Appel', color: 'text-blue-400 bg-blue-400/10 border-blue-400/20' },
@@ -113,6 +114,9 @@ export function LeadActivityTimeline({ leadId }: { leadId: string }) {
           Ajouter
         </button>
       </div>
+
+      <CallRecorderButton leadId={leadId} />
+      <CallRecordingsList leadId={leadId} />
 
       <AnimatePresence>
         {showForm && <AddActivityForm leadId={leadId} onClose={() => setShowForm(false)} />}
