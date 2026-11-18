@@ -50,6 +50,13 @@
       "when": 1794991521715,
       "tag": "0006_fix_call_recording_upload_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794997577391,
+      "tag": "0007_members_see_only_assigned_leads",
+      "breakpoints": true
     }
   ]
 }
