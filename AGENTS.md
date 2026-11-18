@@ -8,3 +8,4 @@
 - Lead assignment lives on `leads.assigned_to` with a BEFORE INSERT round-robin trigger, so every lead entry path (forms, Meta, WhatsApp, manual) is distributed identically without per-function code.
 - Call-recording reads bind the lead ID to `storage.objects.name` and explicitly check the caller's personal ownership, workspace membership, or admin role; qualifying the object path prevents SQL name shadowing from authorizing unrelated files.
 - Workspace members (non-owners) only see/update leads assigned to them or created by them, enforced in leads RLS so every screen is filtered consistently.
+- Member page access is stored per membership in workspace_members.permissions and resolved by useMemberPermissions (owners/admins bypass), used by nav, FeatureGuard and settings so access is defined in one place.

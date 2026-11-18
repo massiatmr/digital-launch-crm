@@ -12,6 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useWhatsAppInbox } from '@/hooks/useWhatsAppInbox';
 import { useWorkspaceFeatures, type FeatureKey } from '@/hooks/useWorkspaceFeatures';
 import { useWorkspaces } from '@/hooks/useWorkspaces';
+import { useMyPermissions, permForPath } from '@/hooks/useMemberPermissions';
 import { GlobalNaturalLanguageInput } from './GlobalNaturalLanguageInput';
 
 type NavItem = { to: string; icon: any; label: string; feature?: FeatureKey };
@@ -39,8 +40,9 @@ export function MobileBottomNav() {
   const { unreadCount } = useWhatsAppInbox();
   const { isEnabled } = useWorkspaceFeatures();
   const { workspaces, currentWorkspace, switchWorkspace } = useWorkspaces();
-  const mainLinks = mainLinksAll.filter((l) => !l.feature || isEnabled(l.feature));
-  const moreLinks = moreLinksAll.filter((l) => !l.feature || isEnabled(l.feature));
+  const { can } = useMyPermissions();
+  const mainLinks = mainLinksAll.filter((l) => (!l.feature || isEnabled(l.feature)) && can(permForPath(l.to)));
+  const moreLinks = moreLinksAll.filter((l) => (!l.feature || isEnabled(l.feature)) && can(permForPath(l.to)));
 
   return (
     <>

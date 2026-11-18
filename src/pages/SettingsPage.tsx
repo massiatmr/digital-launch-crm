@@ -53,6 +53,8 @@ const GROUP_ICONS: Record<Section['group'], any> = {
   Système: ShieldAlert,
 };
 
+import { useMyPermissions, permForPath } from '@/hooks/useMemberPermissions';
+
 export default function SettingsPage() {
   const { tab } = useParams<{ tab?: string }>();
   const navigate = useNavigate();
@@ -61,7 +63,9 @@ export default function SettingsPage() {
   const { currentWorkspace } = useWorkspaces();
   const isOwner = currentWorkspace?.role === 'owner' || isAdmin;
 
+  const { can } = useMyPermissions();
   const visible = SECTIONS.filter((s) =>
+    can(permForPath(`/settings/${s.key}`)) &&
     (!s.adminOnly || isAdmin) &&
     (!s.ownerOnly || isOwner) &&
     (!s.feature || isEnabled(s.feature))

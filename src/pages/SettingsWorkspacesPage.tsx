@@ -481,6 +481,7 @@ function MembersList({ workspaceId, currentUserId, canManage }: { workspaceId: s
                         <SelectItem value="member">Member</SelectItem>
                       </SelectContent>
                     </Select>
+                    {m.role === 'member' && <MemberPermissionsDialog workspaceId={workspaceId} userId={m.user_id} email={m.email} />}
                     <ResetPasswordDialog workspaceId={workspaceId} userId={m.user_id} email={m.email} />
                     <Button
                       size="icon" variant="ghost" className="h-7 w-7 text-destructive"
@@ -510,6 +511,8 @@ function MembersList({ workspaceId, currentUserId, canManage }: { workspaceId: s
     </div>
   );
 }
+
+import { MemberPermissionsDialog } from '@/components/settings/MemberPermissionsDialog';
 
 export default function SettingsWorkspacesPage() {
   const { user } = useAuth();

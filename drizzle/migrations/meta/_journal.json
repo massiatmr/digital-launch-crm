@@ -57,6 +57,13 @@
       "when": 1794997577391,
       "tag": "0007_members_see_only_assigned_leads",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794998118351,
+      "tag": "0008_member_permissions",
+      "breakpoints": true
     }
   ]
 }

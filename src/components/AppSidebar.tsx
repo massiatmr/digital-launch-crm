@@ -4,6 +4,7 @@ import { LayoutDashboard, Kanban, Bell, PanelLeftClose, PanelLeft, LogOut, Packa
 import { useSidebarState } from './AppLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useWhatsAppInbox } from '@/hooks/useWhatsAppInbox';
+import { useMyPermissions, permForPath } from '@/hooks/useMemberPermissions';
 import { useWorkspaceFeatures, type FeatureKey } from '@/hooks/useWorkspaceFeatures';
 import { useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -31,7 +32,8 @@ export function AppSidebar() {
   const { unreadCount } = useWhatsAppInbox();
   const { isEnabled } = useWorkspaceFeatures();
   const [aiOpen, setAiOpen] = useState(false);
-  const visibleLinks = links.filter((l) => !l.feature || isEnabled(l.feature));
+  const { can } = useMyPermissions();
+  const visibleLinks = links.filter((l) => (!l.feature || isEnabled(l.feature)) && can(permForPath(l.to)));
 
   return (
     <aside

@@ -3472,6 +3472,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          permissions: Json | null
           receives_leads: boolean
           role: Database["public"]["Enums"]["workspace_role"]
           user_id: string
@@ -3480,6 +3481,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          permissions?: Json | null
           receives_leads?: boolean
           role?: Database["public"]["Enums"]["workspace_role"]
           user_id: string
@@ -3488,6 +3490,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          permissions?: Json | null
           receives_leads?: boolean
           role?: Database["public"]["Enums"]["workspace_role"]
           user_id?: string
