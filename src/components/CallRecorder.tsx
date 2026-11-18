@@ -22,6 +22,7 @@ export function CallRecorderButton({ leadId }: { leadId: string }) {
   const [elapsed, setElapsed] = useState(0);
   const [speech, setSpeech] = useState(0);
   const [talking, setTalking] = useState(false);
+  const [level, setLevel] = useState(0);
   const r = useRef<any>({});
   const canSystem = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia && !/Mobi|Android|iPhone/i.test(navigator.userAgent);
 
@@ -74,6 +75,7 @@ export function CallRecorderButton({ leadId }: { leadId: string }) {
         if (!keep && rec.state === 'recording') rec.pause();
         if (rec.state === 'recording') speechMs += now - last;
         last = now;
+        setLevel(Math.min(1, Math.sqrt(sum / td.length) * 8));
         setTalking(voice);
         setElapsed((now - t0) / 1000);
         setSpeech(speechMs / 1000);
@@ -139,6 +141,7 @@ export function CallRecorderButton({ leadId }: { leadId: string }) {
       toast.error("Erreur lors de l'envoi de l'enregistrement");
     } finally {
       r.current = {};
+      setLevel(0);
       setState('idle'); setElapsed(0); setSpeech(0);
     }
   }
@@ -175,6 +178,13 @@ export function CallRecorderButton({ leadId }: { leadId: string }) {
           {state === 'uploading' ? 'Envoi…' : state === 'paused' ? 'En pause' : talking ? '● Voix' : 'Silence (ignoré)'}
         </span>
       </div>
+      <div className="flex items-end gap-0.5 h-8" aria-label="Niveau du micro">
+        {Array.from({ length: 24 }).map((_, i) => (
+          <div key={i} className={cn('flex-1 rounded-sm transition-all duration-100', level * 24 > i ? (i > 19 ? 'bg-destructive' : 'bg-primary') : 'bg-muted')}
+            style={{ height: `${30 + (i / 24) * 70}%` }} />
+        ))}
+      </div>
+      {state === 'rec' && level < 0.02 && <p className="text-xs text-muted-foreground">Le micro ne capte rien — parle ou vérifie le micro choisi.</p>}
       <div className="flex gap-2">
         <Button onClick={togglePause} variant="outline" className="h-11 flex-1 gap-2" disabled={state === 'uploading'}>
           {state === 'paused' ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}{state === 'paused' ? 'Reprendre' : 'Pause'}
