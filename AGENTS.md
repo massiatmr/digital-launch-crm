@@ -6,3 +6,4 @@
 - Workspace loading accepts pending invitations through a locked, idempotent authenticated RPC before reading memberships; identity comes from the verified account email, and existing membership roles are preserved to prevent duplicate-account and privilege changes.
 - Admin account creation and member password resets go through the `admin-manage-account` function, so only global admins or workspace owners can do them, and owners can't touch accounts that run another workspace.
 - Lead assignment lives on `leads.assigned_to` with a BEFORE INSERT round-robin trigger, so every lead entry path (forms, Meta, WhatsApp, manual) is distributed identically without per-function code.
+- Call-recording reads bind the lead ID to `storage.objects.name` and explicitly check the caller's personal ownership, workspace membership, or admin role; qualifying the object path prevents SQL name shadowing from authorizing unrelated files.

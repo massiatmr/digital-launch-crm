@@ -36,6 +36,13 @@
       "when": 1794960287715,
       "tag": "0004_call_recordings",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794962908275,
+      "tag": "0005_scope_call_recording_reads_to_lead_access",
+      "breakpoints": true
     }
   ]
 }
