@@ -8,7 +8,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { CallRecorderButton, CallRecordingsList } from '@/components/CallRecorder';
+import { CallRecorderButton, CallRecordingDialog, useCallRecordings } from '@/components/CallRecorder';
+import { PlayCircle } from 'lucide-react';
 
 const ACTIVITY_CONFIG: Record<DbActivity['activity_type'], { icon: typeof Phone; label: string; color: string }> = {
   call: { icon: Phone, label: 'Appel', color: 'text-blue-400 bg-blue-400/10 border-blue-400/20' },
@@ -20,7 +21,7 @@ const ACTIVITY_CONFIG: Record<DbActivity['activity_type'], { icon: typeof Phone;
 };
 
 function AddActivityForm({ leadId, onClose }: { leadId: string; onClose: () => void }) {
-  const [type, setType] = useState<DbActivity['activity_type']>('call');
+  const [type, setType] = useState<DbActivity['activity_type']>('note');
   const [description, setDescription] = useState('');
   const [leadResponse, setLeadResponse] = useState('');
   const addActivity = useAddActivity();
@@ -63,8 +64,15 @@ function AddActivityForm({ leadId, onClose }: { leadId: string; onClose: () => v
           </SelectContent>
         </Select>
 
+        {type === 'call' && (
+          <div className="rounded-lg border border-border/50 bg-background/40 p-3 space-y-2">
+            <p className="text-xs text-muted-foreground">Option : enregistre l'appel, la transcription s'ajoute toute seule à l'historique.</p>
+            <CallRecorderButton leadId={leadId} />
+          </div>
+        )}
+
         <Textarea
-          placeholder="Ce que j'ai fait..."
+          placeholder={type === 'call' ? "Notes sur l'appel..." : "Ce que j'ai fait..."}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           className="min-h-[60px] bg-background/50 resize-none"
@@ -98,6 +106,9 @@ function AddActivityForm({ leadId, onClose }: { leadId: string; onClose: () => v
 export function LeadActivityTimeline({ leadId }: { leadId: string }) {
   const { data: activities = [], isLoading } = useLeadActivities(leadId);
   const [showForm, setShowForm] = useState(false);
+  const { data: recordings = [] } = useCallRecordings(leadId);
+  const [openRec, setOpenRec] = useState<any | null>(null);
+  const recByActivity = new Map(recordings.filter((r) => r.activity_id).map((r) => [r.activity_id, r]));
 
   return (
     <div className="rounded-xl border border-border/50 bg-card/80 backdrop-blur-sm p-5 space-y-4">
@@ -115,8 +126,7 @@ export function LeadActivityTimeline({ leadId }: { leadId: string }) {
         </button>
       </div>
 
-      <CallRecorderButton leadId={leadId} />
-      <CallRecordingsList leadId={leadId} />
+      <CallRecordingDialog rec={openRec ? recordings.find((r) => r.id === openRec.id) ?? openRec : null} leadId={leadId} onClose={() => setOpenRec(null)} />
 
       <AnimatePresence>
         {showForm && <AddActivityForm leadId={leadId} onClose={() => setShowForm(false)} />}
@@ -158,6 +168,12 @@ export function LeadActivityTimeline({ leadId }: { leadId: string }) {
                     </span>
                   </div>
                   <p className="mt-0.5 text-sm text-muted-foreground">{activity.description}</p>
+                  {recByActivity.has(activity.id) && (
+                    <button onClick={() => setOpenRec(recByActivity.get(activity.id))}
+                      className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20">
+                      <PlayCircle className="h-4 w-4" /> Écouter & transcription
+                    </button>
+                  )}
                   {activity.lead_response && (
                     <div className="mt-1.5 rounded-lg border border-accent/20 bg-accent/5 px-3 py-2">
                       <span className="text-[10px] font-medium text-accent uppercase tracking-wider">Réponse du lead</span>

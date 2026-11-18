@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCurrentWorkspaceId } from '@/hooks/useWorkspaces';
 import { Mic, Square, Pause, Play, Loader2, Trash2, ChevronDown, RotateCw, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -197,7 +198,7 @@ export function CallRecorderButton({ leadId }: { leadId: string }) {
   );
 }
 
-function RecordingCard({ rec, leadId }: { rec: any; leadId: string }) {
+function RecordingCard({ rec, leadId, onDeleted }: { rec: any; leadId: string; onDeleted?: () => void }) {
   const qc = useQueryClient();
   const [url, setUrl] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -209,6 +210,7 @@ function RecordingCard({ rec, leadId }: { rec: any; leadId: string }) {
     const { data } = await supabase.storage.from('call-recordings').createSignedUrl(rec.storage_path, 3600);
     setUrl(data?.signedUrl ?? null);
   }
+  useEffect(() => { load(); }, [rec.storage_path]);
   async function retry() {
     setBusy(true);
     const { error } = await supabase.functions.invoke('transcribe-call', { body: { recording_id: rec.id } });
@@ -220,11 +222,11 @@ function RecordingCard({ rec, leadId }: { rec: any; leadId: string }) {
     if (!confirm('Supprimer cet enregistrement ?')) return;
     if (rec.storage_path) await supabase.storage.from('call-recordings').remove([rec.storage_path]);
     const { error } = await supabase.from('call_recordings').delete().eq('id', rec.id);
-    if (error) toast.error('Suppression impossible'); else qc.invalidateQueries({ queryKey: ['call_recordings', leadId] });
+    if (error) toast.error('Suppression impossible'); else { qc.invalidateQueries({ queryKey: ['call_recordings', leadId] }); onDeleted?.(); }
   }
 
   return (
-    <div className="rounded-lg border border-border/50 bg-background/40 p-3 space-y-2 text-sm">
+    <div className="space-y-4 text-sm">
       <div className="flex items-center gap-2 flex-wrap">
         <span className="font-medium">📞 {fmt(rec.duration_speech_s)} de voix</span>
         <span className="text-[10px] text-muted-foreground font-mono">{(rec.size_bytes / 1024 / 1024).toFixed(1)} Mo · {formatDistanceToNow(new Date(rec.created_at), { addSuffix: true, locale: fr })}</span>
@@ -242,7 +244,8 @@ function RecordingCard({ rec, leadId }: { rec: any; leadId: string }) {
         </div>
       ) : null}
       {s && (
-        <div className="space-y-1 text-xs">
+        <div className="rounded-lg border border-border/50 bg-background/40 p-3 space-y-2 text-sm">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Résumé</p>
           <p className="text-foreground">{s.resume}</p>
           {s.besoin && <p><b>Besoin :</b> {s.besoin}</p>}
           {s.objections?.length > 0 && <p><b>Objections :</b> {s.objections.join(' · ')}</p>}
@@ -251,18 +254,18 @@ function RecordingCard({ rec, leadId }: { rec: any; leadId: string }) {
       )}
       {rec.transcript && (
         <div>
-          <button onClick={() => setOpen(!open)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-            <ChevronDown className={cn('h-3 w-3 transition-transform', open && 'rotate-180')} /> Transcription complète
+          <button onClick={() => setOpen(!open)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+            <ChevronDown className={cn('h-4 w-4 transition-transform', open && 'rotate-180')} /> Transcription complète
           </button>
-          {open && <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground max-h-64 overflow-y-auto" dir="auto">{rec.transcript}</p>}
+          {open && <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground max-h-[40vh] rounded-lg border border-border/50 bg-background/40 p-3 overflow-y-auto" dir="auto">{rec.transcript}</p>}
         </div>
       )}
     </div>
   );
 }
 
-export function CallRecordingsList({ leadId }: { leadId: string }) {
-  const { data = [] } = useQuery({
+export function useCallRecordings(leadId: string) {
+  return useQuery({
     queryKey: ['call_recordings', leadId],
     queryFn: async () => {
       const { data, error } = await supabase.from('call_recordings').select('*').eq('lead_id', leadId).order('created_at', { ascending: false });
@@ -271,6 +274,15 @@ export function CallRecordingsList({ leadId }: { leadId: string }) {
     },
     refetchInterval: (q) => ((q.state.data as any[] | undefined)?.some((r) => r.status === 'transcribing' || r.status === 'uploaded') ? 4000 : false),
   });
-  if (!data.length) return null;
-  return <div className="space-y-2">{data.map((rec) => <RecordingCard key={rec.id} rec={rec} leadId={leadId} />)}</div>;
+}
+
+export function CallRecordingDialog({ rec, leadId, onClose }: { rec: any | null; leadId: string; onClose: () => void }) {
+  return (
+    <Dialog open={!!rec} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Appel enregistré</DialogTitle></DialogHeader>
+        {rec && <RecordingCard rec={rec} leadId={leadId} onDeleted={onClose} />}
+      </DialogContent>
+    </Dialog>
+  );
 }
