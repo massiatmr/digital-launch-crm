@@ -34,7 +34,14 @@ export function CallRecorderButton({ leadId, onBusyChange }: { leadId: string; o
     if (x.rec && !x.finishing && x.rec.state !== 'inactive') finishRef.current?.();
     else stopAll();
   }, []);
-  useEffect(() => { onBusyChange?.(state !== 'idle'); }, [state]);
+  useEffect(() => {
+    onBusyChange?.(state !== 'idle');
+    if (state === 'idle') return;
+    // Fermer l'onglet ou recharger pendant un appel perdrait l'enregistrement : on demande confirmation.
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [state]);
 
   function stopAll() {
     const x = r.current;
