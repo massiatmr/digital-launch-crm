@@ -15,7 +15,7 @@ import { fr } from 'date-fns/locale';
 const MAX_MS = 60 * 60 * 1000;
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
-export function CallRecorderButton({ leadId }: { leadId: string }) {
+export function CallRecorderButton({ leadId, onBusyChange }: { leadId: string; onBusyChange?: (busy: boolean) => void }) {
   const wsId = useCurrentWorkspaceId();
   const qc = useQueryClient();
   const [lang, setLang] = useState<string>(() => localStorage.getItem('call_rec_lang') || 'darija');
@@ -27,7 +27,14 @@ export function CallRecorderButton({ leadId }: { leadId: string }) {
   const r = useRef<any>({});
   const canSystem = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia && !/Mobi|Android|iPhone/i.test(navigator.userAgent);
 
-  useEffect(() => () => stopAll(), []);
+  const finishRef = useRef<() => void>();
+  // Si le formulaire se ferme pendant l'enregistrement, on sauvegarde l'appel au lieu de le perdre.
+  useEffect(() => () => {
+    const x = r.current;
+    if (x.rec && !x.finishing && x.rec.state !== 'inactive') finishRef.current?.();
+    else stopAll();
+  }, []);
+  useEffect(() => { onBusyChange?.(state !== 'idle'); }, [state]);
 
   function stopAll() {
     const x = r.current;
@@ -98,6 +105,7 @@ export function CallRecorderButton({ leadId }: { leadId: string }) {
     setState(x.manualPause ? 'paused' : 'rec');
   }
 
+  finishRef.current = () => { void finish(); };
   async function finish() {
     const x = r.current;
     if (!x.rec || x.finishing) return;

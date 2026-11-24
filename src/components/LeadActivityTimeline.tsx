@@ -27,6 +27,7 @@ function AddActivityForm({ leadId, onClose }: { leadId: string; onClose: () => v
   const [description, setDescription] = useState('');
   const [leadResponse, setLeadResponse] = useState('');
   const addActivity = useAddActivity();
+  const [recBusy, setRecBusy] = useState(false);
 
   const handleSubmit = () => {
     if (!description.trim()) return;
@@ -50,7 +51,7 @@ function AddActivityForm({ leadId, onClose }: { leadId: string; onClose: () => v
       className="overflow-hidden"
     >
       <div className="rounded-xl border border-border/50 bg-card/80 backdrop-blur-sm p-4 space-y-3">
-        <Select value={type} onValueChange={(v) => setType(v as DbActivity['activity_type'])}>
+        <Select disabled={recBusy} value={type} onValueChange={(v) => setType(v as DbActivity['activity_type'])}>
           <SelectTrigger className="w-full bg-background/50">
             <SelectValue />
           </SelectTrigger>
@@ -69,7 +70,8 @@ function AddActivityForm({ leadId, onClose }: { leadId: string; onClose: () => v
         {type === 'call' && (
           <div className="rounded-lg border border-border/50 bg-background/40 p-3 space-y-2">
             <p className="text-xs text-muted-foreground">Option : enregistre l'appel, la transcription s'ajoute toute seule à l'historique.</p>
-            <CallRecorderButton leadId={leadId} />
+            <CallRecorderButton leadId={leadId} onBusyChange={setRecBusy} />
+            {recBusy && <p className="text-xs font-medium text-amber-400">Termine l'enregistrement avant d'ajouter ou d'annuler.</p>}
           </div>
         )}
 
@@ -88,12 +90,12 @@ function AddActivityForm({ leadId, onClose }: { leadId: string; onClose: () => v
         />
 
         <div className="flex items-center gap-2 justify-end">
-          <button onClick={onClose} className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+          <button onClick={onClose} disabled={recBusy} className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50">
             Annuler
           </button>
           <button
             onClick={handleSubmit}
-            disabled={!description.trim() || addActivity.isPending}
+            disabled={!description.trim() || addActivity.isPending || recBusy}
             className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
             {addActivity.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
