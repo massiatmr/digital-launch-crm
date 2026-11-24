@@ -9,7 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { CallRecorderButton, CallRecordingDialog, useCallRecordings } from '@/components/CallRecorder';
-import { PlayCircle } from 'lucide-react';
+import { PlayCircle, Trash2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 
 const ACTIVITY_CONFIG: Record<DbActivity['activity_type'], { icon: typeof Phone; label: string; color: string }> = {
   call: { icon: Phone, label: 'Appel', color: 'text-blue-400 bg-blue-400/10 border-blue-400/20' },
@@ -108,6 +110,20 @@ export function LeadActivityTimeline({ leadId }: { leadId: string }) {
   const [showForm, setShowForm] = useState(false);
   const { data: recordings = [] } = useCallRecordings(leadId);
   const [openRec, setOpenRec] = useState<any | null>(null);
+  const qc = useQueryClient();
+  async function deleteActivity(activityId: string) {
+    if (!confirm('Supprimer cette interaction ?')) return;
+    const rec: any = recByActivity.get(activityId);
+    if (rec) {
+      if (rec.storage_path) await supabase.storage.from('call-recordings').remove([rec.storage_path]);
+      await supabase.from('call_recordings').delete().eq('id', rec.id);
+    }
+    const { data, error } = await supabase.from('lead_activities').delete().eq('id', activityId).select('id');
+    if (error || !data?.length) { toast.error("Suppression impossible (seul l'auteur peut supprimer)"); return; }
+    toast.success('Interaction supprimée');
+    qc.invalidateQueries({ queryKey: ['activities'] });
+    qc.invalidateQueries({ queryKey: ['call_recordings', leadId] });
+  }
   const recByActivity = new Map(recordings.filter((r) => r.activity_id).map((r) => [r.activity_id, r]));
 
   return (
@@ -166,6 +182,10 @@ export function LeadActivityTimeline({ leadId }: { leadId: string }) {
                     <span className="text-[10px] text-muted-foreground font-mono">
                       {formatDistanceToNow(new Date(activity.created_at), { addSuffix: true, locale: fr })}
                     </span>
+                    <button onClick={() => deleteActivity(activity.id)} aria-label="Supprimer l'interaction"
+                      className="ml-auto p-1 text-muted-foreground hover:text-destructive">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                   <p className="mt-0.5 text-sm text-muted-foreground">{activity.description}</p>
                   {recByActivity.has(activity.id) && (
