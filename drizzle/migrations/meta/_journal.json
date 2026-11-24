@@ -64,6 +64,13 @@
       "when": 1794998118351,
       "tag": "0008_member_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795527654969,
+      "tag": "0009_owners_delete_lead_activities",
+      "breakpoints": true
     }
   ]
 }

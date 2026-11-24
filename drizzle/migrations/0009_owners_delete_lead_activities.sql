@@ -1,0 +1,1 @@
+CREATE POLICY "Workspace owners and admins can delete lead_activities" ON public.lead_activities FOR DELETE TO authenticated USING ((workspace_id IS NOT NULL AND public.is_workspace_owner(workspace_id, auth.uid())) OR public.has_role(auth.uid(), 'admin'::app_role));

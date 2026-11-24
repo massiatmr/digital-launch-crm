@@ -119,7 +119,7 @@ export function LeadActivityTimeline({ leadId }: { leadId: string }) {
       await supabase.from('call_recordings').delete().eq('id', rec.id);
     }
     const { data, error } = await supabase.from('lead_activities').delete().eq('id', activityId).select('id');
-    if (error || !data?.length) { toast.error("Suppression impossible (seul l'auteur peut supprimer)"); return; }
+    if (error || !data?.length) { toast.error("Suppression impossible : tu n'as pas le droit de supprimer cette interaction"); return; }
     toast.success('Interaction supprimée');
     qc.invalidateQueries({ queryKey: ['activities'] });
     qc.invalidateQueries({ queryKey: ['call_recordings', leadId] });
