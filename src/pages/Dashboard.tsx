@@ -277,8 +277,8 @@ export default function Dashboard() {
       <motion.div variants={item} className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">{isManager ? 'Dashboard' : 'Mon dashboard'}</h1>
-          {!isManager && user && (
-            <div className="mt-2"><DailyReportButton userId={user.id} workspaceId={currentWorkspaceId} leads={allLeads} name={(user.user_metadata as any)?.sop_name} /></div>
+          {user && (
+            <div className="mt-2"><DailyReportButton manager={isManager} userId={user.id} workspaceId={currentWorkspaceId} leads={allLeads} name={(user.user_metadata as any)?.sop_name} /></div>
           )}
           {isManager && reps.length > 1 && (
             <Select value={repFilter} onValueChange={setRepFilter}>
