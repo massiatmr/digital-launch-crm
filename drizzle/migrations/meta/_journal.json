@@ -92,6 +92,13 @@
       "when": 1795609889520,
       "tag": "0012_offers_soft_delete_and_vsl",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795619116159,
+      "tag": "0013_fix_invitation_trigger_unassigned_record",
+      "breakpoints": true
     }
   ]
 }
