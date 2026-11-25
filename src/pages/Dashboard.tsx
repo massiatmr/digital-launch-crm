@@ -17,7 +17,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
 import { MetaCampaignsSection } from '@/components/dashboard/MetaCampaignsSection';
-import { useCurrentWorkspaceId } from '@/hooks/useWorkspaces';
+import { useCurrentWorkspaceId, useWorkspaces } from '@/hooks/useWorkspaces';
+import { useAuth } from '@/hooks/useAuth';
+import { DailyReportButton } from '@/components/sop/DailyReportButton';
+import { useIsAdmin } from '@/hooks/useWorkspaceFeatures';
+import { useSalesReps, repLabel } from '@/hooks/useSalesReps';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const container = {
   hidden: { opacity: 0 },
@@ -85,8 +90,18 @@ function KpiCard({ label, value, suffix, subtitle, subtitleColor, icon: Icon, gr
 }
 
 export default function Dashboard() {
-  const { data: allLeads = [], isLoading } = useLeads();
-  const { data: allReminders = [] } = useReminders();
+  const { data: rawLeads = [], isLoading } = useLeads();
+  const { data: rawReminders = [] } = useReminders();
+  const { user } = useAuth();
+  const { currentWorkspace } = useWorkspaces();
+  const { data: isAdmin = false } = useIsAdmin();
+  const isManager = currentWorkspace?.role === 'owner' || isAdmin;
+  const { data: reps = [] } = useSalesReps(currentWorkspace?.id);
+  const [repFilter, setRepFilter] = useState<string>('all');
+  // Members always see only their own numbers; managers can pick one assistant.
+  const repId = isManager ? (repFilter === 'all' ? null : repFilter) : user?.id ?? null;
+  const allLeads = useMemo(() => repId ? rawLeads.filter((l: any) => l.assigned_to === repId || (!l.assigned_to && l.owner_id === repId)) : rawLeads, [rawLeads, repId]);
+  const allReminders = useMemo(() => repId ? rawReminders.filter((r: any) => r.owner_id === repId) : rawReminders, [rawReminders, repId]);
   const toggleReminder = useToggleReminder();
   const isMobile = useIsMobile();
 
@@ -261,7 +276,19 @@ export default function Dashboard() {
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6 sm:space-y-8">
       <motion.div variants={item} className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Dashboard</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">{isManager ? 'Dashboard' : 'Mon dashboard'}</h1>
+          {!isManager && user && (
+            <div className="mt-2"><DailyReportButton userId={user.id} workspaceId={currentWorkspaceId} leads={allLeads} name={(user.user_metadata as any)?.sop_name} /></div>
+          )}
+          {isManager && reps.length > 1 && (
+            <Select value={repFilter} onValueChange={setRepFilter}>
+              <SelectTrigger className="mt-2 h-9 w-56"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toute l'équipe</SelectItem>
+                {reps.map(r => <SelectItem key={r.user_id} value={r.user_id}>{repLabel(r.email)}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
           <p className="mt-1 text-sm text-muted-foreground">
             Vue d'ensemble · <span className="text-foreground font-medium">{periodLabel}</span> · {leads.length} leads
           </p>
@@ -501,13 +528,13 @@ export default function Dashboard() {
       </motion.div>
 
       {/* Meta Ads campaigns */}
-      <motion.div variants={item}>
+      {isManager && !repId && <motion.div variants={item}>
         <MetaCampaignsSection
           workspaceId={currentWorkspaceId}
           dateFrom={rangeFrom}
           dateTo={rangeTo}
         />
-      </motion.div>
+      </motion.div>}
 
       {/* Score distribution + Recent leads */}
       <motion.div variants={item} className="grid gap-4 lg:grid-cols-3">

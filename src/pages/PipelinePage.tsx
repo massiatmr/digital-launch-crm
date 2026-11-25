@@ -1,3 +1,5 @@
+import { useSopConfig } from '@/hooks/useSopConfig';
+import { speedLevel, DEFAULT_SOP } from '@/lib/sop';
 import { csvSafeText } from '@/lib/csvSafe';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -117,6 +119,7 @@ function PipelineCard({
   const { data: cardReps = [] } = useSalesReps((lead as any).workspace_id);
   const assignee = cardReps.length > 1 ? cardReps.find(r => r.user_id === (lead as any).assigned_to) : undefined;
   const cc = useDefaultCountryCode();
+  const { data: sopCfg } = useSopConfig((lead as any).workspace_id);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     pointerStart.current = { x: e.clientX, y: e.clientY };
@@ -168,6 +171,19 @@ function PipelineCard({
             {lead.company_name && (
               <span className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">{lead.company_name}</span>
             )}
+            {lead.status === 'new' && !(lead as any).first_contacted_at && (() => {
+              const mins = Math.max(0, Math.floor((Date.now() - new Date(lead.created_at).getTime()) / 60000));
+              const lvl = speedLevel(mins, sopCfg || DEFAULT_SOP);
+              const txt = mins < 60 ? `${mins} min` : mins < 2880 ? `${Math.floor(mins / 60)} h` : `${Math.floor(mins / 1440)} j`;
+              return (
+                <span className={cn('mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium',
+                  lvl === 'green' && 'bg-emerald-500/15 text-emerald-400',
+                  lvl === 'orange' && 'bg-amber-500/15 text-amber-400 animate-pulse',
+                  lvl === 'red' && 'bg-destructive/15 text-destructive')}>
+                  ⏱ À appeler · {txt}
+                </span>
+              );
+            })()}
             {lead.message && (
               <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{lead.message}</p>
             )}

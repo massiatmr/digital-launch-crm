@@ -25,7 +25,7 @@ export const PERMISSIONS: { key: PermissionKey; label: string }[] = [
 
 /** Default access for a member (non-owner) with no custom settings. */
 export const DEFAULT_MEMBER_PERMISSIONS: Record<PermissionKey, boolean> = {
-  dashboard: false, conversations: true, tasks: true, bookings: true, scripts: true,
+  dashboard: true, conversations: true, tasks: true, bookings: true, scripts: true,
   clients: false, offers: false, campaigns: false, ai_monitor: false, automation: false, trash: false, import: false,
 };
 

@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { Bot, Plug, FlaskConical, UserPlus, Building2, User, Bell, ShieldAlert, Trash2, History, MessageSquareText, Sparkles, Mail, MessageSquare } from 'lucide-react';
+import { Bot, Plug, FlaskConical, UserPlus, Building2, User, Bell, ShieldAlert, Trash2, History, MessageSquareText, Sparkles, Mail, MessageSquare, ClipboardList } from 'lucide-react';
 import SettingsSandboxPage from './SettingsSandboxPage';
 import SettingsAutomationPage from './SettingsAutomationPage';
 import SettingsAiBehaviorPage from './SettingsAiBehaviorPage';
@@ -13,6 +13,7 @@ import SettingsNotificationsPage from './SettingsNotificationsPage';
 import SettingsTrashPage from './SettingsTrashPage';
 import SettingsAuditPage from './SettingsAuditPage';
 import SettingsEmailLogsPage from './SettingsEmailLogsPage';
+import SettingsSopPage from './SettingsSopPage';
 import { useIsAdmin, useWorkspaceFeatures } from '@/hooks/useWorkspaceFeatures';
 import { useWorkspaces } from '@/hooks/useWorkspaces';
 import { cn } from '@/lib/utils';
@@ -37,6 +38,7 @@ const SECTIONS: Section[] = [
   { key: 'automation', label: 'Automatisation', icon: Bot, description: 'Séquences, IA, templates', group: 'Workspace', feature: 'whatsapp', Component: SettingsAutomationPage },
   { key: 'ai-behavior', label: 'Comportement IA', icon: Sparkles, description: 'Personnalité, garde-fous, prompts contextuels', group: 'Workspace', feature: 'whatsapp', Component: SettingsAiBehaviorPage },
   { key: 'scripts', label: 'Scripts de relance', icon: MessageSquareText, description: 'Messages pré-écrits par phase pour relancer manuellement', group: 'Workspace', Component: SettingsScriptsPage },
+  { key: 'sop', label: 'Process (SOP)', icon: ClipboardList, description: 'Messages A à H, liens, délai de rappel, mes infos', group: 'Workspace', Component: SettingsSopPage },
   { key: 'integrations', label: 'Intégrations', icon: Plug, description: 'WhatsApp, Meta, Google Calendar', group: 'Workspace', ownerOnly: true, Component: SettingsIntegrationsPage },
   { key: 'trash', label: 'Corbeille', icon: Trash2, description: 'Restaurer les éléments supprimés (30 jours)', group: 'Workspace', Component: SettingsTrashPage },
   { key: 'audit', label: 'Journal d\'audit', icon: History, description: 'Historique complet des suppressions', group: 'Système', adminOnly: true, Component: SettingsAuditPage },

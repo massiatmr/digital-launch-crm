@@ -3583,6 +3583,7 @@ export type Database = {
           signature_url: string | null
           siret: string | null
           slug: string | null
+          sop_config: Json
           updated_at: string
           vat_number: string | null
         }
@@ -3612,6 +3613,7 @@ export type Database = {
           signature_url?: string | null
           siret?: string | null
           slug?: string | null
+          sop_config?: Json
           updated_at?: string
           vat_number?: string | null
         }
@@ -3641,6 +3643,7 @@ export type Database = {
           signature_url?: string | null
           siret?: string | null
           slug?: string | null
+          sop_config?: Json
           updated_at?: string
           vat_number?: string | null
         }
