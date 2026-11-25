@@ -397,7 +397,7 @@ export function LeadDetailContent({
               <SopQuickActions lead={lead} />
               <LeadTasksSection leadId={lead.id} leadName={lead.name} />
               <LeadBookingsSection leadId={lead.id} />
-              <LeadActivityTimeline leadId={lead.id} />
+              <LeadActivityTimeline leadId={lead.id} lead={lead} />
 
             </TabsContent>
           </div>

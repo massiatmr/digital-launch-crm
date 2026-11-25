@@ -12,6 +12,8 @@ import { CallRecorderButton, CallRecordingDialog, useCallRecordings } from '@/co
 import { PlayCircle, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
+import { useSopTemplates } from '@/components/sop/SopQuickActions';
+import { toWhatsAppUrl } from '@/lib/phone';
 
 const ACTIVITY_CONFIG: Record<DbActivity['activity_type'], { icon: typeof Phone; label: string; color: string }> = {
   call: { icon: Phone, label: 'Appel', color: 'text-blue-400 bg-blue-400/10 border-blue-400/20' },
@@ -22,15 +24,29 @@ const ACTIVITY_CONFIG: Record<DbActivity['activity_type'], { icon: typeof Phone;
   meeting: { icon: Users, label: 'RDV', color: 'text-pink-400 bg-pink-400/10 border-pink-400/20' },
 };
 
-function AddActivityForm({ leadId, onClose }: { leadId: string; onClose: () => void }) {
+function AddActivityForm({ leadId, lead, onClose }: { leadId: string; lead?: any; onClose: () => void }) {
+  const sop = useSopTemplates(lead ?? { id: leadId });
+  const [tplKey, setTplKey] = useState<string | null>(null);
   const [type, setType] = useState<DbActivity['activity_type']>('note');
   const [description, setDescription] = useState('');
   const [leadResponse, setLeadResponse] = useState('');
   const addActivity = useAddActivity();
   const [recBusy, setRecBusy] = useState(false);
 
+  const sendWhatsApp = async () => {
+    if (!description.trim() || !sop) return;
+    if (/\{[^{}]+\}/.test(description) && !confirm('Il reste des champs entre {accolades} à remplir. Envoyer quand même ?')) return;
+    if (lead?.phone) window.open(`${toWhatsAppUrl(lead.phone, sop.cc)}?text=${encodeURIComponent(description.trim())}`, '_blank');
+    const tpl = sop.messages.find((m) => m.key === tplKey);
+    const resp = leadResponse.trim();
+    await sop.log('whatsapp', `${tpl ? `Message ${tpl.label}` : 'Message'} envoyé (WhatsApp perso) :\n${description.trim()}${resp ? `\n\nRéponse : ${resp}` : ''}`);
+    toast.success('WhatsApp noté dans l\'historique');
+    onClose();
+  };
+
   const handleSubmit = () => {
     if (!description.trim()) return;
+    if (type === 'whatsapp' && lead && sop) { sendWhatsApp(); return; }
     addActivity.mutate(
       { leadId, activityType: type, description: description.trim(), leadResponse: leadResponse.trim() || undefined },
       {
@@ -75,8 +91,24 @@ function AddActivityForm({ leadId, onClose }: { leadId: string; onClose: () => v
           </div>
         )}
 
+        {type === 'whatsapp' && sop && sop.messages.length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-xs text-muted-foreground">Choisis un modèle (modifiable) ou écris ton message :</p>
+            <div className="flex flex-wrap gap-1.5">
+              {sop.messages.map((m) => (
+                <button key={m.key} type="button" title={m.when}
+                  onClick={() => { setTplKey(m.key); setDescription(sop.render(m)); }}
+                  className={cn('rounded-full border px-2.5 py-1 text-xs transition-colors', tplKey === m.key ? 'border-primary bg-primary/15 text-foreground' : 'border-border/60 text-muted-foreground hover:text-foreground')}>
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <Textarea
-          placeholder={type === 'call' ? "Notes sur l'appel..." : "Ce que j'ai fait..."}
+          rows={type === 'whatsapp' ? 7 : undefined}
+          placeholder={type === 'whatsapp' ? 'Message WhatsApp...' : type === 'call' ? "Notes sur l'appel..." : "Ce que j'ai fait..."}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           className="min-h-[60px] bg-background/50 resize-none"
@@ -99,7 +131,7 @@ function AddActivityForm({ leadId, onClose }: { leadId: string; onClose: () => v
             className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
             {addActivity.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
-            Ajouter
+            {type === 'whatsapp' && lead && sop ? (lead.phone ? 'Ouvrir WhatsApp' : 'Marquer envoyé') : 'Ajouter'}
           </button>
         </div>
       </div>
@@ -107,7 +139,7 @@ function AddActivityForm({ leadId, onClose }: { leadId: string; onClose: () => v
   );
 }
 
-export function LeadActivityTimeline({ leadId }: { leadId: string }) {
+export function LeadActivityTimeline({ leadId, lead }: { leadId: string; lead?: any }) {
   const { data: activities = [], isLoading } = useLeadActivities(leadId);
   const [showForm, setShowForm] = useState(false);
   const { data: recordings = [] } = useCallRecordings(leadId);
@@ -147,7 +179,7 @@ export function LeadActivityTimeline({ leadId }: { leadId: string }) {
       <CallRecordingDialog rec={openRec ? recordings.find((r) => r.id === openRec.id) ?? openRec : null} leadId={leadId} onClose={() => setOpenRec(null)} />
 
       <AnimatePresence>
-        {showForm && <AddActivityForm leadId={leadId} onClose={() => setShowForm(false)} />}
+        {showForm && <AddActivityForm leadId={leadId} lead={lead} onClose={() => setShowForm(false)} />}
       </AnimatePresence>
 
       {isLoading ? (
