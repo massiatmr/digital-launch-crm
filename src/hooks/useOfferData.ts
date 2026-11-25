@@ -79,7 +79,7 @@ export function useOffers() {
   return useQuery({
     queryKey: ['offers', wsId],
     queryFn: async () => {
-      let q: any = supabase.from('offers').select('*');
+      let q: any = supabase.from('offers').select('*').is('deleted_at', null);
       if (wsId) q = q.eq('workspace_id', wsId);
       const { data, error } = await q.order('created_at', { ascending: false });
       if (error) throw error;

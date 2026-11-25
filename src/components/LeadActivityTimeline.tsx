@@ -56,7 +56,7 @@ function AddActivityForm({ leadId, onClose }: { leadId: string; onClose: () => v
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {Object.entries(ACTIVITY_CONFIG).map(([key, cfg]) => (
+            {Object.entries(ACTIVITY_CONFIG).filter(([k]) => k !== 'relance' && k !== 'meeting').map(([key, cfg]) => (
               <SelectItem key={key} value={key}>
                 <span className="flex items-center gap-2">
                   <cfg.icon className="h-3.5 w-3.5" />

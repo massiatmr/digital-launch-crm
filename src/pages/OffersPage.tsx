@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useOffers, useCreateOffer, useDeleteOffer, useUpdateOffer } from '@/hooks/useOfferData';
@@ -11,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Package, Plus, ExternalLink, Trash2, Eye, EyeOff, Users, CalendarCheck, Loader2, Sparkles, Pencil } from 'lucide-react';
 import { motion } from 'framer-motion';
-import OfferAIWizard from '@/components/offers/OfferAIWizard';
+import { Label } from '@/components/ui/label';
 import { useNavigate } from 'react-router-dom';
 import { DialogFooter } from '@/components/ui/dialog';
 
@@ -24,21 +25,32 @@ export default function OffersPage() {
   const deleteOffer = useDeleteOffer();
   const updateOffer = useUpdateOffer();
   const [open, setOpen] = useState(false);
-  const [aiOpen, setAiOpen] = useState(false);
-  const [renameOffer, setRenameOffer] = useState<{ id: string; name: string } | null>(null);
-  const [form, setForm] = useState({ name: '', description: '', price: '', niche: '' });
+  const empty = { name: '', description: '', price: '', niche: '', vsl_link: '' };
+  const [editId, setEditId] = useState<string | null>(null);
+  const [form, setForm] = useState(empty);
+  const busy = createOffer.isPending || updateOffer.isPending;
 
-  const handleRename = async () => {
-    if (!renameOffer || !renameOffer.name.trim()) return;
-    await updateOffer.mutateAsync({ id: renameOffer.id, name: renameOffer.name.trim() });
-    setRenameOffer(null);
+  const openCreate = () => { setEditId(null); setForm(empty); setOpen(true); };
+  const openEdit = (o: any) => {
+    setEditId(o.id);
+    setForm({ name: o.name || '', description: o.description || '', price: o.price || '', niche: o.niche || '', vsl_link: o.vsl_link || '' });
+    setOpen(true);
   };
 
-  const handleCreate = async () => {
+  const handleSave = async () => {
     if (!form.name.trim()) return;
-    await createOffer.mutateAsync(form);
-    setForm({ name: '', description: '', price: '', niche: '' });
-    setOpen(false);
+    try {
+      if (editId) {
+        await updateOffer.mutateAsync({ id: editId, ...form, name: form.name.trim(), vsl_link: form.vsl_link.trim() || null });
+      } else {
+        const { vsl_link, ...rest } = form;
+        const created: any = await createOffer.mutateAsync({ ...rest, name: form.name.trim() });
+        if (vsl_link.trim() && created?.id) await updateOffer.mutateAsync({ id: created.id, vsl_link: vsl_link.trim() });
+      }
+      setOpen(false);
+    } catch (e: any) {
+      toast.error(e?.message || 'Erreur');
+    }
   };
 
   const getOfferStats = (offerId: string) => {
@@ -59,11 +71,11 @@ export default function OffersPage() {
           <p className="text-muted-foreground text-sm mt-1">{offers?.length || 0} offre(s)</p>
         </div>
         <Button
-          onClick={() => setAiOpen(true)}
+          onClick={openCreate}
           className="bg-primary hover:bg-primary/90"
         >
-          <Sparkles className="h-4 w-4 mr-2" />
-          Créer avec l'IA
+          <Plus className="h-4 w-4 mr-2" />
+          Nouvelle offre
         </Button>
       </div>
 
@@ -90,14 +102,15 @@ export default function OffersPage() {
                         {offer.is_active ? <Eye className="h-4 w-4 text-green-400" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
                       </button>
                       <button
-                        onClick={() => setRenameOffer({ id: offer.id, name: offer.name })}
+                        onClick={() => openEdit(offer)}
                         className="p-1.5 rounded-md hover:bg-muted transition-colors"
-                        title="Renommer"
+                        title="Modifier"
                       >
                         <Pencil className="h-4 w-4 text-muted-foreground hover:text-primary" />
                       </button>
                       <button
-                        onClick={() => deleteOffer.mutate(offer.id)}
+                        onClick={() => { if (confirm(`Supprimer l'offre « ${offer.name} » ?`)) deleteOffer.mutate(offer.id); }}
+                        title="Supprimer"
                         className="p-1.5 rounded-md hover:bg-destructive/10 transition-colors"
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
@@ -113,12 +126,6 @@ export default function OffersPage() {
                     <span className="flex items-center gap-1"><CalendarCheck className="h-3.5 w-3.5" />{stats.bookings} RDV</span>
                   </div>
                     <div className="flex gap-2 pt-2">
-                    <Link to={`/offers/${offer.id}/studio`} className="flex-1">
-                      <Button variant="outline" size="sm" className="w-full">
-                        <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-                        Studio
-                      </Button>
-                    </Link>
                     {offer.is_active && (
                       <Link to={`/offers/${offer.slug}/page`} target="_blank">
                         <Button variant="ghost" size="sm"><ExternalLink className="h-4 w-4" /></Button>
@@ -140,26 +147,20 @@ export default function OffersPage() {
         )}
       </div>
 
-      <OfferAIWizard
-        open={aiOpen}
-        onOpenChange={setAiOpen}
-        onCreated={(offerId) => navigate(`/offers/${offerId}/studio`)}
-      />
-
-      <Dialog open={!!renameOffer} onOpenChange={(o) => !o && setRenameOffer(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Renommer l'offre</DialogTitle></DialogHeader>
-          <Input
-            value={renameOffer?.name || ''}
-            onChange={(e) => setRenameOffer((r) => r ? { ...r, name: e.target.value } : r)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleRename(); }}
-            placeholder="Nom de l'offre"
-            autoFocus
-          />
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>{editId ? "Modifier l'offre" : 'Nouvelle offre'}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><Label>Nom</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} autoFocus /></div>
+            <div><Label>Niche</Label><Input value={form.niche} onChange={(e) => setForm({ ...form, niche: e.target.value })} /></div>
+            <div><Label>Prix</Label><Input value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} /></div>
+            <div><Label>Description</Label><Textarea rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+            <div><Label>Lien vidéo VSL</Label><Input value={form.vsl_link} onChange={(e) => setForm({ ...form, vsl_link: e.target.value })} placeholder="https://…" /></div>
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRenameOffer(null)}>Annuler</Button>
-            <Button onClick={handleRename} disabled={!renameOffer?.name.trim() || updateOffer.isPending}>
-              {updateOffer.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            <Button variant="outline" onClick={() => setOpen(false)}>Annuler</Button>
+            <Button onClick={handleSave} disabled={!form.name.trim() || busy}>
+              {busy && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Enregistrer
             </Button>
           </DialogFooter>

@@ -29,9 +29,19 @@ export function SopQuickActions({ lead }: { lead: any }) {
   const { data: booking } = useQuery({
     queryKey: ['sop-next-booking', lead.id],
     queryFn: async () => {
-      const { data } = await supabase.from('bookings').select('booking_date,time_slot,meet_link,offer_id,offers(name)')
+      const { data } = await supabase.from('bookings').select('booking_date,time_slot,meet_link,offer_id,offers(name,vsl_link)')
         .eq('lead_id', lead.id).is('deleted_at', null).neq('status', 'cancelled')
         .order('booking_date', { ascending: false }).limit(1).maybeSingle();
+      return data as any;
+    },
+  });
+
+  const leadOfferId = (lead as any).offer_id as string | null;
+  const { data: leadOffer } = useQuery({
+    queryKey: ['sop-lead-offer', leadOfferId],
+    enabled: !!leadOfferId,
+    queryFn: async () => {
+      const { data } = await supabase.from('offers').select('name,vsl_link').eq('id', leadOfferId!).maybeSingle();
       return data as any;
     },
   });
@@ -49,8 +59,8 @@ export function SopQuickActions({ lead }: { lead: any }) {
     Date: bDate ? format(bDate, 'd MMMM', { locale: fr }) : '',
     Heure: booking?.time_slot?.slice(0, 5)?.replace(':', 'h') || '',
     'Lien visio': booking?.meet_link || cfg.visio_link,
-    'Lien VSL': cfg.vsl_link,
-    Offre: booking?.offers?.name || '',
+    'Lien VSL': booking?.offers?.vsl_link || leadOffer?.vsl_link || cfg.vsl_link,
+    Offre: booking?.offers?.name || leadOffer?.name || '',
   };
 
   const log = async (type: 'call' | 'whatsapp', description: string) => {

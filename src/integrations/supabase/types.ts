@@ -2572,6 +2572,7 @@ export type Database = {
           show_price: boolean
           slug: string
           updated_at: string
+          vsl_link: string | null
           workspace_id: string | null
         }
         Insert: {
@@ -2590,6 +2591,7 @@ export type Database = {
           show_price?: boolean
           slug: string
           updated_at?: string
+          vsl_link?: string | null
           workspace_id?: string | null
         }
         Update: {
@@ -2608,6 +2610,7 @@ export type Database = {
           show_price?: boolean
           slug?: string
           updated_at?: string
+          vsl_link?: string | null
           workspace_id?: string | null
         }
         Relationships: [

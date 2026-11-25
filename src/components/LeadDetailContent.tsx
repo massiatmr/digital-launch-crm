@@ -203,7 +203,6 @@ export function LeadDetailContent({
           <div className="w-full min-w-0 max-w-full space-y-4 pb-40 sm:pb-6 pr-1 sm:pr-2" style={{ paddingBottom: 'max(10rem, calc(env(safe-area-inset-bottom) + 8rem))' }}>
 
             <TabsContent value="overview" className="mt-0 space-y-4">
-              <SopQuickActions lead={lead} />
               <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
                 <div className="sm:hidden">
                   <CreateBookingForLeadDialog lead={lead} />
@@ -395,6 +394,7 @@ export function LeadDetailContent({
             )}
 
             <TabsContent value="activities" className="mt-0 space-y-4">
+              <SopQuickActions lead={lead} />
               <LeadTasksSection leadId={lead.id} leadName={lead.name} />
               <LeadBookingsSection leadId={lead.id} />
               <LeadActivityTimeline leadId={lead.id} />

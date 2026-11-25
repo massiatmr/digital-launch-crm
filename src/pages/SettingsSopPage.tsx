@@ -62,7 +62,7 @@ export default function SettingsSopPage() {
             <div><Label>Nom de l'entreprise ({'{Entreprise}'})</Label><Input value={cfg.company_label} onChange={(e) => set({ company_label: e.target.value })} placeholder={currentWorkspace?.company_name} /></div>
             <div><Label>Consultant ({'{Consultant}'})</Label><Input value={cfg.consultant_name} onChange={(e) => set({ consultant_name: e.target.value })} placeholder="Massi" /></div>
             <div><Label>Lien visio par défaut ({'{Lien visio}'})</Label><Input value={cfg.visio_link} onChange={(e) => set({ visio_link: e.target.value })} placeholder="Utilisé si le RDV n'a pas de lien" /></div>
-            <div><Label>Lien vidéo ({'{Lien VSL}'})</Label><Input value={cfg.vsl_link} onChange={(e) => set({ vsl_link: e.target.value })} placeholder="https://…" /></div>
+            <div><Label>Lien vidéo par défaut ({'{Lien VSL}'})</Label><Input value={cfg.vsl_link} onChange={(e) => set({ vsl_link: e.target.value })} placeholder="Utilisé si l'offre n'a pas de lien" /></div>
             <div><Label>Rappel vert jusqu'à (min)</Label><Input type="number" value={cfg.speed_green_min} onChange={(e) => set({ speed_green_min: Number(e.target.value) || 0 })} /></div>
             <div><Label>Rouge à partir de (min)</Label><Input type="number" value={cfg.speed_red_min} onChange={(e) => set({ speed_red_min: Number(e.target.value) || 0 })} /></div>
           </div>
